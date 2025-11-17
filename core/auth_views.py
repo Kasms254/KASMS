@@ -147,10 +147,7 @@ def change_password_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_token_view(request):
-    """
-    Verify if the current token is valid
-    POST /api/auth/token/verify/
-    """
+
     return Response({
         'message': 'Token is valid',
         'user': UserListSerializer(request.user).data
