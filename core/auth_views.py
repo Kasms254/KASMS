@@ -20,17 +20,18 @@ def get_tokens_for_user(user):
 @permission_classes([AllowAny])
 def login_view(request):
  
-    username = request.data.get('username')
+    # username = request.data.get('username')
+    svc_number = request.data.get('svc_number')
     password = request.data.get('password')
     
-    if not username or not password:
+    if not svc_number or not password:
         return Response(
-            {'error': 'Username and password are required'},
+            {'error': 'Service Number and password are required'},
             status=status.HTTP_400_BAD_REQUEST
         )
     
     # Authenticate user
-    user = authenticate(username=username, password=password)
+    user = authenticate(request, svc_number=svc_number, password=password)
     
     if user is None:
         return Response(

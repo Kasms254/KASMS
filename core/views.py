@@ -129,7 +129,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 
     def get_queryset(self):
-        # Course has no created_by relation; just annotate classes count
+       
         return Course.objects.annotate(
             classes_count=Count('classes', distinct=True)
         )
