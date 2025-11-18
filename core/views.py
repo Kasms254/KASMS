@@ -129,7 +129,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 
     def get_queryset(self):
-
+        # Course has no created_by relation; just annotate classes count
         return Course.objects.annotate(
             classes_count=Count('classes', distinct=True)
         )
@@ -187,7 +187,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         
         return super().get_queryset().annotate(
-            enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True, distinct=True))
+            enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True)
         )
     def perform_create(self, serializer):
         serializer.save()

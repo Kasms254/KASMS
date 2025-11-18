@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Django local DB
+db.sqlite3
+
+# Uploaded media and static build output
+media/
+staticfiles/
+
+# Local env files
+.env
+.env.*
+
+# Editor directories and OS files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+
+# Node (frontend) - optional, frontend has its own .gitignore
+node_modules/
+dist/

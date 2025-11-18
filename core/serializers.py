@@ -65,17 +65,12 @@ class UserListSerializer(serializers.ModelSerializer):
         return f"{obj.first_name} {obj.last_name}"
     
 class CourseSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
 
     class Meta:
         model = Course
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'total_classes')
-
-    
-    def get_created_by_name(self, obj):
-        return obj.created_by.get_full_name() if obj.created_by else None
+        read_only_fields = ('created_at', 'updated_at', 'total_classes')
     
     def validate_code(self, value):
         if self.instance:

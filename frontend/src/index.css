@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* You can add custom global styles below if desired. Tailwind's
+   utilities should cover most needs. */
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Use Inter as the primary UI font, fall back to the system sans stack */
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* Remove default link underlines globally so Tailwind/utility classes control presentation */
+a {
+  text-decoration: none;
+}
+
+/* Make media (images, videos, iframes, svg, canvas) responsive by default */
+img, picture, video, canvas, svg, iframe, embed, object {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Fluid base font size for better readability across devices */
+:root {
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  :root { font-size: 14px; }
+}
+
+@media (min-width: 1400px) {
+  :root { font-size: 18px; }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
