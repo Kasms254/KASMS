@@ -1,33 +1,57 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import AuthContext from './authContext'
 import * as authStore from '../lib/auth'
+import * as api from '../lib/api'
 
 export function AuthProvider({ children }) {
-  // Remove any demo token left over from development runs while we wait for a real API.
+  // initialize token from storage if present
+  const [token, setToken] = useState(() => authStore.getToken())
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // try to load current user when token exists
   useEffect(() => {
+    let mounted = true
+    async function fetchUser() {
+      if (!token) return
+      setLoading(true)
+      try {
+        const me = await api.getCurrentUser()
+        if (mounted) setUser(me)
+      } catch {
+        // token may be invalid; clear it
+        authStore.logout()
+        if (mounted) setToken(null)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    fetchUser()
+    return () => {
+      mounted = false
+    }
+  }, [token])
+
+  const login = useCallback(async (username, password) => {
+    setLoading(true)
     try {
-      authStore.logout()
-    } catch {
-      // ignore
+      const resp = await api.login(username, password)
+      // API may return { token, user }
+      const newToken = resp?.token || resp?.access || null
+      const userInfo = resp?.user || resp?.data || null
+      if (!newToken) throw new Error('No token returned from login')
+      authStore.login(newToken)
+      setToken(newToken)
+      setUser(userInfo)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) }
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  // Do not initialize any user or token automatically. All auth must come from the real API.
-  const [token, setToken] = useState(null)
-  const [user, setUser] = useState(null)
-  const loading = false
-
-  // login is intentionally a no-op for now. When the backend is available, implement
-  // token persistence and user extraction here.
-  function login() {
-    // Example (commented):
-    // authStore.login(newToken)
-    // setToken(newToken)
-    // setUser(userInfo)
-    console.warn('AuthProvider.login called but auth is disabled until API is integrated')
-  }
-
-  function logout() {
+  const logout = useCallback(() => {
     try {
       authStore.logout()
     } catch {
@@ -35,7 +59,7 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
-  }
+  }, [])
 
   return (
     <AuthContext.Provider value={{ token, user, loading, login, logout }}>

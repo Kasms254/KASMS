@@ -12,6 +12,33 @@ dist
 dist-ssr
 *.local
 
+# Local env files (secrets)
+.env
+.venv
+.env.local
+.env.*.local
+
+# Build output
+build/
+.next/
+out/
+
+# Tooling caches
+.cache/
+.parcel-cache/
+.vite/
+.turbo/
+
+# Test coverage
+coverage/
+
+# Misc
+.eslintcache
+.sass-cache
+npm-debug.log*
+yarn.lock
+package-lock.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

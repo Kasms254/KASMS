@@ -7,9 +7,10 @@ export default function Card({
   value,
   icon, // optional icon name string (lucide)
   className = '',
-  badgeClass = 'bg-white/5 px-2 py-1 rounded-full text-black',
+  badgeClass = 'bg-white/90 px-2 py-1 rounded-full text-black border border-neutral-200',
   accent = 'bg-indigo-600',
   colored = false,
+  children,
 }) {
   const IconComp = icon ? LucideIcons[icon] : null
 
@@ -22,7 +23,8 @@ export default function Card({
     'bg-amber-500': { bg: 'bg-amber-50', text: 'text-amber-800', plate: 'bg-amber-500' },
     'bg-pink-500': { bg: 'bg-pink-50', text: 'text-pink-800', plate: 'bg-pink-500' },
     // fallback
-    default: { bg: 'bg-white/95 dark:bg-gray-800/80', text: 'text-gray-900 dark:text-gray-100', plate: 'bg-indigo-600' },
+    // make the default card light and legible (avoid very dark cards)
+    default: { bg: 'bg-white', text: 'text-gray-900', plate: 'bg-indigo-600' },
   }
 
     const acc = accentMap[accent] || accentMap.default
@@ -32,7 +34,7 @@ export default function Card({
 
   return (
   <div
-    className={`relative rounded-xl p-3 sm:p-4 flex-1 min-w-0 ${outerBg} ${className} border border-transparent hover:shadow-lg transition-shadow duration-200`}
+    className={`relative rounded-xl p-3 sm:p-4 flex-1 min-w-0 ${outerBg} ${className} border border-neutral-200 hover:shadow-lg transition-shadow duration-200`}
   >
       {/* accent stripe */}
   <div className={`absolute top-0 left-0 h-1 w-12 md:w-16 ${plateClass} rounded-tl-xl`} />
@@ -48,6 +50,9 @@ export default function Card({
 
         <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold my-3 sm:my-4 text-black truncate">{value ?? '-'}</h1>
         <h2 className="capitalize text-sm sm:text-sm md:text-base font-medium text-black truncate">{title}</h2>
+        {children ? (
+          <div className="mt-2 text-xs text-neutral-500">{children}</div>
+        ) : null}
     </div>
   )
 }

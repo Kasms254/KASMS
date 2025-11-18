@@ -5,7 +5,7 @@ const typeMap = {
   admin: { title: 'Admins', accent: 'bg-indigo-600', icon: 'Shield' },
   teacher: { title: 'Instructors', accent: 'bg-emerald-500', icon: 'BookOpen' },
   student: { title: 'Students', accent: 'bg-sky-500', icon: 'Users' },
-  subject: { title: 'Subject', accent: 'bg-amber-500', icon: 'Home' },
+  subject: { title: 'Subjects', accent: 'bg-amber-500', icon: 'Home' },
 }
 
 export default function UserCard({ type = 'student', count = null }) {

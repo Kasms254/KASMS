@@ -14,8 +14,19 @@ export default function NavBar({
   const auth = useAuth()
   const user = auth.user || null
 
+  // derive a display name from fields returned by the backend
+  const displayName = useMemo(() => {
+    if (!user) return null
+    // prefer serializer-provided full_name, then first+last, then username, then svc_number
+    const full = user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    if (full) return full
+    if (user.username) return user.username
+    if (user.svc_number) return user.svc_number
+    return null
+  }, [user])
+
   const initials = useMemo(() => {
-    const name = user?.name || ''
+    const name = displayName || ''
     if (!name) return 'U'
     return name
       .split(' ')
@@ -23,7 +34,7 @@ export default function NavBar({
       .slice(0, 2)
       .join('')
       .toUpperCase()
-  }, [user])
+  }, [displayName])
 
   // dropdown close
   useEffect(() => {
@@ -151,7 +162,7 @@ export default function NavBar({
 
             <div className="hidden md:flex flex-col text-left">
               <span className="text-sm font-medium text-neutral-800 leading-4">
-                {user?.name || 'Guest'}
+                {displayName || 'Guest'}
               </span>
               <span className="text-xs text-neutral-500">{user?.role || 'visitor'}</span>
             </div>

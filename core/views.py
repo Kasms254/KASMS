@@ -122,36 +122,44 @@ class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active']
+    # Course model does not have `is_active` nor `level` fields here — keep filters aligned with model
+    filterset_fields = []
     search_fields = ['name', 'description', 'code']
-    ordering_fields = ['created_at', 'name', 'level']
+    ordering_fields = ['created_at', 'name']
     ordering = ['-created_at']
 
 
     def get_queryset(self):
-
+        # Course has no created_by relation; just annotate classes count
         return Course.objects.annotate(
-            classes_count=Count('classes', distinct=True).select_related('created_by')
+            classes_count=Count('classes', distinct=True)
         )
     
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
 
     @action(detail=True, methods=['get'])
-    def classes(self, request):
-        active_courses = self.get_queryset().filter(is_active=True)
-        serializer = self.get_serializer(active_courses, many=True)
+    def classes(self, request, pk=None):
+        # Return classes for a single course (detail route). Filter on Class.is_active
+        course = self.get_object()
+        classes_qs = course.classes.filter(is_active=True)
+        serializer = ClassSerializer(classes_qs, many=True)
         return Response({
-            'count': active_courses.count(),
+            'count': classes_qs.count(),
             'results': serializer.data
         })
     
     @action(detail=True, methods=['get'])
     def stats(self, request):
-        stats ={
-            'total_courses': Course.objects.count(),
-            'active_courses': Course.objects.filter(is_active=True).count(),
-            'inactive_courses': Course.objects.filter(is_active=False).count(),
+        # Course model may or may not have `is_active` depending on migrations; handle both
+        has_is_active = any(f.name == 'is_active' for f in Course._meta.get_fields())
+        total_courses = Course.objects.count()
+        active_courses = Course.objects.filter(is_active=True).count() if has_is_active else total_courses
+        inactive_courses = Course.objects.filter(is_active=False).count() if has_is_active else 0
+        stats = {
+            'total_courses': total_courses,
+            'active_courses': active_courses,
+            'inactive_courses': inactive_courses,
             'total_classes': Class.objects.count(),
             'active_classes': Class.objects.filter(is_active=True).count(),
         }
@@ -160,7 +168,8 @@ class CourseViewSet(viewsets.ModelViewSet):
     
 class ClassViewSet(viewsets.ModelViewSet):
 
-    queryset = Class.objects.select_related('course', 'instructor', 'created_by').all()
+    # Class model does not currently define `created_by` — avoid selecting it
+    queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
@@ -177,10 +186,10 @@ class ClassViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         
         return super().get_queryset().annotate(
-            enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True, distinct=True))
+            enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True)
         )
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
 
     @action(detail=True, methods=['get'])
     def subjects(self, request, pk=None):
@@ -269,7 +278,8 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        # Subject model does not define `created_by` in current schema
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def assign_instructor(self, request, pk=None):
