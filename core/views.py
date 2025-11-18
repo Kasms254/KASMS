@@ -122,7 +122,6 @@ class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    # Course model does not have `is_active` nor `level` fields here — keep filters aligned with model
     filterset_fields = []
     search_fields = ['name', 'description', 'code']
     ordering_fields = ['created_at', 'name']
@@ -140,35 +139,37 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
-        # Return classes for a single course (detail route). Filter on Class.is_active
         course = self.get_object()
         classes_qs = course.classes.filter(is_active=True)
         serializer = ClassSerializer(classes_qs, many=True)
-        return Response({
-            'count': classes_qs.count(),
-            'results': serializer.data
-        })
+        return Response(
+            {
+                'count':classes_qs.count(),
+                'results':serializer.data
+            }
+        )
     
     @action(detail=True, methods=['get'])
     def stats(self, request):
-        # Course model may or may not have `is_active` depending on migrations; handle both
+
         has_is_active = any(f.name == 'is_active' for f in Course._meta.get_fields())
         total_courses = Course.objects.count()
         active_courses = Course.objects.filter(is_active=True).count() if has_is_active else total_courses
         inactive_courses = Course.objects.filter(is_active=False).count() if has_is_active else 0
-        stats = {
+        active_classes = Course.objects.filter(is_active=True).count()
+
+        stats ={
             'total_courses': total_courses,
-            'active_courses': active_courses,
+            'active_courses': active_courses,  
             'inactive_courses': inactive_courses,
-            'total_classes': Class.objects.count(),
-            'active_classes': Class.objects.filter(is_active=True).count(),
+            'total_classes': total_courses,
+            'active_classes': active_classes
         }
 
         return Response(stats)
     
 class ClassViewSet(viewsets.ModelViewSet):
 
-    # Class model does not currently define `created_by` — avoid selecting it
     queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -278,7 +279,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        # Subject model does not define `created_by` in current schema
         serializer.save()
 
     @action(detail=True, methods=['post'])
