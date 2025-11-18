@@ -122,45 +122,55 @@ class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active']
+    filterset_fields = []
     search_fields = ['name', 'description', 'code']
-    ordering_fields = ['created_at', 'name', 'level']
+    ordering_fields = ['created_at', 'name']
     ordering = ['-created_at']
 
 
     def get_queryset(self):
 
         return Course.objects.annotate(
-            classes_count=Count('classes', distinct=True).select_related('created_by')
+            classes_count=Count('classes', distinct=True)
         )
     
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
 
     @action(detail=True, methods=['get'])
-    def classes(self, request):
-        active_courses = self.get_queryset().filter(is_active=True)
-        serializer = self.get_serializer(active_courses, many=True)
-        return Response({
-            'count': active_courses.count(),
-            'results': serializer.data
-        })
+    def classes(self, request, pk=None):
+        course = self.get_object()
+        classes_qs = course.classes.filter(is_active=True)
+        serializer = ClassSerializer(classes_qs, many=True)
+        return Response(
+            {
+                'count':classes_qs.count(),
+                'results':serializer.data
+            }
+        )
     
     @action(detail=True, methods=['get'])
     def stats(self, request):
+
+        has_is_active = any(f.name == 'is_active' for f in Course._meta.get_fields())
+        total_courses = Course.objects.count()
+        active_courses = Course.objects.filter(is_active=True).count() if has_is_active else total_courses
+        inactive_courses = Course.objects.filter(is_active=False).count() if has_is_active else 0
+        active_classes = Course.objects.filter(is_active=True).count()
+
         stats ={
-            'total_courses': Course.objects.count(),
-            'active_courses': Course.objects.filter(is_active=True).count(),
-            'inactive_courses': Course.objects.filter(is_active=False).count(),
-            'total_classes': Class.objects.count(),
-            'active_classes': Class.objects.filter(is_active=True).count(),
+            'total_courses': total_courses,
+            'active_courses': active_courses,  
+            'inactive_courses': inactive_courses,
+            'total_classes': total_courses,
+            'active_classes': active_classes
         }
 
         return Response(stats)
     
 class ClassViewSet(viewsets.ModelViewSet):
 
-    queryset = Class.objects.select_related('course', 'instructor', 'created_by').all()
+    queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
@@ -180,7 +190,7 @@ class ClassViewSet(viewsets.ModelViewSet):
             enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True, distinct=True))
         )
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
 
     @action(detail=True, methods=['get'])
     def subjects(self, request, pk=None):
@@ -269,7 +279,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def assign_instructor(self, request, pk=None):

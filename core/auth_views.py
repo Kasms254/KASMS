@@ -8,7 +8,6 @@ from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
 from .serializers import UserSerializer, UserListSerializer
 
-
 def get_tokens_for_user(user):
   
     refresh = RefreshToken.for_user(user)
@@ -16,7 +15,6 @@ def get_tokens_for_user(user):
         'refresh': str(refresh),
         'access': str(refresh.access_token),
     }
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -59,7 +57,6 @@ def login_view(request):
         'user': user_data
     }, status=status.HTTP_200_OK)
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
@@ -78,7 +75,6 @@ def logout_view(request):
             'error': 'Invalid token or token already blacklisted'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh_view(request):
@@ -93,14 +89,12 @@ def token_refresh_view(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):
 
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -141,8 +135,6 @@ def change_password_view(request):
         'access': tokens['access'],
         'refresh': tokens['refresh']
     }, status=status.HTTP_200_OK)
-
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
