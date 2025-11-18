@@ -32,10 +32,10 @@ export function AuthProvider({ children }) {
     }
   }, [token])
 
-  const login = useCallback(async (username, password) => {
+  const login = useCallback(async (svc_number, password) => {
     setLoading(true)
     try {
-      const resp = await api.login(username, password)
+      const resp = await api.login(svc_number, password)
       // API may return { token, user }
       const newToken = resp?.token || resp?.access || null
       const userInfo = resp?.user || resp?.data || null
