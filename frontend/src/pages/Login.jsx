@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 
 export default function Login() {
-  const [username, setUsername] = useState('')
+  const [svc_number, setSvc_number] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [show, setShow] = useState(false)
@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true)
     setError(null)
     try {
-      const result = await login(username, password)
+      const result = await login(svc_number, password)
       if (result.ok) {
         // go to dashboard after successful login
         navigate('/dashboard')
@@ -76,16 +76,16 @@ export default function Login() {
 
           <form onSubmit={onSubmit} className="space-y-4">
             <label className="block">
-              <span className="text-sm text-gray-700">Username</span>
+              <span className="text-sm text-gray-700">Service Number</span>
               <div className="mt-1 relative">
                 {renderIcon('Mail', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
                 <input
                   type="text"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={svc_number}
+                  onChange={(e) => setSvc_number(e.target.value)}
                   className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  placeholder="username"
+                  placeholder="Service Number"
                 />
               </div>
             </label>

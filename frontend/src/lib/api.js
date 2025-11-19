@@ -37,8 +37,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   return data
 }
 
-export async function login(username, password) {
-  return request('/api/auth/login/', { method: 'POST', body: { username, password } })
+export async function login(svc_number, password) {
+  return request('/api/auth/login/', { method: 'POST', body: { svc_number, password } })
 }
 
 export async function getCurrentUser() {

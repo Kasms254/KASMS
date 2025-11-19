@@ -4,10 +4,18 @@ from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
 
-
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password],style={'input_type': 'password'})
     password2 = serializers.CharField(write_only=True, required=True, label= 'Confirm password',style={'input_type': 'password'})
     full_name = serializers.SerializerMethodField(read_only=True)
+
+    class_obj = serializers.PrimaryKeyRelatedField(
+        queryset=Class.objects.filter(is_active=True),
+        required=False,
+        write_only=True,
+        allow_null=True,
+        help_text="Required if role is 'student'"
+    )
+
     class Meta:
         model = User
         fields = '__all__'
@@ -18,12 +26,24 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
         }
+        
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
     
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password2'):
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
+
+        role = attrs.get('role')
+        class_obj = attrs.get('class_obj')
+
+        if role  == 'student' and class_obj:
+            if class_obj.current_enrollment >= class_obj.capacity:
+                raise serializers.ValidationError({
+                    "class_obj": f"Class '{class_obj.name}' is at full capacity."
+                })
+            
         return attrs
     
     def validate_email(self, value):
@@ -37,17 +57,33 @@ class UserSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
+
+        class_obj = validated_data.pop('class_obj', None)
         validated_data.pop('password2')
         password = validated_data.pop('password')
+
+
         user = User.objects.create(**validated_data)
         user.set_password(password)
         user.save()
+
+        if user.role == 'student' and class_obj:
+            enrolled_by = self.context.get('request').user if self.context.get('request') else None
+
+            if not Enrollment.objects.filter(student=user, class_obj=class_obj).exists():
+                Enrollment.objects.create(
+                    student=user,
+                    class_obj=class_obj,
+                    enrolled_by = enrolled_by,
+                    is_active = True
+                )
         return user
 
     def update(self, instance, validated_data):
 
         validated_data.pop('password', None)
         validated_data.pop('password2', None)
+        validated_data.pop('class_obj', None)
         return super().update(instance, validated_data)
     
 

@@ -183,3 +183,8 @@ CSRF_TRUSTED_ORIGINS = [
 
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
+
+AUTHENTICATION_BACKENDS = [
+    'core.backends.SvcNumberBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]

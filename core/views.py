@@ -60,6 +60,27 @@ class UserViewSet(viewsets.ModelViewSet):
             'count': commandants.count(),
             'results': serializer.data
         })
+    
+    @action(detail=True, methods=['get'])
+    def enrollments(self, request, pk=None):
+
+        user = self.get_object()
+
+        if user.role != 'student':
+            return Response({
+                'error': 'User is not a student'
+            },
+            status=status.HTTP_400_BAD_REQUEST)
+
+        enrollments = Enrollment.objects.filter(student=user).select_related('class_obj', 'enrolled_by')
+        serializer = EnrollmentSerializer(enrollments, many=True)
+
+        return Response({
+            'count': enrollments.count(),
+            'active': enrollments.filter(is_active=True).count(),
+            'results': serializer.data
+        })
+
     @action(detail=False, methods=['get'])
     def stats(self, request):
         stats = {
@@ -129,7 +150,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 
     def get_queryset(self):
-        # Course has no created_by relation; just annotate classes count
+       
         return Course.objects.annotate(
             classes_count=Count('classes', distinct=True)
         )
@@ -265,7 +286,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
 class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
@@ -343,7 +363,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
