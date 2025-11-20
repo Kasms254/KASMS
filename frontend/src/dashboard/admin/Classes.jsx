@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject } from '../../lib/api'
+import { getClasses, getInstructors, addSubject, getClassEnrolledStudents } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 
 export default function ClassesList(){
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(false)
+  const [showOnlyActive, setShowOnlyActive] = useState(true)
   // global modal open state; class selection is handled inside the form
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
@@ -13,21 +14,37 @@ export default function ClassesList(){
   const toast = useToast()
   const modalRef = useRef(null)
 
-  const loadActiveClasses = useCallback(async () => {
+  const loadClasses = useCallback(async () => {
     setLoading(true)
     try{
-      // backend supports filtering; request only active classes
-      const data = await getClasses('is_active=true')
+      // If showOnlyActive is true request only active classes, otherwise request all
+      const params = showOnlyActive ? 'is_active=true' : ''
+      const data = await getClasses(params)
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       setClasses(list)
+
+      // fetch enrolled students count for each class (do not block the UI)
+      try{
+        const counts = await Promise.allSettled(list.map((cl) => getClassEnrolledStudents(cl.id).catch(() => null)))
+        const mapped = list.map((cl, idx) => {
+          const res = counts[idx]
+          let studentsCount = null
+          if (res && res.status === 'fulfilled' && res.value) {
+            const v = res.value
+            studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
+          }
+          return { ...cl, students_count: studentsCount }
+        })
+        setClasses(mapped)
+  }catch{ /* ignore per-class failures */ }
     }catch{
       if (toast?.error) toast.error('Failed to load classes')
       else if (toast?.showToast) toast.showToast('Failed to load classes', { type: 'error' })
       else console.error('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [toast])
+  }, [toast, showOnlyActive])
 
-  useEffect(()=>{ loadActiveClasses() }, [loadActiveClasses])
+  useEffect(()=>{ loadClasses() }, [loadClasses])
 
   async function openAddSubjectModal(classId = ''){
     try{
@@ -63,8 +80,8 @@ export default function ClassesList(){
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       else console.log('Subject added')
-      closeModal()
-      await loadActiveClasses()
+  closeModal()
+  await loadClasses()
     }catch(err){
       const d = err?.data
       if (d && typeof d === 'object'){
@@ -91,19 +108,39 @@ export default function ClassesList(){
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-semibold text-black">Active classes</h2>
-          <p className="text-sm text-neutral-500">Only active classes are shown. Click a class to view details.</p>
+          <h2 className="text-xl font-semibold text-black">Classes</h2>
+          <p className="text-sm text-neutral-500">Click a class to view details. Toggle to include inactive classes.</p>
         </div>
         <div>
-          <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-sm text-black">
+              <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
+              <span>Show inactive classes</span>
+            </label>
+            <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
-          classes.length === 0 ? <div className="text-sm text-neutral-400">No active classes found</div> : classes.map(c => (
+          classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
             <div key={c.id} className="relative">
-              <Card title={c.class_code || c.name} value={c.name} badge={`${c.subjects_count ?? 0} subjects`} icon="Layers" accent="bg-emerald-500" colored={true} />
+              <Card
+                title={c.class_code || c.name}
+                value={c.name}
+                badge={`${c.subjects_count ?? 0} subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
+                icon="Layers"
+                accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
+                colored={true}
+              >
+                <div>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
+                <div className="mt-1">{c.start_date || ''} → {c.end_date || ''}</div>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                  <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
+                </div>
+              </Card>
             </div>
           ))
         )}
@@ -120,18 +157,18 @@ export default function ClassesList(){
                 </div>
                 <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
               </div>
-                  <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                    <input placeholder="Subject code" value={form.subject_code} onChange={(e) => setForm({ ...form, subject_code: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                    <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
-                      <option value="">— Select class —</option>
-                      {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
-                    </select>
-                    <textarea placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black md:col-span-3" rows={3} />
-                    <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
-                      <option value="">— Select instructor —</option>
-                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                    </select>
+              <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
+                <input placeholder="Subject code" value={form.subject_code} onChange={(e) => setForm({ ...form, subject_code: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
+                <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
+                  <option value="">— Select class —</option>
+                  {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
+                </select>
+                <textarea placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black md:col-span-3" rows={3} />
+                <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
+                  <option value="">— Select instructor —</option>
+                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                </select>
 
                 <div className="md:col-span-3 flex justify-end gap-2 mt-2">
                   <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>

@@ -23,7 +23,7 @@ const menuItems = [
       {
         icon: 'Users',
         label: 'Students',
-        href: '/list/students',
+        href: '/dashboard/students',
         visible: ['admin', 'instructor'],
       },
       

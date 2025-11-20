@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import api from '../../lib/api'
 
 function initials(name = '') {
   return name
@@ -11,31 +12,61 @@ function initials(name = '') {
 
 export default function AdminStudents() {
   const [students, setStudents] = useState([])
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', className: '' })
-  const nameInputRef = useRef(null)
-  const modalRef = useRef(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  // edit / delete UI state
+  const [editingStudent, setEditingStudent] = useState(null)
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, class_obj: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [classesList, setClassesList] = useState([])
+  const [currentEnrollment, setCurrentEnrollment] = useState(null)
+  
 
+  // fetch students from API on mount
   useEffect(() => {
-    if (!modalOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    // focus first input
-    setTimeout(() => nameInputRef.current?.focus(), 0)
-    function onKey(e) {
-      if (e.key === 'Escape') setModalOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
+    let mounted = true
+    api
+      .getStudents()
+      .then((data) => {
+        if (!mounted) return
+        // unwrap paginated responses
+        const list = Array.isArray(data) ? data : (data && Array.isArray(data.results) ? data.results : data || [])
+        // normalize shape used by this component
+        const mapped = list.map((u) => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+          svc_number: u.svc_number,
+          email: u.email,
+          phone_number: u.phone_number,
+          is_active: u.is_active,
+          created_at: u.created_at,
+          // backend may include class name under different keys; fall back to 'Unassigned'
+          className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
+        }))
+        setStudents(mapped)
+      })
+      .catch((err) => {
+        if (!mounted) return
+        setError(err)
+      })
+      .finally(() => {
+        if (!mounted) return
+        setLoading(false)
+      })
     return () => {
-      document.body.style.overflow = prev
-      document.removeEventListener('keydown', onKey)
+      mounted = false
     }
-  }, [modalOpen])
+  }, [])
 
   const groups = useMemo(() => {
     const g = {}
     students.forEach((s) => {
-      const k = s.className || 'Unassigned'
+      const k = s.className || s.class_name || 'Unassigned'
       if (!g[k]) g[k] = []
       g[k].push(s)
     })
@@ -75,7 +106,13 @@ export default function AdminStudents() {
     const q = debouncedQuery.toLowerCase()
     const res = {}
     Object.keys(groups).forEach((cls) => {
-      const matches = groups[cls].filter((st) => st.name.toLowerCase().includes(q) || (st.className || '').toLowerCase().includes(q))
+      const matches = groups[cls].filter((st) =>
+        (st.name || '').toLowerCase().includes(q) ||
+        (st.svc_number || '').toLowerCase().includes(q) ||
+        (st.email || '').toLowerCase().includes(q) ||
+        (st.phone_number || '').toLowerCase().includes(q) ||
+        (st.className || '').toLowerCase().includes(q)
+      )
       if (matches.length) res[cls] = matches
     })
     return res
@@ -86,23 +123,15 @@ export default function AdminStudents() {
     return Object.values(filteredGroups).reduce((acc, arr) => acc + arr.length, 0)
   }, [filteredGroups, debouncedQuery])
 
-  function openModal() {
-    setForm({ name: '', className: '' })
-    setModalOpen(true)
-  }
-
-  function addStudent(e) {
-    e.preventDefault()
-    if (!form.name.trim()) return
-    setStudents((s) => [...s, { id: Date.now(), name: form.name.trim(), className: form.className.trim() }])
-    setModalOpen(false)
-  }
+  
 
   function downloadCSV() {
-    const rows = [['Class', 'Name']]
+    // Export Service No first, then Name, Class, Email, Phone, Active, Created
+    const rows = [['Service No', 'Name', 'Class', 'Email', 'Phone', 'Active', 'Created']]
+
     const classes = Object.keys(groups).sort()
     classes.forEach((c) => {
-      groups[c].forEach((st) => rows.push([c, st.name]))
+      groups[c].forEach((st) => rows.push([st.svc_number || '', st.name || '', c, st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No', st.created_at ? new Date(st.created_at).toLocaleString() : '']))
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -115,6 +144,119 @@ export default function AdminStudents() {
     URL.revokeObjectURL(url)
   }
 
+  // ----- Edit / Delete handlers -----
+  function openEdit(st) {
+    setEditingStudent(st)
+    setEditForm({
+      first_name: st.first_name || '',
+      last_name: st.last_name || '',
+      email: st.email || '',
+      phone_number: st.phone_number || '',
+      svc_number: st.svc_number || '',
+      is_active: !!st.is_active,
+      class_obj: st.class_obj || '',
+    })
+    // fetch classes (if not loaded) and the student's enrollments to get active class
+    if (classesList.length === 0) {
+      api.getClasses().then((c) => setClassesList(Array.isArray(c) ? c : (c && c.results) || [])).catch(() => {})
+    }
+    api.getUserEnrollments(st.id).then((d) => {
+      const list = Array.isArray(d) ? d : (d && Array.isArray(d.results) ? d.results : d && d.results ? d.results : (d && d.enrollments) || [])
+      // pick the active enrollment if any
+      const active = list && list.find((e) => e.is_active) || null
+      setCurrentEnrollment(active)
+      if (active && active.class_obj) {
+        setEditForm((f) => ({ ...f, class_obj: active.class_obj }))
+      }
+    }).catch(() => setCurrentEnrollment(null))
+  }
+
+  function closeEdit() {
+    setEditingStudent(null)
+    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true })
+  }
+
+  function handleEditChange(key, value) {
+    setEditForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function submitEdit(e) {
+    e.preventDefault()
+    if (!editingStudent) return
+    setEditLoading(true)
+    try {
+      const payload = {
+        first_name: editForm.first_name,
+        last_name: editForm.last_name,
+        email: editForm.email,
+        phone_number: editForm.phone_number,
+        svc_number: editForm.svc_number,
+        is_active: editForm.is_active,
+      }
+      const updated = await api.partialUpdateUser(editingStudent.id, payload)
+      // normalize returned user into the shape used by this component
+      const norm = {
+        id: updated.id,
+        first_name: updated.first_name,
+        last_name: updated.last_name,
+        full_name: updated.full_name || `${updated.first_name || ''} ${updated.last_name || ''}`.trim(),
+        name: updated.full_name || `${updated.first_name || ''} ${updated.last_name || ''}`.trim(),
+        svc_number: updated.svc_number,
+        email: updated.email,
+        phone_number: updated.phone_number,
+        is_active: updated.is_active,
+        created_at: updated.created_at,
+        className: updated.class_name || updated.class || updated.class_obj_name || updated.className || 'Unassigned',
+      }
+      setStudents((s) => s.map((x) => (x.id === norm.id ? norm : x)))
+      // if class changed, create a new enrollment
+      try {
+        const selectedClass = editForm.class_obj
+        const currentClassId = currentEnrollment && currentEnrollment.class_obj ? currentEnrollment.class_obj : null
+        if (selectedClass && String(selectedClass) !== String(currentClassId)) {
+          // POST enrollment { student, class_obj }
+          await api.addEnrollment({ student: editingStudent.id, class_obj: selectedClass })
+          // update local student's className from classesList if available
+          const cls = classesList.find((c) => String(c.id) === String(selectedClass))
+          if (cls) {
+            setStudents((s) => s.map((x) => (x.id === norm.id ? { ...x, className: cls.name } : x)))
+          }
+        }
+      } catch (err) {
+        // enrollment error: show alert but keep user updated
+        alert('Failed to update enrollment: ' + (err.message || String(err)))
+      }
+      closeEdit()
+    } catch (err) {
+      setError(err)
+      // simple user feedback
+      alert('Failed to update student: ' + (err.message || String(err)))
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  // show confirm modal (instead of window.confirm)
+  function handleDelete(st) {
+    setConfirmDelete(st)
+  }
+
+  async function performDelete(st) {
+    if (!st) return
+    setDeletingId(st.id)
+    try {
+      await api.deleteUser(st.id)
+      setStudents((s) => s.filter((x) => x.id !== st.id))
+      setConfirmDelete(null)
+    } catch (err) {
+      setError(err)
+      // prefer toast later; keep simple for now
+      alert('Failed to delete student: ' + (err.message || String(err)))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4">
       <header className="flex items-center justify-between mb-6">
@@ -124,8 +266,7 @@ export default function AdminStudents() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md border border-neutral-200 bg-green-600 text-white text-neutral-700 hover:shadow">Download CSV</button>
-          <button onClick={openModal} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm shadow hover:bg-indigo-700">Add student</button>
+          <button onClick={downloadCSV} className="px-3 py-2 rounded-md border border-neutral-200 bg-green-600 text-white hover:shadow">Download CSV</button>
         </div>
       </header>
 
@@ -147,9 +288,14 @@ export default function AdminStudents() {
         {debouncedQuery ? (
           <div className="text-sm text-neutral-600">Found {totalMatches} result{totalMatches !== 1 ? 's' : ''} for "{debouncedQuery}"</div>
         ) : null}
-        {Object.keys(groups).length === 0 && (
+
+        {error ? (
+          <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading students: {error.message || String(error)}</div>
+        ) : loading ? (
+          <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading students…</div>
+        ) : Object.keys(groups).length === 0 ? (
           <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No students yet. Use "Add student" to create one.</div>
-        )}
+        ) : null}
 
   <div className="flex flex-col gap-6">
           {Object.keys(filteredGroups).length === 0 && !debouncedQuery && (
@@ -179,17 +325,46 @@ export default function AdminStudents() {
 
                 {isOpen && (
                   <div className="p-4">
-                    <ul className="divide-y">
-                      {(list.slice(0, visible)).map((st) => (
-                        <li key={st.id} className="py-3 flex items-center gap-3 hover:bg-neutral-50 rounded-md px-2">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name)}</div>
-                          <div className="flex-1">
-                            <div className="font-medium text-black">{st.name}</div>
-                          </div>
-                          <div className="text-sm text-neutral-500">{st.className || 'Unassigned'}</div>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full table-auto">
+                        <thead>
+                          <tr className="text-left">
+                            <th className="px-4 py-2 text-sm text-neutral-600">Service No</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Email</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Phone</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Active</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Created</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {list.slice(0, visible).map((st) => (
+                            <tr key={st.id} className="border-t last:border-b hover:bg-neutral-50">
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.svc_number || '-'}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name || st.svc_number)}</div>
+                                  <div>
+                                    <div className="font-medium text-black">{st.name || '-'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.email || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.phone_number || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.is_active ? 'Yes' : 'No'}</td>
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.created_at ? new Date(st.created_at).toLocaleString() : '-'}</td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button onClick={() => openEdit(st)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
+                                  <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
                     {list.length > visible && (
                       <div className="mt-3 text-center">
@@ -204,69 +379,88 @@ export default function AdminStudents() {
         </div>
       </section>
 
-      {/* Modal */}
-      {modalOpen && (
+      {editingStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
 
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-student-title"
-            className="relative z-10 w-full max-w-md"
-          >
-            <form
-              onSubmit={addStudent}
-              ref={modalRef}
-              className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5"
-            >
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h4 id="add-student-title" className="text-lg text-black font-medium">Add student</h4>
-                  <p className="text-sm text-neutral-500">Create a new student record and assign to a class.</p>
+                  <h4 className="text-lg text-black font-medium">Edit student</h4>
+                  <p className="text-sm text-neutral-500">Update student details (class assignment is handled via enrollments).</p>
                 </div>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-md p-2 text-red-700 hover:bg-neutral-100"
-                >
-                  ✕
-                </button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
               </div>
 
               <div className="mt-4">
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Name</div>
-                  <input
-                    ref={nameInputRef}
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    placeholder="e.g. Alice Johnson"
-                    required
-                  />
+                  <div className="text-sm text-neutral-600 mb-1">First name</div>
+                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                 </label>
 
-                <label className="block mb-4">
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Last name</div>
+                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Service No</div>
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Class</div>
-                  <input
-                    value={form.className}
-                    onChange={(e) => setForm((f) => ({ ...f, className: e.target.value }))}
-                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    placeholder="e.g. Grade 5A"
-                  />
+                  <select value={editForm.class_obj || ''} onChange={(e) => handleEditChange('class_obj', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <option value="">Unassigned</option>
+                    {classesList.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Email</div>
+                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Phone</div>
+                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
+                  <span className="text-sm text-neutral-600">Active</span>
                 </label>
               </div>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm shadow">Add student</button>
+                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md border text-sm bg-red-600">Cancel</button>
+                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm">{editLoading ? 'Saving...' : 'Save changes'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+      {/* Confirm delete modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
+              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
+
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md border bg-indigo-600 text-sm">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   )
 }

@@ -10,25 +10,28 @@ import AddUser from '../../pages/AddUser'
 export default function AdminDashboard() {
   const { user } = useAuth()
   const [showAdd, setShowAdd] = useState(false)
-  const [metrics, setMetrics] = useState({ students: null, instructors: null, admins: null, subjects: null })
+  const [metrics, setMetrics] = useState({ students: null, instructors: null, admins: null, subjects: null, active_classes: null })
 
   async function loadMetrics() {
     try {
-      const [studentsResp, instructorsResp, usersResp, subjectsResp] = await Promise.all([
+      const [studentsResp, instructorsResp, usersResp, subjectsResp, classesResp] = await Promise.all([
         api.getStudents().catch(() => null),
         api.getInstructors().catch(() => null),
         api.getUsers().catch(() => null),
         api.getSubjects().catch(() => null),
+        api.getClasses('is_active=true').catch(() => null),
       ])
       const studentsCount = Array.isArray(studentsResp) ? studentsResp.length : (studentsResp?.count ?? null)
       const instructorsCount = Array.isArray(instructorsResp) ? instructorsResp.length : (instructorsResp?.count ?? null)
       const adminsCount = usersResp ? (Array.isArray(usersResp.results) ? usersResp.results.filter(u => u.role === 'admin').length : null) : null
       const subjectsCount = Array.isArray(subjectsResp) ? subjectsResp.length : (subjectsResp?.count ?? null)
+      const activeClassesCount = Array.isArray(classesResp) ? classesResp.length : (classesResp?.count ?? null)
       setMetrics({
         students: studentsCount,
         instructors: instructorsCount,
         admins: adminsCount,
         subjects: subjectsCount,
+        active_classes: activeClassesCount,
       })
     } catch {
       // ignore
@@ -62,7 +65,7 @@ export default function AdminDashboard() {
         </Link>
 
   <UserCard type="subject" count={metrics.subjects} />
-        <Card title="Active classes" value={null} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
+        <Card title="Active classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
       {/* Admin actions - only show for admins */}
