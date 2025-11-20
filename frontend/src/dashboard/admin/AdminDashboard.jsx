@@ -56,11 +56,11 @@ export default function AdminDashboard() {
 
       {/* Cards grid - modern layout */}
         <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-        <Link to="/dashboard/students" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+        <Link to="/list/students" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
           <UserCard type="students" count={metrics.students} />
         </Link>
 
-        <Link to="/dashboard/instructors" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+        <Link to="/list/instructors" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
           <UserCard type="instructors" count={metrics.instructors} />
         </Link>
 

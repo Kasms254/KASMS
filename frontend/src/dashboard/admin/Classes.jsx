@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { getClasses, getInstructors, addSubject, getClassEnrolledStudents } from '../../lib/api'
+import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 
 export default function ClassesList(){
   const [classes, setClasses] = useState([])
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showOnlyActive, setShowOnlyActive] = useState(true)
   // global modal open state; class selection is handled inside the form
@@ -18,8 +20,28 @@ export default function ClassesList(){
     setLoading(true)
     try{
       // If showOnlyActive is true request only active classes, otherwise request all
-      const params = showOnlyActive ? 'is_active=true' : ''
-      const data = await getClasses(params)
+      let params = showOnlyActive ? 'is_active=true' : ''
+      // If current user is an instructor, prefer to request only classes they teach
+      if (user && user.role === 'instructor') {
+        params = params ? `${params}&instructor=${user.id}` : `instructor=${user.id}`
+      }
+
+      // Try server-side filtering first; fall back to client-side filtering if that fails
+      let data
+      try {
+        data = await getClasses(params)
+  } catch {
+        // fallback: try fetching all classes and filter locally for instructors
+        const all = await getClasses()
+        const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
+        const list = user && user.role === 'instructor'
+          ? listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
+          : listAll
+        setClasses(list)
+        // still fetch student counts below using the list we have
+        data = list
+      }
+
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       setClasses(list)
 
@@ -42,7 +64,7 @@ export default function ClassesList(){
       else if (toast?.showToast) toast.showToast('Failed to load classes', { type: 'error' })
       else console.error('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [toast, showOnlyActive])
+  }, [toast, showOnlyActive, user])
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
