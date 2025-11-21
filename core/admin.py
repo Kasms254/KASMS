@@ -5,8 +5,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'first_name', 'last_name','svc_number', 'phone_number', 'role', 'is_active', 'is_staff')
-    list_filter = ('role', 'is_active', 'is_staff', 'svc_number')
+    list_display = ('username', 'email', 'first_name', 'last_name','svc_number', 'phone_number', 'role', 'is_active', 'is_staff', 'rank')
+    list_filter = ('role', 'is_active', 'is_staff', 'svc_number', 'rank')
     search_fields = ('username', 'email', 'svc_number', 'phone_number')
     ordering = ['-created_at']
 
