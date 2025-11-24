@@ -117,4 +117,3 @@ Ordering:
   ?ordering=name,-created_at    (multiple)
 
 
-"""

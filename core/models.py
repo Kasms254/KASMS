@@ -53,7 +53,7 @@ class Course(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField()
-    # Fields added in migration 0002; keep them in the model so DB and ORM match
+  
     level = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
