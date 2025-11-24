@@ -15,6 +15,7 @@ class UserSerializer(serializers.ModelSerializer):
         allow_null=True,
         help_text="Required if role is 'student'"
     )
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
 
     class Meta:
         model = User
@@ -84,6 +85,7 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('password', None)
         validated_data.pop('password2', None)
         validated_data.pop('class_obj', None)
+        validated_data.pop('class_name', None)
         return super().update(instance, validated_data)
     
 
@@ -91,15 +93,27 @@ class UserListSerializer(serializers.ModelSerializer):
 
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     full_name = serializers.SerializerMethodField()
+    class_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'role_display', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'role_display', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at', 'class_name']
         read_only_fields = ('created_at', 'updated_at')
     
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
     
+    def get_class_name(self, obj):
+        if obj.role == 'student':
+            enrollment = Enrollment.objects.filter(
+                student = obj,
+                is_active = True
+            ).select_related('class_obj').first()
+
+            if enrollment and enrollment.class_obj:
+                return enrollment.class_obj.name
+        return None
+        
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
 

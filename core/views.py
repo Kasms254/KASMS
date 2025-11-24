@@ -29,9 +29,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.action == 'list':
-            return queryset.only(
-                'id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_active', 'created_at'
-            )
+            return queryset.prefetch_related('enrollment_set__class_obj'
+                                             ).only(
+                                                'id','username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at', 'class_name'
+                                             )
         return queryset
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
