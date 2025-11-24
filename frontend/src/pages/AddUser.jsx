@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 import useToast from '../hooks/useToast'
@@ -19,10 +19,13 @@ export default function AddUser({ onSuccess } = {}) {
     svc_number: '',
     phone_number: '',
     role: 'student',
+    class_obj: '',
     password: '',
     password2: '',
     is_active: true,
   })
+  const [classes, setClasses] = useState([])
+  const [loadingClasses, setLoadingClasses] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
@@ -31,8 +34,35 @@ export default function AddUser({ onSuccess } = {}) {
 
   function onChange(e) {
     const { name, value, type, checked } = e.target
-    setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }))
+    setForm((f) => {
+      // if role changes away from student, clear class_obj
+      if (name === 'role' && value !== 'student') {
+        return { ...f, [name]: type === 'checkbox' ? checked : value, class_obj: '' }
+      }
+      return { ...f, [name]: type === 'checkbox' ? checked : value }
+    })
   }
+
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      setLoadingClasses(true)
+      try {
+        // Request only active classes from the backend
+        const data = await api.getClasses('is_active=true')
+        if (!mounted) return
+        // expect array
+        setClasses(Array.isArray(data) ? data : [])
+      } catch {
+        // show empty list on error
+        setClasses([])
+      } finally {
+        if (mounted) setLoadingClasses(false)
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
 
   async function onSubmit(e) {
     e.preventDefault()
@@ -42,6 +72,12 @@ export default function AddUser({ onSuccess } = {}) {
     // basic client-side checks
     if (!form.username || !form.first_name || !form.last_name || !form.email || !form.svc_number || !form.password || !form.password2) {
       setError('Please fill in all required fields')
+      return
+    }
+    // require class for students
+    if (form.role === 'student' && !form.class_obj) {
+      setFieldErrors({ class_obj: 'Please select a class' })
+      setError('Please select a class for students')
       return
     }
     if (form.password !== form.password2) {
@@ -67,6 +103,7 @@ export default function AddUser({ onSuccess } = {}) {
         svc_number: '',
         phone_number: '',
         role: 'student',
+        class_obj: '',
         password: '',
         password2: '',
         is_active: true,
@@ -151,6 +188,28 @@ export default function AddUser({ onSuccess } = {}) {
                 {fieldErrors.role && <div className="text-xs text-rose-600 mt-1">{fieldErrors.role}</div>}
               </div>
 
+              {form.role === 'student' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Class</label>
+                  <select name="class_obj" value={form.class_obj} onChange={onChange} required={form.role === 'student'} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'}`}>
+                      <option value="" disabled>-- Select a class --</option>
+                      {loadingClasses ? (
+                        <option disabled>Loading classes...</option>
+                      ) : (
+                        // show a helpful disabled option when there are no active classes
+                        classes.length === 0 ? (
+                          <option disabled>No active classes available</option>
+                        ) : (
+                          classes.map(c => (
+                            <option key={c.id} value={c.id}>{`${c.name}${c.class_code ? ` (${c.class_code})` : ''}${c.course_name ? ` — ${c.course_name}` : ''}`}</option>
+                          ))
+                        )
+                      )}
+                  </select>
+                  {fieldErrors.class_obj && <div className="text-xs text-rose-600 mt-1">{fieldErrors.class_obj}</div>}
+                </div>
+              )}
+
               <div className="flex items-center">
                 <label className="inline-flex items-center">
                   <input type="checkbox" name="is_active" checked={form.is_active} onChange={onChange} className="mr-2" />
@@ -177,7 +236,7 @@ export default function AddUser({ onSuccess } = {}) {
 
             <div className="flex items-center justify-end gap-3">
               <button type="button" onClick={() => navigate('/dashboard')} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">Cancel</button>
-              <button disabled={loading} type="submit" className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60">
+              <button disabled={loading || (form.role === 'student' && !form.class_obj)} type="submit" className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60">
                 {loading ? (
                   <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

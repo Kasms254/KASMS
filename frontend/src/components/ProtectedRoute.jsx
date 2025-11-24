@@ -8,6 +8,10 @@ export default function ProtectedRoute({ children, role = null }) {
   // while validating token (if you add async validation) avoid rendering
   if (loading) return null
 
+  // If we have a token but user hasn't been loaded yet, wait to avoid
+  // a premature redirect while the auth provider fetches the current user.
+  if (token && !user) return null
+
   // Defensive: require either a user object or a token to allow access
   if (!user && !token) {
     return <Navigate to="/" replace />

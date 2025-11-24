@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getCourses, getClasses, addClass, getInstructors } from '../../lib/api'
+import { getCourses, getClasses, addClass, getInstructors, getClassEnrolledStudents } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 
@@ -10,10 +10,16 @@ export default function CourseDetail(){
   const [loading, setLoading] = useState(false)
   const [course, setCourse] = useState(null)
   const [classes, setClasses] = useState([])
+  const [showOnlyActive, setShowOnlyActive] = useState(true)
   const [instructors, setInstructors] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
   const [classForm, setClassForm] = useState({ name: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
   const [classErrors, setClassErrors] = useState({})
+  const [studentsModalOpen, setStudentsModalOpen] = useState(false)
+  const [selectedClass, setSelectedClass] = useState(null)
+  const [enrolledStudents, setEnrolledStudents] = useState([])
+  const [studentsLoading, setStudentsLoading] = useState(false)
+  const [studentsError, setStudentsError] = useState(null)
   const toast = useToast()
   const modalRef = useRef(null)
 
@@ -42,14 +48,31 @@ export default function CourseDetail(){
     finally{ setLoading(false) }
   })() }, [id, reportError])
 
-  useEffect(()=>{ loadClasses() }, [id])
-
-  async function loadClasses(){
+  const loadClasses = useCallback(async () => {
     try{
-      const data = await getClasses(`course=${id}`)
-      setClasses(Array.isArray(data) ? data : (data && data.results) ? data.results : [])
-    }catch(e){ reportError('Failed to load classes') }
-  }
+      const params = showOnlyActive ? `course=${id}&is_active=true` : `course=${id}`
+      const data = await getClasses(params)
+      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      setClasses(list)
+
+      // fetch enrolled students count for each class (best-effort)
+      try{
+        const counts = await Promise.allSettled(list.map((cl) => getClassEnrolledStudents(cl.id).catch(() => null)))
+        const mapped = list.map((cl, idx) => {
+          const res = counts[idx]
+          let studentsCount = null
+          if (res && res.status === 'fulfilled' && res.value) {
+            const v = res.value
+            studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
+          }
+          return { ...cl, students_count: studentsCount }
+        })
+        setClasses(mapped)
+      }catch{ /* ignore per-class failures */ }
+    }catch{ reportError('Failed to load classes') }
+  }, [id, showOnlyActive, reportError])
+
+  useEffect(()=>{ loadClasses() }, [loadClasses])
 
   async function openAddModal(){
     try{
@@ -82,16 +105,93 @@ export default function CourseDetail(){
     }
   }
 
+  async function openStudentsModal(cls){
+    if (!cls) return
+    setSelectedClass(cls)
+    setStudentsModalOpen(true)
+    setStudentsLoading(true)
+    setStudentsError(null)
+    setEnrolledStudents([])
+    try{
+      const data = await getClassEnrolledStudents(cls.id)
+      // unwrap paginated response if needed
+      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      setEnrolledStudents(list)
+    }catch(err){
+      setStudentsError(err)
+    }finally{
+      setStudentsLoading(false)
+    }
+  }
+
   return (
     <div>
+      {/* Students modal */}
+      {studentsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setStudentsModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-3xl">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-lg text-black font-medium">Students in {selectedClass?.name || ''}</h4>
+                  <p className="text-sm text-neutral-500">{selectedClass?.class_code || ''}</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setStudentsModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+              </div>
+
+              <div className="mt-4">
+                {studentsLoading ? (
+                  <div className="text-sm text-neutral-500">Loading students…</div>
+                ) : studentsError ? (
+                  <div className="text-sm text-red-600">Failed to load students: {studentsError.message || String(studentsError)}</div>
+                ) : enrolledStudents.length === 0 ? (
+                  <div className="text-sm text-neutral-500">No students enrolled.</div>
+                ) : (
+                  <div className="overflow-auto max-h-80">
+                    <table className="min-w-full table-auto">
+                      <thead>
+                        <tr className="text-left">
+                          <th className="px-3 py-2 text-sm text-neutral-600">Service No</th>
+                          <th className="px-3 py-2 text-sm text-neutral-600">Name</th>
+                          <th className="px-3 py-2 text-sm text-neutral-600">Email</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {enrolledStudents.map((s) => (
+                          <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
+                            <td className="px-3 py-2 text-sm text-neutral-700">{s.svc_number || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-neutral-700">{s.first_name ? `${s.first_name} ${s.last_name}` : (s.full_name || '-')}</td>
+                            <td className="px-3 py-2 text-sm text-neutral-700">{s.email || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <button onClick={() => setStudentsModalOpen(false)} className="px-4 py-2 rounded-md border bg-red-600">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-semibold text-black">{course?.name || `Course ${id}`}</h2>
           <p className="text-sm text-neutral-500">Code: {course?.code} — {course?.description}</p>
         </div>
         <div>
-          <button onClick={() => navigate('/list/courses')} className="px-3 py-1 rounded-md border bg-green-600">Back</button>
-          <button onClick={openAddModal} className="ml-2 bg-blue-600 text-white px-3 py-1 rounded-md">Add class</button>
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-black">
+              <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
+              <span>Show inactive classes</span>
+            </label>
+            <button onClick={() => navigate('/list/courses')} className="px-3 py-1 rounded-md border bg-green-600">Back</button>
+            <button onClick={openAddModal} className="ml-2 bg-blue-600 text-white px-3 py-1 rounded-md">Add class</button>
+          </div>
         </div>
       </div>
 
@@ -101,17 +201,25 @@ export default function CourseDetail(){
         ) : (
           classes.map((c) => (
             <div key={c.id} className="relative">
-              <Card
-                title={c.class_code || c.name}
-                value={c.name}
-                badge={`${c.subjects_count ?? 0} subjects`}
-                icon="Layers"
-                accent="bg-emerald-500"
-                colored={true}
-              >
-                <div>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
-                <div className="mt-1">{c.start_date || ''} → {c.end_date || ''}</div>
-              </Card>
+                  <Card
+                    title={c.class_code || c.name}
+                    value={c.name}
+                    badge={`${c.subjects_count ?? 0} subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
+                    icon="Layers"
+                    accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
+                    colored={true}
+                  >
+                    <div>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
+                    <div className="mt-1">{c.start_date || ''} → {c.end_date || ''}</div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                      <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <button onClick={() => openStudentsModal(c)} className="px-3 py-1 rounded-md border bg-white text-sm">View students</button>
+                    </div>
+                  </Card>
             </div>
           ))
         )}

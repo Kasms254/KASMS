@@ -8,8 +8,11 @@ function endOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0)
 }
 
+function pad(n) { return String(n).padStart(2, '0') }
+
 function formatISO(d) {
-  return d.toISOString().slice(0, 10)
+  // Format using local date components to avoid UTC timezone shifts
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 export default function Calendar({ events = {} }) {

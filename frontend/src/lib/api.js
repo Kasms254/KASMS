@@ -64,7 +64,11 @@ export async function addCourse(payload) {
 
 export async function getClasses(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/classes/${qs}`)
+  const data = await request(`/api/classes/${qs}`)
+  // Many list endpoints are paginated (DRF PageNumberPagination) and return
+  // { count, results: [...] }. Unwrap results for callers that expect an array.
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function addClass(payload) {
@@ -73,6 +77,10 @@ export async function addClass(payload) {
 
 export async function getClassSubjects(classId) {
   return request(`/api/classes/${classId}/subjects/`)
+}
+
+export async function getClassEnrolledStudents(classId) {
+  return request(`/api/classes/${classId}/enrolled_students/`)
 }
 
 export async function getSubjects(params = '') {
@@ -86,6 +94,14 @@ export async function addSubject(payload) {
 
 export async function getInstructors() {
   return request('/api/users/instructors')
+}
+
+export async function getUserEnrollments(userId) {
+  return request(`/api/users/${userId}/enrollments/`)
+}
+
+export async function addEnrollment(payload) {
+  return request('/api/enrollments/', { method: 'POST', body: payload })
 }
 
 export async function getUsers() {
@@ -136,4 +152,6 @@ export default {
   getSubjects,
   getClassSubjects,
   addSubject,
+  getUserEnrollments,
+  addEnrollment,
 }

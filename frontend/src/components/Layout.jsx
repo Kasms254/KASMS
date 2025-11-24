@@ -2,10 +2,13 @@ import React, { useState } from 'react'
 import { Outlet, Link } from 'react-router-dom'
 import Menu from './Menu'
 import NavBar from './NavBar'
+import useAuth from '../hooks/useAuth'
 import ToastProvider from './ToastProvider'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
+  const { user } = useAuth()
+  const role = user?.role || 'student'
 
   return (
     <ToastProvider>
@@ -21,13 +24,13 @@ export default function Layout() {
           <div className="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center text-white font-bold">S</div>
           <span className={`${collapsed ? 'hidden' : 'font-semibold text-lg'}`}>School Management System</span>
         </Link>
-        <Menu role="admin" collapsed={collapsed} />
+        <Menu role={role} collapsed={collapsed} />
       </aside>
 
       {/* Main area */}
       <div className="flex-1 min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
-          <NavBar user={{ name: 'John Doe', role: 'admin' }} collapsed={collapsed} onToggle={() => setCollapsed((s) => !s)} />
+          <NavBar collapsed={collapsed} onToggle={() => setCollapsed((s) => !s)} />
         </header>
         <main className="p-6 flex-1 overflow-auto">
           {/* Clean content area — no rounded panel or shadow */}
