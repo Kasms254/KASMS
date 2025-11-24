@@ -9,10 +9,30 @@ class User(AbstractUser):
         ('student', 'student'),
         ('commandant', 'commandant'),
     ]
+    RANK_CHOICES = [
+        ('private', 'Private'),
+        ('lance_corporal', 'Lance Corporal'),
+        ('corporal', 'Corporal'),
+        ('sergeant', 'Sergeant'),
+        ('seniorsergeant', 'Senior Sergeant'),
+        ('warrant_officer', 'Warrant Officer II'),
+        ('warrant_officer', 'Warrant Officer I'),
+        ('lieutenant', 'Lieutenant'),
+        ('captain', 'Captain'),
+        ('major', 'Major'),
+        ('lieutenant colonel', 'Lieutenant Colonel'),
+        ('general', 'General'),
+    ]
 
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES)
+    rank = models.CharField(
+        max_length=20,
+        choices=RANK_CHOICES,
+        null=True,
+        blank=True
+    )
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
     email = models.CharField(max_length=25)
