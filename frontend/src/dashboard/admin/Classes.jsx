@@ -187,7 +187,7 @@ export default function ClassesList(){
                       is_active: !!c.is_active,
                     })
                     setEditModalOpen(true)
-                  }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm">Edit</button>
+                  }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
                 </div>
               </Card>
             </div>
