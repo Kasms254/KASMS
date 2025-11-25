@@ -213,7 +213,7 @@ export default function Courses() {
                   <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-600">Cancel</button>
+                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-600 text-white">Cancel</button>
                   <button className="bg-green-600 text-white px-3 py-1 rounded-md">Save changes</button>
                 </div>
               </form>
