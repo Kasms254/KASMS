@@ -26,7 +26,7 @@ export default function SubjectsPage() {
 
   useEffect(() => {
     let mounted = true
-  Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
+    Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
       .then(([clsData, subjData]) => {
         if (!mounted) return
         const clsList = Array.isArray(clsData) ? clsData : (clsData && Array.isArray(clsData.results) ? clsData.results : clsData || [])
