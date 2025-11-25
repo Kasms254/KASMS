@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import * as api from '../../lib/api'
 
-
 export default function SubjectsPage() {
   const [classes, setClasses] = useState([])
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
   const [openSections, setOpenSections] = useState({})
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
   const [editForm, setEditForm] = useState({ name: '', code: '', instructor: '' })
@@ -26,13 +25,16 @@ export default function SubjectsPage() {
 
   useEffect(() => {
     let mounted = true
+    
     Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
       .then(([clsData, subjData]) => {
         if (!mounted) return
         const clsList = Array.isArray(clsData) ? clsData : (clsData && Array.isArray(clsData.results) ? clsData.results : clsData || [])
         const subjList = Array.isArray(subjData) ? subjData : (subjData && Array.isArray(subjData.results) ? subjData.results : subjData || [])
+        
         setClasses(clsList)
         setSubjects(subjList)
+        
         // fetch instructors for editing dropdown
         api.getInstructors().then((ins) => {
           if (!mounted) return
@@ -45,6 +47,7 @@ export default function SubjectsPage() {
         setError(err)
       })
       .finally(() => { if (mounted) setLoading(false) })
+    
     return () => { mounted = false }
   }, [])
 
@@ -54,7 +57,7 @@ export default function SubjectsPage() {
     // index classes by id
     const byId = {}
     classes.forEach((c) => { byId[c.id] = c })
-
+    
     subjects.forEach((s) => {
       const cid = s.class_obj || s.class || (s.class_obj_id ?? null)
       const cls = byId[cid]
@@ -62,13 +65,13 @@ export default function SubjectsPage() {
       if (!map[name]) map[name] = []
       map[name].push(s)
     })
-
+    
     // ensure classes with no subjects still show
     classes.forEach((c) => {
       const name = c.name || c.class_name || `Class ${c.id}`
       if (!map[name]) map[name] = []
     })
-
+    
     return map
   }, [classes, subjects])
 
@@ -76,12 +79,14 @@ export default function SubjectsPage() {
     if (!debouncedQuery) return groups
     const q = debouncedQuery.toLowerCase()
     const res = {}
+    
     Object.keys(groups).forEach((cls) => {
       const matches = groups[cls].filter((s) => {
-        return (s.name || s.title || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q)
+        return (s.name || s.title || '').toLowerCase().includes(q) || (s.subject_code || s.code || '').toLowerCase().includes(q)
       })
       if (cls.toLowerCase().includes(q) || matches.length) res[cls] = matches
     })
+    
     return res
   }, [groups, debouncedQuery])
 
@@ -93,7 +98,7 @@ export default function SubjectsPage() {
     setEditingSubject(subj)
     setEditForm({
       name: subj.name || subj.title || '',
-      code: subj.code || '',
+      code: subj.subject_code || subj.code || '',
       instructor: subj.instructor ? (typeof subj.instructor === 'object' ? String(subj.instructor.id) : String(subj.instructor)) : (subj.instructor_id ? String(subj.instructor_id) : ''),
     })
   }
@@ -111,9 +116,11 @@ export default function SubjectsPage() {
     e.preventDefault()
     if (!editingSubject) return
     setEditLoading(true)
+    
     try {
-  const payload = { name: editForm.name, code: editForm.code }
-  if (editForm.instructor) payload.instructor = Number(editForm.instructor)
+      const payload = { name: editForm.name, subject_code: editForm.code }
+      if (editForm.instructor) payload.instructor = Number(editForm.instructor)
+      
       const updated = await api.partialUpdateSubject(editingSubject.id, payload)
       // update local subjects list
       setSubjects((s) => s.map((x) => (x.id === updated.id ? updated : x)))
@@ -132,6 +139,7 @@ export default function SubjectsPage() {
   async function performDelete(subj) {
     if (!subj) return
     setDeletingId(subj.id)
+    
     try {
       await api.deleteSubject(subj.id)
       setSubjects((s) => s.filter((x) => x.id !== subj.id))
@@ -187,6 +195,7 @@ export default function SubjectsPage() {
           {Object.keys(filteredGroups).sort().map((className) => {
             const list = filteredGroups[className]
             const isOpen = !!openSections[className]
+            
             return (
               <div key={className} className="bg-white rounded-xl p-0 border border-neutral-200 shadow-sm overflow-hidden">
                 <button
@@ -223,7 +232,7 @@ export default function SubjectsPage() {
                             {list.map((s) => (
                               <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
                                 <td className="px-4 py-3 text-sm text-neutral-700">{s.name ?? s.title ?? 'Untitled'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{s.code || '-'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{s.subject_code || s.code || '-'}</td>
                                 <td className="px-4 py-3 text-sm text-neutral-700">{(s.instructor && (s.instructor.full_name || s.instructor.name)) || s.instructor_name || '-'}</td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex items-center justify-end gap-2">
@@ -257,7 +266,6 @@ export default function SubjectsPage() {
       {editingSubject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
-
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
             <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4">
@@ -267,18 +275,15 @@ export default function SubjectsPage() {
                 </div>
                 <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
               </div>
-
               <div className="mt-4">
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Name</div>
                   <input value={editForm.name} onChange={(e) => handleEditChange('name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                 </label>
-
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Code</div>
                   <input value={editForm.code} onChange={(e) => handleEditChange('code', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                 </label>
-
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Instructor</div>
                   <select value={editForm.instructor} onChange={(e) => handleEditChange('instructor', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
@@ -289,7 +294,6 @@ export default function SubjectsPage() {
                   </select>
                 </label>
               </div>
-
               <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md border text-sm bg-red-600 text-white">Cancel</button>
                 <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm">{editLoading ? 'Saving...' : 'Save changes'}</button>
@@ -305,8 +309,7 @@ export default function SubjectsPage() {
           <div className="relative z-10 w-full max-w-md">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <h4 className="text-lg font-medium text-black">Confirm delete</h4>
-              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.code || confirmDelete.id}</strong>? This action cannot be undone.</p>
-
+              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.subject_code || confirmDelete.code || confirmDelete.id}</strong>? This action cannot be undone.</p>
               <div className="flex justify-end gap-3 mt-4">
                 <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md border bg-indigo-600 text-sm">Cancel</button>
                 <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>

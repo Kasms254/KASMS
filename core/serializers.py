@@ -200,6 +200,18 @@ class SubjectSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Assigned instructor must have the role of 'instructor'.")
         return value
     
+    def validate_subject_code(self, value):
+        if not value:
+            return value
+        
+        if self.instance:
+            if Subject.objects.exclude(pk=self.instance.pk).filter(subject_code=value).exists():
+                raise serializers.ValidationError("This subject code is already in use.")
+        else:
+            if Subject.objects.filter(subject_code=value).exists():
+                raise serializers.ValidationError("This subject code is already in use.")
+        return value
+    
 class NoticeSerializer(serializers.ModelSerializer):
 
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
