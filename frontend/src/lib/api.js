@@ -182,6 +182,8 @@ export default {
   addEnrollment,
   updateCourse,
   updateClass,
+  reactivateEnrollment,
+  withdrawEnrollment,
   partialUpdateSubject,
   deleteSubject,
 }
