@@ -182,4 +182,6 @@ export default {
   addEnrollment,
   updateCourse,
   updateClass,
+  partialUpdateSubject,
+  deleteSubject,
 }
