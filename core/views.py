@@ -703,7 +703,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         return queryset
     
 
-    @action(detail=False, method=['post'])
+    @action(detail=False, methods=['post'])
     def bulk_grade(self, request):
         serializer = BulkExamResultSerializer(data=request.data)
 
@@ -741,23 +741,23 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'errors': errors
         })
 
-@action(detail=False, methods=['get'])
-def student_results(self, request):
-    student_id = request.query_params.get('student_id')
+    @action(detail=False, methods=['get'])
+    def student_results(self, request):
+        student_id = request.query_params.get('student_id')
 
-    if not student_id:
+        if not student_id:
+            return Response({
+                'error': 'studen_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        serializer = self.get_serializer(results, many=True)
+
+
         return Response({
-            'error': 'studen_id parameter is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
-    serializer = self.get_serializer(results, many=True)
-
-
-    return Response({
-        'count':results.count(),
-        'results':serializer.data
-    })
+            'count':results.count(),
+            'results':serializer.data
+        })
 
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -886,7 +886,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         })
     
 
-class NoticeViewSet(viewsets.ModelViewSet):
+class ClassNoticeViewSet(viewsets.ModelViewSet):
 
     queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
     serializer_class = ClassNotificationSerializer
