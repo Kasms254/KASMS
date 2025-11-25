@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents } from '../../lib/api'
+import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -12,7 +12,12 @@ export default function ClassesList(){
   // global modal open state; class selection is handled inside the form
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
+  const [editingClass, setEditingClass] = useState(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [instructors, setInstructors] = useState([])
+  const [classErrors, setClassErrors] = useState({})
+  const [isSaving, setIsSaving] = useState(false)
   const toast = useToast()
   const modalRef = useRef(null)
 
@@ -162,12 +167,121 @@ export default function ClassesList(){
                   <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
                   <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
                 </div>
+                <div className="mt-3 flex gap-2">
+                  <button onClick={async () => {
+                    // ensure instructors list is loaded for the select
+                    try {
+                      const ins = await getInstructors()
+                      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
+                    } catch {
+                      setInstructors([])
+                    }
+                    setEditingClass(c)
+                    setClassForm({
+                      name: c.name || '',
+                      class_code: c.class_code || '',
+                      instructor: c.instructor || c.instructor_id || '',
+                      start_date: c.start_date || '',
+                      end_date: c.end_date || '',
+                      capacity: c.capacity || '',
+                      is_active: !!c.is_active,
+                    })
+                    setEditModalOpen(true)
+                  }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
+                </div>
               </Card>
             </div>
           ))
         )}
       </div>
 
+  {/* Edit Class Modal */}
+  {editModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditModalOpen(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-lg text-black font-medium">Edit class</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                if (!editingClass) return
+                setClassErrors({})
+                setIsSaving(true)
+                try {
+                  const payload = {
+                    name: classForm.name,
+                    class_code: classForm.class_code || undefined,
+                    instructor: classForm.instructor ? Number(classForm.instructor) : null,
+                    start_date: classForm.start_date || null,
+                    end_date: classForm.end_date || null,
+                    capacity: classForm.capacity ? Number(classForm.capacity) : undefined,
+                    is_active: !!classForm.is_active,
+                  }
+                  // helpful debug for developer: payload sent to API
+                  // remove in production if verbose
+                  console.debug('updateClass payload', editingClass?.id, payload)
+                  await updateClass(editingClass.id, payload)
+                  setEditModalOpen(false)
+                  await loadClasses()
+                } catch (err) {
+                  // If backend returned structured errors, show them inline
+                  const d = err?.data
+                  if (d && typeof d === 'object') {
+                    setClassErrors(d)
+                    // show non-field or detail messages as toast
+                    const nonField = d.non_field_errors || d.detail || d.message || d.error
+                    if (nonField) {
+                      const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
+                      if (toast?.error) toast.error(msg)
+                      else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+                    } else {
+                      // if there are field errors but no non-field error, also show a generic toast
+                      if (toast?.error) toast.error('Please check the highlighted fields')
+                      else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                    }
+                  } else {
+                    const msg = err?.message || 'Failed to update class'
+                    if (toast?.error) toast.error(msg)
+                    else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+                  }
+                } finally {
+                  setIsSaving(false)
+                }
+              }} className="mt-4 grid grid-cols-1 gap-3">
+                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="Class name" />
+                {classErrors.name && <div className="text-sm text-red-600">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
+                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="Class code" />
+                {classErrors.class_code && <div className="text-sm text-red-600">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                <div className="flex gap-2">
+                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                  {classErrors.start_date && <div className="text-sm text-red-600">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
+                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                  {classErrors.end_date && <div className="text-sm text-red-600">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
+                </div>
+                <input type="number" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="Capacity" />
+                {classErrors.capacity && <div className="text-sm text-red-600">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
+                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
+                  <option value="">— Select instructor —</option>
+                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                </select>
+                {classErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
+
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
+                  <button type="submit" disabled={isSaving} className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-neutral-400' : 'bg-indigo-600'}`}>{isSaving ? 'Saving...' : 'Save'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
