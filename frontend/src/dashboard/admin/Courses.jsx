@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Card from '../../components/Card'
-import { getCourses, addCourse } from '../../lib/api'
+import { getCourses, addCourse, updateCourse, getClasses } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
@@ -9,6 +9,9 @@ export default function Courses() {
   const [courses, setCourses] = useState([])
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [newCourse, setNewCourse] = useState({ name: '', code: '', description: '' })
+  const [editingCourse, setEditingCourse] = useState(null)
+  const [editCourseModalOpen, setEditCourseModalOpen] = useState(false)
+  const [editCourseForm, setEditCourseForm] = useState({ name: '', code: '', description: '', is_active: true })
   // modal state
   const addModalRef = useRef(null)
   const navigate = useNavigate()
@@ -29,13 +32,24 @@ export default function Courses() {
     const [courseErrors, setCourseErrors] = useState({})
 
   useEffect(() => {
-    // load courses on mount
+    // load courses on mount and fetch active class counts per course
     ;(async () => {
       setLoading(true)
       try {
         const data = await getCourses()
-        // API may return an array or a paginated object { count, results }
-        setCourses(Array.isArray(data) ? data : (data && data.results) ? data.results : [])
+        const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+        // For each course fetch number of active classes. Use Promise.allSettled to avoid single failure breaking everything.
+        const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
+        const mapped = list.map((course, idx) => {
+          const res = counts[idx]
+          let active = null
+          if (res && res.status === 'fulfilled' && res.value) {
+            const v = res.value
+            active = Array.isArray(v) ? v.length : (v?.count ?? null)
+          }
+          return { ...course, active_classes: active }
+        })
+        setCourses(mapped)
       } catch (err) {
         reportError(err?.message || 'Failed to load courses')
       } finally {
@@ -48,7 +62,19 @@ export default function Courses() {
     setLoading(true)
     try {
       const data = await getCourses()
-        setCourses(Array.isArray(data) ? data : (data && data.results) ? data.results : [])
+      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      // fetch active class counts per course
+      const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
+      const mapped = list.map((course, idx) => {
+        const res = counts[idx]
+        let active = null
+        if (res && res.status === 'fulfilled' && res.value) {
+          const v = res.value
+          active = Array.isArray(v) ? v.length : (v?.count ?? null)
+        }
+        return { ...course, active_classes: active }
+      })
+      setCourses(mapped)
     } catch (err) {
       reportError(err?.message || 'Failed to load courses')
     } finally {
@@ -153,6 +179,49 @@ export default function Courses() {
         </div>
       )}
 
+      {/* Edit Course Modal */}
+      {editCourseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditCourseModalOpen(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-lg text-black font-medium">Edit course</h4>
+                  <p className="text-sm text-neutral-500">Update course information</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setEditCourseModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                if (!editingCourse) return
+                try {
+                  const payload = { name: editCourseForm.name, code: editCourseForm.code, description: editCourseForm.description }
+                  await updateCourse(editingCourse.id, payload)
+                  reportSuccess('Course updated')
+                  setEditCourseModalOpen(false)
+                  load()
+                } catch (err) {
+                  console.error('Failed to update course', err)
+                  reportError(err?.message || 'Failed to update course')
+                }
+              }} className="mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Course name" value={editCourseForm.name} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: e.target.value })} />
+                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Course code" value={editCourseForm.code} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: e.target.value })} />
+                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-600">Cancel</button>
+                  <button className="bg-green-600 text-white px-3 py-1 rounded-md">Save changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {loading ? (
           <div>Loading...</div>
@@ -162,17 +231,24 @@ export default function Courses() {
           // ensure courses is an array before mapping
           (Array.isArray(courses) ? courses : []).map((course) => (
             <div key={course.id}>
-              <div onClick={() => openCourseModal(course)} className="cursor-pointer">
+              <div className="flex items-start gap-2">
+                <div onClick={() => openCourseModal(course)} className="cursor-pointer flex-1">
                 <Card
                   title={course.code || course.name || 'Untitled'}
                   value={course.name}
-                  badge={`${course.total_classes ?? course.classes_count ?? 0} classes`}
+                  badge={`${course.active_classes ?? 0} active • ${course.total_classes ?? course.classes_count ?? 0} classes`}
                   icon="BookOpen"
                   accent="bg-indigo-600"
                   colored={true}
                 >
-                  <div className="truncate text-xs text-neutral-500">{course.description}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="truncate text-xs text-neutral-500 mr-4">{course.description}</div>
+                    <div>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setEditCourseForm({ name: course.name || '', code: course.code || '', description: course.description || '', is_active: !!course.is_active }); setEditCourseModalOpen(true) }} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm">Edit</button>
+                    </div>
+                  </div>
                 </Card>
+                </div>
               </div>
             </div>
           ))

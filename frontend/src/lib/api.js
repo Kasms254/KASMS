@@ -62,6 +62,11 @@ export async function addCourse(payload) {
   return request('/api/courses/', { method: 'POST', body: payload })
 }
 
+export async function updateCourse(id, payload) {
+  // Use PATCH for partial updates to avoid requiring all fields on PUT
+  return request(`/api/courses/${id}/`, { method: 'PATCH', body: payload })
+}
+
 export async function getClasses(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/classes/${qs}`)
@@ -73,6 +78,11 @@ export async function getClasses(params = '') {
 
 export async function addClass(payload) {
   return request('/api/classes/', { method: 'POST', body: payload })
+}
+
+export async function updateClass(id, payload) {
+  // Use PATCH for partial updates so callers can send only changed fields
+  return request(`/api/classes/${id}/`, { method: 'PATCH', body: payload })
 }
 
 export async function getClassSubjects(classId) {
@@ -92,6 +102,14 @@ export async function addSubject(payload) {
   return request('/api/subjects/', { method: 'POST', body: payload })
 }
 
+export async function partialUpdateSubject(id, payload) {
+  return request(`/api/subjects/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteSubject(id) {
+  return request(`/api/subjects/${id}/`, { method: 'DELETE' })
+}
+
 export async function getInstructors() {
   return request('/api/users/instructors')
 }
@@ -102,6 +120,14 @@ export async function getUserEnrollments(userId) {
 
 export async function addEnrollment(payload) {
   return request('/api/enrollments/', { method: 'POST', body: payload })
+}
+
+export async function reactivateEnrollment(enrollmentId) {
+  return request(`/api/enrollments/${enrollmentId}/reactivate/`, { method: 'POST' })
+}
+
+export async function withdrawEnrollment(enrollmentId) {
+  return request(`/api/enrollments/${enrollmentId}/withdraw/`, { method: 'POST' })
 }
 
 export async function getUsers() {
@@ -154,4 +180,6 @@ export default {
   addSubject,
   getUserEnrollments,
   addEnrollment,
+  updateCourse,
+  updateClass,
 }

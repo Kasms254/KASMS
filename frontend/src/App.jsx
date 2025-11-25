@@ -14,6 +14,7 @@ import Classes from './dashboard/admin/Classes'
 import AdminStudents from './dashboard/admin/AdminStudents'
 import AdminInstructors from './dashboard/admin/AdminInstructors'
 import Login from './pages/Login'
+import SubjectsPage from './dashboard/admin/SubjectsPage'
 
 const App = () => {
 	return (
@@ -50,6 +51,11 @@ const App = () => {
 			<Route path="/list/classes" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Classes />} />
 				<Route path=":id" element={<div className="p-4 text-black">Class detail (coming soon)</div>} />
+			</Route>
+
+			{/* Subjects listing (by class) */}
+			<Route path="/list/subjects" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+				<Route index element={<SubjectsPage />} />
 			</Route>
 		</Routes>
 	)

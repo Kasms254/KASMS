@@ -64,7 +64,9 @@ export default function AdminDashboard() {
           <UserCard type="instructors" count={metrics.instructors} />
         </Link>
 
-  <UserCard type="subject" count={metrics.subjects} />
+        <Link to="/list/subjects" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+          <UserCard type="subject" count={metrics.subjects} />
+        </Link>
         <Card title="Active classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
