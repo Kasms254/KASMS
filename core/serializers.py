@@ -137,6 +137,7 @@ class ClassSerializer(serializers.ModelSerializer):
     course_code = serializers.CharField(source='course.code', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
     current_enrollment = serializers.IntegerField(read_only=True)
+    enrollment_status = serializers.CharField(read_only=True)
     subjects_count = serializers.IntegerField(source='subjects.count', read_only=True)
 
     class Meta:
@@ -271,10 +272,16 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         if self.instance:
             return attrs
 
-        if class_obj.current_enrollment >= class_obj.capacity:
-            raise serializers.ValidationError("Class capacity has been reached.")
+        enrollment_count = class_obj.enrollments.filter(is_active=True).count()
+
+        if enrollment_count >= class_obj.capacity:
+            raise serializers.ValidationError({
+                "class_obj": f"Class '{class_obj.name}' is at full capacity."
+            })
         
         if Enrollment.objects.filter(student=student, class_obj=class_obj).exists():
-            raise serializers.ValidationError("This student is already enrolled in the selected class.")
+            raise serializers.ValidationError({
+                "student": f"Student '{student.get_full_name()}' is already enrolled in class '{class_obj.name}'."
+            })
         
         return attrs
