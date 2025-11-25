@@ -244,7 +244,23 @@ export default function Courses() {
                   <div className="flex items-center justify-between">
                     <div className="truncate text-xs text-neutral-500 mr-4">{course.description}</div>
                     <div>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setEditCourseForm({ name: course.name || '', code: course.code || '', description: course.description || '', is_active: !!course.is_active }); setEditCourseModalOpen(true) }} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm">Edit</button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCourse(course);
+                          setEditCourseForm({
+                            name: course.name || '',
+                            code: course.code || '',
+                            description: course.description || '',
+                            is_active: !!course.is_active
+                          });
+                          setEditCourseModalOpen(true);
+                        }}
+                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm"
+                        aria-label={`Edit ${course.name || course.code || 'course'}`}
+                      >
+                        Edit
+                      </button>
                     </div>
                   </div>
                 </Card>
