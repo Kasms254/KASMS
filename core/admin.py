@@ -36,7 +36,7 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active')
+    list_display = ('name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
     ordering = ['-created_at']
@@ -50,7 +50,7 @@ class ClassAdmin(admin.ModelAdmin):
 @admin.register(Enrollment)
 class EnrollmentAdmin(admin.ModelAdmin):
 
-    list_display = ('student', 'class_obj', 'enrollment_date')
+    list_display = ('student', 'class_obj', 'enrollment_date', 'is_active')
     list_filter = ('enrollment_date', 'class_obj')
     search_fields = ['student__username']
     ordering = ['-enrollment_date']
@@ -73,7 +73,6 @@ class SubjectAdmin(admin.ModelAdmin):
             obj.created_at = timezone.now()
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
-
 
 @admin.register(Notice)
 class NoticeAdmin(admin.ModelAdmin):

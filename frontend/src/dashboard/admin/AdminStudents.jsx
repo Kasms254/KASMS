@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import api from '../../lib/api'
+import * as api from '../../lib/api'
 
 function initials(name = '') {
   return name
@@ -22,6 +22,7 @@ export default function AdminStudents() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [classesList, setClassesList] = useState([])
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
+  const [enrollmentsList, setEnrollmentsList] = useState([])
   
 
   // fetch students from API on mount
@@ -154,21 +155,32 @@ export default function AdminStudents() {
       phone_number: st.phone_number || '',
       svc_number: st.svc_number || '',
       is_active: !!st.is_active,
-      class_obj: st.class_obj || '',
+      // ensure class_obj is a string (select values are strings) and fall back to empty
+      class_obj: st.class_obj ? String(st.class_obj) : '',
     })
     // fetch classes (if not loaded) and the student's enrollments to get active class
     if (classesList.length === 0) {
-      api.getClasses().then((c) => setClassesList(Array.isArray(c) ? c : (c && c.results) || [])).catch(() => {})
+      api.getClasses().then((c) => {
+        const list = Array.isArray(c) ? c : (c && c.results) || []
+        // normalize ids to strings so <select> option values always match
+        const normalized = list.map((cls) => ({ ...cls, id: cls.id != null ? String(cls.id) : cls.id }))
+        setClassesList(normalized)
+      }).catch(() => {})
     }
     api.getUserEnrollments(st.id).then((d) => {
       const list = Array.isArray(d) ? d : (d && Array.isArray(d.results) ? d.results : d && d.results ? d.results : (d && d.enrollments) || [])
+      // store full list (used to detect existing enrollments)
+      setEnrollmentsList(list)
       // pick the active enrollment if any
-      const active = list && list.find((e) => e.is_active) || null
+      const active = (list && list.find((e) => e.is_active)) || null
       setCurrentEnrollment(active)
       if (active && active.class_obj) {
-        setEditForm((f) => ({ ...f, class_obj: active.class_obj }))
+        // backend may return a pk or nested object; normalize to primitive id
+        const classId = typeof active.class_obj === 'object' && active.class_obj !== null ? active.class_obj.id : active.class_obj
+        // keep select values as strings so they match option values
+        setEditForm((f) => ({ ...f, class_obj: classId != null ? String(classId) : '' }))
       }
-    }).catch(() => setCurrentEnrollment(null))
+    }).catch(() => { setEnrollmentsList([]); setCurrentEnrollment(null) })
   }
 
   function closeEdit() {
@@ -212,10 +224,46 @@ export default function AdminStudents() {
       // if class changed, create a new enrollment
       try {
         const selectedClass = editForm.class_obj
-        const currentClassId = currentEnrollment && currentEnrollment.class_obj ? currentEnrollment.class_obj : null
+        const currentClassId = currentEnrollment && currentEnrollment.class_obj ? (typeof currentEnrollment.class_obj === 'object' ? currentEnrollment.class_obj.id : currentEnrollment.class_obj) : null
         if (selectedClass && String(selectedClass) !== String(currentClassId)) {
-          // POST enrollment { student, class_obj }
-          await api.addEnrollment({ student: editingStudent.id, class_obj: selectedClass })
+          // check if there's an existing enrollment record for this class
+          const existing = enrollmentsList && enrollmentsList.find((e) => {
+            const cid = typeof e.class_obj === 'object' && e.class_obj !== null ? e.class_obj.id : e.class_obj
+            return String(cid) === String(selectedClass)
+          })
+
+          // Before creating/reactivating, withdraw any other active enrollments so the student
+          // is active in only one class at a time on the backend.
+          const activeOthers = (enrollmentsList || []).filter((e) => {
+            const cid = typeof e.class_obj === 'object' && e.class_obj !== null ? e.class_obj.id : e.class_obj
+            return e.is_active && String(cid) !== String(selectedClass)
+          })
+          for (const a of activeOthers) {
+            try {
+              await api.withdrawEnrollment(a.id)
+              // update local copy
+              setEnrollmentsList((lst) => lst.map((x) => x.id === a.id ? { ...x, is_active: false } : x))
+            } catch (err) {
+              // non-fatal: continue but inform user
+              console.warn('Failed to withdraw previous enrollment', err)
+            }
+          }
+
+          if (existing) {
+            if (existing.is_active) {
+              // already active — nothing to do
+            } else {
+              // reactivate existing enrollment instead of creating duplicate
+              await api.reactivateEnrollment(existing.id)
+              // update local state to reflect reactivation
+              setCurrentEnrollment({ ...existing, is_active: true })
+              setEnrollmentsList((lst) => lst.map((e) => e.id === existing.id ? { ...e, is_active: true } : e))
+            }
+          } else {
+            // POST enrollment { student, class_obj }
+            await api.addEnrollment({ student: editingStudent.id, class_obj: selectedClass })
+          }
+
           // update local student's className from classesList if available
           const cls = classesList.find((c) => String(c.id) === String(selectedClass))
           if (cls) {
