@@ -227,8 +227,17 @@ export default function SubjectsPage() {
                                 <td className="px-4 py-3 text-sm text-neutral-700">{(s.instructor && (s.instructor.full_name || s.instructor.name)) || s.instructor_name || '-'}</td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex items-center justify-end gap-2">
-                                    <button onClick={() => openEdit(s)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
-                                    <button disabled={deletingId === s.id} onClick={() => handleDelete(s)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
+                                    <button
+                                      onClick={() => openEdit(s)}
+                                      className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white"
+                                      aria-label={`Edit ${s.name || s.title || 'subject'}`}
+                                    >Edit</button>
+                                    <button
+                                      disabled={deletingId === s.id}
+                                      onClick={() => handleDelete(s)}
+                                      className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white"
+                                      aria-label={`Remove ${s.name || s.title || 'subject'}`}
+                                    >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                                   </div>
                                 </td>
                               </tr>
