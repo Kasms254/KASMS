@@ -584,6 +584,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         return Response(stats)
     
 
+# instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
     queryset = Exam.objects.select_related('subject', 'created_by').all()
@@ -597,7 +598,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
 
 
-    def queryset(self):
+    def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
 
@@ -769,16 +770,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'subject', 'is_present', 'date']
+    filterset_fields = ['class_obj', 'subject', 'status', 'date']
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
     ordering_fields = ['date']
     ordering =['-date']
 
-    def get_queryset():
+    def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
 
-        if user.role != 'instructor':
+        if user.role == 'instructor':
             queryset = queryset.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
@@ -788,7 +789,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(marked_by=self.request.user)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def bulk_mark(self, request):
         serializer = BulkAttendanceSerializer(data=request.data)
 

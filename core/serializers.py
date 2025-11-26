@@ -301,6 +301,13 @@ class ExamSerializer(serializers.ModelSerializer):
         model = Exam
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'created_by', 'average_score', 'id')
+        extra_kwargs = {
+            'exam_type':{'required': True},
+            'title':{'required': True},
+            'subject':{'required': True},
+            'exam_date':{'required': True},
+            'total_marks':{'required': True}
+        }
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None

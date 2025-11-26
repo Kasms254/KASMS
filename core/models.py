@@ -181,6 +181,7 @@ class Exam(models.Model):
     created_by =  models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exams_created')
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
+    exam_duration = models.DurationField(null=True, blank=True)
 
 
     class Meta:
