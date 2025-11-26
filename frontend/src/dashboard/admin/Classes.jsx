@@ -19,6 +19,12 @@ export default function ClassesList(){
   const [classErrors, setClassErrors] = useState({})
   const [isSaving, setIsSaving] = useState(false)
   const toast = useToast()
+  const reportError = useCallback((msg) => {
+    if (!msg) return
+    if (toast?.error) return toast.error(msg)
+    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    console.error(msg)
+  }, [toast])
   const modalRef = useRef(null)
 
   const loadClasses = useCallback(async () => {
@@ -65,9 +71,7 @@ export default function ClassesList(){
         setClasses(mapped)
   }catch{ /* ignore per-class failures */ }
     }catch{
-      if (toast?.error) toast.error('Failed to load classes')
-      else if (toast?.showToast) toast.showToast('Failed to load classes', { type: 'error' })
-      else console.error('Failed to load classes')
+      reportError('Failed to load classes')
     }finally{ setLoading(false) }
   }, [toast, showOnlyActive, user])
 
@@ -90,10 +94,10 @@ export default function ClassesList(){
 
   async function handleAddSubject(e){
     e.preventDefault()
-  if (!form.name) return (toast?.error || toast?.showToast || console.error)('Subject name required')
-  if (!form.description) return (toast?.error || toast?.showToast || console.error)('Subject description required')
-  if (!form.class_obj) return (toast?.error || toast?.showToast || console.error)('Please select a class')
-  if (!form.instructor) return (toast?.error || toast?.showToast || console.error)('Please select an instructor')
+  if (!form.name) return reportError('Subject name required')
+  if (!form.description) return reportError('Subject description required')
+  if (!form.class_obj) return reportError('Please select a class')
+  if (!form.instructor) return reportError('Please select an instructor')
     // ensure numeric PKs are sent for foreign keys
     const payload = {
       name: form.name,
@@ -121,13 +125,13 @@ export default function ClassesList(){
         const combined = parts.join(' | ')
         if (toast?.error) toast.error(combined)
         else if (toast?.showToast) toast.showToast(combined, { type: 'error' })
-        else console.error(combined)
+  else reportError(combined)
         return
       }
       const msg = err?.message || 'Failed to add subject'
-      if (toast?.error) toast.error(msg)
-      else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
-      else console.error(msg)
+  if (toast?.error) toast.error(msg)
+  else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+  else reportError(msg)
     }
   }
 

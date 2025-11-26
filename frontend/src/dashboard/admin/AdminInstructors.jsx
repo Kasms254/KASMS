@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 function initials(name = '') {
   return name
@@ -11,6 +12,13 @@ function initials(name = '') {
 }
 
 export default function AdminInstructors() {
+  const toast = useToast()
+  const reportError = (msg) => {
+    if (!msg) return
+    if (toast?.error) return toast.error(msg)
+    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    console.error(msg)
+  }
   const [instructors, setInstructors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -81,7 +89,7 @@ export default function AdminInstructors() {
       setConfirmDelete(null)
     } catch (err) {
       setError(err)
-      alert('Failed to delete instructor: ' + (err.message || String(err)))
+      reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
     }
@@ -95,13 +103,14 @@ export default function AdminInstructors() {
       svc_number: it.svc_number || '',
       email: it.email || '',
       phone_number: it.phone_number || '',
+      rank: it.rank || it.rank_display || '',
       is_active: !!it.is_active,
     })
   }
 
   function closeEdit() {
     setEditingInstructor(null)
-    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true })
+    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
   }
 
   function handleEditChange(k, v) {
@@ -119,6 +128,7 @@ export default function AdminInstructors() {
         svc_number: editForm.svc_number,
         email: editForm.email,
         phone_number: editForm.phone_number,
+        rank: editForm.rank || undefined,
         is_active: editForm.is_active,
       }
       const updated = await api.partialUpdateUser(editingInstructor.id, payload)
@@ -130,6 +140,7 @@ export default function AdminInstructors() {
         svc_number: updated.svc_number,
         email: updated.email,
         phone_number: updated.phone_number,
+        rank: updated.rank || updated.rank_display || '',
         role: updated.role,
         role_display: updated.role_display,
         is_active: updated.is_active,
@@ -139,15 +150,15 @@ export default function AdminInstructors() {
       closeEdit()
     } catch (err) {
       setError(err)
-      alert('Failed to update instructor: ' + (err.message || String(err)))
+      reportError('Failed to update instructor: ' + (err.message || String(err)))
     } finally {
       setEditLoading(false)
     }
   }
 
   function downloadCSV() {
-    // Service No first, then Name, then the rest
-    const rows = [['Service No', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
+    // Service No first, then Rank, Name, then the rest
+    const rows = [['Service No', 'Rank', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
     const list = filtered
     list.slice(0, visibleCount).forEach((it) => {
       const svc = it.svc_number || ''
@@ -157,7 +168,7 @@ export default function AdminInstructors() {
       const role = it.role_display || it.role || ''
       const active = it.is_active ? 'Yes' : 'No'
       const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, name, email, phone, role, active, created])
+      rows.push([svc, (it.rank || it.rank_display) || '', name, email, phone, role, active, created])
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -204,6 +215,7 @@ export default function AdminInstructors() {
             <thead>
               <tr className="text-left">
                 <th className="px-4 py-3 text-sm text-neutral-600">Service No</th>
+                <th className="px-4 py-3 text-sm text-neutral-600">Rank</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Name</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Email</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Phone</th>
@@ -217,6 +229,7 @@ export default function AdminInstructors() {
               {filtered.slice(0, visibleCount).map((it) => (
                 <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}</div>
@@ -276,6 +289,25 @@ export default function AdminInstructors() {
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Service No</div>
                   <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Rank</div>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <option value="">Unassigned</option>
+                    <option value="general">General</option>
+                    <option value="lieutenant colonel">Lieutenant Colonel</option>
+                    <option value="major">Major</option>
+                    <option value="captain">Captain</option>
+                    <option value="lieutenant">Lieutenant</option>
+                    <option value="warrant_officer">Warrant Officer I</option>
+                    <option value="warrant_officer">Warrant Officer II</option>
+                    <option value="seniorsergeant">Senior Sergeant</option>
+                    <option value="sergeant">Sergeant</option>
+                    <option value="corporal">Corporal</option>
+                    <option value="lance_corporal">Lance Corporal</option>
+                    <option value="private">Private</option>
+                  </select>
                 </label>
 
                 <label className="block mb-3">

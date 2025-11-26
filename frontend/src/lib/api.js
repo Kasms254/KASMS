@@ -51,7 +51,9 @@ export async function getCurrentUser() {
 }
 
 export async function getStudents() {
-  return request('/api/users/students')
+  const data = await request('/api/users/students')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function getCourses() {
@@ -76,6 +78,14 @@ export async function getClasses(params = '') {
   return data
 }
 
+export async function createAssignment(payload) {
+  return request('/api/assignments/', { method: 'POST', body: payload })
+}
+
+export async function deleteAssignment(id) {
+  return request(`/api/assignments/${id}/`, { method: 'DELETE' })
+}
+
 export async function addClass(payload) {
   return request('/api/classes/', { method: 'POST', body: payload })
 }
@@ -95,7 +105,9 @@ export async function getClassEnrolledStudents(classId) {
 
 export async function getSubjects(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/subjects/${qs}`)
+  const data = await request(`/api/subjects/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function addSubject(payload) {
@@ -110,8 +122,21 @@ export async function deleteSubject(id) {
   return request(`/api/subjects/${id}/`, { method: 'DELETE' })
 }
 
+
+
+
+export async function assignInstructorToSubject(subjectId, instructorId) {
+  return request(`/api/subjects/${subjectId}/assign_instructor/`, { method: 'POST', body: { instructor_id: instructorId } })
+}
+
+export async function removeInstructorFromSubject(subjectId) {
+  return request(`/api/subjects/${subjectId}/remove_instructor/`, { method: 'POST' })
+}
+
 export async function getInstructors() {
-  return request('/api/users/instructors')
+  const data = await request('/api/users/instructors')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function getUserEnrollments(userId) {
@@ -167,6 +192,8 @@ export default {
   getCurrentUser,
   getStudents,
   getInstructors,
+  assignInstructorToSubject,
+  removeInstructorFromSubject,
   getUsers,
   addUser,
   getUser,
