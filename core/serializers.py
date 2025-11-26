@@ -337,12 +337,44 @@ class ExamResultSerializer(serializers.ModelSerializer):
     def get_graded_by_name(self, obj):
         return obj.graded_by.get_full_name() if obj.graded_by else None
     
+class ExamResultSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    exam_title = serializers.CharField(source='exam.title', read_only=True)
+    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
+    graded_by_name = serializers.SerializerMethodField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+
+
+    class Meta:
+        model = ExamResult
+        fields = '__all__'
+        read_only_fields = ('graded_at', 'percentage', 'grade')
+    
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+    
     def validate_marks_obtained(self, value):
         if value is not None:
             exam = self.instance.exam if self.instance else self.initial_data.get('exam')
             if exam and value > exam.total_marks:
                 raise serializers.ValidationError("Marks obtained cannot exceed total marks for the exam.")
         return value
+    
+
+    def update(self, validated_data, instance):
+
+        if 'marks_obtained' in validated_data and validated_data['marks_obtained'] is not None:
+            validated_data['graded_by'] = self.context['request'].user
+            from django.utils import timezone
+            validated_data['graded_at'] = timezone.now()
+            validated_data['is_submitted'] = True
+            if not validated_data.get('submitted_at'):
+                validated_data['submitted_at'] = timezone.now()
+        return super().update(instance, validated_data)
+    
     
 
     def update(self, validated_data, instance):
