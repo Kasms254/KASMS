@@ -2,8 +2,9 @@
 from pathlib import Path
 from datetime import timedelta
 import os
-from decouple import Config, RepositoryEnv
+# from decouple import Config, RepositoryEnv
 from dotenv import load_dotenv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -19,7 +20,7 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -82,17 +84,18 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 
 
 DATABASES = {
-    "default": {
-        # "ENGINE": "django.db.backends.sqlite3",
-        # "NAME": BASE_DIR / "db.sqlite3",
-        "ENGINE":os.getenv('ENGINE'),
-        "NAME": os.getenv('DB_NAME', default='kasms_db'),
-        "USER": os.getenv('DB_USER', default='kasms_user'),
-        "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
-        "HOST": os.getenv('HOST', default='localhost'),
-        "PORT": os.getenv('PORT', default='5432'),
+    # "default": {
+    #     # "ENGINE": "django.db.backends.sqlite3",
+    #     # "NAME": BASE_DIR / "db.sqlite3",
+    #     "ENGINE":os.getenv('ENGINE'),
+    #     "NAME": os.getenv('DB_NAME', default='kasms_db'),
+    #     "USER": os.getenv('DB_USER', default='kasms_user'),
+    #     "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
+    #     "HOST": os.getenv('HOST', default='localhost'),
+    #     "PORT": os.getenv('PORT', default='5432'),
         
-    }
+    # }
+    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
 }
 
 
@@ -131,6 +134,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
