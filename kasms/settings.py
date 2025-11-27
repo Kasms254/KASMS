@@ -86,7 +86,7 @@ DATABASES = {
         # "ENGINE": "django.db.backends.sqlite3",
         # "NAME": BASE_DIR / "db.sqlite3",
         "ENGINE":os.getenv('ENGINE'),
-        "NAME": os.getenv('NAME', default='kasms_db'),
+        "NAME": os.getenv('DB_NAME', default='kasms_db'),
         "USER": os.getenv('DB_USER', default='kasms_user'),
         "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
         "HOST": os.getenv('HOST', default='localhost'),
