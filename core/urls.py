@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
@@ -31,8 +32,12 @@ router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
 
 app_name = 'core'
 
+def home(request):
+    return HttpResponse("Welcome to the KASMS API")
+
 urlpatterns = [
     path('', include(router.urls)),
+    path("", home),
     path('auth/login/', login_view, name='login'),
     path('auth/logout/', logout_view, name='logout'),
     path('auth/me/', current_user_view, name='current_user'),
