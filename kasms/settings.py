@@ -2,7 +2,8 @@
 from pathlib import Path
 from datetime import timedelta
 import os
-from decouple import config
+from decouple import Config, RepositoryEnv
+from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,10 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG')
+DEBUG = os.getenv("DEBUG", "True") == "True"
+
 
 ALLOWED_HOSTS = []
 
@@ -74,10 +76,22 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        # "ENGINE": "django.db.backends.sqlite3",
+        # "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE":os.getenv('ENGINE'),
+        "NAME": os.getenv('NAME', default='kasms_db'),
+        "USER": os.getenv('DB_USER', default='kasms_user'),
+        "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
+        "HOST": os.getenv('HOST', default='localhost'),
+        "PORT": os.getenv('PORT', default='5432'),
+        
     }
 }
 
