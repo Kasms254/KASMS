@@ -29,3 +29,4 @@ desktop.ini
 node_modules/
 dist/
 db.sqlite3
+datadump.json

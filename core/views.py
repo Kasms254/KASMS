@@ -1,15 +1,15 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer, UserListSerializer
-from rest_framework.permissions import IsAuthenticated
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
-from django.db.models import Q, Count
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin
+from .permissions import IsAdmin, IsAdminOrInstructor
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -29,7 +29,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.action == 'list':
-            return queryset.prefetch_related('enrollments__class_obj'
+            return queryset.prefetch_related('enrollments',
+                                             'enrollments__class_obj'
                                              ).only(
                                                 'id','username', 'email', 'first_name', 'last_name', 'role', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at'
                                              )
@@ -582,3 +583,447 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             'withdrawn_enrollments': Enrollment.objects.filter(is_active=False, completion_date__isnull=True).count(),
         }
         return Response(stats)
+    
+
+# instructor
+class ExamViewSet(viewsets.ModelViewSet):
+
+    queryset = Exam.objects.select_related('subject', 'created_by').all()
+    serializer_class = ExamSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'exam_type', 'is_active']
+    search_fields = ['title', 'subject__name', 'subject__code']
+    ordering_fields = ['exam_date', 'created_at']
+    ordering =['-created_at']
+
+
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'instructor':
+
+            queryset = queryset.filter(subject__instructor=user)
+
+        return queryset
+    
+
+    def perform_create(self, serializer):
+        subject = serializer.validated_data.get('subject')
+
+        if self.request.user.role == 'instructor':
+            if subject.instructor != self.request.user:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only create exams for the subject you teach.")
+            
+        serializer.save(created_by=self.request.user)
+
+
+    @action(detail=True, methods=['get'])
+    def results(self, request, pk=None):
+        exam = self.get_results()
+        results = exam.results.select_related('student', 'graded_by').all()
+        serializer = ExamResultSerializer(results, many=True)
+
+        return Response({
+            'exam': ExamSerializer(exam).data,
+            'count': results.count(),
+            'submitted': results.filter(is_submitted=True).count(),
+            'pending':results.filter(is_submitted=False).count(),
+            'results': serializer.data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def generate_results(self, request, pk=None):
+        exam = self.get_object()
+        class_obj = exam.subject.class_obj
+
+        enrollments = Enrollment.objects.filter(
+            class_obj=class_obj,
+            is_active =True
+        ).select_related('student')
+
+        created_count = 0
+
+        for enrollment in enrollments:
+            result, created = ExamResult.objects.get_or_create(
+                exam=exam,
+                student=enrollment.student,
+                defaults={'is_submitted': False}
+            )
+            if created:
+                crafted_count += 1
+
+
+        return Response({
+            'status': 'success',
+            'message': f'{created_count} results created',
+            'total_students': enrollments.count()
+        })
+    
+    @action(detail=False, methods=['get'])
+    def my_exams(self, request):
+        if request.user.role != 'instructor':
+            return Response(
+                {
+                    'error': 'Only instructors can access their exams.'
+                }, status=status.HTTP_403_FORBIDDEN
+            )
+        
+        exams = self.get_queryset().filter(
+            subject__instructor=request.user,
+            is_active=True
+        )
+
+        serializer = self.get_serializer(exams, many=True)
+
+        return Response({
+            'count': exams.count(),
+            'results': serializer.data
+        })
+    
+
+class ExamResultViewSet(viewsets.ModelViewSet):
+    queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
+    serializer_class = ExamResultSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['exam', 'student', 'is_submitted']
+    search_fields = ['student__first_name', 'student__last_name', '']
+    ordering_fields = ['marks_obtained', 'created_at']
+    ordering = ['-exam__exam_date', 'created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role != 'instructor':
+            queryset = queryset.filter(graded_by=user)
+
+        return queryset
+    
+
+    @action(detail=False, methods=['post'])
+    def bulk_grade(self, request):
+        serializer = BulkExamResultSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response (serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        results_data = serializer.validated_data['results']
+        updated_count = 0
+        errors = []
+
+        for result_data in results_data:
+            try:
+                result = ExamResult.objects.get(
+                    id=result_data.get('id'),
+                    exam__subject__instructor=request.user
+                )
+                result.marks_obtained = result_data['marks_obtained']
+                result.remarks =result_data.get('remarks', '')
+                result.is_submitted = True
+                result.submitted_at = timezone.now()
+                result.graded_by = request.user
+                result.graded_at =timezone.now()
+                result.save()
+                updated_count += 1
+
+            except ExamResult.DoesNotExist:
+                errors.append(f"Result{result_data.get('id')} not found.")
+
+            except Exception as e:
+                errors.append(str(e))
+
+        return Response({
+            'status': 'success',
+            'updated': updated_count,
+            'errors': errors
+        })
+
+    @action(detail=False, methods=['get'])
+    def student_results(self, request):
+        student_id = request.query_params.get('student_id')
+
+        if not student_id:
+            return Response({
+                'error': 'studen_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        serializer = self.get_serializer(results, many=True)
+
+
+        return Response({
+            'count':results.count(),
+            'results':serializer.data
+        })
+
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+
+    queryset = Attendance.objects.select_related(
+        'student', 'class_obj', 'subject', 'marked_by'
+    ).all()
+
+    serializer_class = AttendanceSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['class_obj', 'subject', 'status', 'date']
+    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
+    ordering_fields = ['date']
+    ordering =['-date']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'instructor':
+            queryset = queryset.filter(
+                Q(class_obj__instructor=user) | Q(subject__instructor=user)
+            )
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(marked_by=self.request.user)
+
+    @action(detail=False, methods=['post'])
+    def bulk_mark(self, request):
+        serializer = BulkAttendanceSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+
+        validated_data = serializer.validated_data
+        class_obj = validated_data['class_obj']
+        subject = validated_data['subject']
+        date = validated_data['date']
+        records = validated_data['attendance_records']
+
+
+        created_count = 0   
+        updated_count = 0
+        errors = []
+
+        for record in records:
+            try:
+                student = User.objects.get(id=record['student_id'], role='student')
+
+                attendance, created = Attendance.objects.update_or_create(
+                    student=student,
+                    class_obj=class_obj,
+                    subject=subject,
+                    date=date,
+                    defaults={
+                        'status': record['status'],
+                        'remarks':record.get('remarks', ''),
+                        'marked_by': request.user
+                    }
+                )
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+
+            except User.DoesNotExist:
+                errors.append(f"Student {record['student_id']} does not exist.")
+            except Exception as e:
+                errors.append(str(e))
+
+        return Response({
+            'status': 'success',
+            'created': created_count,
+            'updated': updated_count,
+            'errors': errors
+        })
+
+    @action(detail=False, methods=['get'])
+    def class_attendance(self, request):
+        class_id = request.query_params.get('class_id')
+        date = request.query_params.get('date')
+
+
+        if not class_id or not date:
+            return Response(
+                {'error': 'class_id and date parameters are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        attendance = self.get_queryset().filter(class_obj_id=class_id, date=date)
+        serializer = self.get_serializer(attendance, many=True)
+
+        return Response({
+            'count': attendance.count(),
+            'present': attendance.filter(status = 'present').count(),
+            'absent': attendance.filter(status='absent').count(),
+            'results': serializer.data,
+            'late':attendance.filter(status='late').count()
+
+        })
+    @action(detail=False, methods=['get'])
+    def student_attendance(self, request):
+        student_id = request.query_params.get('student_id')
+
+        if not student_id:
+            return Response({
+                'error': 'student_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        attendance = self.get_queryset().filter(student_id=student_id)
+
+        return Response({
+            'total':attendance.count(),
+            'present': attendance.filter(status='present').count(),
+            'absent': attendance.filter(status='absent').count(),
+            'late': attendance.filter(status='late').count(),
+            'excused': attendance.filter(status='excused').count(),
+            'attendance_rate':(
+                (attendance.filter(status='present').count() / attendance.count()) * 100
+            )
+            if attendance.count() > 0 else 0
+        })
+    
+
+class ClassNoticeViewSet(viewsets.ModelViewSet):
+
+    queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
+    serializer_class = ClassNotificationSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject']
+    search_fields = ['title', 'content']
+    ordering_fields = ['created_at', 'priority']
+    ordering = ['-created_at']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+        return [IsAuthenticated()]
+
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+
+        if user.role =='instructor':
+
+            queryset= queryset.filter(
+                Q(class_obj__instructor=user) | Q(subject__instructor=user)
+            )
+        elif user.role == 'student':
+
+            enrolled_classes = Enrollment.objects.filter(
+                student=user,
+                is_active=True
+            ).values_list('class_obj_id', flat=True)
+
+            queryset = queryset.filter(class_obj_id__in=enrolled_classes, is_active=True)
+
+        return queryset 
+
+    
+    def perform_create(self, serializer):
+        class_obj = serializer.validated_data.get('class_obj')
+        subject = serializer.validated_data.get('subject')
+
+
+        if self.request.user.role == 'instructor':
+            if subject and subject.instructor != self.request.user:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only create notices for subjects you teach.")
+            elif class_obj.instructor != self.request.user and not subject:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You cannot create notices for classes you don't teach.")
+            
+    @action(detail=False, methods=['get'])
+    def my_notices(self, request):
+
+        notices = self.get_queryset().filter(is_active=True)
+
+        if request.user.role != 'student':
+            notices =notices.filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+            )
+
+        serializer = self.get_serializer(notices, many=True)
+
+        return Response({
+            'count':notices.count(),
+            'results': serializer.data
+        })
+
+
+class ExamReportViewSet(viewsets.ModelViewSet):
+
+
+    queryset = ExamReport.objects.select_related('subject', 'class_obj', 'created_by').prefetch_related('exams').all()
+    serializer_class = ExamReportSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'class_obj']
+    search_fields = ['title', 'description']
+    ordering_fields = ['report_date', 'created_at']
+    ordering = ['-report_date']
+
+
+    def get_queryset(self):
+
+        queryset = super().get_queryset()
+        user = self.request.user
+
+
+        if user.role =='instructor':
+            querset = queryset.filter(subject__instructor=user)
+
+        return queryset
+
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    
+    @action(detail=True, methods=['get'])
+    def detailed_report(self, request, pk=None):
+
+        report = self.get_object()
+        exam_ids = report.exams.values._list('id', flat=True)
+
+        enrollments = Enrollment.objects.filter(
+
+            class_obj = report.class_obj,
+            is_active = True
+        ).select_related('student')
+
+        student_data = []
+
+        for enrollment in enrollments:
+            results = ExamResult.objects.filter(
+                exam_id__in=exam_ids,
+                student = enrollment.student,
+                is_submitted = True
+            )
+
+            total_marks = sum(r.marks_obtained for r in results if r.marks_obtained)
+            total_possible = sum(r.exam.total_marks for r in results)
+            percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
+
+            student_data.append({
+                'student_id':enrollment.student.id,
+                'student_name':enrollment.student.get_full_name(),
+                'svc_number': enrollment.student.svc_number,
+                'total_marks': total_marks,
+                'total_possible': total_possible,
+                'percentage': round(percentage, 2),
+                'results': ExamResultSerializer(results, many=True).data
+            })
+
+        return Response({
+            'report': self.get_serializer(report).data,
+            'students': student_data
+        })
+
