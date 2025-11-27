@@ -53,9 +53,22 @@ jobs:
           flake8 . --exclude venv,env,node_modules,frontend
         continue-on-error: true
 
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..10}; do
+            nc -z localhost 5432 && echo "Postgres is up" && break
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+
       - name: Run Django tests
         env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          ENGINE: django.db.backends.postgresql
+          DB_NAME: test_db
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          HOST: localhost
+          PORT: 5432
           SECRET_KEY: test_secret_key
           DEBUG: True
         run: |
