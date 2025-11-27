@@ -42,9 +42,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -81,7 +81,7 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 
 
 
-
+AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
     # "default": {
@@ -95,7 +95,9 @@ DATABASES = {
     #     "PORT": os.getenv('PORT', default='5432'),
         
     # }
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+     "default": dj_database_url.config(
+        default=os.environ.get("DATABASE_URL")
+    )
 }
 
 
@@ -192,6 +194,10 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS")
+
+CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS")
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
