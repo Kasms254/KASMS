@@ -33,6 +33,16 @@ jobs:
         ports:
           - 5432:5432
 
+    env:
+      ENGINE: django.db.backends.postgresql
+      DB_NAME: test_db
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+      HOST: localhost
+      PORT: 5432
+      SECRET_KEY: test_secret_key
+      DEBUG: True
+
     steps:
       - uses: actions/checkout@v3
 
