@@ -34,12 +34,7 @@ jobs:
           - 5432:5432
 
     env:
-      ENGINE: django.db.backends.postgresql
-      DB_NAME: test_db
-      DB_USER: test_user
-      DB_PASSWORD: test_password
-      HOST: localhost
-      PORT: 5432
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
       SECRET_KEY: test_secret_key
       DEBUG: True
 
@@ -72,15 +67,6 @@ jobs:
           done
 
       - name: Run Django tests
-        env:
-          ENGINE: django.db.backends.postgresql
-          DB_NAME: test_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
-          HOST: localhost
-          PORT: 5432
-          SECRET_KEY: test_secret_key
-          DEBUG: True
         run: |
           python manage.py test
         continue-on-error: true
@@ -116,4 +102,15 @@ jobs:
 
       - name: Build frontend
         working-directory: ./frontend
+        env:
+          CI: true
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL  || 'http://localhost:8000/api' }}
+          PUBLIC_URL: ${{ secrets.PUBLIC_URL || 'http://localhost:8000' }}
         run: npm run build
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: ./frontend/build
+          retention-days: 7
