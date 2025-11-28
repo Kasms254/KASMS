@@ -45,7 +45,7 @@ class UserViewSet(viewsets.ModelViewSet):
         
         instructor_classes = Class.objects.filter(
             Q(instructor=request.user) | Q(subjects__instructor=request.user),
-            is_active=True).distintive().value_list('id', flat=True)
+            is_active=True).distinct().values_list('id', flat=True)
         
         student_ids = Enrollment.objects.filter(
             class_obj_id__in=instructor_classes,
@@ -64,12 +64,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'count':students.count(),
             'results':serializer.data
         })
-
-
-    
-
-    
-
 
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
@@ -334,21 +328,13 @@ class ClassViewSet(viewsets.ModelViewSet):
             }, 
             status=status.HTTP_403_FORBIDDEN)
         
-        classes_as_instructor = Class.objects.filter(
-            instructor=request.user,
-            is_active=True
-        ).annotate(
-            enrollment_count = Count('enrollments', filter=Q(enrollments__is_active=True))
-        )
-
-        classes_through_subjects = Class.objects.filter(
-            subjects__instructor=request.user,
+        all_classes = Class.objects.filter(
+            Q(instructor=request.user) | Q(subjects__instructor=request.user),
             is_active=True
         ).distinct().annotate(
-            enrollment_count =Count('enrollments', filter=Q(enrollments__is_active=True))
+            enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True))
         )
-        all_classes = (classes_as_instructor | classes_through_subjects).distinct()
-
+        
         serializer = ClassSerializer(all_classes, many=True)
 
         return Response({
@@ -447,7 +433,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
         subjects = Subject.objects.filter(
             instructor = request.user,
             is_active = True
-        ).select_related('class_obj', 'class_obj_course')
+        ).select_related('class_obj', 'class_obj__course')
 
         serializer = SubjectSerializer(subjects, many=True)
 
@@ -1247,5 +1233,5 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'students': students_count,
             'exams': exams_count,
             'pending_grading': pending_grading
-            
+
         })
