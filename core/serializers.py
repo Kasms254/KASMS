@@ -176,6 +176,8 @@ class ClassSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
+    instructor_svc_number = serializers.CharField(source='instructor.svc_number', read_only=True)
+    instructor_rank = serializers.CharField(source='instructor.rank', read_only=True)
     class_code = serializers.CharField(source='class_obj.class_code', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
 
