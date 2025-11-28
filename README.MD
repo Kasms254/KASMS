@@ -13,7 +13,7 @@ http://127.0.0.1:8000/api/auth/logout/
 
 BASE URL: /api/
 
-
+FOR ADMIN USERS
 -----------------------------------
 USERS ENDPOINTS
 -----------------------------------
@@ -115,5 +115,39 @@ Ordering:
   ?ordering=created_at          (ascending)
   ?ordering=-created_at         (descending)
   ?ordering=name,-created_at    (multiple)
+
+
+FOR instructor USERS
+-----------------------------------
+INSTRUCTOR DASHBOARD ENDPOINTS
+-----------------------------------
+AUTHENTICATION:
+        All endpoints require authentication
+LOGIN:
+ http://127.0.0.1:8000/api/auth/login/
+
+LOGOUT:
+ http://127.0.0.1:8000/api/auth/logout/
+
+1. Create Exam  - POST /api/exams/
+2. List Exams - GET /api/exams/
+3. Get My Exams (Instructor Only) - GET /api/exams/my_exams/
+4. Get Exam Results - GET /api/exams/{exam_id}/results/
+5. Auto-Generate Result Entries - POST /api/exams/{exam_id}/generate_results/
+6. Grade Single Result - PUT /api/exam-results/{result_id}/
+7. Bulk Grade Results - POST /api/exam-results/bulk_grade/
+8. Get Student Results - GET /api/exam-results/student_results/?student_id=5
+9. Mark Single Attendance - POST /api/attendance/
+10. Bulk Mark Attendance - POST /api/attendance/bulk_mark/
+11. Get Class Attendance for Date - GET /api/attendance/class_attendance/?class_id=1&date=2025-11-18
+12. Get Student Attendance Summary - GET /api/attendance/student_attendance/?student_id=5
+13. Create Class Notice - POST /api/class-notices/
+14. List My Notices - GET /api/class-notices/my_notices/
+15. Filter Notices - GET /api/class-notices/?class_obj=1
+                GET /api/class-notices/?priority=urgent
+                GET /api/class-notices/?subject=2
+16. Create Exam Report - POST /api/exam-reports/
+17. Get Detailed Report - GET /api/exam-reports/{report_id}/detailed_report/
+-----------------------------------
 
 
