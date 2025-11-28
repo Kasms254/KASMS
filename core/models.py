@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -48,7 +49,6 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
     
-
 class Course(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
@@ -160,3 +160,188 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
+
+
+
+# instructor
+class Exam(models.Model):
+    EXAM_TYPE_CHOICES = [
+        ('cat', 'CAT'),
+        ('final', 'Final'),
+        ('project', 'Project'),
+    ]
+
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
+    title = models.CharField(max_length=200)
+    exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
+    description = models.TextField(blank=True, null=True)
+    total_marks = models.IntegerField(validators=[MinValueValidator(1)], default=100)
+    exam_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by =  models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exams_created')
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    exam_duration = models.DurationField(null=True, blank=True)
+
+
+    class Meta:
+        db_table = 'exams'
+        ordering = ['-exam_date', 'created_at']
+        unique_together = ['subject', 'exam_date']
+
+    def __str__(self):
+        return f"{self.title} -{self.subject.name}" 
+
+    @property
+    def average_score(self):
+        results = self.results.filter(is_submitted=True)
+        if not results.exists():
+            return 0
+        return results.aggregate(models.Avg('marks_obtained'))['marks_obtained__avg']
+
+    @property
+    def submission_count(self):
+        return self.results.filter(is_submitted=True).count()
+
+
+class ExamResult(models.Model):
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
+    student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='results')
+
+    marks_obtained = models.DecimalField(
+        max_digits =5,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        null=True,
+        blank=True
+    )
+    remarks = models.TextField(null=True, blank=True)
+    is_submitted = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
+
+    class Meta:
+        db_table = 'exam_results'
+        unique_together = ['exam', 'student']
+    
+    def __str__(self):
+        return f"{self.student.get_full_name()} - {self.exam.title}"
+    
+
+    @property
+    def percentage(self):
+        if self.marks_obtained is not None and self.exam.total_marks > 0:
+            return (float(self.marks_obtained) / self.exam.total_marks) * 100
+        return 0
+
+    @property
+    def grade(self):
+        pct = self.percentage
+        if pct >= 80:
+            return 'A'
+        if pct >= 70:
+            return 'B'
+        if pct >= 60:
+            return 'C'
+        if pct >= 50:
+            return 'D'
+        return 'F'
+    
+class Attendance(models.Model):
+    STATUS_CHOICES = [
+       ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('late', 'Late'),
+    ]
+
+    student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
+    class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendances')
+    subject =models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='present')
+    remarks = models.TextField(null=True, blank=True)
+    marked_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='attendances_marked')
+    created_by = models.DateTimeField(auto_now_add=True)
+    updated_at =models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'attendance'
+        ordering = ['-class_obj', 'student__last_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'class_obj', 'subject', 'date'],
+                name='unique_attendance_per_student_class_subject_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.get_full_name()} - {self.date} - {self.status}"
+    
+class ClassNotice(models.Model):
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+
+    class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices')
+    title = models.CharField(max_length=50)
+    content = models.TextField()
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='class_notices_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    expiry_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'class_notices'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.class_obj.name}"
+
+
+class ExamReport(models.Model):
+
+    title = models.CharField(max_length=50)
+    description = models.TextField(blank=True, null=True)
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='exam_reports')
+    class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='exam_reports')
+    exams = models.ManyToManyField('Exam', related_name='exam_reports')
+    report_date = models.DateField()
+    created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_reports_created')
+    created_at = models.DateField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    report_date = models.DateField(default=timezone.now)
+
+    class Meta:
+        db_table = 'exam_reports'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.class_obj.name}"
+
+    @property
+    def total_students(self):
+        return self.class_obj.enrollments.filter(is_active=True).count()
+    
+    @property
+    def average_performance(self):
+        exam_ids = self.exams.values_list('id', flat=True)
+        results = ExamResult.objects.filter(exam_id__in=exam_ids, is_submitted=True)
+        if not results.exists():
+            return 0
+        
+        total_percentage = 0
+        count = 0
+        for result in results:
+            total_percentage += result.percentage
+            count += 1
+
+        return total_percentage / count if count > 0 else 0
+    
+

@@ -1,11 +1,11 @@
 from django.contrib import admin
-from .models import User, Course, Class, Enrollment, Subject, Notice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'first_name', 'last_name','svc_number', 'phone_number', 'role', 'is_active', 'is_staff', 'rank')
+    list_display = ('id','username', 'email', 'first_name', 'last_name','svc_number', 'phone_number', 'role', 'is_active', 'is_staff', 'rank')
     list_filter = ('role', 'is_active', 'is_staff', 'svc_number', 'rank')
     search_fields = ('username', 'email', 'svc_number', 'phone_number')
     ordering = ['-created_at']
@@ -36,7 +36,7 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
+    list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
     ordering = ['-created_at']
@@ -87,3 +87,30 @@ class NoticeAdmin(admin.ModelAdmin):
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
 
+
+@admin.register(Exam)
+class ExamAdmin(admin.ModelAdmin):
+    list_display = ('title', 'subject', 'exam_date', 'created_at', 'exam_type')
+    list_filter = ('subject', 'exam_date', 'created_at')
+    search_fields = ('name', 'subject__name')
+    ordering = ['-created_at']
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_at = timezone.now()
+        obj.updated_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = ('student', 'status', 'class_obj')
+    list_filter = ['status']
+    search_fields = ['student__username']
+    ordering = ['-status']
+
+    def save_model(self, request, obj, form, change):
+        
+        if not change:
+            obj.created_at = timezone.now()
+        obj.updated_at = timezone.now()
+        super().save_model(request, obj, form, change)

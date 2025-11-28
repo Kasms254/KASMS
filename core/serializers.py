@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -97,7 +97,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'role_display', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at', 'class_name']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'role_display', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at', 'class_name', 'rank']
         read_only_fields = ('created_at', 'updated_at')
     
     def get_full_name(self, obj):
@@ -285,3 +285,240 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             })
         
         return attrs
+    
+
+class ExamSerializer(serializers.ModelSerializer):
+
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    subject_code = serializers.CharField(source='subject.subject_code', read_only=True)
+    class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
+    average_score = serializers.FloatField(read_only=True)
+    submission_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Exam
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'average_score', 'id')
+        extra_kwargs = {
+            'exam_type':{'required': True},
+            'title':{'required': True},
+            'subject':{'required': True},
+            'exam_date':{'required': True},
+            'total_marks':{'required': True}
+        }
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+    
+    def validate_exam_date(self, value):
+        from django.utils import timezone
+        if not self.instance and value < timezone.now().date():
+            raise serializers.ValidationError("Exam date cannot be in the past.")
+        return value
+    
+class ExamResultSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    exam_title = serializers.CharField(source='exam.title', read_only=True)
+    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
+    graded_by_name = serializers.SerializerMethodField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+
+
+    class Meta:
+        model = ExamResult
+        fields = '__all__'
+        read_only_fields = ('graded_at', 'percentage', 'grade')
+    
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+    
+class ExamResultSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    exam_title = serializers.CharField(source='exam.title', read_only=True)
+    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
+    graded_by_name = serializers.SerializerMethodField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+
+
+    class Meta:
+        model = ExamResult
+        fields = '__all__'
+        read_only_fields = ('graded_at', 'percentage', 'grade')
+    
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+    
+    def validate_marks_obtained(self, value):
+        if value is not None:
+            exam = self.instance.exam if self.instance else self.initial_data.get('exam')
+            if exam and value > exam.total_marks:
+                raise serializers.ValidationError("Marks obtained cannot exceed total marks for the exam.")
+        return value
+    
+
+    def update(self, validated_data, instance):
+
+        if 'marks_obtained' in validated_data and validated_data['marks_obtained'] is not None:
+            validated_data['graded_by'] = self.context['request'].user
+            from django.utils import timezone
+            validated_data['graded_at'] = timezone.now()
+            validated_data['is_submitted'] = True
+            if not validated_data.get('submitted_at'):
+                validated_data['submitted_at'] = timezone.now()
+        return super().update(instance, validated_data)
+    
+    
+
+    def update(self, validated_data, instance):
+
+        if 'marks_obtained' in validated_data and validated_data['marks_obtained'] is not None:
+            validated_data['graded_by'] = self.context['request'].user
+            from django.utils import timezone
+            validated_data['graded_at'] = timezone.now()
+            validated_data['is_submitted'] = True
+            if not validated_data.get('submitted_at'):
+                validated_data['submitted_at'] = timezone.now()
+        return super().update(instance, validated_data)
+    
+
+class BulkExamResultSerializer(serializers.Serializer):
+
+    results = serializers.ListField(
+        child = serializers.DictField(),
+        allow_empty = False,
+    
+    )
+
+    def validate_results(self, value):
+        for result in value:
+            if 'student_id' not in result:
+                raise serializers.ValidationError("Each result must include 'student_id'.")
+            if 'marks_obtained' not in result:
+                raise serializers.ValidationError("Each result must include 'marks_obtained'.")
+        return value
+    
+
+
+class AttendanceSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    marked_by_name = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+        read_only_fields = ('marked_by', 'id', 'created_at', 'updated_at')
+
+    def get_marked_by_name(self, obj):
+        return obj.marked_by.get_full_name() if obj.marked_by else None
+    
+    def validate(self, attrs):
+        student = attrs.get('student')
+        class_obj = attrs.get('class_obj')
+
+        if student and class_obj:
+            from .models import Enrollment
+            if not Enrollment.objects.filter(
+                student = student,
+                class_obj = class_obj,
+                is_active = True
+            ).exists():
+                raise serializers.ValidationError({
+                    "student": "Student is not enroled in this clas."
+                })
+            
+        return attrs
+    
+
+class BulkAttendanceSerializer(serializers.Serializer):
+    class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
+    subject = serializers.PrimaryKeyRelatedField(
+        queryset=Subject.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    date = serializers.DateField()
+    attendance_records = serializers.ListField(
+        child=serializers.DictField(),
+        allow_empty=False
+    )
+
+
+    def validate_attendance_records(self, value):
+        for record in value:
+            if 'student_id' not in record:
+                raise serializers.ValidationError("Each record must have a student id")
+            if 'status' not in record:
+                raise serializers.ValidationError("Each record must have a status")
+            if record['status'] not in ['present', 'absent', 'late', 'excused']:
+                raise serializers.ValidationError(f"Invalid status:{record['status']}")
+
+        return value
+    
+
+
+class ClassNotificationSerializer(serializers.ModelSerializer):
+
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+
+
+    class Meta:
+        model = ClassNotice
+        fields = '__all__'
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+    
+
+class ExamReportSerializer(serializers.ModelSerializer):
+
+    subject_name = serializers.CharField(source='subject.name', read_only=True
+                                         )
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    exams_count = serializers.IntegerField(source='exams.count', read_only=True)
+    total_students = serializers.IntegerField(read_only=True)
+    average_performance = serializers.FloatField(read_only=True)
+
+
+    class Meta:
+        model = ExamReport
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'average_performance')
+
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+    
+    def validate_exams(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one exam must be selected")
+        
+        subject_ids =set(exam.subject_id for exam in value)
+
+        if len(subject_ids) > 1:
+            raise serializers.ValidationError(
+                "ALl Exams must belong to the same subject"
+            )
+        
+        return value
+    
+    
+    
