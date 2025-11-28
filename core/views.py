@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -35,6 +35,42 @@ class UserViewSet(viewsets.ModelViewSet):
                                                 'id','username', 'email', 'first_name', 'last_name', 'role', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at'
                                              )
         return queryset
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
+    def my_students(self, request):
+        if request.user.role != 'instructor':
+            return Response({
+            'error': 'Only instructors can access their students.'
+            })
+        
+        instructor_classes = Class.objects.filter(
+            Q(instructor=request.user) | Q(subjects__instructor=request.user),
+            is_active=True).distintive().value_list('id', flat=True)
+        
+        student_ids = Enrollment.objects.filter(
+            class_obj_id__in=instructor_classes,
+            is_active=True
+        ).values_list('student_id', flat=True).distinct()
+
+        students = User.objects.filter(
+            id__in=student_ids,
+            role='student',
+            is_active=True
+        ).order_by('first_name', 'last_name')
+
+        serializer = UserListSerializer(students, many=True)
+
+        return Response({
+            'count':students.count(),
+            'results':serializer.data
+        })
+
+
+    
+
+    
+
+
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def instructors(self, request):
@@ -288,6 +324,39 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
+
+    # instructor specific classes
+    @action(detail=False, methods=['get'], permission_classes=[IsInstructor])
+    def my_classes(self, request):
+        if request.user.role != 'instructor':
+            return Response({
+                'error': 'Only instructors can access their classes.'
+            }, 
+            status=status.HTTP_403_FORBIDDEN)
+        
+        classes_as_instructor = Class.objects.filter(
+            instructor=request.user,
+            is_active=True
+        ).annotate(
+            enrollment_count = Count('enrollments', filter=Q(enrollments__is_active=True))
+        )
+
+        classes_through_subjects = Class.objects.filter(
+            subjects__instructor=request.user,
+            is_active=True
+        ).distinct().annotate(
+            enrollment_count =Count('enrollments', filter=Q(enrollments__is_active=True))
+        )
+        all_classes = (classes_as_instructor | classes_through_subjects).distinct()
+
+        serializer = ClassSerializer(all_classes, many=True)
+
+        return Response({
+            'count': all_classes.count(),
+            'results': serializer.data
+        })
+    
+
 class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
@@ -365,6 +434,29 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated,IsInstructor])
+    def my_subjects(self, request):
+
+        if request.user.role != 'instructor':
+            return Response({
+                'error': 'Only instructors can access their subjects.'
+            }, 
+            status=status.HTTP_403_FORBIDDEN)
+        
+        subjects = Subject.objects.filter(
+            instructor = request.user,
+            is_active = True
+        ).select_related('class_obj', 'class_obj_course')
+
+        serializer = SubjectSerializer(subjects, many=True)
+
+        return Response({
+            'count':subjects.count(),
+            'results': serializer.data
+        })
+    
+
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
@@ -887,7 +979,28 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             if attendance.count() > 0 else 0
         })
     
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminOrInstructor])
+    def all_students_for_attendance(self, request):
 
+        students = User.objects.filter(
+            role= 'student',
+            is_active = True
+        ).select_related().order_by('first_name', 'last_name')
+
+        class_id = request.query_params.get('class_id')
+        if class_id:
+            student_ids = Enrollment.objects.filter(
+                class_obj_id=class_id,
+                is_active=True
+            ).values_list('student_id', flat=True)
+            students = students.filter(id__in=student_ids)
+
+        serializer = UserSerializer(students, many=True)
+
+        return Response({
+            'count': students.count(),
+            'results': serializer.data
+        })
 class ClassNoticeViewSet(viewsets.ModelViewSet):
 
     queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
@@ -1027,3 +1140,112 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'students': student_data
         })
 
+
+class InstructorDashboardViewset(viewsets.ViewSet):
+
+    permission_classes = [IsAuthenticated, IsInstructor]
+
+    def list(slef, request):
+
+        if request.user.role != 'instructor':
+            return Response(
+                {'error': 'Only instructors can access the dashboard.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        user = request.user
+
+        my_classes = Class.objects.filter(
+            Q(instructor=user) | Q(subjects__instructor=user),
+            is_active=True
+        ).distinct()
+
+        my_subjects =Subject.objects.filter(
+            instructor=user,
+            is_active=True
+        )
+
+        instructor_class_ids = my_classes.values_list('id', flat=True)
+        my_students_count = Enrollment.objects.filter(
+            class_obj_id__in=instructor_class_ids,
+            is_active=True
+        ).values('student').distinct().count()
+
+        my_exams = Exam.objects.filter(
+            subject__instructor=user,
+            is_active=True
+        )
+
+        pending_results = ExamResult.objects.filter(
+            exam__subject__instructor=user,
+            is_submitted=False
+        ).count()
+
+
+        today = timezone.now().date()
+        today_attendance = Attendance.objects.filter(
+            Q(class_obj__instructor=user) & Q(subject__instructor=user),
+            date=today
+        ).count()
+
+        stats ={
+            'total_classes': my_classes.count(),
+            'total_subjects': my_subjects.count(),
+            'total_students': my_students_count,
+            'total_exams': my_exams.count(),
+            'pending_results': pending_results,
+            'today_attendance_records': today_attendance,
+            'classes': ClassSerializer(my_classes, many=True).data,
+            'subjects': SubjectSerializer(my_subjects, many=True).data
+        }
+
+        return Response(stats)
+
+    @action(detail=False, methods=['get'])
+    def summary(slef, request):
+        if request.user.role != 'instructor':
+            return Response(
+                {'error': 'Only instructors can access the dashboard.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        user= request.user
+
+        classes_count = Class.objects.filter(
+            Q(instructor=user) | Q(subjects__instructor=user),
+            is_active=True
+        ).distinct().count()
+
+        subjects_count = Subject.objects.filter(
+            instructor=user,
+            is_active=True
+        ).count()
+
+        instructor_class_ids = Class.objects.filter(
+            Q(instructor=user) | Q(subjects__instructor=user),
+            is_active=True
+        ).distinct().values_list('id', flat=True)
+
+        students_count = Enrollment.objects.filter(
+            class_obj_id__in=instructor_class_ids,
+            is_active=True
+        ).values('student').distinct().count()
+
+        exams_count = Exam.objects.filter(
+            subject__instructor=user,
+            is_active=True
+        ).count()
+
+        pending_grading = ExamResult.objects.filter(
+            exam__subject__instructor=user,
+            is_submitted=False
+        ).count()
+
+        return Response({
+            'classes': classes_count,
+            'subjects': subjects_count,
+            'students': students_count,
+            'exams': exams_count,
+            'pending_grading': pending_grading
+            
+        })
