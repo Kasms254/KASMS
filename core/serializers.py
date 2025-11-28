@@ -246,6 +246,8 @@ class NoticeSerializer(serializers.ModelSerializer):
 class EnrollmentSerializer(serializers.ModelSerializer):
 
     student_name = serializers.SerializerMethodField(read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    student_rank = serializers.CharField(source='student.rank', read_only=True)
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     class_code = serializers.CharField(source='class_obj.class_code', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)

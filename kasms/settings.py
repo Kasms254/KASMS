@@ -34,10 +34,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
     "core",
     # 'rest_framework.authtoken',
     "rest_framework",
-    "corsheaders",
     "django_filters",
 ]
 
@@ -187,6 +187,8 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
+    "https://kasms.onrender.com",
+    "https://kasms.vercel.app",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
@@ -199,15 +201,20 @@ CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,
 CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS", 
                                "accept,accept-encoding,authorization,content-type,dnt,origin,user-agent,x-csrftoken,x-requested-with").split(",")
 
+CORS_EXPOSE_HEADERS = ["Authorization"]
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://kasms.onrender.com",
+    "https://kasms.vercel.app",
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:8000',
 ]
+
 
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
