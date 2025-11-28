@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
-import { getClasses, getClassEnrolledStudents } from '../../lib/api'
+import { getClasses, getClassEnrolledStudents, getMyClasses } from '../../lib/api'
 
 export default function InstructorStudents() {
   const { user } = useAuth()
@@ -14,16 +14,35 @@ export default function InstructorStudents() {
       if (!user) return
       setLoading(true)
       try {
-        // Prefer server-side filter if available
+        // Prefer a dedicated server-side endpoint for the current user's
+        // classes (avoid permission errors) — try `/api/classes/mine/` first.
         let classes = []
         try {
-          const data = await getClasses(`instructor=${user.id}`)
-          classes = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+          const mine = await getMyClasses()
+          classes = Array.isArray(mine) ? mine : (mine && mine.results) ? mine.results : []
         } catch {
-          // Fallback: fetch all classes and filter locally
-          const all = await getClasses()
-          const list = Array.isArray(all) ? all : (all && all.results) ? all.results : []
-          classes = list.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
+          // If `/mine/` isn't available or returns 403, try common filter params
+          try {
+            let data = await getClasses(`instructor=${user.id}`)
+            classes = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+          } catch {
+            try {
+              const data = await getClasses(`instructor_id=${user.id}`)
+              classes = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+            } catch {
+              // Fallback: fetch all classes and filter locally (if the API allows list)
+              const all = await getClasses()
+              const list = Array.isArray(all) ? all : (all && all.results) ? all.results : []
+              classes = list.filter((c) => {
+                if (!c) return false
+                if (typeof c.instructor === 'object') return String(c.instructor.id) === String(user.id)
+                if (c.instructor === user.id || String(c.instructor) === String(user.id)) return true
+                if (c.instructor_id === user.id || String(c.instructor_id) === String(user.id)) return true
+                if (c.instructor_name && (c.instructor_name === user.full_name || (user.username && c.instructor_name.includes(user.username)))) return true
+                return false
+              })
+            }
+          }
         }
 
         // For each class, fetch enrolled students and aggregate unique students
@@ -35,8 +54,17 @@ export default function InstructorStudents() {
           if (!res) return
           const arr = Array.isArray(res) ? res : (res && res.results) ? res.results : []
           arr.forEach((s) => {
-            // prefer unique by id
-            map[s.id] = { ...s, className: cl.name || cl.class_code || s.className }
+            const id = s && (s.id || s.student_id || (s.student && (s.student.id || s.student.student_id)))
+            if (!id) return
+            // merge student data; prefer name/svc from nested student object when present
+            const studentObj = s.student && typeof s.student === 'object' ? s.student : s
+            map[id] = {
+              id,
+              full_name: studentObj.full_name || `${studentObj.first_name || ''} ${studentObj.last_name || ''}`.trim() || studentObj.username || '',
+              svc_number: studentObj.svc_number || studentObj.svc || s.svc_number || '',
+              username: studentObj.username || '',
+              className: cl.name || cl.class_code || s.className || '',
+            }
           })
         })
 

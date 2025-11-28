@@ -49,7 +49,8 @@ export default function AdminStudents() {
           last_name: u.last_name,
           full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
           name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          svc_number: u.svc_number,
+          // normalize svc_number to a string so client-side searches are consistent
+          svc_number: u.svc_number != null ? String(u.svc_number) : '',
           email: u.email,
           phone_number: u.phone_number,
           rank: u.rank || u.rank_display || '',
@@ -111,16 +112,17 @@ export default function AdminStudents() {
   }
 
   // compute filtered groups based on debounced query
-  const filteredGroups = useMemo(() => {
+    const filteredGroups = useMemo(() => {
     if (!debouncedQuery) return groups
     const q = debouncedQuery.toLowerCase()
     const res = {}
     Object.keys(groups).forEach((cls) => {
       const matches = groups[cls].filter((st) =>
         (st.name || '').toLowerCase().includes(q) ||
-        (st.svc_number || '').toLowerCase().includes(q) ||
+        // ensure svc_number and phone are strings before lowercasing (may be numeric from API)
+        String(st.svc_number || '').toLowerCase().includes(q) ||
         (st.email || '').toLowerCase().includes(q) ||
-        (st.phone_number || '').toLowerCase().includes(q) ||
+        String(st.phone_number || '').toLowerCase().includes(q) ||
         (st.className || '').toLowerCase().includes(q)
       )
       if (matches.length) res[cls] = matches

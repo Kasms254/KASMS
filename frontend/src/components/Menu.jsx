@@ -55,7 +55,8 @@ const menuItems = [
         icon: 'Award',
         label: 'Add Certificate',
         href: '/add/certificate',
-        visible: ['admin', 'instructor'],
+        // Certificate creation should be admin-only; instructors no longer see this
+        visible: ['admin'],
       },
       {
         icon: 'TrendingUp',

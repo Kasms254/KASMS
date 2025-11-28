@@ -18,6 +18,9 @@ export default function ClassesList(){
   const [instructors, setInstructors] = useState([])
   const [classErrors, setClassErrors] = useState({})
   const [isSaving, setIsSaving] = useState(false)
+  // errors and saving state for the "Add subject" modal
+  const [subjectErrors, setSubjectErrors] = useState({})
+  const [subjectSaving, setSubjectSaving] = useState(false)
   const toast = useToast()
   const reportError = useCallback((msg) => {
     if (!msg) return
@@ -73,7 +76,7 @@ export default function ClassesList(){
     }catch{
       reportError('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [toast, showOnlyActive, user])
+  }, [reportError, showOnlyActive, user])
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
@@ -84,7 +87,9 @@ export default function ClassesList(){
     }catch{
       setInstructors([])
     }
-    // prefill class selection if caller provided one
+    // clear previous subject modal errors and prefill class selection if caller provided one
+    setSubjectErrors({})
+    setSubjectSaving(false)
     setForm({ name: '', subject_code: '', instructor: '', class_obj: classId || '' })
     setModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
@@ -94,10 +99,16 @@ export default function ClassesList(){
 
   async function handleAddSubject(e){
     e.preventDefault()
-  if (!form.name) return reportError('Subject name required')
-  if (!form.description) return reportError('Subject description required')
-  if (!form.class_obj) return reportError('Please select a class')
-  if (!form.instructor) return reportError('Please select an instructor')
+    // client-side validation: build an errors object and show inline
+    const errors = {}
+    if (!form.name) errors.name = 'Subject name required'
+    if (!form.description) errors.description = 'Subject description required'
+    if (!form.class_obj) errors.class_obj = 'Please select a class'
+    if (!form.instructor) errors.instructor = 'Please select an instructor'
+    if (Object.keys(errors).length) {
+      setSubjectErrors(errors)
+      return
+    }
     // ensure numeric PKs are sent for foreign keys
     const payload = {
       name: form.name,
@@ -107,32 +118,35 @@ export default function ClassesList(){
       instructor: Number(form.instructor),
     }
     try{
+      setSubjectSaving(true)
       await addSubject(payload)
+      // clear errors and show success
+      setSubjectErrors({})
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       else console.log('Subject added')
-  closeModal()
-  await loadClasses()
+      closeModal()
+      await loadClasses()
     }catch(err){
       const d = err?.data
+      // If backend provided structured field errors, show them inline
       if (d && typeof d === 'object'){
-        // assemble readable message from field errors
-        const parts = []
-        Object.keys(d).forEach(k => {
-          if (Array.isArray(d[k])) parts.push(`${k}: ${d[k].join(' ')}`)
-          else parts.push(`${k}: ${String(d[k])}`)
-        })
-        const combined = parts.join(' | ')
-        if (toast?.error) toast.error(combined)
-        else if (toast?.showToast) toast.showToast(combined, { type: 'error' })
-  else reportError(combined)
+        setSubjectErrors(d)
+        // show non-field messages as toast if present
+        const nonField = d.non_field_errors || d.detail || d.message || d.error
+        if (nonField) {
+          const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
+          if (toast?.error) toast.error(msg)
+          else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+        }
         return
       }
       const msg = err?.message || 'Failed to add subject'
-  if (toast?.error) toast.error(msg)
-  else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
-  else reportError(msg)
+      if (toast?.error) toast.error(msg)
+      else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+      else reportError(msg)
     }
+    finally { setSubjectSaving(false) }
   }
 
   return (
@@ -298,21 +312,40 @@ export default function ClassesList(){
                 <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
               </div>
               <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <input placeholder="Subject code" value={form.subject_code} onChange={(e) => setForm({ ...form, subject_code: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
-                  <option value="">— Select class —</option>
-                  {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
-                </select>
-                <textarea placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black md:col-span-3" rows={3} />
-                <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
-                  <option value="">— Select instructor —</option>
-                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                </select>
+                <div>
+                  <input placeholder="Subject name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSubjectErrors(prev => ({ ...prev, name: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black" />
+                  {subjectErrors.name && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.name) ? subjectErrors.name.join(' ') : String(subjectErrors.name)}</div>}
+                </div>
+
+                <div>
+                  <input placeholder="Subject code" value={form.subject_code} onChange={(e) => { setForm({ ...form, subject_code: e.target.value }); setSubjectErrors(prev => ({ ...prev, subject_code: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black" />
+                  {subjectErrors.subject_code && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.subject_code) ? subjectErrors.subject_code.join(' ') : String(subjectErrors.subject_code)}</div>}
+                </div>
+
+                <div>
+                  <select value={form.class_obj} onChange={(e) => { setForm({ ...form, class_obj: e.target.value }); setSubjectErrors(prev => ({ ...prev, class_obj: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black">
+                    <option value="">— Select class —</option>
+                    {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
+                  </select>
+                  {subjectErrors.class_obj && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.class_obj) ? subjectErrors.class_obj.join(' ') : String(subjectErrors.class_obj)}</div>}
+                </div>
+
+                <div className="md:col-span-3">
+                  <textarea placeholder="Short description" value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); setSubjectErrors(prev => ({ ...prev, description: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black w-full" rows={3} />
+                  {subjectErrors.description && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.description) ? subjectErrors.description.join(' ') : String(subjectErrors.description)}</div>}
+                </div>
+
+                <div>
+                  <select value={form.instructor} onChange={(e) => { setForm({ ...form, instructor: e.target.value }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black">
+                    <option value="">— Select instructor —</option>
+                    {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                  </select>
+                  {subjectErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.instructor) ? subjectErrors.instructor.join(' ') : String(subjectErrors.instructor)}</div>}
+                </div>
 
                 <div className="md:col-span-3 flex justify-end gap-2 mt-2">
                   <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm">Add subject</button>
+                  <button type="submit" disabled={subjectSaving} className={`px-4 py-2 rounded-md text-white ${subjectSaving ? 'bg-neutral-400' : 'bg-blue-600'}`}>{subjectSaving ? 'Adding...' : 'Add subject'}</button>
                 </div>
               </form>
             </div>
