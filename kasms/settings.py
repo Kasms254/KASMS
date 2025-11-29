@@ -186,11 +186,19 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://kasms.onrender.com",
+    "https://kasms.vercel.app",
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+
+]
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS").split(",")
+CORS_ALLOW_METHODS = [os.getenv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS").split(",")]
 CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS", 
                                "accept,accept-encoding,authorization,content-type,dnt,origin,user-agent,x-csrftoken,x-requested-with").split(",")
 
@@ -200,7 +208,14 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if os.getenv("CSRF_TRUSTED_ORIGINS") else []
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "https://kasms.onrender.com",
+    "https://kasms.vercel.app",
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
 
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
