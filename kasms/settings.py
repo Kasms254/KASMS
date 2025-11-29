@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "core",
-    'rest_framework.authtoken',
+    # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
 ]
@@ -84,7 +84,17 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
-
+    # "default": {
+    #     # "ENGINE": "django.db.backends.sqlite3",
+    #     # "NAME": BASE_DIR / "db.sqlite3",
+    #     "ENGINE":os.getenv('ENGINE'),
+    #     "NAME": os.getenv('DB_NAME', default='kasms_db'),
+    #     "USER": os.getenv('DB_USER', default='kasms_user'),
+    #     "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
+    #     "HOST": os.getenv('HOST', default='localhost'),
+    #     "PORT": os.getenv('PORT', default='5432'),
+        
+    # }
      "default": dj_database_url.config(
         default=os.environ.get("DATABASE_URL")
     )
@@ -176,9 +186,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-CORS_ALLOWED_ORIGINS = [
-    os.getenv("CORS_ALLOWED_ORIGINS").split(",")
-]
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -192,10 +200,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS").split(",") 
-
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if os.getenv("CSRF_TRUSTED_ORIGINS") else []
 
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
 
-AUTHENTICATION_BACKENDS = os.getenv("AUTHENTICATION_BACKENDS").split(",")
+AUTHENTICATION_BACKENDS = [
+    'core.backends.SvcNumberBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
