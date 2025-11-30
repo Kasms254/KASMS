@@ -67,7 +67,9 @@ export default function TeachingAssignments() {
         if (!q) return true
         const instr = s.instructor || {}
         const instrName = (s.instructor_name || (instr.first_name ? `${instr.first_name} ${instr.last_name || ''}` : '') || '').toString().toLowerCase()
-        const instrSvc = (s.instructor_svc || instr.svc_number || instr.svc || '').toString().toLowerCase()
+  // Backend SubjectSerializer exposes `instructor_svc_number` (source='instructor.svc_number')
+  // so prefer that, then fall back to other common keys.
+  const instrSvc = (s.instructor_svc_number || s.instructor_svc || instr.svc_number || instr.svc || '').toString().toLowerCase()
         const instrRank = (s.instructor_rank || instr.rank || instr.rank_display || '').toString().toLowerCase()
         const subj = (s.name || s.title || '').toString().toLowerCase()
         const cls = (s.class_name || s.class_obj?.name || '').toString().toLowerCase()
@@ -271,7 +273,7 @@ export default function TeachingAssignments() {
               )}
               {assignments.map((a) => (
                 <tr key={a.id} className="border-t">
-                  <td className="py-2 text-black">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc || (typeof a.instructor === 'string' ? a.instructor : '-')}</td>
+                  <td className="py-2 text-black">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc_number || a.instructor_svc || (typeof a.instructor === 'string' ? a.instructor : '-')}</td>
                   <td className="py-2 text-black">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank || '-'}</td>
                   <td className="py-2 text-black">{
                     // Prefer serializer-provided instructor_name (string). If backend returned a nested object,
