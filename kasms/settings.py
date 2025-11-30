@@ -187,37 +187,62 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
     "https://kasms.onrender.com",
     "https://kasms.vercel.app",
-    "http://localhost:3000",
+    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
 
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
-CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS").split(",")
-CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS", 
-                               "accept,accept-encoding,authorization,content-type,dnt,origin,user-agent,x-csrftoken,x-requested-with").split(",")
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 CORS_EXPOSE_HEADERS = ["Authorization"]
+CORS_PREFLIGHT_MAX_AGE = 86400
+
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
     "https://kasms.onrender.com",
     "https://kasms.vercel.app",
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:8000',
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
-
-CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = not DEBUG
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
 AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
