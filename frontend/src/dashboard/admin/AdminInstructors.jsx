@@ -20,6 +20,7 @@ export default function AdminInstructors() {
     console.error(msg)
   }
   const [instructors, setInstructors] = useState([])
+  const [classesList, setClassesList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -41,13 +42,17 @@ export default function AdminInstructors() {
   // fetch instructors
   useEffect(() => {
     let mounted = true
-    api
-      .getInstructors()
-      .then((data) => {
+    // Fetch instructors and classes in parallel so we can show assigned classes
+    Promise.all([api.getInstructors(), api.getClasses()])
+      .then(([insData, classesData]) => {
         if (!mounted) return
-        if (Array.isArray(data)) setInstructors(data)
-        else if (data && Array.isArray(data.results)) setInstructors(data.results)
-        else setInstructors(data || [])
+        if (Array.isArray(insData)) setInstructors(insData)
+        else if (insData && Array.isArray(insData.results)) setInstructors(insData.results)
+        else setInstructors(insData || [])
+
+        // classesData may be paginated (results) or an array
+        const classes = Array.isArray(classesData) ? classesData : (classesData && Array.isArray(classesData.results) ? classesData.results : classesData || [])
+        setClassesList(classes)
       })
       .catch((err) => {
         if (!mounted) return
@@ -181,6 +186,15 @@ export default function AdminInstructors() {
     URL.revokeObjectURL(url)
   }
 
+  function getInstructorClasses(instId) {
+    if (!classesList || classesList.length === 0) return []
+    return classesList.filter((c) => {
+      // backend may return instructor as id or nested object
+      const iid = c.instructor && typeof c.instructor === 'object' ? c.instructor.id : c.instructor
+      return String(iid) === String(instId)
+    })
+  }
+
   function loadMore() {
     setVisibleCount((v) => v + 50)
   }
@@ -220,6 +234,7 @@ export default function AdminInstructors() {
                 <th className="px-4 py-3 text-sm text-neutral-600">Email</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Phone</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Role</th>
+                <th className="px-4 py-3 text-sm text-neutral-600">Classes</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Active</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Created</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Actions</th>
@@ -241,6 +256,26 @@ export default function AdminInstructors() {
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.email || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.role_display || it.role || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">
+                    {(() => {
+                      const cls = getInstructorClasses(it.id)
+                      if (!cls || cls.length === 0) return '-'
+                      // show up to 3 classes, display course + class name when available
+                      const labels = cls.slice(0, 3).map((c) => {
+                        const courseName = c.course && c.course.name ? c.course.name : c.course_name || ''
+                        const name = c.name || c.class_obj_name || ''
+                        return (courseName ? `${courseName}` : name) || name || c.name || '-'
+                      })
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {labels.map((l, idx) => (
+                            <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
+                          ))}
+                          {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 3} more</span> : null}
+                        </div>
+                      )
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.is_active ? 'Yes' : 'No'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.created_at ? new Date(it.created_at).toLocaleString() : '-'}</td>
                   <td className="px-4 py-3 text-right">

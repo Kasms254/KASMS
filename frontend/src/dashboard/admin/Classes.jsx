@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass } from '../../lib/api'
+import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, getMyClasses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -34,45 +34,73 @@ export default function ClassesList(){
     setLoading(true)
     try{
       // If showOnlyActive is true request only active classes, otherwise request all
-      let params = showOnlyActive ? 'is_active=true' : ''
-      // If current user is an instructor, prefer to request only classes they teach
-      if (user && user.role === 'instructor') {
-        params = params ? `${params}&instructor=${user.id}` : `instructor=${user.id}`
-      }
-
-      // Try server-side filtering first; fall back to client-side filtering if that fails
+      // If current user is an instructor, prefer to call the instructor-specific endpoint
       let data
-      try {
-        data = await getClasses(params)
-  } catch {
-        // fallback: try fetching all classes and filter locally for instructors
-        const all = await getClasses()
-        const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
-        const list = user && user.role === 'instructor'
-          ? listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
-          : listAll
-        setClasses(list)
-        // still fetch student counts below using the list we have
-        data = list
+      if (user && user.role === 'instructor') {
+        try {
+          // When showing only active classes, prefer the instructor-specific endpoint which already
+          // filters by active status on the server. When the instructor wants to see inactive classes
+          // as well, request all classes filtered by instructor id from the general classes endpoint.
+          if (showOnlyActive) {
+            data = await getMyClasses()
+          } else {
+            const params = `instructor=${user.id}`
+            data = await getClasses(params)
+          }
+        } catch {
+          // If the instructor-specific endpoint or filtering fails, fall back to fetching all classes
+          // and perform local filtering for this instructor (including inactive when requested).
+          const all = await getClasses()
+          const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
+          const list = listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
+          // If showOnlyActive is true, filter further for active
+          const finalList = showOnlyActive ? list.filter((c) => c.is_active) : list
+          setClasses(finalList)
+          data = finalList
+        }
+      } else {
+        // Non-instructor: request classes with optional is_active filter and server-side instructor filter when provided
+        const params = showOnlyActive ? 'is_active=true' : ''
+        try {
+          data = await getClasses(params)
+        } catch {
+          // fallback: fetch all classes
+          const all = await getClasses()
+          const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
+          setClasses(listAll)
+          data = listAll
+        }
       }
 
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-      setClasses(list)
+      // If the server already provided a count (current_enrollment or enrollment_count), reuse it.
+      const initialMapped = list.map((cl) => ({ ...cl, students_count: cl.current_enrollment ?? cl.enrollment_count ?? (cl.students_count ?? null) }))
+      setClasses(initialMapped)
 
-      // fetch enrolled students count for each class (do not block the UI)
-      try{
-        const counts = await Promise.allSettled(list.map((cl) => getClassEnrolledStudents(cl.id).catch(() => null)))
-        const mapped = list.map((cl, idx) => {
-          const res = counts[idx]
-          let studentsCount = null
-          if (res && res.status === 'fulfilled' && res.value) {
-            const v = res.value
-            studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
-          }
-          return { ...cl, students_count: studentsCount }
-        })
-        setClasses(mapped)
-  }catch{ /* ignore per-class failures */ }
+      // Determine which classes still need a students_count (null/undefined) and fetch only those
+      const toFetch = initialMapped.reduce((acc, cl, idx) => {
+        if (cl.students_count == null) acc.push({ id: cl.id, idx })
+        return acc
+      }, [])
+
+      if (toFetch.length > 0) {
+        try {
+          const counts = await Promise.allSettled(toFetch.map((t) => getClassEnrolledStudents(t.id).catch(() => null)))
+          const mapped = [...initialMapped]
+          toFetch.forEach((t, i) => {
+            const res = counts[i]
+            let studentsCount = null
+            if (res && res.status === 'fulfilled' && res.value) {
+              const v = res.value
+              studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
+            }
+            mapped[t.idx] = { ...mapped[t.idx], students_count: studentsCount }
+          })
+          setClasses(mapped)
+        } catch {
+          // ignore per-class failures
+        }
+      }
     }catch{
       reportError('Failed to load classes')
     }finally{ setLoading(false) }
@@ -162,7 +190,9 @@ export default function ClassesList(){
               <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
               <span>Show inactive classes</span>
             </label>
-            <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+            {user && user.role === 'admin' && (
+              <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+            )}
           </div>
         </div>
       </div>
@@ -186,7 +216,8 @@ export default function ClassesList(){
                   <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <button onClick={async () => {
+                  {user && user.role === 'admin' && (
+                    <button onClick={async () => {
                     // ensure instructors list is loaded for the select
                     try {
                       const ins = await getInstructors()
@@ -205,7 +236,8 @@ export default function ClassesList(){
                       is_active: !!c.is_active,
                     })
                     setEditModalOpen(true)
-                  }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
+                    }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
+                  )}
                 </div>
               </Card>
             </div>

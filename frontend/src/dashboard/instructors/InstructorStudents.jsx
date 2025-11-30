@@ -1,12 +1,35 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import useAuth from '../../hooks/useAuth'
-import { getClasses, getClassEnrolledStudents, getMyClasses } from '../../lib/api'
+import { getMyClasses, getClassEnrolledStudents } from '../../lib/api'
+
+function initials(name = '') {
+  return name
+    .split(' ')
+    .map((s) => s[0] || '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
 
 export default function InstructorStudents() {
   const { user } = useAuth()
-  const [students, setStudents] = useState([])
+  const [classesList, setClassesList] = useState([])
+  const [classStudents, setClassStudents] = useState({}) // map classId -> students array
+  const [classLoading, setClassLoading] = useState({})
+  const [classError, setClassError] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Accordion + search state (same UX as AdminStudents)
+  const [openSections, setOpenSections] = useState({})
+  const [visibleCounts, setVisibleCounts] = useState({})
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchTerm])
 
   useEffect(() => {
     let mounted = true
@@ -14,61 +37,15 @@ export default function InstructorStudents() {
       if (!user) return
       setLoading(true)
       try {
-        // Prefer a dedicated server-side endpoint for the current user's
-        // classes (avoid permission errors) — try `/api/classes/mine/` first.
-        let classes = []
-        try {
-          const mine = await getMyClasses()
-          classes = Array.isArray(mine) ? mine : (mine && mine.results) ? mine.results : []
-        } catch {
-          // If `/mine/` isn't available or returns 403, try common filter params
-          try {
-            let data = await getClasses(`instructor=${user.id}`)
-            classes = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-          } catch {
-            try {
-              const data = await getClasses(`instructor_id=${user.id}`)
-              classes = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-            } catch {
-              // Fallback: fetch all classes and filter locally (if the API allows list)
-              const all = await getClasses()
-              const list = Array.isArray(all) ? all : (all && all.results) ? all.results : []
-              classes = list.filter((c) => {
-                if (!c) return false
-                if (typeof c.instructor === 'object') return String(c.instructor.id) === String(user.id)
-                if (c.instructor === user.id || String(c.instructor) === String(user.id)) return true
-                if (c.instructor_id === user.id || String(c.instructor_id) === String(user.id)) return true
-                if (c.instructor_name && (c.instructor_name === user.full_name || (user.username && c.instructor_name.includes(user.username)))) return true
-                return false
-              })
-            }
-          }
-        }
-
-        // For each class, fetch enrolled students and aggregate unique students
-        const promises = classes.map((c) => getClassEnrolledStudents(c.id).catch(() => null))
-        const results = await Promise.all(promises)
-        const map = {}
-        classes.forEach((cl, idx) => {
-          const res = results[idx]
-          if (!res) return
-          const arr = Array.isArray(res) ? res : (res && res.results) ? res.results : []
-          arr.forEach((s) => {
-            const id = s && (s.id || s.student_id || (s.student && (s.student.id || s.student.student_id)))
-            if (!id) return
-            // merge student data; prefer name/svc from nested student object when present
-            const studentObj = s.student && typeof s.student === 'object' ? s.student : s
-            map[id] = {
-              id,
-              full_name: studentObj.full_name || `${studentObj.first_name || ''} ${studentObj.last_name || ''}`.trim() || studentObj.username || '',
-              svc_number: studentObj.svc_number || studentObj.svc || s.svc_number || '',
-              username: studentObj.username || '',
-              className: cl.name || cl.class_code || s.className || '',
-            }
-          })
-        })
-
-        if (mounted) setStudents(Object.values(map))
+        const res = await getMyClasses().catch(() => null)
+        const list = res && Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : [])
+        if (!mounted) return
+        const mapped = (list || []).map((c) => ({
+          id: c.id,
+          name: c.name || c.class_name || c.display_name || c.title || `Class ${c.id}`,
+          student_count: c.current_enrollment ?? c.enrollment_count ?? 0,
+        }))
+        setClassesList(mapped)
       } catch (err) {
         if (mounted) setError(err)
       } finally {
@@ -79,9 +56,57 @@ export default function InstructorStudents() {
     return () => { mounted = false }
   }, [user])
 
-  if (loading) return <div className="p-4">Loading students…</div>
-  if (error) return <div className="p-4 text-red-600">Failed to load students: {error.message || String(error)}</div>
-  if (!students || students.length === 0) return <div className="p-4">No students found for your classes.</div>
+  const filteredClasses = useMemo(() => {
+    if (!debouncedQuery) return classesList
+    const q = debouncedQuery.toLowerCase()
+    return classesList.filter((c) => (c.name || '').toLowerCase().includes(q))
+  }, [classesList, debouncedQuery])
+
+  async function toggleSection(classId) {
+    setOpenSections((s) => {
+      const isOpen = !!s[classId]
+      if (isOpen) return { ...s, [classId]: false }
+      return { [classId]: true }
+    })
+    setVisibleCounts((c) => ({ ...c, [classId]: c[classId] || 50 }))
+  // if opening, load students for the class (only when we haven't loaded this class before)
+  if (!(classId in classStudents)) await loadStudentsForClass(classId)
+  }
+
+  function loadMore(classId) {
+    setVisibleCounts((c) => ({ ...c, [classId]: (c[classId] || 50) + 50 }))
+  }
+
+  async function loadStudentsForClass(classId) {
+    if (!classId) return
+    if (classStudents[classId]) return
+    setClassLoading((s) => ({ ...s, [classId]: true }))
+    try {
+  const res = await getClassEnrolledStudents(classId)
+  const list = res && Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : [])
+      const mapped = (list || []).map((u) => {
+        const student = u.student || u
+        return {
+          id: student.id,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          full_name: student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim(),
+          name: student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim(),
+          svc_number: student.svc_number != null ? String(student.svc_number) : '',
+          email: student.email,
+          phone_number: student.phone_number,
+          rank: student.rank || student.rank_display || '',
+          is_active: student.is_active,
+          created_at: student.created_at,
+        }
+      })
+      setClassStudents((s) => ({ ...s, [classId]: mapped }))
+    } catch (err) {
+      setClassError((s) => ({ ...s, [classId]: err }))
+    } finally {
+      setClassLoading((s) => ({ ...s, [classId]: false }))
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -92,19 +117,112 @@ export default function InstructorStudents() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {students.map((s) => (
-          <div key={s.id} className="bg-white rounded-xl p-4 border border-neutral-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-black">{s.full_name || `${(s.first_name || '')} ${(s.last_name || '')}`.trim() || s.username || 'Unnamed'}</div>
-                <div className="text-sm text-neutral-500">{s.svc_number || s.username || ''}</div>
-              </div>
-              <div className="text-sm text-neutral-400">{s.className || '—'}</div>
-            </div>
+      <section className="grid gap-6">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search students or classes..."
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            />
           </div>
-        ))}
-      </div>
+          <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm">Search</button>
+          <button onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md border bg-indigo-600 text-white text-sm">Clear</button>
+        </div>
+
+        {debouncedQuery ? (
+          <div className="text-sm text-neutral-600">Found {filteredClasses.length} class(es) for "{debouncedQuery}"</div>
+        ) : null}
+
+        {error ? (
+          <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading classes: {error.message || String(error)}</div>
+        ) : loading ? (
+          <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading classes…</div>
+        ) : classesList.length === 0 ? (
+          <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No classes yet.</div>
+        ) : null}
+
+        <div className="flex flex-col gap-6">
+          {filteredClasses.sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((cls) => {
+            const studentsForClass = classStudents[cls.id] || []
+            const isOpen = !!openSections[cls.id]
+            const visible = visibleCounts[cls.id] || 50
+            const loadingStudents = !!classLoading[cls.id]
+            const err = classError[cls.id]
+            return (
+              <div key={cls.id} className="bg-white rounded-xl p-0 border border-neutral-200 shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(cls.id)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-neutral-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-neutral-500">Class</span>
+                      <span className="text-lg font-medium text-black">{cls.name}</span>
+                    </div>
+                    <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{cls.student_count || studentsForClass.length} students</span>
+                  </div>
+                  <div className="text-sm text-neutral-500">{isOpen ? 'Collapse' : 'Expand'}</div>
+                </button>
+
+                {isOpen && (
+                  <div className="p-4">
+                    {loadingStudents ? (
+                      <div className="p-4 text-neutral-500">Loading students…</div>
+                    ) : err ? (
+                      <div className="p-4 text-red-600">Error loading students: {err.message || String(err)}</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full table-auto">
+                          <thead>
+                            <tr className="text-left">
+                              <th className="px-4 py-2 text-sm text-neutral-600">Service No</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Rank</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Email</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Phone</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Active</th>
+                              <th className="px-4 py-2 text-sm text-neutral-600">Created</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentsForClass.slice(0, visible).map((st) => (
+                              <tr key={st.id} className="border-t last:border-b hover:bg-neutral-50">
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.svc_number || '-'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.rank || '-'}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name || st.svc_number)}</div>
+                                    <div>
+                                      <div className="font-medium text-black">{st.name || '-'}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.email || '-'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.phone_number || '-'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.is_active ? 'Yes' : 'No'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{st.created_at ? new Date(st.created_at).toLocaleString() : '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {studentsForClass.length > visible && (
+                      <div className="mt-3 text-center">
+                        <button onClick={() => loadMore(cls.id)} className="px-3 py-1 rounded-md border bg-white text-sm">Load more</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

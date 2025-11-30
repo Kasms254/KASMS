@@ -119,6 +119,40 @@ export async function getClasses(params = '') {
   return data
 }
 
+// Convenience helper: get classes for the currently authenticated user.
+// Some backends expose `/api/classes/mine/` or `/api/classes/mine` — try both.
+export async function getMyClasses() {
+  // Backend exposes an instructor-specific action named `my_classes` which
+  // DRF routes as `my-classes` (underscores -> hyphens). Prefer that.
+  try {
+    return await request('/api/classes/my-classes/')
+  } catch {
+    // Try alternate forms if routing differs
+    try {
+      return await request('/api/classes/my_classes/')
+    } catch {
+      return await request('/api/classes/my-classes')
+    }
+  }
+}
+
+// Instructor dashboard endpoints
+export async function getInstructorDashboard() {
+  return request('/api/instructor-dashboard/')
+}
+
+export async function getInstructorSummary() {
+  return request('/api/instructor-dashboard/summary/')
+}
+
+// Get students for the currently authenticated instructor
+export async function getMyStudents() {
+  // UserViewSet defines `my_students` -> routed as `my-students`
+  const data = await request('/api/users/my-students/')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
 export async function createAssignment(payload) {
   return request('/api/assignments/', { method: 'POST', body: payload })
 }
@@ -253,6 +287,7 @@ export default {
   getCurrentUser,
   getStudents,
   getClasses,
+  getMyClasses,
   getInstructors,
   assignInstructorToSubject,
   removeInstructorFromSubject,
@@ -272,6 +307,9 @@ export default {
   getClassSubjects,
   getClassEnrolledStudents,
   addSubject,
+  getInstructorDashboard,
+  getInstructorSummary,
+  getMyStudents,
   getUserEnrollments,
   addEnrollment,
   updateCourse,
