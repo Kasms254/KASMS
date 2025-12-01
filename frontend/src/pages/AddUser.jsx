@@ -19,6 +19,7 @@ export default function AddUser({ onSuccess } = {}) {
     svc_number: '',
     phone_number: '',
     role: 'student',
+  rank: '',
     class_obj: '',
     password: '',
     password2: '',
@@ -31,6 +32,17 @@ export default function AddUser({ onSuccess } = {}) {
   const [fieldErrors, setFieldErrors] = useState({})
   const navigate = useNavigate()
   const toast = useToast()
+  const reportError = (msg) => {
+    if (!msg) return
+    try {
+      if (toast?.error) return toast.error(msg)
+      if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    } catch {
+      // ignore toast errors
+    }
+    // developer fallback
+    console.error(msg)
+  }
 
   function onChange(e) {
     const { name, value, type, checked } = e.target
@@ -69,19 +81,28 @@ export default function AddUser({ onSuccess } = {}) {
     setError(null)
     setFieldErrors({})
 
-    // basic client-side checks
-    if (!form.username || !form.first_name || !form.last_name || !form.email || !form.svc_number || !form.password || !form.password2) {
-      setError('Please fill in all required fields')
-      return
+    // basic client-side checks — build fieldErrors so missing fields are highlighted
+    const required = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'password', 'password2']
+    const fErrs = {}
+    for (const k of required) {
+      if (!form[k]) fErrs[k] = 'This field is required'
     }
     // require class for students
     if (form.role === 'student' && !form.class_obj) {
-      setFieldErrors({ class_obj: 'Please select a class' })
-      setError('Please select a class for students')
-      return
+      fErrs.class_obj = 'Please select a class'
     }
-    if (form.password !== form.password2) {
-      setError('Passwords do not match')
+    // password match
+    if (form.password && form.password2 && form.password !== form.password2) {
+      fErrs.password2 = 'Passwords do not match'
+    }
+
+    if (Object.keys(fErrs).length) {
+      setFieldErrors(fErrs)
+      const first = Object.keys(fErrs)[0]
+      setError('Please correct the highlighted fields')
+      // focus first invalid input if present
+      const el = typeof document !== 'undefined' && document.querySelector ? document.querySelector(`[name="${first}"]`) : null
+      if (el && typeof el.focus === 'function') el.focus()
       return
     }
 
@@ -103,6 +124,7 @@ export default function AddUser({ onSuccess } = {}) {
         svc_number: '',
         phone_number: '',
         role: 'student',
+        rank: '',
         class_obj: '',
         password: '',
         password2: '',
@@ -121,10 +143,17 @@ export default function AddUser({ onSuccess } = {}) {
           fErrs[k] = Array.isArray(data[k]) ? data[k].join(' ') : String(data[k])
         }
         setFieldErrors(fErrs)
-        if (data.detail || data.error) setError(data.detail || data.error)
-        else setError('There were validation errors')
+        if (data.detail || data.error) {
+          setError(data.detail || data.error)
+          reportError(data.detail || data.error)
+        } else {
+          setError('There were validation errors')
+          reportError('There were validation errors')
+        }
       } else {
-        setError(err?.message || 'Failed to create user')
+        const msg = err?.message || 'Failed to create user'
+        setError(msg)
+        reportError(msg)
       }
     } finally {
       setLoading(false)
@@ -154,6 +183,26 @@ export default function AddUser({ onSuccess } = {}) {
                 <label className="block text-sm font-medium text-gray-700">Service number</label>
                 <input name="svc_number" value={form.svc_number} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.svc_number}</div>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Rank</label>
+                <select name="rank" value={form.rank} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.rank ? 'border-rose-500' : 'border-neutral-200'}`}>
+                  <option value="">Unassigned</option>
+                  <option value="general">General</option>
+                  <option value="lieutenant colonel">Lieutenant Colonel</option>
+                  <option value="major">Major</option>
+                  <option value="captain">Captain</option>
+                  <option value="lieutenant">Lieutenant</option>
+                  <option value="warrant_officer">Warrant Officer I</option>
+                  <option value="warrant_officer">Warrant Officer II</option>
+                  <option value="seniorsergeant">Senior Sergeant</option>
+                  <option value="sergeant">Sergeant</option>
+                  <option value="corporal">Corporal</option>
+                  <option value="lance_corporal">Lance Corporal</option>
+                  <option value="private">Private</option>
+                </select>
+                {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>
 
               <div>

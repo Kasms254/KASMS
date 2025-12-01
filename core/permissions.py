@@ -18,6 +18,21 @@ class IsInstructor(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'instructor'
     
+
+class IsInstructorofClass(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        
+        if request.user.role != 'instructor':
+            return False
+
+        if obj.instructor == request.user:
+            return True
+        
+        teaches_subject = obj.subjects.filter(instructor=request.user).exists()
+        return teaches_subject
+    
 class IsStudent(BasePermission):
 
     def has_permission(self, request, view):

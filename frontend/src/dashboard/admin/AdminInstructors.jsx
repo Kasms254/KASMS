@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 function initials(name = '') {
   return name
@@ -11,7 +12,15 @@ function initials(name = '') {
 }
 
 export default function AdminInstructors() {
+  const toast = useToast()
+  const reportError = (msg) => {
+    if (!msg) return
+    if (toast?.error) return toast.error(msg)
+    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    console.error(msg)
+  }
   const [instructors, setInstructors] = useState([])
+  const [classesList, setClassesList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -33,13 +42,17 @@ export default function AdminInstructors() {
   // fetch instructors
   useEffect(() => {
     let mounted = true
-    api
-      .getInstructors()
-      .then((data) => {
+    // Fetch instructors and classes in parallel so we can show assigned classes
+    Promise.all([api.getInstructors(), api.getClasses()])
+      .then(([insData, classesData]) => {
         if (!mounted) return
-        if (Array.isArray(data)) setInstructors(data)
-        else if (data && Array.isArray(data.results)) setInstructors(data.results)
-        else setInstructors(data || [])
+        if (Array.isArray(insData)) setInstructors(insData)
+        else if (insData && Array.isArray(insData.results)) setInstructors(insData.results)
+        else setInstructors(insData || [])
+
+        // classesData may be paginated (results) or an array
+        const classes = Array.isArray(classesData) ? classesData : (classesData && Array.isArray(classesData.results) ? classesData.results : classesData || [])
+        setClassesList(classes)
       })
       .catch((err) => {
         if (!mounted) return
@@ -81,7 +94,7 @@ export default function AdminInstructors() {
       setConfirmDelete(null)
     } catch (err) {
       setError(err)
-      alert('Failed to delete instructor: ' + (err.message || String(err)))
+      reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
     }
@@ -95,13 +108,14 @@ export default function AdminInstructors() {
       svc_number: it.svc_number || '',
       email: it.email || '',
       phone_number: it.phone_number || '',
+      rank: it.rank || it.rank_display || '',
       is_active: !!it.is_active,
     })
   }
 
   function closeEdit() {
     setEditingInstructor(null)
-    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true })
+    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
   }
 
   function handleEditChange(k, v) {
@@ -119,6 +133,7 @@ export default function AdminInstructors() {
         svc_number: editForm.svc_number,
         email: editForm.email,
         phone_number: editForm.phone_number,
+        rank: editForm.rank || undefined,
         is_active: editForm.is_active,
       }
       const updated = await api.partialUpdateUser(editingInstructor.id, payload)
@@ -130,6 +145,7 @@ export default function AdminInstructors() {
         svc_number: updated.svc_number,
         email: updated.email,
         phone_number: updated.phone_number,
+        rank: updated.rank || updated.rank_display || '',
         role: updated.role,
         role_display: updated.role_display,
         is_active: updated.is_active,
@@ -139,15 +155,15 @@ export default function AdminInstructors() {
       closeEdit()
     } catch (err) {
       setError(err)
-      alert('Failed to update instructor: ' + (err.message || String(err)))
+      reportError('Failed to update instructor: ' + (err.message || String(err)))
     } finally {
       setEditLoading(false)
     }
   }
 
   function downloadCSV() {
-    // Service No first, then Name, then the rest
-    const rows = [['Service No', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
+    // Service No first, then Rank, Name, then the rest
+    const rows = [['Service No', 'Rank', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
     const list = filtered
     list.slice(0, visibleCount).forEach((it) => {
       const svc = it.svc_number || ''
@@ -157,7 +173,7 @@ export default function AdminInstructors() {
       const role = it.role_display || it.role || ''
       const active = it.is_active ? 'Yes' : 'No'
       const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, name, email, phone, role, active, created])
+      rows.push([svc, (it.rank || it.rank_display) || '', name, email, phone, role, active, created])
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -168,6 +184,15 @@ export default function AdminInstructors() {
     a.download = 'instructors.csv'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function getInstructorClasses(instId) {
+    if (!classesList || classesList.length === 0) return []
+    return classesList.filter((c) => {
+      // backend may return instructor as id or nested object
+      const iid = c.instructor && typeof c.instructor === 'object' ? c.instructor.id : c.instructor
+      return String(iid) === String(instId)
+    })
   }
 
   function loadMore() {
@@ -204,10 +229,12 @@ export default function AdminInstructors() {
             <thead>
               <tr className="text-left">
                 <th className="px-4 py-3 text-sm text-neutral-600">Service No</th>
+                <th className="px-4 py-3 text-sm text-neutral-600">Rank</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Name</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Email</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Phone</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Role</th>
+                <th className="px-4 py-3 text-sm text-neutral-600">Classes</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Active</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Created</th>
                 <th className="px-4 py-3 text-sm text-neutral-600">Actions</th>
@@ -217,6 +244,7 @@ export default function AdminInstructors() {
               {filtered.slice(0, visibleCount).map((it) => (
                 <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}</div>
@@ -228,6 +256,26 @@ export default function AdminInstructors() {
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.email || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.role_display || it.role || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">
+                    {(() => {
+                      const cls = getInstructorClasses(it.id)
+                      if (!cls || cls.length === 0) return '-'
+                      // show up to 3 classes, display course + class name when available
+                      const labels = cls.slice(0, 3).map((c) => {
+                        const courseName = c.course && c.course.name ? c.course.name : c.course_name || ''
+                        const name = c.name || c.class_obj_name || ''
+                        return (courseName ? `${courseName}` : name) || name || c.name || '-'
+                      })
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {labels.map((l, idx) => (
+                            <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
+                          ))}
+                          {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 3} more</span> : null}
+                        </div>
+                      )
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.is_active ? 'Yes' : 'No'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.created_at ? new Date(it.created_at).toLocaleString() : '-'}</td>
                   <td className="px-4 py-3 text-right">
@@ -276,6 +324,25 @@ export default function AdminInstructors() {
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Service No</div>
                   <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Rank</div>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <option value="">Unassigned</option>
+                    <option value="general">General</option>
+                    <option value="lieutenant colonel">Lieutenant Colonel</option>
+                    <option value="major">Major</option>
+                    <option value="captain">Captain</option>
+                    <option value="lieutenant">Lieutenant</option>
+                    <option value="warrant_officer">Warrant Officer I</option>
+                    <option value="warrant_officer">Warrant Officer II</option>
+                    <option value="seniorsergeant">Senior Sergeant</option>
+                    <option value="sergeant">Sergeant</option>
+                    <option value="corporal">Corporal</option>
+                    <option value="lance_corporal">Lance Corporal</option>
+                    <option value="private">Private</option>
+                  </select>
                 </label>
 
                 <label className="block mb-3">

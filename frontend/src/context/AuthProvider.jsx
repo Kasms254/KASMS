@@ -36,12 +36,14 @@ export function AuthProvider({ children }) {
     setLoading(true)
     try {
       const resp = await api.login(svc_number, password)
-      // API may return { token, user }
-      const newToken = resp?.token || resp?.access || null
+      // API may return { access, refresh, user }
+      const newAccess = resp?.access || resp?.token || null
+      const newRefresh = resp?.refresh || resp?.refresh_token || null
       const userInfo = resp?.user || resp?.data || null
-      if (!newToken) throw new Error('No token returned from login')
-      authStore.login(newToken)
-      setToken(newToken)
+      if (!newAccess) throw new Error('No access token returned from login')
+      // store tokens in auth store (in-memory)
+      authStore.login({ access: newAccess, refresh: newRefresh })
+      setToken(newAccess)
       setUser(userInfo)
       return { ok: true }
     } catch (err) {
@@ -52,13 +54,25 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
-    try {
-      authStore.logout()
-    } catch {
-      // ignore
-    }
-    setToken(null)
-    setUser(null)
+    // Try to notify backend to blacklist the refresh token, then clear local tokens
+    (async () => {
+      try {
+        const refresh = authStore.getRefreshToken && authStore.getRefreshToken()
+        if (refresh) {
+          try {
+            await api.logout(refresh)
+          } catch {
+            // ignore backend logout errors
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+  try { authStore.logout() } catch { /* ignore */ }
+        setToken(null)
+        setUser(null)
+      }
+    })()
   }, [])
 
   return (

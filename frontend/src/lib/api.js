@@ -70,7 +70,9 @@ export async function getCurrentUser() {
 }
 
 export async function getStudents() {
-  return request('/api/users/students')
+  const data = await request('/api/users/students')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function getCourses() {
@@ -95,6 +97,48 @@ export async function getClasses(params = '') {
   return data
 }
 
+// Convenience helper: get classes for the currently authenticated user.
+// Some backends expose `/api/classes/mine/` or `/api/classes/mine` — try both.
+export async function getMyClasses() {
+  // Backend exposes an instructor-specific action named `my_classes` which
+  // DRF routes as `my-classes` (underscores -> hyphens). Prefer that.
+  try {
+    return await request('/api/classes/my-classes/')
+  } catch {
+    // Try alternate forms if routing differs
+    try {
+      return await request('/api/classes/my_classes/')
+    } catch {
+      return await request('/api/classes/my-classes')
+    }
+  }
+}
+
+// Instructor dashboard endpoints
+export async function getInstructorDashboard() {
+  return request('/api/instructor-dashboard/')
+}
+
+export async function getInstructorSummary() {
+  return request('/api/instructor-dashboard/summary/')
+}
+
+// Get students for the currently authenticated instructor
+export async function getMyStudents() {
+  // UserViewSet defines `my_students` -> routed as `my-students`
+  const data = await request('/api/users/my-students/')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function createAssignment(payload) {
+  return request('/api/assignments/', { method: 'POST', body: payload })
+}
+
+export async function deleteAssignment(id) {
+  return request(`/api/assignments/${id}/`, { method: 'DELETE' })
+}
+
 export async function addClass(payload) {
   return request('/api/classes/', { method: 'POST', body: payload })
 }
@@ -109,10 +153,32 @@ export async function getClassSubjects(classId) {
 }
 
 export async function getClassEnrolledStudents(classId) {
-  return request(`/api/classes/${classId}/enrolled_students/`)
+  return request(`/api/classes/${classId}/my_students/`)
+}
+
+// Attendance endpoints
+export async function markAttendance(payload) {
+  return request('/api/attendance/', { method: 'POST', body: payload })
+}
+
+export async function bulkMarkAttendance(payload) {
+  return request('/api/attendance/bulk_mark/', { method: 'POST', body: payload })
+}
+
+export async function getClassAttendance(classId, date) {
+  const qs = `?class_id=${classId}&date=${encodeURIComponent(date)}`
+  return request(`/api/attendance/class_attendance/${qs}`)
 }
 
 export async function getSubjects(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/subjects/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+// Return raw paginated response for callers that need count/next/previous
+export async function getSubjectsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
   return request(`/api/subjects/${qs}`)
 }
@@ -129,8 +195,21 @@ export async function deleteSubject(id) {
   return request(`/api/subjects/${id}/`, { method: 'DELETE' })
 }
 
+
+
+
+export async function assignInstructorToSubject(subjectId, instructorId) {
+  return request(`/api/subjects/${subjectId}/assign_instructor/`, { method: 'POST', body: { instructor_id: instructorId } })
+}
+
+export async function removeInstructorFromSubject(subjectId) {
+  return request(`/api/subjects/${subjectId}/remove_instructor/`, { method: 'POST' })
+}
+
 export async function getInstructors() {
-  return request('/api/users/instructors')
+  const data = await request('/api/users/instructors')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
 }
 
 export async function getUserEnrollments(userId) {
@@ -185,7 +264,14 @@ export default {
   login,
   getCurrentUser,
   getStudents,
+  getClasses,
+  getMyClasses,
   getInstructors,
+  assignInstructorToSubject,
+  removeInstructorFromSubject,
+  markAttendance,
+  bulkMarkAttendance,
+  getClassAttendance,
   getUsers,
   addUser,
   getUser,
@@ -195,8 +281,13 @@ export default {
   activateUser,
   deactivateUser,
   getSubjects,
+  getSubjectsPaginated,
   getClassSubjects,
+  getClassEnrolledStudents,
   addSubject,
+  getInstructorDashboard,
+  getInstructorSummary,
+  getMyStudents,
   getUserEnrollments,
   addEnrollment,
   updateCourse,

@@ -40,6 +40,12 @@ const menuItems = [
         visible: ['admin', 'instructor'],
       },
       {
+        icon: 'FileText',
+        label: 'Assignments',
+        href: '/list/assignments',
+        visible: ['admin', 'instructor', 'student',],
+      },
+      {
         icon: 'Book',
         label: 'Lessons',
         href: '/list/lessons',
@@ -49,7 +55,8 @@ const menuItems = [
         icon: 'Award',
         label: 'Add Certificate',
         href: '/add/certificate',
-        visible: ['admin', 'instructor'],
+        // Certificate creation should be admin-only; instructors no longer see this
+        visible: ['admin'],
       },
       {
         icon: 'TrendingUp',
@@ -63,12 +70,7 @@ const menuItems = [
         href: '/list/exams',
         visible: ['admin', 'instructor', 'student',],
       },
-      {
-        icon: 'FileText',
-        label: 'Assignments',
-        href: '/list/assignments',
-        visible: ['admin', 'instructor', 'student',],
-      },
+      
       {
         icon: 'BarChart2',
         label: 'Results',

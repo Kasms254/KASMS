@@ -15,7 +15,7 @@ function formatISO(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export default function Calendar({ events = {} }) {
+export default function Calendar({ events = {}, selected: selectedProp, onSelect, showEvents = true }) {
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
   const [selected, setSelected] = useState(() => formatISO(new Date()))
 
@@ -46,6 +46,7 @@ export default function Calendar({ events = {} }) {
   }
 
   const monthLabel = cursor.toLocaleString(undefined, { month: 'long', year: 'numeric' })
+  const displaySelected = selectedProp || selected
 
   return (
     <div className="bg-white rounded-xl p-4 border border-neutral-200">
@@ -67,8 +68,8 @@ export default function Calendar({ events = {} }) {
         {monthData.days.map((d, i) => {
           if (!d) return <div key={i} className="h-10" />
           const iso = formatISO(d)
-          const hasEvents = Array.isArray(events[iso]) && events[iso].length > 0
-          const isSelected = selected === iso
+          const hasEvents = showEvents && Array.isArray(events[iso]) && events[iso].length > 0
+          const isSelected = displaySelected === iso
           const dow = d.getDay()
           const isWeekend = dow === 0 || dow === 6
           const numberClass = isSelected
@@ -77,7 +78,10 @@ export default function Calendar({ events = {} }) {
           return (
             <button
               key={iso}
-              onClick={() => setSelected(iso)}
+              onClick={() => {
+                setSelected(iso)
+                if (onSelect) onSelect(iso)
+              }}
               className={`h-10 flex items-center justify-center rounded-md transition ${isSelected ? 'bg-indigo-500' : 'hover:bg-neutral-100'}`}>
               <div className="flex flex-col items-center">
                 <span className={`text-sm leading-4 ${numberClass}`}>{d.getDate()}</span>
@@ -88,19 +92,21 @@ export default function Calendar({ events = {} }) {
         })}
       </div>
 
-      <div className="mt-4">
-        <h5 className="text-sm font-medium text-black">Events on {selected}</h5>
-        <ul className="mt-2">
-          {(events[selected] || []).length === 0 && (
-            <li className="text-sm text-black">No events</li>
-          )}
-          {(events[selected] || []).map((ev, idx) => (
-            <li key={idx} className="py-1 text-sm">
-              • {ev}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {showEvents && (
+        <div className="mt-4">
+          <h5 className="text-sm font-medium text-black">Events on {displaySelected}</h5>
+          <ul className="mt-2">
+            {(events[displaySelected] || []).length === 0 && (
+              <li className="text-sm text-black">No events</li>
+            )}
+            {(events[displaySelected] || []).map((ev, idx) => (
+              <li key={idx} className="py-1 text-sm">
+                • {ev}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
