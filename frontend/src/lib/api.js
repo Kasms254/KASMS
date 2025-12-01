@@ -1,8 +1,9 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
-const VITE_API_URL = import.meta.env.VITE_API_URL;
+// const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE;
+// const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 console.log("API URL:", VITE_API_URL);
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
