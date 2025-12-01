@@ -1,9 +1,7 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
-import * as authStore from './auth'
-
 // const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 const API_BASE = import.meta.env.VITE_API_BASE;
-// const VITE_API_URL = import.meta.env.VITE_API_URL;
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 console.log("API URL:", VITE_API_URL);
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
@@ -15,21 +13,20 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
 
   const opts = {
     method,
-    headers: h,
-    credentials: 'include', // include cookies automatically
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    credentials: 'include', // Important for cookies!
   }
+
+
   if (body !== undefined) opts.body = JSON.stringify(body)
 
-const res = await fetch(`${VITE_API_URL}/auth/login/`, {
-  method: "POST",
-  credentials: "include",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ svc_number, password }),
-});
-
+  const res = await fetch(url, opts)
 // Only parse if there’s content
-let data = null;
-const text = await res.text();
+  const text = await res.text()
+  let data = null
 try {
   data = text ? JSON.parse(text) : null;
 } catch {
@@ -45,28 +42,26 @@ return data;
 }
 
 export async function login(svc_number, password) {
-  const res = await fetch(`${VITE_API_URL}/api/auth/login/`, {
-    method: "POST",
-    credentials: "include", 
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ svc_number, password }),
-  });
+  return request('/api/auth/login/', {
+    method: 'POST',
+    body: { svc_number, password },
+  })
+}
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Login failed");
-  }
-
-  return await res.json();
+  export async function logout() {
+  return request('/api/auth/logout/', {
+    method: 'POST',
+  })
 }
 
 export async function getCurrentUser() {
-  // Try common endpoints used by different backends
-  try {
-    return await request('/api/auth/me/')
-  } catch {
-    return await request('/api/users/me/')
-  }
+  return request('/api/auth/me/')
+}
+
+export async function refreshToken() {
+  return request('/api/auth/token/refresh/', {
+    method: 'POST',
+  })
 }
 
 export async function getStudents() {

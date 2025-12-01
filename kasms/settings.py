@@ -168,7 +168,8 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 
     'AUTH_COOKIE':'access_token',
-    'AUTH_COOKIE_SECURE': not DEBUG,
+    'AUTH_COOKIE_REFRESH':'refresh_token',
+    'AUTH_COOKIE_SECURE': True,
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH':'/',
     'AUTH_COOKIE_SAMESITE': 'None' if not DEBUG else 'Lax',
@@ -176,18 +177,21 @@ SIMPLE_JWT = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'core.authentication.CookieJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
-        
+        'rest_framework.authentication.SessionAuthentication',
     ],
+
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }

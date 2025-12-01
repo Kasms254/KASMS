@@ -4,7 +4,7 @@ from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, Exam
 from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,60 +15,136 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         svc_number = request.data.get("svc_number")
         password = request.data.get("password")
 
+        if not svc_number or not password:
+            return Response({
+                'error': 'Service Number and password are required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         user = authenticate(request, svc_number=svc_number, password=password)
-        if user:
-            refresh = RefreshToken.for_user(user)
-            access_token = str(refresh.access_token)
 
-            response = Response({"message": "Login successful"}, status=status.HTTP_200_OK)
-            response.set_cookie(
-                key="access_token",
-                value=access_token,
-                httponly=True,
-                secure=not settings.DEBUG,
-                samesite="None" if not settings.DEBUG else "Lax",
-                path="/",
-            )
-            response.set_cookie(
-                key="refresh_token",
-                value=str(refresh),
-                httponly=True,
-                secure=not settings.DEBUG,
-                samesite="None" if not settings.DEBUG else "Lax",
-                path="/api/token/refresh/",
-            )
-            return response
+        if not user:
+            return Response({
+                "error": "Invalid credentials"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        if not user.is_active:
+            return Response({
+                "error": "User account is disabled"
+            }, status=status.HTTP_403_FORBIDDEN)
 
-        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        user_data = UserListSerializer(user).data
+
+        response = Response({
+            "message":"Login Successful",
+            "user": user_data
+        }, status=status.HTTP_200_OK)
+
+        response.set_cookie(
+            key="access_token",
+            value = access_token,
+            httponly=True,
+            secure = not settings.DEBUG,
+            samesite= "Lax",
+            path = "/",
+            max_age = 3600 * 5
+        )
+
+        response.set_cookie(
+            key="refresh_token",
+            value = str(refresh),
+            httponly=True,
+            secure = not settings.DEBUG,
+            samesite= "Lax",
+            path = "/api/token/refresh/",
+            max_age = 3600 * 24 * 7
+        )
+
+        return response
 
 class LogoutView(APIView):
+
+    permission_classes = [AllowAny]
+
     def post(self, request):
         response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
         response.delete_cookie("access_token", path="/")
-        response.delete_cookie("refresh_token", path="/api/token/refresh/")
+        response.delete_cookie("refresh_token", path="/")
         return response
 
+class CookieJWTAuthentication(JWTAuthentication):
+    
+    def authenticate(self, request):
+        access_token = request.COOKIES.get('access_token')
+
+        if access_token is None:
+            return None
+        
+        try:
+            validated_token = self.get_validated_token(access_token)
+            return self.get_user(validated_token), validated_token
+        except (InvalidToken, TokenError):
+            return None
+
 class CurrentUserView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]
+
 
     def get(self, request):
         user = request.user
-        return Response({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "svc_number": user.svc_number,
-        })
+        serializer = UserListSerializer(user)
+        return Response(serializer.data)
+
+@method_decorator(csrf_exempt, name="dispatch")
+class TokenRefreshView(APIView):
+    permission_classes=[AllowAny]
+
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if not refresh_token:
+            return Response({
+                "error": "Refresh Token Not found"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = str(refresh.access_token)
+
+            response = Response({
+                "message":"Token Refreshed"
+            }, status=status.HTTP_200_OK)
+
+            response.set_cookie(
+                key="access_token",
+                value = access_token,
+                httponly=True,
+                secure = not settings.DEBUG,
+                samesite="Lax",
+                path = "/",
+                max_age = 3600 * 5
+            )
+            return response
+        
+        except (InvalidToken, TokenError) as e:
+            return Response({
+                "error": "Invlaid Refresh Token"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
