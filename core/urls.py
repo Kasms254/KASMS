@@ -3,7 +3,7 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,LoginView,LogoutView,CurrentUserView,TokenRefreshView,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,LoginView,LogoutView,CurrentUserView,TokenRefreshView,SuperAdminSchoolViewSet,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
 , ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset
@@ -29,6 +29,8 @@ router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
 router.register(r'instructor-dashboard', InstructorDashboardViewset, basename='instructor_dashboard')
 
+# superadmin register schol
+router.register(r"superadmin/schools", SuperAdminSchoolViewSet, basename="superadmin-schools")
 app_name = 'core'
 
 def home(request):

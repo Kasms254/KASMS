@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice,School
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -20,6 +20,24 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('role', 'phone_number', 'svc_number'),
         }),)
     
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_authenticated and request.user.role == 'superadmin':
+            return qs
+        if request.user.is_authenticated and getattr(request.user, 'school', None):
+            return qs.filter(school=request.user.school)
+        return qs.none()
+    
+    def save_mode(self, request, obj, form, change):
+        if request.user.is_authenticated and request.user.role != "superadmin":
+            obj.school = request.user.school    
+        obj.save()
+
+    
+@admin.register(School)
+class SchoolAdmin(admin.ModelAdmin):
+    list_display=("name", "subdomain", "is_active", "created_at")
+    search_fields = ("name", "subdomain")
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):

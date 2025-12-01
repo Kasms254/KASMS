@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School
+from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,SchoolSerializer,SchoolCreatedSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated,AllowAny
@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass, IsSuperAdmin
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
@@ -1394,3 +1394,47 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_grading': pending_grading
 
         })
+
+
+class SuperAdminSchoolViewSet(viewsets.ModelViewSet):
+    queryset = School.objects.all().order_by("-created_at")
+    serializer_class = SchoolSerializer
+    permission_classes = [IsSuperAdmin]
+
+    def get_serializer_class(self):
+        if self.action in ("create", ):
+            return SchoolCreatedSerializer
+        return SchoolSerializer
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        school = serializer.save()
+        data = SchoolSerializer(school, context={
+            "request": request
+        }).data
+
+        created_admin = getattr(school, "_autocreated_admin", None) 
+        if created_admin:
+            data["created_admin"] = created_admin
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def activate(self, request, pk=None):
+        school = self.get_object()
+        school.is_active = True
+        school.save()
+        return Response({
+            "status":"activated"
+        })
+
+    @action(detail=True, methods=["post"])
+    def deactivate(self, request, pk=None):
+        school = self.get_object()
+        school.is_active = False
+        school.save()
+        return Response({
+            "status":"deactivated"
+        })
+
+

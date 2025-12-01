@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -392,7 +392,6 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 validated_data['submitted_at'] = timezone.now()
         return super().update(instance, validated_data)
     
-
 class BulkExamResultSerializer(serializers.Serializer):
 
     results = serializers.ListField(
@@ -409,8 +408,6 @@ class BulkExamResultSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
     
-
-
 class AttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
@@ -445,7 +442,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
             
         return attrs
     
-
 class BulkAttendanceSerializer(serializers.Serializer):
     class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
     subject = serializers.PrimaryKeyRelatedField(
@@ -471,8 +467,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
 
         return value
     
-
-
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -490,7 +484,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
     
-
 class ExamReportSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True
@@ -525,4 +518,25 @@ class ExamReportSerializer(serializers.ModelSerializer):
         return value
     
     
+class SchoolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=School
+        fields = "__all__"
+        read_only_fields = ('created_at', 'updated_at')
+
+class SchoolCreatedSerializer(serializers.ModelSerializer):
+
+    created_admin = serializers.SerializerMethodField(read_only=True) 
+    class Meta:
+        model=School
+        fields = "__all__"
+        read_only_fields = ('created_at', 'updated_at')
+
+    def get_created_admin(self, obj):
+        return getattr(obj, "_auto_created_admin", None)
     
+    def create(self, validated_data):
+        school = super().create(validated_data)
+        return school
+    
+
