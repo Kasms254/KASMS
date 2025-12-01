@@ -3,10 +3,27 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
+class School(models.Model):
+    name = models.CharField(max_length=100)
+    subdomain = models.CharField(max_length=100, unique=True)
+
+    primary_color = models.CharField(max_length=7, default="#004AAD")
+    secondary_color = models.CharField(max_length=7, default="#FFFFFF")
+    accent_color = models.CharField(max_length=7, default="#000000")
+    logo = models.ImageField(upload_to="schools/logos/", null=True, blank=True)
+    favicon = models.ImageField(upload_to="schools/favicons/", null=True, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+    
 
 class User(AbstractUser):
     ROLE_CHOICES = [
-        ('admin', 'admin'),
+        ('superadmin', 'Super Admin'),
+        ('admin', 'School admin'),
         ('instructor', 'instructor'),
         ('student', 'student'),
         ('commandant', 'commandant'),
@@ -35,6 +52,7 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+    school= models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
     email = models.CharField(max_length=25)

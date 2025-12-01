@@ -826,7 +826,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -926,7 +925,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
     serializer_class = ExamResultSerializer
@@ -1002,7 +1000,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'count':results.count(),
             'results':serializer.data
         })
-
 
 class AttendanceViewSet(viewsets.ModelViewSet):
 
@@ -1220,7 +1217,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
 
 
@@ -1289,7 +1285,6 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'report': self.get_serializer(report).data,
             'students': student_data
         })
-
 
 class InstructorDashboardViewset(viewsets.ViewSet):
 
