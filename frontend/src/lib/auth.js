@@ -2,33 +2,23 @@
 // Replace with real auth (tokens, cookies) when integrating with backend.
 
 export function isAuthenticated() {
-  try {
-    return !!localStorage.getItem('skl_auth_token')
-  } catch {
-    return false
-  }
+
+  return true;
 }
 
-export function login(token) {
-  try {
-    localStorage.setItem('skl_auth_token', token)
-  } catch {
-    // ignore
-  }
+export function login() {
+
 }
 
 export function logout() {
-  try {
-    localStorage.removeItem('skl_auth_token')
-  } catch {
-    // ignore
-  }
+
+  return fetch('${import.meta.env.VITE_APP_URL}/api/auth/logout/', {
+    method: 'POST',
+    credentials: 'include'
+  });
 }
 
-export function getToken() {
-  try {
-    return localStorage.getItem('skl_auth_token')
-  } catch {
-    return null
-  }
+export function getToken()  {
+    return null;
+  
 }

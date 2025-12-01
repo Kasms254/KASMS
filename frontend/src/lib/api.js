@@ -1,44 +1,62 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
+console.log("API URL:", VITE_API_URL);
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
-  const token = authStore.getToken()
   const h = {
     'Content-Type': 'application/json',
     ...headers,
   }
-  if (token) h['Authorization'] = `Bearer ${token}`
 
-  const opts = { method, headers: h }
+  const opts = {
+    method,
+    headers: h,
+    credentials: 'include', // include cookies automatically
+  }
   if (body !== undefined) opts.body = JSON.stringify(body)
 
-  const res = await fetch(url, opts)
-  if (res.status === 204) return null
-  const text = await res.text()
-  let data = null
-  try {
-    data = text ? JSON.parse(text) : null
-  } catch {
-    // non-json response
-    data = text
-  }
+const res = await fetch(`${VITE_API_URL}/auth/login/`, {
+  method: "POST",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ svc_number, password }),
+});
 
-  if (!res.ok) {
-    // Prefer common fields returned by different backends
-    const message = (data && (data.detail || data.message || data.error || data.non_field_errors)) || res.statusText || 'Request failed'
-    const err = new Error(typeof message === 'string' ? message : JSON.stringify(message))
-    err.status = res.status
-    err.data = data
-    throw err
-  }
-  return data
+// Only parse if there’s content
+let data = null;
+const text = await res.text();
+try {
+  data = text ? JSON.parse(text) : null;
+} catch {
+  data = text; // fallback
+}
+
+if (!res.ok) {
+  const errorMsg = data?.error || "Login failed";
+  throw new Error(errorMsg);
+}
+
+return data;
 }
 
 export async function login(svc_number, password) {
-  return request('/api/auth/login/', { method: 'POST', body: { svc_number, password } })
+  const res = await fetch(`${VITE_API_URL}/api/auth/login/`, {
+    method: "POST",
+    credentials: "include", 
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ svc_number, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Login failed");
+  }
+
+  return await res.json();
 }
 
 export async function getCurrentUser() {
