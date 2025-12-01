@@ -320,7 +320,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     
 
     # instructor specific classes
-    @action(detail=False, methods=['get'], permission_classes=[IsInstructor])
+    @action(detail=False, methods=['get'], permission_classes=[IsInstructor], url_path='my-classes')
     def my_classes(self, request):
         if request.user.role != 'instructor':
             return Response({
