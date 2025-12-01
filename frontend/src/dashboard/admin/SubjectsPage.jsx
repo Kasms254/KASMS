@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 export default function SubjectsPage() {
   const [classes, setClasses] = useState([])
@@ -17,6 +18,18 @@ export default function SubjectsPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [instructors, setInstructors] = useState([])
+  const [modalOpen, setModalOpen] = useState(false)
+  const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
+  const [isSaving, setIsSaving] = useState(false)
+  const modalRef = useRef(null)
+  const toast = useToast()
+  const reportError = (msg) => {
+    if (!msg) return
+    if (toast?.error) return toast.error(msg)
+    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    // developer fallback
+    console.error(msg)
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300)
@@ -126,7 +139,7 @@ export default function SubjectsPage() {
       setSubjects((s) => s.map((x) => (x.id === updated.id ? updated : x)))
       closeEdit()
     } catch (err) {
-      alert('Failed to update subject: ' + (err.message || String(err)))
+      reportError('Failed to update subject: ' + (err.message || String(err)))
     } finally {
       setEditLoading(false)
     }
@@ -145,7 +158,7 @@ export default function SubjectsPage() {
       setSubjects((s) => s.filter((x) => x.id !== subj.id))
       setConfirmDelete(null)
     } catch (err) {
-      alert('Failed to delete subject: ' + (err.message || String(err)))
+      reportError('Failed to delete subject: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
     }
@@ -156,12 +169,79 @@ export default function SubjectsPage() {
     return Object.values(filteredGroups).reduce((acc, arr) => acc + arr.length, 0)
   }, [filteredGroups, debouncedQuery])
 
+  async function openAddSubjectModal(classId = ''){
+    try{
+      const ins = await api.getInstructors()
+      const list = Array.isArray(ins) ? ins : (ins && Array.isArray(ins.results) ? ins.results : ins || [])
+      setInstructors(list)
+    }catch{
+      setInstructors([])
+    }
+    setForm({ name: '', subject_code: '', description: '', instructor: '', class_obj: classId || '' })
+    setModalOpen(true)
+    setTimeout(()=>{ modalRef.current?.querySelector('input,select,button,textarea')?.focus() }, 20)
+  }
+
+  function closeModal(){ setModalOpen(false) }
+
+  async function handleAddSubject(e){
+    e.preventDefault()
+    if (!form.name) return (toast?.error || alert)('Subject name required')
+    if (!form.description) return (toast?.error || alert)('Subject description required')
+    if (!form.class_obj) return (toast?.error || alert)('Please select a class')
+    if (!form.instructor) return (toast?.error || alert)('Please select an instructor')
+    const payload = {
+      name: form.name,
+      subject_code: form.subject_code || undefined,
+      description: form.description,
+      class_obj: Number(form.class_obj),
+      instructor: Number(form.instructor),
+    }
+    setIsSaving(true)
+    try{
+      await api.addSubject(payload)
+      if (toast?.success) toast.success('Subject added')
+      else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
+      else console.log('Subject added')
+      closeModal()
+      // refresh subjects
+      const s = await api.getSubjects()
+      const subjList = Array.isArray(s) ? s : (s && Array.isArray(s.results) ? s.results : s || [])
+      setSubjects(subjList)
+    }catch(err){
+      const d = err?.data
+      if (d && typeof d === 'object'){
+        const parts = []
+        Object.keys(d).forEach(k => {
+          if (Array.isArray(d[k])) parts.push(`${k}: ${d[k].join(' ')}`)
+          else parts.push(`${k}: ${String(d[k])}`)
+        })
+        const combined = parts.join(' | ')
+        if (toast?.error) toast.error(combined)
+        else if (toast?.showToast) toast.showToast(combined, { type: 'error' })
+        else reportError(combined)
+        return
+      }
+      const msg = err?.message || 'Failed to add subject'
+      if (toast?.error) toast.error(msg)
+      else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+      else reportError(msg)
+    }finally{
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4">
       <header className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-semibold text-black">Subjects</h2>
           <p className="text-sm text-neutral-500">Browse subjects by class</p>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+          </div>
         </div>
       </header>
 
@@ -262,6 +342,40 @@ export default function SubjectsPage() {
           })}
         </div>
       </section>
+
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-lg text-black font-medium">Add subject to class</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+              </div>
+              <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
+                <input placeholder="Subject code" value={form.subject_code} onChange={(e) => setForm({ ...form, subject_code: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
+                <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
+                  <option value="">— Select class —</option>
+                  {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
+                </select>
+                <textarea placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black md:col-span-3" rows={3} />
+                <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
+                  <option value="">— Select instructor —</option>
+                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                </select>
+
+                <div className="md:col-span-3 flex justify-end gap-2 mt-2">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm">{isSaving ? 'Saving...' : 'Add subject'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingSubject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

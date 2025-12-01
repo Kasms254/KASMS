@@ -203,7 +203,7 @@ export default function Courses() {
                   setEditCourseModalOpen(false)
                   load()
                 } catch (err) {
-                  console.error('Failed to update course', err)
+                  // prefer user-facing toast, keep console for debugging
                   reportError(err?.message || 'Failed to update course')
                 }
               }} className="mt-4">

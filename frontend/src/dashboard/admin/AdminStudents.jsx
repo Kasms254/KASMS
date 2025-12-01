@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 function initials(name = '') {
   return name
@@ -11,6 +12,13 @@ function initials(name = '') {
 }
 
 export default function AdminStudents() {
+  const toast = useToast()
+  const reportError = (msg) => {
+    if (!msg) return
+    if (toast?.error) return toast.error(msg)
+    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
+    console.error(msg)
+  }
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -41,9 +49,11 @@ export default function AdminStudents() {
           last_name: u.last_name,
           full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
           name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          svc_number: u.svc_number,
+          // normalize svc_number to a string so client-side searches are consistent
+          svc_number: u.svc_number != null ? String(u.svc_number) : '',
           email: u.email,
           phone_number: u.phone_number,
+          rank: u.rank || u.rank_display || '',
           is_active: u.is_active,
           created_at: u.created_at,
           // backend may include class name under different keys; fall back to 'Unassigned'
@@ -102,16 +112,17 @@ export default function AdminStudents() {
   }
 
   // compute filtered groups based on debounced query
-  const filteredGroups = useMemo(() => {
+    const filteredGroups = useMemo(() => {
     if (!debouncedQuery) return groups
     const q = debouncedQuery.toLowerCase()
     const res = {}
     Object.keys(groups).forEach((cls) => {
       const matches = groups[cls].filter((st) =>
         (st.name || '').toLowerCase().includes(q) ||
-        (st.svc_number || '').toLowerCase().includes(q) ||
+        // ensure svc_number and phone are strings before lowercasing (may be numeric from API)
+        String(st.svc_number || '').toLowerCase().includes(q) ||
         (st.email || '').toLowerCase().includes(q) ||
-        (st.phone_number || '').toLowerCase().includes(q) ||
+        String(st.phone_number || '').toLowerCase().includes(q) ||
         (st.className || '').toLowerCase().includes(q)
       )
       if (matches.length) res[cls] = matches
@@ -127,12 +138,12 @@ export default function AdminStudents() {
   
 
   function downloadCSV() {
-    // Export Service No first, then Name, Class, Email, Phone, Active, Created
-    const rows = [['Service No', 'Name', 'Class', 'Email', 'Phone', 'Active', 'Created']]
+    // Export Service No first, then Rank, Name, Class, Email, Phone, Active, Created
+  const rows = [['Service No', 'Rank', 'Name', 'Class', 'Email', 'Phone', 'Active', 'Created']]
 
     const classes = Object.keys(groups).sort()
     classes.forEach((c) => {
-      groups[c].forEach((st) => rows.push([st.svc_number || '', st.name || '', c, st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No', st.created_at ? new Date(st.created_at).toLocaleString() : '']))
+  groups[c].forEach((st) => rows.push([st.svc_number || '', st.rank || '', st.name || '', c, st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No', st.created_at ? new Date(st.created_at).toLocaleString() : '']))
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -155,6 +166,7 @@ export default function AdminStudents() {
       phone_number: st.phone_number || '',
       svc_number: st.svc_number || '',
       is_active: !!st.is_active,
+      rank: st.rank || st.rank_display || '',
       // ensure class_obj is a string (select values are strings) and fall back to empty
       class_obj: st.class_obj ? String(st.class_obj) : '',
     })
@@ -185,7 +197,7 @@ export default function AdminStudents() {
 
   function closeEdit() {
     setEditingStudent(null)
-    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true })
+    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, rank: '' })
   }
 
   function handleEditChange(key, value) {
@@ -203,6 +215,7 @@ export default function AdminStudents() {
         email: editForm.email,
         phone_number: editForm.phone_number,
         svc_number: editForm.svc_number,
+        rank: editForm.rank || undefined,
         is_active: editForm.is_active,
       }
       const updated = await api.partialUpdateUser(editingStudent.id, payload)
@@ -215,6 +228,7 @@ export default function AdminStudents() {
         name: updated.full_name || `${updated.first_name || ''} ${updated.last_name || ''}`.trim(),
         svc_number: updated.svc_number,
         email: updated.email,
+        rank: updated.rank || updated.rank_display || '',
         phone_number: updated.phone_number,
         is_active: updated.is_active,
         created_at: updated.created_at,
@@ -270,15 +284,15 @@ export default function AdminStudents() {
             setStudents((s) => s.map((x) => (x.id === norm.id ? { ...x, className: cls.name } : x)))
           }
         }
-      } catch (err) {
-        // enrollment error: show alert but keep user updated
-        alert('Failed to update enrollment: ' + (err.message || String(err)))
-      }
+          } catch (err) {
+            // enrollment error: inform user via toast
+            reportError('Failed to update enrollment: ' + (err.message || String(err)))
+          }
       closeEdit()
     } catch (err) {
       setError(err)
       // simple user feedback
-      alert('Failed to update student: ' + (err.message || String(err)))
+      reportError('Failed to update student: ' + (err.message || String(err)))
     } finally {
       setEditLoading(false)
     }
@@ -299,7 +313,7 @@ export default function AdminStudents() {
     } catch (err) {
       setError(err)
       // prefer toast later; keep simple for now
-      alert('Failed to delete student: ' + (err.message || String(err)))
+      reportError('Failed to delete student: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
     }
@@ -378,6 +392,7 @@ export default function AdminStudents() {
                         <thead>
                           <tr className="text-left">
                             <th className="px-4 py-2 text-sm text-neutral-600">Service No</th>
+                            <th className="px-4 py-2 text-sm text-neutral-600">Rank</th>
                             <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
                             <th className="px-4 py-2 text-sm text-neutral-600">Email</th>
                             <th className="px-4 py-2 text-sm text-neutral-600">Phone</th>
@@ -390,6 +405,7 @@ export default function AdminStudents() {
                           {list.slice(0, visible).map((st) => (
                             <tr key={st.id} className="border-t last:border-b hover:bg-neutral-50">
                               <td className="px-4 py-3 text-sm text-neutral-700">{st.svc_number || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-neutral-700">{st.rank || '-'}</td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name || st.svc_number)}</div>
@@ -455,6 +471,25 @@ export default function AdminStudents() {
                 <label className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Service No</div>
                   <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                </label>
+
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Rank</div>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <option value="">Unassigned</option>
+                    <option value="general">General</option>
+                    <option value="lieutenant colonel">Lieutenant Colonel</option>
+                    <option value="major">Major</option>
+                    <option value="captain">Captain</option>
+                    <option value="lieutenant">Lieutenant</option>
+                    <option value="warrant_officer">Warrant Officer I</option>
+                    <option value="warrant_officer">Warrant Officer II</option>
+                    <option value="seniorsergeant">Senior Sergeant</option>
+                    <option value="sergeant">Sergeant</option>
+                    <option value="corporal">Corporal</option>
+                    <option value="lance_corporal">Lance Corporal</option>
+                    <option value="private">Private</option>
+                  </select>
                 </label>
 
                 <label className="block mb-3">
