@@ -166,6 +166,12 @@ SIMPLE_JWT = {
 
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+
+    'AUTH_COOKIE':'access_token',
+    'AUTH_COOKIE_SECURE': not DEBUG,
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_PATH':'/',
+    'AUTH_COOKIE_SAMESITE': 'None' if not DEBUG else 'Lax',
 }
 
 REST_FRAMEWORK = {

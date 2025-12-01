@@ -3,7 +3,7 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,LoginView,LogoutView,CurrentUserView,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
 , ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset
@@ -37,15 +37,15 @@ def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
 urlpatterns = [
+
+    path('login/', LoginView.as_view(), name='login'),
+    path('logout/', LogoutView.as_view(), name='logout'),
+    path('api/me/', CurrentUserView.as_view(), name='current_user'),
+    path('change-password/', change_password_view, name='change_password'),
+    path('token/refresh/', token_refresh_view, name='token-refresh'),
+    path('token/verify/', verify_token_view, name='token-verify'),
+
     path('', include(router.urls)),
     path("", home),
-    path('auth/login/', login_view, name='login'),
-    path('auth/logout/', logout_view, name='logout'),
-    path('auth/me/', current_user_view, name='current_user'),
-    path('auth/change-password/', change_password_view, name='change_password'),
-    path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
-    path('auth/token/verify/', verify_token_view, name='token-verify'),
-
-    
 ]
 

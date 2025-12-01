@@ -10,7 +10,65 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
+class LoginView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        svc_number = request.data.get("svc_number")
+        password = request.data.get("password")
+
+        user = authenticate(request, svc_number=svc_number, password=password)
+        if user:
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+
+            response = Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite="None" if not settings.DEBUG else "Lax",
+                path="/",
+            )
+            response.set_cookie(
+                key="refresh_token",
+                value=str(refresh),
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite="None" if not settings.DEBUG else "Lax",
+                path="/api/token/refresh/",
+            )
+            return response
+
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        response.delete_cookie("access_token", path="/")
+        response.delete_cookie("refresh_token", path="/api/token/refresh/")
+        return response
+
+class CurrentUserView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "svc_number": user.svc_number,
+        })
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
@@ -168,7 +226,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
-
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
