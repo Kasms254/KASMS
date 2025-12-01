@@ -1,7 +1,7 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
@@ -174,7 +174,7 @@ export async function getClassSubjects(classId) {
 }
 
 export async function getClassEnrolledStudents(classId) {
-  return request(`/api/classes/${classId}/enrolled_students/`)
+  return request(`/api/classes/${classId}/my_students/`)
 }
 
 // Attendance endpoints
