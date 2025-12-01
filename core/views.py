@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -224,7 +224,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.select_related('course', 'instructor').all()
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
     search_fields = ['name', 'course__name', 'instructor__first_name']
@@ -341,7 +341,38 @@ class ClassViewSet(viewsets.ModelViewSet):
             'count': all_classes.count(),
             'results': serializer.data
         })
-    
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsInstructorofClass])
+    def my_students(self, request, pk=None):
+
+        class_obj = self.get_object()
+
+        student_ids = Enrollment.objects.filter(
+            class_obj=class_obj,
+            is_active=True,
+        ).values_list('student', flat=True)
+
+        students = User.objects.filter(
+            id__in = student_ids,
+            is_active=True
+        ).order_by ('first_name', 'last_name')
+
+
+        serializer = UserListSerializer(students, many=True)
+        
+        return Response({
+            'count': students.count(),
+            'results': serializer.data,
+            'class':class_obj.name
+        })
+    @action(detail=False, methods=['get'])
+    def whoami(self, request):
+        return Response({
+            "id": request.user.id,
+            "email": request.user.email,
+            "role": getattr(request.user, "role", None),
+            "is_authenticated": request.user.is_authenticated,
+        })
 
 class SubjectViewSet(viewsets.ModelViewSet):
 
