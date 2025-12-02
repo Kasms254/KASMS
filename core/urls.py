@@ -29,7 +29,6 @@ router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
-router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attachment')
 router.register(r'instructor-dashboard', InstructorDashboardViewset, basename='instructor_dashboard')
 
 app_name = 'core'
