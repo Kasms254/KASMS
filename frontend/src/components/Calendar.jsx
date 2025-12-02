@@ -72,8 +72,11 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
           const isSelected = displaySelected === iso
           const dow = d.getDay()
           const isWeekend = dow === 0 || dow === 6
+          // If the date has events, prefer a black number for contrast/readability.
           const numberClass = isSelected
             ? 'text-white'
+            : hasEvents
+            ? 'text-black'
             : `${isWeekend ? 'text-rose-600' : 'text-black'}`
           return (
             <button
@@ -100,7 +103,7 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
               <li className="text-sm text-black">No events</li>
             )}
             {(events[displaySelected] || []).map((ev, idx) => (
-              <li key={idx} className="py-1 text-sm">
+              <li key={idx} className="py-1 text-sm text-black">
                 • {ev}
               </li>
             ))}
