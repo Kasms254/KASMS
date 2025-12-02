@@ -1,7 +1,12 @@
 import React from 'react'
 
-export default function ConfirmModal({ open, title = 'Confirm', message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onCancel, loading = false }) {
+export default function ConfirmModal({ open, title = 'Confirm', message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onCancel, loading = false, confirmVariant = '' }) {
   if (!open) return null
+
+  // Determine button classes based on variant. If confirmVariant === 'danger', make confirm red and cancel indigo
+  const cancelClass = "px-4 py-2 rounded-md border bg-indigo-600 text-white"
+  const confirmClass = confirmVariant === 'danger' ? "px-4 py-2 rounded-md bg-red-600 text-white" : "px-4 py-2 rounded-md bg-blue-600 text-white"
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
@@ -15,8 +20,8 @@ export default function ConfirmModal({ open, title = 'Confirm', message, confirm
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-md border bg-red-600 text-white">{cancelLabel}</button>
-          <button type="button" onClick={onConfirm} disabled={loading} className="px-4 py-2 rounded-md bg-blue-600 text-white">
+          <button type="button" onClick={onCancel} className={cancelClass}>{cancelLabel}</button>
+          <button type="button" onClick={onConfirm} disabled={loading} className={confirmClass}>
             {loading ? 'Please wait...' : confirmLabel}
           </button>
         </div>

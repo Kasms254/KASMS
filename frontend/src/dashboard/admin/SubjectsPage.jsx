@@ -10,6 +10,7 @@ export default function SubjectsPage() {
   const [openSections, setOpenSections] = useState({})
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
   
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
@@ -67,26 +68,31 @@ export default function SubjectsPage() {
   const groups = useMemo(() => {
     // Map class name -> subjects[]
     const map = {}
+    // filter classes according to showInactive flag
+    const filteredClasses = classes.filter((c) => showInactive || c.is_active)
+
     // index classes by id
     const byId = {}
-    classes.forEach((c) => { byId[c.id] = c })
-    
+    filteredClasses.forEach((c) => { byId[c.id] = c })
+
     subjects.forEach((s) => {
       const cid = s.class_obj || s.class || (s.class_obj_id ?? null)
       const cls = byId[cid]
+      // if subject belongs to an inactive class and we're hiding inactive, skip it
+      if (cid && !cls) return
       const name = cls ? (cls.name || cls.class_name) : (s.class_name || 'Unassigned')
       if (!map[name]) map[name] = []
       map[name].push(s)
     })
-    
-    // ensure classes with no subjects still show
-    classes.forEach((c) => {
+
+    // ensure (filtered) classes with no subjects still show
+    filteredClasses.forEach((c) => {
       const name = c.name || c.class_name || `Class ${c.id}`
       if (!map[name]) map[name] = []
     })
-    
+
     return map
-  }, [classes, subjects])
+  }, [classes, subjects, showInactive])
 
   const filteredGroups = useMemo(() => {
     if (!debouncedQuery) return groups
@@ -239,7 +245,11 @@ export default function SubjectsPage() {
           <p className="text-sm text-neutral-500">Browse subjects by class</p>
         </div>
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4" />
+              <span>Show inactive classes</span>
+            </label>
             <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
           </div>
         </div>
@@ -357,9 +367,9 @@ export default function SubjectsPage() {
               <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
                 <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
                 <input placeholder="Subject code" value={form.subject_code} onChange={(e) => setForm({ ...form, subject_code: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
+                  <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
                   <option value="">— Select class —</option>
-                  {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
+                  {classes.filter(c => showInactive || c.is_active).map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
                 </select>
                 <textarea placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black md:col-span-3" rows={3} />
                 <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">

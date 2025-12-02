@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Card from '../../components/Card'
+import Calendar from '../../components/Calendar'
+import api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import { getInstructorDashboard } from '../../lib/api'
 
@@ -7,8 +9,11 @@ export default function InstructorsDashboard() {
   const { user } = useAuth()
   const [classes, setClasses] = useState([])
   const [uniqueStudentsCount, setUniqueStudentsCount] = useState(0)
+  const [pendingGrading, setPendingGrading] = useState(0)
+  const [attendanceToday, setAttendanceToday] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [calendarEvents, setCalendarEvents] = useState({})
 
   useEffect(() => {
     let mounted = true
@@ -20,8 +25,10 @@ export default function InstructorsDashboard() {
         // and an array of classes (more efficient than multiple requests)
         const data = await getInstructorDashboard()
         if (!mounted) return
-        setClasses(Array.isArray(data.classes) ? data.classes : (data.classes && Array.isArray(data.classes)) ? data.classes : [])
-        setUniqueStudentsCount(data.total_students ?? data.students ?? data.total_students_count ?? 0)
+  setClasses(Array.isArray(data.classes) ? data.classes : (data.classes && Array.isArray(data.classes)) ? data.classes : [])
+  setUniqueStudentsCount(data.total_students ?? data.students ?? data.total_students_count ?? 0)
+  setPendingGrading(data.pending_grading ?? data.to_grade ?? 0)
+  setAttendanceToday(data.attendance_today ?? data.attendance_today_count ?? 0)
       } catch (err) {
         if (mounted) setError(err)
       } finally {
@@ -32,6 +39,41 @@ export default function InstructorsDashboard() {
     return () => { mounted = false }
   }, [user])
 
+    // load exams and map to calendar events
+    useEffect(() => {
+      let mounted = true
+      async function loadEvents() {
+        if (!user) return
+        try {
+          const res = await api.getMyExams?.() ?? api.getExams()
+          // res might be paginated object or array
+          const examsList = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
+          const ev = {}
+          const pad = (n) => String(n).padStart(2, '0')
+          const toISO = (d) => {
+            try {
+              const dt = new Date(d)
+              if (Number.isNaN(dt.getTime())) return null
+              return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
+            } catch { return null }
+          }
+          examsList.forEach(x => {
+            const iso = x.exam_date ? toISO(x.exam_date) : null
+            if (!iso) return
+            const label = `${x.title || 'Exam'}${x.subject_name ? ` — ${x.subject_name}` : x.subject?.name ? ` — ${x.subject.name}` : ''}`
+            ev[iso] = ev[iso] || []
+            ev[iso].push(label)
+          })
+          if (mounted) setCalendarEvents(ev)
+        } catch (err) {
+          // ignore calendar load errors; don't block dashboard
+          console.debug('Failed to load exams for calendar', err)
+        }
+      }
+      loadEvents()
+      return () => { mounted = false }
+    }, [user])
+
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
@@ -40,30 +82,24 @@ export default function InstructorsDashboard() {
       </header>
 
       {/* Cards grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card title="My classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
-        <Card title="Upcoming" value={null} icon="Calendar" badge={null} accent="bg-sky-500" colored={true} />
+        <Card title="Pending grading" value={loading ? '…' : String(pendingGrading ?? 0)} icon="CheckSquare" badge={null} accent="bg-sky-500" colored={true} />
         <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-indigo-500" colored={true} />
+        <Card title="Attendance today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
-      <section className="mt-4">
-        <div className="rounded-xl p-4 bg-white/95 dark:bg-gray-800/80">
-          <h3 className="text-lg font-medium mb-3">Assigned classes</h3>
-          {loading && <div className="p-4">Loading classes…</div>}
-          {error && <div className="p-4 text-red-600">Failed to load: {error.message || String(error)}</div>}
+      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Calendar events={calendarEvents} />
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-neutral-200">
+          <h3 className="text-black font-medium mb-3 ">Notes</h3>
+          {loading && <div className="p-2 text-sm text-neutral-500">Loading…</div>}
+          {error && <div className="p-2 text-sm text-red-600">Failed to load: {error.message || String(error)}</div>}
           {!loading && !error && (
-            <ul className="divide-y">
-              {classes.length === 0 && <li className="py-2">No classes assigned to you.</li>}
-              {classes.map((c) => (
-                <li key={c.id} className="py-3 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-black">{c.name || c.class_code || c.code || `Class ${c.id}`}</div>
-                    <div className="text-sm text-neutral-500">{c.location || c.room || ''}</div>
-                  </div>
-                  <div className="text-sm text-neutral-600">{c.student_count ? `${c.student_count} students` : '—'}</div>
-                </li>
-              ))}
-            </ul>
+            <div className="text-sm text-neutral-500">No events yet — use the calendar to track important dates.</div>
           )}
         </div>
       </section>
