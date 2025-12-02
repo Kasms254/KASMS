@@ -64,10 +64,22 @@ export default function NavBar({
   async function fetchNotifications() {
     setNotifsLoading(true)
     try {
-      // Use the user-scoped endpoint so students only receive notices for their classes
-      const list = await api.getMyClassNotices()
-      const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
-      setNotifs(arr)
+      // Combine user-scoped class notices with urgent/global notices so bell shows everything
+      const [classNoticesResp, urgentResp] = await Promise.allSettled([
+        api.getMyClassNotices(),
+        api.getUrgentNotices(),
+      ])
+
+      const classNotices = classNoticesResp.status === 'fulfilled' ? (Array.isArray(classNoticesResp.value) ? classNoticesResp.value : (classNoticesResp.value && Array.isArray(classNoticesResp.value.results) ? classNoticesResp.value.results : [])) : []
+      const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
+
+      // Merge and sort by created_at (newest first)
+      const merged = [...urgentNotices, ...classNotices].sort((a, b) => {
+        const ta = new Date(a.created_at || a.created || 0).getTime()
+        const tb = new Date(b.created_at || b.created || 0).getTime()
+        return tb - ta
+      })
+      setNotifs(merged)
     } catch (err) {
       console.debug('failed to load notifications', err)
     } finally {

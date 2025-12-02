@@ -97,9 +97,9 @@ const menuItems = [
       // },
       {
         icon: 'Bell',
-        label: 'Announcements',
-        href: '/list/announcements',
-        visible: ['admin', 'instructor', 'student',],
+        label: 'Notices',
+        href: '/list/notices',
+        visible: ['admin'],
       },
     ],
   },

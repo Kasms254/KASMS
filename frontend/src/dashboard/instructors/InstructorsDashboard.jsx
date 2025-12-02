@@ -73,6 +73,21 @@ export default function InstructorsDashboard() {
             ev[iso].push(evt)
           })
 
+          // include active/global notices on the instructor calendar
+          try {
+            const active = await api.getActiveNotices().catch(() => [])
+            const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
+            act.forEach(n => {
+              const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
+              const iso = date ? toISO(date) : null
+              if (!iso) return
+              ev[iso] = ev[iso] || []
+              ev[iso].push(`Notice: ${n.title || 'Notice'}`)
+            })
+          } catch {
+            // non-fatal
+          }
+
           // also include classes (start_date) as events so they appear on calendar
           if (Array.isArray(classes)) {
             classes.forEach(cl => {

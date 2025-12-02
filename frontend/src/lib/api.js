@@ -295,6 +295,38 @@ export async function getMyClassNotices(params = '') {
   }
 }
 
+// Global notices (admin/site-wide)
+export async function getNotices(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/notices/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function getActiveNotices() {
+  const data = await request('/api/notices/active/')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function getUrgentNotices() {
+  const data = await request('/api/notices/urgent/')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function createNotice(payload) {
+  return request('/api/notices/', { method: 'POST', body: payload })
+}
+
+export async function updateNotice(id, payload) {
+  return request(`/api/notices/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteNotice(id) {
+  return request(`/api/notices/${id}/`, { method: 'DELETE' })
+}
+
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
   const API = API_BASE
@@ -464,4 +496,11 @@ export default {
   getClassNotices,
   getMyClassNotices,
   createClassNotice,
+  // Global / site notices
+  getNotices,
+  getActiveNotices,
+  getUrgentNotices,
+  createNotice,
+  updateNotice,
+  deleteNotice,
 }
