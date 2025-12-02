@@ -68,7 +68,7 @@ const menuItems = [
         icon: 'Clipboard',
         label: 'Exams',
         href: '/list/exams',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['instructor',],
       },
       
       {

@@ -125,13 +125,17 @@ export async function getMyClasses() {
   // Try the underscore form first to avoid noisy 404s in browsers, then
   // fall back to the hyphenated form if needed.
   try {
-    return await request('/api/classes/my_classes/')
+    return await request('/api/classes/my-classes/')
   } catch {
     try {
-      return await request('/api/classes/my-classes/')
+      return await request('/api/classes/my_classes/')
     } catch {
-      // Last attempt without trailing slash
-      return await request('/api/classes/my_classes')
+      // Last attempt without trailing slash (both variants)
+      try {
+        return await request('/api/classes/my-classes')
+      } catch {
+        return await request('/api/classes/my_classes')
+      }
     }
   }
 }
@@ -227,6 +231,27 @@ export async function getMyExams() {
 
 export async function createExam(payload) {
   return request('/api/exams/', { method: 'POST', body: payload })
+}
+
+// Exam results helpers
+export async function getExamResults(examId) {
+  if (!examId) throw new Error('examId is required')
+  return request(`/api/exams/${examId}/results/`)
+}
+
+export async function generateExamResults(examId) {
+  if (!examId) throw new Error('examId is required')
+  return request(`/api/exams/${examId}/generate_results/`, { method: 'POST' })
+}
+
+export async function bulkGradeResults(payload) {
+  // payload shape: { results: [{ id, student_id, marks_obtained, remarks? }, ...] }
+  return request('/api/exam-results/bulk_grade/', { method: 'POST', body: payload })
+}
+
+export async function gradeResult(resultId, payload) {
+  if (!resultId) throw new Error('resultId is required')
+  return request(`/api/exam-results/${resultId}/`, { method: 'PUT', body: payload })
 }
 
 export async function updateExam(id, payload) {
@@ -428,6 +453,10 @@ export default {
   getExams,
   getMyExams,
   createExam,
+  getExamResults,
+  generateExamResults,
+  bulkGradeResults,
+  gradeResult,
   updateExam,
   deleteExam,
   uploadExamAttachment,

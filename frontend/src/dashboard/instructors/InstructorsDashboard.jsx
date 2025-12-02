@@ -60,10 +60,36 @@ export default function InstructorsDashboard() {
           examsList.forEach(x => {
             const iso = x.exam_date ? toISO(x.exam_date) : null
             if (!iso) return
-            const label = `${x.title || 'Exam'}${x.subject_name ? ` — ${x.subject_name}` : x.subject?.name ? ` — ${x.subject.name}` : ''}`
+            // build structured event object so Calendar can style chips
+            const subject = x.subject_name || x.subject?.name || null
+            const className = x.class_name || x.class_obj?.name || x.class?.name || x.subject?.class_obj?.name || null
+            const evt = {
+              kind: x.exam_type || 'exam',
+              title: x.title || 'Exam',
+              subject: subject,
+              className: className,
+            }
             ev[iso] = ev[iso] || []
-            ev[iso].push(label)
+            ev[iso].push(evt)
           })
+
+          // also include classes (start_date) as events so they appear on calendar
+          if (Array.isArray(classes)) {
+            classes.forEach(cl => {
+              const iso = cl.start_date ? toISO(cl.start_date) : null
+              if (!iso) return
+              const evt = {
+                kind: 'class',
+                title: cl.name || cl.class_name || 'Class',
+                className: cl.name || cl.class_name || null,
+                course: cl.course?.name || cl.course_name || null,
+              }
+              ev[iso] = ev[iso] || []
+              // avoid duplicate structured events based on title+class
+              const exists = ev[iso].some(e => typeof e !== 'string' && e.title === evt.title && (e.className || e.class_name) === (evt.className || evt.class_name))
+              if (!exists) ev[iso].push(evt)
+            })
+          }
           if (mounted) setCalendarEvents(ev)
         } catch (err) {
           // ignore calendar load errors; don't block dashboard
@@ -72,7 +98,7 @@ export default function InstructorsDashboard() {
       }
       loadEvents()
       return () => { mounted = false }
-    }, [user])
+  }, [user, classes])
 
   return (
     <div>
