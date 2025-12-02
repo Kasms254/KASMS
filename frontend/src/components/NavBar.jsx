@@ -2,13 +2,18 @@ import React, { useMemo, useState, useEffect, useRef } from "react"
 import * as LucideIcons from "lucide-react"
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
+import api from '../lib/api'
 
 export default function NavBar({
   collapsed = false,
   onToggle = () => {},
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifs, setNotifs] = useState([])
+  const [notifsLoading, setNotifsLoading] = useState(false)
   const menuRef = useRef(null)
+  const notifRef = useRef(null)
 
   // derive user from Auth context (no demo defaults)
   const auth = useAuth()
@@ -45,6 +50,7 @@ export default function NavBar({
     function onDocClick(e) {
       if (!menuRef.current) return
       if (!menuRef.current.contains(e.target)) setMenuOpen(false)
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
     }
     document.addEventListener("keydown", onKey)
     document.addEventListener("click", onDocClick)
@@ -53,6 +59,21 @@ export default function NavBar({
       document.removeEventListener("click", onDocClick)
     }
   }, [])
+
+  // fetch notifications when opening bell
+  async function fetchNotifications() {
+    setNotifsLoading(true)
+    try {
+      // Use the user-scoped endpoint so students only receive notices for their classes
+      const list = await api.getMyClassNotices()
+      const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
+      setNotifs(arr)
+    } catch (err) {
+      console.debug('failed to load notifications', err)
+    } finally {
+      setNotifsLoading(false)
+    }
+  }
 
   const navigate = useNavigate()
 
@@ -115,6 +136,7 @@ export default function NavBar({
         </button>
 
         {/* Notifications */}
+        <div ref={notifRef} className="relative">
         <button
           className="
             relative p-2 rounded-full 
@@ -123,6 +145,13 @@ export default function NavBar({
             hover:bg-neutral-100 transition
           "
           aria-label="Notifications"
+          onClick={async () => {
+            setNotifOpen((s) => {
+              const next = !s
+              if (next && notifs.length === 0) fetchNotifications()
+              return next
+            })
+          }}
         >
           <LucideIcons.Bell className="w-5 h-5" />
           <span className="
@@ -131,9 +160,27 @@ export default function NavBar({
             bg-indigo-600 text-white text-[10px] 
             rounded-full
           ">
-            1
+            {notifs.length || 0}
           </span>
         </button>
+        {/* Notifications dropdown */}
+        {notifOpen && (
+          <div className="absolute right-0 mt-2 w-80 bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
+            <div className="px-3 py-2 text-sm font-medium text-neutral-700 border-b border-neutral-100">Notifications</div>
+            <div className="max-h-64 overflow-auto">
+              {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
+              {!notifsLoading && notifs.length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
+              {!notifsLoading && notifs.map(n => (
+                <button key={n.id} className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm">
+                  <div className="font-medium text-neutral-800">{n.title}</div>
+                  <div className="text-xs text-neutral-500 truncate">{n.content}</div>
+                  <div className="text-[11px] text-neutral-400 mt-1">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        </div>
 
         {/* USER MENU */}
         <div className="relative" ref={menuRef}>

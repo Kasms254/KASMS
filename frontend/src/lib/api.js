@@ -3,7 +3,8 @@
 const API_BASE = import.meta.env.VITE_API_BASE;
 const VITE_API_URL = import.meta.env.VITE_API_URL;
 
-console.log("API URL:", VITE_API_URL);
+// const API_BASE = import meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const h = {
@@ -95,16 +96,17 @@ export async function getClasses(params = '') {
 // Convenience helper: get classes for the currently authenticated user.
 // Some backends expose `/api/classes/mine/` or `/api/classes/mine` — try both.
 export async function getMyClasses() {
-  // Backend exposes an instructor-specific action named `my_classes` which
-  // DRF routes as `my-classes` (underscores -> hyphens). Prefer that.
+  // The deployed backend historically exposed `my_classes` (underscore).
+  // Try the underscore form first to avoid noisy 404s in browsers, then
+  // fall back to the hyphenated form if needed.
   try {
-    return await request('/api/classes/my-classes/')
+    return await request('/api/classes/my_classes/')
   } catch {
-    // Try alternate forms if routing differs
     try {
-      return await request('/api/classes/my_classes/')
+      return await request('/api/classes/my-classes/')
     } catch {
-      return await request('/api/classes/my-classes')
+      // Last attempt without trailing slash
+      return await request('/api/classes/my_classes')
     }
   }
 }
@@ -168,6 +170,112 @@ export async function getClassAttendance(classId, date) {
 export async function getSubjects(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/subjects/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+// Instructor-specific subjects (subjects taught by the current instructor)
+export async function getMySubjects() {
+  try {
+    const data = await request('/api/subjects/my_subjects/')
+    if (data && Array.isArray(data.results)) return data.results
+    return data
+  } catch {
+    // Fall back to general subjects list
+    return getSubjects()
+  }
+}
+
+// Exams endpoints
+export async function getExams(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/exams/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function getMyExams() {
+  // backend provides a `my_exams` action
+  const data = await request('/api/exams/my_exams/')
+  return data
+}
+
+export async function createExam(payload) {
+  return request('/api/exams/', { method: 'POST', body: payload })
+}
+
+export async function updateExam(id, payload) {
+  // Use PATCH so callers can send partial updates
+  return request(`/api/exams/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteExam(id) {
+  return request(`/api/exams/${id}/`, { method: 'DELETE' })
+}
+
+export async function createClassNotice(payload) {
+  return request('/api/class-notices/', { method: 'POST', body: payload })
+}
+
+export async function getClassNotices(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/class-notices/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+// Get class notices scoped to the current user. Backend exposes `my_notices`
+// (or `my-notices`) depending on routing; try common variants and fall back
+// to the generic list.
+export async function getMyClassNotices(params = '') {
+  const qs = params ? `?${params}` : ''
+  try {
+    const data = await request(`/api/class-notices/my_notices/${qs}`)
+    if (data && Array.isArray(data.results)) return data.results
+    return data
+  } catch {
+    try {
+      const data = await request(`/api/class-notices/my-notices/${qs}`)
+      if (data && Array.isArray(data.results)) return data.results
+      return data
+    } catch {
+      // Fall back to the generic list endpoint
+      return getClassNotices(params)
+    }
+  }
+}
+
+// Upload exam attachment (multipart/form-data). Returns attachment resource.
+export async function uploadExamAttachment(examId, file) {
+  const API = API_BASE
+  const token = authStore.getToken()
+  const url = `${API}/api/exam-attachments/`
+  const form = new FormData()
+  form.append('exam', String(examId))
+  form.append('file', file)
+
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(url, { method: 'POST', headers, body: form })
+
+  if (!res.ok) {
+    let text = await res.text()
+    try { text = JSON.parse(text) } catch (e) { console.debug('upload parse error', e) }
+    const err = new Error(res.statusText || 'Upload failed')
+    err.status = res.status
+    err.data = text
+    throw err
+  }
+
+  const data = await res.json()
+  return data
+}
+
+export async function getExamAttachments(examId) {
+  const qs = examId ? `?exam=${encodeURIComponent(examId)}` : ''
+  const data = await request(`/api/exam-attachments/${qs}`)
+  // unwrap paginated results
   if (data && Array.isArray(data.results)) return data.results
   return data
 }
@@ -291,4 +399,15 @@ export default {
   withdrawEnrollment,
   partialUpdateSubject,
   deleteSubject,
+  getMySubjects,
+  getExams,
+  getMyExams,
+  createExam,
+  updateExam,
+  deleteExam,
+  uploadExamAttachment,
+  getExamAttachments,
+  getClassNotices,
+  getMyClassNotices,
+  createClassNotice,
 }

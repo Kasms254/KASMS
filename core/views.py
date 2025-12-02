@@ -19,6 +19,35 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
+
+class SchoolFilterMixin:
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+  
+        if user.role == 'superadmin':
+            return queryset
+        
+
+        if hasattr(self.request, 'school') and self.request.school:
+          
+            if hasattr(queryset.model, 'school'):
+                return queryset.filter(school=self.request.school)
+        
+
+        return queryset.none()
+    
+    def perform_create(self, serializer):
+
+        user = self.request.user
+        
+        if user.role != 'superadmin' and hasattr(self.request, 'school') and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save()
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -148,7 +177,7 @@ class TokenRefreshView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
-    permission_classes = [IsAdmin, IsAuthenticated]
+    permission_classes = [ IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'role']
     search_fields = ['username', 'email', 'first_name', 'last_name']
@@ -161,14 +190,41 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
     
     def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.action == 'list':
-            return queryset.prefetch_related('enrollments',
-                                             'enrollments__class_obj'
-                                             ).only(
-                                                'id','username', 'email', 'first_name', 'last_name', 'role', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at'
-                                             )
-        return queryset
+        queryset = User.objects.all()
+        user = self.request.user
+
+        if user.role == 'superadmin':
+            if self.action == 'list':
+                return queryset.prefetch_related(
+                    'enrollments', 'enrollments__class_obj'
+                ).only(
+                    'id', 'username', 'email', 'first_name', 'last_name', 
+                    'role', 'svc_number', 'phone_number', 'is_active', 
+                    'created_at', 'updated_at'
+                )
+            return queryset
+        
+        if hasattr(self.request, 'school') and self.request.school:
+            queryset = queryset.filter(school=self.request.school)
+            
+            if self.action == 'list':
+                return queryset.prefetch_related(
+                    'enrollments', 'enrollments__class_obj'
+                ).only(
+                    'id', 'username', 'email', 'first_name', 'last_name', 
+                    'role', 'svc_number', 'phone_number', 'is_active', 
+                    'created_at', 'updated_at'
+                )
+            return queryset
+        
+        return queryset.none()   
+
+    def perform_create(self, serializer):       
+        user = self.request.user
+        if user.role != 'superadmin' and hasattr(self.request, 'school') and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save()     
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
     def my_students(self, request):
@@ -202,7 +258,12 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def instructors(self, request):
-        instructors = User.objects.filter(role='instructor', is_active=True).order_by('first_name', 'last_name')
+        queryset = User.objects.filter(role='instructor', is_active=True)
+        
+        if request.user.role != 'superadmin' and hasattr(request, 'school') and request.school:
+            queryset = queryset.filter(school=request.school)
+        
+        instructors = queryset.order_by('first_name', 'last_name')
         serializer = UserListSerializer(instructors, many=True)
         return Response({
             'count': instructors.count(),
@@ -211,7 +272,13 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def students(self, request):
-        students = User.objects.filter(role='student', is_active=True).order_by('first_name', 'last_name')
+        queryset = User.objects.filter(role='student', is_active=True)
+        
+        
+        if request.user.role != 'superadmin' and hasattr(request, 'school') and request.school:
+            queryset = queryset.filter(school=request.school)
+        
+        students = queryset.order_by('first_name', 'last_name')
         serializer = UserListSerializer(students, many=True)
         return Response({
             'count': students.count(),
@@ -249,23 +316,28 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
+        queryset = User.objects.all()
+        
+    
+        if request.user.role != 'superadmin' and hasattr(request, 'school') and request.school:
+            queryset = queryset.filter(school=request.school)
+        
         stats = {
-            'total_users': User.objects.count(),
-            'active_users': User.objects.filter(is_active=True).count(),
+            'total_users': queryset.count(),
+            'active_users': queryset.filter(is_active=True).count(),
             'by_role': {
-                'admins': User.objects.filter(role='admin').count(),
-                'instructors': User.objects.filter(role='instructor').count(),
-                'students': User.objects.filter(role='student').count(),
-                'commandants': User.objects.filter(role='commandant').count(),
+                'admins': queryset.filter(role='admin').count(),
+                'instructors': queryset.filter(role='instructor').count(),
+                'students': queryset.filter(role='student').count(),
+                'commandants': queryset.filter(role='commandant').count(),
             },
             'active_by_role': {
-                'admins': User.objects.filter(role='admin', is_active=True).count(),
-                'instructors': User.objects.filter(role='instructor', is_active=True).count(),
-                'students': User.objects.filter(role='student', is_active=True).count(),
-                'commandants': User.objects.filter(role='commandant', is_active=True).count(),
+                'admins': queryset.filter(role='admin', is_active=True).count(),
+                'instructors': queryset.filter(role='instructor', is_active=True).count(),
+                'students': queryset.filter(role='student', is_active=True).count(),
+                'commandants': queryset.filter(role='commandant', is_active=True).count(),
             }
         }
-
         return Response(stats)
     
     @action(detail=True, methods=['post'])
@@ -466,7 +538,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     
 
     # instructor specific classes
-    @action(detail=False, methods=['get'], permission_classes=[IsInstructor])
+    @action(detail=False, methods=['get'], permission_classes=[IsInstructor], url_path='my-classes')
     def my_classes(self, request):
         if request.user.role != 'instructor':
             return Response({

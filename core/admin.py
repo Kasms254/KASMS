@@ -28,7 +28,7 @@ class UserAdmin(BaseUserAdmin):
             return qs.filter(school=request.user.school)
         return qs.none()
     
-    def save_mode(self, request, obj, form, change):
+    def save_model(self, request, obj, form, change):
         if request.user.is_authenticated and request.user.role != "superadmin":
             obj.school = request.user.school    
         obj.save()

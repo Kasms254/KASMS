@@ -6,6 +6,7 @@ import DashboardIndex from './components/DashboardIndex'
 import AdminDashboard from './dashboard/admin/AdminDashboard'
 import InstructorsDashboard from './dashboard/instructors/InstructorsDashboard'
 import Attendance from './dashboard/instructors/Attendance'
+import Exams from './dashboard/instructors/Exams'
 import StudentsDashboard from './dashboard/students/StudentsDashboard'
 import StudentsRoute from './components/StudentsRoute'
 import AddUser from './pages/AddUser'
@@ -58,6 +59,11 @@ const App = () => {
 			{/* Attendance (instructors & admins) */}
 			<Route path="/list/attendance" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Attendance />} />
+			</Route>
+
+			{/* Exams listing (instructors, admins) */}
+			<Route path="/list/exams" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<Exams />} />
 			</Route>
 
 			{/* Subjects listing (by class) */}

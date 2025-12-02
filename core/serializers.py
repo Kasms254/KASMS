@@ -522,15 +522,15 @@ class SchoolSerializer(serializers.ModelSerializer):
     class Meta:
         model=School
         fields = "__all__"
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at')
 
 class SchoolCreatedSerializer(serializers.ModelSerializer):
 
     created_admin = serializers.SerializerMethodField(read_only=True) 
     class Meta:
         model=School
-        fields = "__all__"
-        read_only_fields = ('created_at', 'updated_at')
+        fields = ("id", "name", "subdomain", "primary_color", "secondary_color", "accent_color", "logo", "favicon", "is_active", "created_at", "created_admin")
+        read_only_fields = ('created_at')
 
     def get_created_admin(self, obj):
         return getattr(obj, "_auto_created_admin", None)

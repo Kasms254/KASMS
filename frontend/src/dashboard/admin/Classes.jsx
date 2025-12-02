@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, getMyClasses } from '../../lib/api'
+import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, getMyClasses, addClass, getCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -14,10 +14,12 @@ export default function ClassesList(){
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
   const [editingClass, setEditingClass] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [classForm, setClassForm] = useState({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [instructors, setInstructors] = useState([])
   const [classErrors, setClassErrors] = useState({})
   const [isSaving, setIsSaving] = useState(false)
+  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [coursesList, setCoursesList] = useState([])
   // errors and saving state for the "Add subject" modal
   const [subjectErrors, setSubjectErrors] = useState({})
   const [subjectSaving, setSubjectSaving] = useState(false)
@@ -123,6 +125,21 @@ export default function ClassesList(){
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
   }
 
+  async function openAddClassModal(){
+    try{
+      const [ins, courses] = await Promise.all([getInstructors().catch(()=>[]), getCourses().catch(()=>[])])
+      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
+      setCoursesList(Array.isArray(courses) ? courses : (courses && courses.results) ? courses.results : [])
+    }catch{
+      setInstructors([])
+      setCoursesList([])
+    }
+    setClassErrors({})
+    setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+    setAddModalOpen(true)
+    setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
+  }
+
   function closeModal(){ setModalOpen(false) }
 
   async function handleAddSubject(e){
@@ -190,9 +207,12 @@ export default function ClassesList(){
               <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
               <span>Show inactive classes</span>
             </label>
-            {user && user.role === 'admin' && (
-              <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
-            )}
+              {user && user.role === 'admin' && (
+                <>
+                  <button onClick={() => openAddClassModal()} className="bg-green-600 text-white px-3 py-1 rounded-md">Add class</button>
+                  <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+                </>
+              )}
           </div>
         </div>
       </div>
@@ -326,6 +346,100 @@ export default function ClassesList(){
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
                   <button type="submit" disabled={isSaving} className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-neutral-400' : 'bg-indigo-600'}`}>{isSaving ? 'Saving...' : 'Save'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Class Modal */}
+      {addModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-lg text-black font-medium">Create class</h4>
+                  <p className="text-sm text-neutral-500">Add a new class under a course</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                setClassErrors({})
+                // basic validation
+                const errs = {}
+                if (!classForm.name) errs.name = 'Class name required'
+                if (!classForm.course) errs.course = 'Please select a course'
+                if (!classForm.instructor) errs.instructor = 'Please select an instructor'
+                if (Object.keys(errs).length) { setClassErrors(errs); return }
+                setIsSaving(true)
+                try {
+                  const payload = {
+                    name: classForm.name,
+                    class_code: classForm.class_code || undefined,
+                    course: Number(classForm.course),
+                    instructor: Number(classForm.instructor),
+                    start_date: classForm.start_date || null,
+                    end_date: classForm.end_date || null,
+                    capacity: classForm.capacity ? Number(classForm.capacity) : undefined,
+                    is_active: !!classForm.is_active,
+                  }
+                  await addClass(payload)
+                  if (toast?.success) toast.success('Class created')
+                  else if (toast?.showToast) toast.showToast('Class created', { type: 'success' })
+                  setAddModalOpen(false)
+                  await loadClasses()
+                } catch (err) {
+                  const d = err?.data
+                  if (d && typeof d === 'object') {
+                    setClassErrors(d)
+                    const nonField = d.non_field_errors || d.detail || d.message || d.error
+                    if (nonField) {
+                      const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
+                      if (toast?.error) toast.error(msg)
+                      else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+                    }
+                  } else {
+                    const msg = err?.message || 'Failed to create class'
+                    if (toast?.error) toast.error(msg)
+                    else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
+                  }
+                } finally { setIsSaving(false) }
+              }} className="mt-4 grid grid-cols-1 gap-3">
+                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="Class name" />
+                {classErrors.name && <div className="text-sm text-red-600">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
+
+                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="Class code" />
+                {classErrors.class_code && <div className="text-sm text-red-600">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+
+                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.course} onChange={(e) => setClassForm({ ...classForm, course: e.target.value })}>
+                  <option value="">— Select course —</option>
+                  {coursesList.map(c => <option key={c.id} value={c.id}>{c.name || c.code}</option>)}
+                </select>
+                {classErrors.course && <div className="text-sm text-red-600">{Array.isArray(classErrors.course) ? classErrors.course.join(' ') : String(classErrors.course)}</div>}
+
+                <div className="flex gap-2">
+                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                </div>
+
+                <input type="number" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="Capacity" />
+                {classErrors.capacity && <div className="text-sm text-red-600">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
+
+                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
+                  <option value="">— Select instructor —</option>
+                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                </select>
+                {classErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
+
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
+
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
+                  <button type="submit" disabled={isSaving} className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-neutral-400' : 'bg-indigo-600'}`}>{isSaving ? 'Saving...' : 'Create'}</button>
                 </div>
               </form>
             </div>
