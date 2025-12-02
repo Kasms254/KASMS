@@ -55,7 +55,7 @@ class User(AbstractUser):
     school= models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
-    email = models.CharField(max_length=25)
+    email = models.CharField(max_length=255, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
@@ -72,7 +72,7 @@ class Course(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField()
-  
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     level = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -88,6 +88,7 @@ class Course(models.Model):
 
 class Class(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='classes')
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=100)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='instructed_classes')
     start_date = models.DateField()
@@ -117,6 +118,7 @@ class Class(models.Model):
 class Subject(models.Model):
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
     name = models.CharField(max_length=100)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True)
     subject_code = models.CharField(max_length=20, unique=True,null=True, blank=True)
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -146,6 +148,7 @@ class Notice(models.Model):
         choices=PRIORITY_CHOICES,
         default='medium'
     )
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=200)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -170,6 +173,7 @@ class Enrollment(models.Model):
     enrollment_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     completion_date = models.DateField(null=True, blank=True)
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         db_table = 'enrollments'
@@ -189,7 +193,7 @@ class Exam(models.Model):
         ('final', 'Final'),
         ('project', 'Project'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     title = models.CharField(max_length=200)
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
@@ -240,7 +244,7 @@ class ExamResult(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class Meta:
         db_table = 'exam_results'
         unique_together = ['exam', 'student']
@@ -284,7 +288,7 @@ class Attendance(models.Model):
     marked_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='attendances_marked')
     created_by = models.DateTimeField(auto_now_add=True)
     updated_at =models.DateTimeField(auto_now=True)
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class Meta:
         db_table = 'attendance'
         ordering = ['-class_obj', 'student__last_name']
@@ -304,7 +308,7 @@ class ClassNotice(models.Model):
         ('medium', 'Medium'),
         ('high', 'High'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices')
     title = models.CharField(max_length=50)
@@ -336,6 +340,7 @@ class ExamReport(models.Model):
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     report_date = models.DateField(default=timezone.now)
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         db_table = 'exam_reports'

@@ -38,6 +38,8 @@ class UserAdmin(BaseUserAdmin):
 class SchoolAdmin(admin.ModelAdmin):
     list_display=("name", "subdomain", "is_active", "created_at")
     search_fields = ("name", "subdomain")
+    ordering = ['-created_at']
+    list_filter = ("is_active", "created_at")
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):

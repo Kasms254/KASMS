@@ -19,9 +19,7 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
-
 ALLOWED_HOSTS = ["*"]
-
 
 # Application definition
 
@@ -49,11 +47,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    'core.middleware.SchoolSubdomainMiddleware',
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-
 
 ROOT_URLCONF = "kasms.urls"
 

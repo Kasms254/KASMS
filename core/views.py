@@ -315,13 +315,22 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 
     def get_queryset(self):
-       
-        return Course.objects.annotate(
-            classes_count=Count('classes', distinct=True)
-        )
+        queryset = super().get_queryset()
+        
+        if self.request.user.role == 'superadmin':
+            return queryset
+        
+        if self.request.school:
+            return queryset.filter(school=self.request.school)
+        
+        return queryset.none()
     
     def perform_create(self, serializer):
-        serializer.save()
+
+        if self.request.user.role != "superadmin" and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
@@ -376,7 +385,11 @@ class ClassViewSet(viewsets.ModelViewSet):
             enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True)
         )
     def perform_create(self, serializer):
-        serializer.save()
+        
+        if self.request.user.role != "superadmin" and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['get'])
     def subjects(self, request, pk=None):
@@ -520,7 +533,11 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        serializer.save()
+
+        if self.request.user.role != "superadmin" and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['post'])
     def assign_instructor(self, request, pk=None):
@@ -626,7 +643,11 @@ class NoticeViewSet(viewsets.ModelViewSet):
     
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+
+        if self.request.user.role != "superadmin" and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save(created_by=self.request.user)
 
 
     @action(detail=False, methods=['get'])
@@ -669,7 +690,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
             is_active = True
         ).filter(
             Q(expiry_date__isnull=True) |
-            Q(expirty_date__gte=timezone.now())
+            Q(expiry_date__gte=timezone.now())
         )
         serializer = self.get_serializer(notices, many=True)
         return Response({
@@ -707,8 +728,10 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     ordering = ['-enrollment_date']
     
     def perform_create(self, serializer):
-      
-        serializer.save(enrolled_by=self.request.user)
+        if self.request.user.role != 'superadmin' and self.request.school:
+            serializer.save(school=self.request.school)
+        else:
+            serializer.save(enrolled_by=self.request.user)
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -1414,7 +1437,7 @@ class SuperAdminSchoolViewSet(viewsets.ModelViewSet):
             "request": request
         }).data
 
-        created_admin = getattr(school, "_autocreated_admin", None) 
+        created_admin = getattr(school, "_auto_created_admin", None) 
         if created_admin:
             data["created_admin"] = created_admin
         return Response(data, status=status.HTTP_201_CREATED)
