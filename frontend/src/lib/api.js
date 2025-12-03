@@ -2,7 +2,7 @@
 import * as authStore from './auth'
 
 // const API_BASE = import meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
