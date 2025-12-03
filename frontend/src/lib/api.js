@@ -1,45 +1,43 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 // const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
-const API_BASE = import.meta.env.VITE_API_BASE;
-const VITE_API_URL = import.meta.env.VITE_API_URL;
+// const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+// const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 // const API_BASE = import meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
-  const h = {
-    'Content-Type': 'application/json',
-    ...headers,
-  }
-
+  
   const opts = {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...headers,
     },
-    credentials: 'include', // Important for cookies!
+    credentials: 'include', // This sends cookies with every request
   }
-
-
-  if (body !== undefined) opts.body = JSON.stringify(body)
-
+  
+  if (body !== undefined) {
+    opts.body = JSON.stringify(body)
+  }
+  
   const res = await fetch(url, opts)
-// Only parse if there’s content
+  
+  // Only parse if there's content
   const text = await res.text()
   let data = null
-try {
-  data = text ? JSON.parse(text) : null;
-} catch {
-  data = text; // fallback
-}
-
-if (!res.ok) {
-  const errorMsg = data?.error || "Login failed";
-  throw new Error(errorMsg);
-}
-
-return data;
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    data = text // fallback
+  }
+  
+  if (!res.ok) {
+    const errorMsg = data?.error || "Request failed"
+    throw new Error(errorMsg)
+  }
+  
+  return data
 }
 
 export async function login(svc_number, password) {
@@ -247,27 +245,31 @@ export async function getMyClassNotices(params = '') {
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
-  const API = API_BASE
-  const token = authStore.getToken()
-  const url = `${API}/api/exam-attachments/`
+  const url = `${API_BASE}/api/exam-attachments/`
   const form = new FormData()
   form.append('exam', String(examId))
   form.append('file', file)
-
-  const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(url, { method: 'POST', headers, body: form })
-
+  
+  const res = await fetch(url, { 
+    method: 'POST', 
+    credentials: 'include', // Use cookies instead of manual token
+    body: form 
+    // Don't set Content-Type header for FormData - browser sets it automatically
+  })
+  
   if (!res.ok) {
     let text = await res.text()
-    try { text = JSON.parse(text) } catch (e) { console.debug('upload parse error', e) }
+    try { 
+      text = JSON.parse(text) 
+    } catch (e) { 
+      console.debug('upload parse error', e) 
+    }
     const err = new Error(res.statusText || 'Upload failed')
     err.status = res.status
     err.data = text
     throw err
   }
-
+  
   const data = await res.json()
   return data
 }

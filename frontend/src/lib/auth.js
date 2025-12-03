@@ -1,39 +1,23 @@
-// In-memory auth token store.
-// We intentionally avoid persisting tokens in localStorage to reduce XSS risk.
-// The backend issues access and refresh tokens; store them in memory and
-// let the app refresh the access token when needed. Note: tokens will be
-// lost on page reload (recommended for better security) unless you opt-in
-// to a different persistence strategy (httpOnly cookie set by the server).
-
-let _access = null
-let _refresh = null
-
+// lib/auth.js - Simplified version
 export function isAuthenticated() {
-  return !!_access
+  // We can't check cookies from JavaScript (they're httpOnly)
+  // So we return true and let the backend enforce auth
+  // The frontend will check via getCurrentUser() call
+  return true
 }
 
-export function login({ access = null, refresh = null } = {}) {
-  _access = access || null
-  _refresh = refresh || null
-}
-
-export function setAccess(token) {
-  _access = token || null
-}
-
-export function setRefresh(token) {
-  _refresh = token || null
+export function login() {
+  // No-op, cookies are set by backend
 }
 
 export function logout() {
-  _access = null
-  _refresh = null
+  // No-op, cookies are cleared by backend
 }
 
 export function getToken() {
-  return _access
+  return null // Not needed with cookies
 }
 
 export function getRefreshToken() {
-  return _refresh
+  return null // Not needed with cookies
 }

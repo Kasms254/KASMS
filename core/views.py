@@ -86,7 +86,7 @@ class LoginView(APIView):
             key="access_token",
             value = access_token,
             httponly=True,
-            secure = not settings.DEBUG,
+            secure = False,
             samesite= "Lax",
             path = "/",
             max_age = 3600 * 5
@@ -96,7 +96,7 @@ class LoginView(APIView):
             key="refresh_token",
             value = str(refresh),
             httponly=True,
-            secure = not settings.DEBUG,
+            secure = False,
             samesite= "Lax",
             path = "/api/token/refresh/",
             max_age = 3600 * 24 * 7
