@@ -103,6 +103,10 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: Verify Lockfile sync
+        working-directory: ./frontend
+        run: npm install --package-lock-only --dry-run
+
       - name: Lint frontend
         working-directory: ./frontend
         run: npm run lint

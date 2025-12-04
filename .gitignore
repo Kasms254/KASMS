@@ -28,6 +28,7 @@ desktop.ini
 # Node (frontend) - optional, frontend has its own .gitignore
 frontend/node_modules/
 node_modules/
+frontend/node_modules/
 dist/
 db.sqlite3
 datadump.json
