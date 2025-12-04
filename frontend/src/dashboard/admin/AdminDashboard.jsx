@@ -11,6 +11,7 @@ export default function AdminDashboard() {
   const { user } = useAuth()
   const [showAdd, setShowAdd] = useState(false)
   const [metrics, setMetrics] = useState({ students: null, instructors: null, admins: null, subjects: null, active_classes: null })
+  const [calendarEvents, setCalendarEvents] = useState({})
 
   async function loadMetrics() {
     try {
@@ -45,6 +46,50 @@ export default function AdminDashboard() {
       await loadMetrics()
     })()
     return () => { mounted = false }
+  }, [])
+
+  // Load active notices and map to calendar events so admin sees notices on the calendar.
+  useEffect(() => {
+    let mounted = true
+
+    const pad = (n) => String(n).padStart(2, '0')
+    const toISO = (d) => {
+      try {
+        const dt = new Date(d)
+        if (Number.isNaN(dt.getTime())) return null
+        return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
+      } catch { return null }
+    }
+
+    async function loadNotices() {
+      try {
+        const active = await api.getActiveNotices().catch(() => [])
+        const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
+        const ev = {}
+        act.forEach(n => {
+          const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
+          const iso = date ? toISO(date) : null
+          if (!iso) return
+          ev[iso] = ev[iso] || []
+          ev[iso].push({
+            kind: 'notice',
+            title: n.title || 'Notice',
+            noticeId: n.id,
+            created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+            expiry_date: n.expiry_date || null,
+          })
+        })
+        if (mounted) setCalendarEvents(ev)
+      } catch (err) {
+        console.debug('Failed to load admin notices for calendar', err)
+      }
+    }
+
+    loadNotices()
+
+    function onChange() { if (mounted) loadNotices() }
+    window.addEventListener('notices:changed', onChange)
+    return () => { mounted = false; window.removeEventListener('notices:changed', onChange) }
   }, [])
 
   return (
@@ -98,7 +143,7 @@ export default function AdminDashboard() {
       { /** eventsMemo is stable across renders */ }
       <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Calendar />
+          <Calendar events={calendarEvents} />
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-neutral-200">

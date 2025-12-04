@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import ScrollToTop from './components/ScrollToTop'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthProvider'
 
@@ -17,6 +18,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
         <App />
       </AuthProvider>

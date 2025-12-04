@@ -109,12 +109,15 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                           • {ev}
                         </>
                       ) : (
-                        
                         <div className="flex items-center gap-3">
                           <span className="text-neutral-500">•</span>
                           <div className="flex items-center flex-wrap gap-2">
-                            {/** Exam or class primary label */}
-                            {ev.kind === 'class' ? (
+                            {/** Notice */}
+                            {ev.kind === 'notice' ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                                {`notice: ${ev.title || 'Notice'}`}
+                              </span>
+                            ) : ev.kind === 'class' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
                                 {`class: ${ev.title || ev.className || ev.class_name || 'Class'}`}
                               </span>

@@ -82,7 +82,14 @@ export default function InstructorsDashboard() {
               const iso = date ? toISO(date) : null
               if (!iso) return
               ev[iso] = ev[iso] || []
-              ev[iso].push(`Notice: ${n.title || 'Notice'}`)
+              // Use a structured event so Calendar can style notices specially
+              ev[iso].push({
+                kind: 'notice',
+                title: n.title || 'Notice',
+                noticeId: n.id,
+                created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+                expiry_date: n.expiry_date || null,
+              })
             })
           } catch {
             // non-fatal

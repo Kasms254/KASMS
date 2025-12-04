@@ -14,6 +14,7 @@ export default function Notices() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState(null)
   const [errors, setErrors] = useState({})
 
   const PRIORITY_CLASSES = {
@@ -72,13 +73,27 @@ export default function Notices() {
       const payload = { ...form }
       if (!payload.expiry_date) delete payload.expiry_date
       // Note: 'recipient' is not sent because backend currently doesn't support it.
-      const created = await api.createNotice(payload)
-      toast.success('Notice created')
-      setNotices(s => [created, ...s])
+      if (editTarget && editTarget.id) {
+        const updated = await api.updateNotice(editTarget.id, payload)
+        toast.success('Notice updated')
+        setNotices(s => s.map(x => (x.id === updated.id ? updated : x)))
+          // notify other parts of the app (calendar) that notices changed
+        try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+        // Also dispatch a targeted edit event so creators see an immediate
+        // notification in the bell (client-side). Include the updated notice
+        // in the event detail so listeners can show a small notification.
+        try { window.dispatchEvent(new CustomEvent('notice:edited', { detail: updated })) } catch (err) { console.debug('dispatch error', err) }
+      } else {
+        const created = await api.createNotice(payload)
+        toast.success('Notice created')
+        setNotices(s => [created, ...s])
+    try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+      }
       setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true })
       setRecipient('all')
       // close modal on success
       setModalOpen(false)
+      setEditTarget(null)
     } catch (err) {
       // Try to surface server-side validation errors in the modal form
       if (err && err.data && typeof err.data === 'object') {
@@ -90,8 +105,22 @@ export default function Notices() {
         }
         setErrors(serverErrors)
       }
-      toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : 'Failed to create notice')
+      toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : (editTarget ? 'Failed to update notice' : 'Failed to create notice'))
     } finally { setSaving(false); setConfirmOpen(false) }
+  }
+
+  function openEdit(n) {
+    setEditTarget(n)
+    setForm({
+      title: n.title || '',
+      content: n.content || '',
+      priority: n.priority || 'medium',
+      expiry_date: n.expiry_date || '',
+      is_active: n.is_active === undefined ? true : !!n.is_active,
+    })
+    setRecipient('all')
+    setErrors({})
+    setModalOpen(true)
   }
 
   // Prompt delete: open confirmation modal
@@ -110,6 +139,7 @@ export default function Notices() {
       toast.success('Notice deleted')
       setDeleteConfirmOpen(false)
       setDeleteTarget(null)
+  try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
     } catch (err) {
       toast.error(err?.message || 'Failed to delete notice')
     } finally {
@@ -118,15 +148,13 @@ export default function Notices() {
   }
 
   return (
-    <div className="p-6 text-black max-w-6xl mx-auto">
+  <div className="text-black w-full">
       <header className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Notices</h1>
         </div>
-        <div className="text-right flex flex-col items-end gap-2">
-          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}) }} className="px-4 py-2 rounded-md bg-indigo-600 text-white">Add notice</button>
-          <div className="text-sm text-neutral-500">Total notices</div>
-          <div className="text-xl font-semibold">{notices.length}</div>
+        <div className="text-right">
+          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="px-4 py-2 rounded-md bg-indigo-600 text-white">Add notice</button>
         </div>
       </header>
 
@@ -137,8 +165,8 @@ export default function Notices() {
           <div className="relative z-10 w-full max-w-2xl">
             <div className="bg-white rounded-xl p-6 shadow-2xl">
               <div className="flex items-start justify-between">
-                <h4 className="text-lg font-medium">Create notice</h4>
-                <button type="button" onClick={() => setModalOpen(false)} aria-label="Close" className="text-neutral-500 hover:text-neutral-700 p-1 rounded">
+                <h4 className="text-lg font-medium">{editTarget ? 'Edit notice' : 'Create notice'}</h4>
+                <button type="button" onClick={() => { setModalOpen(false); setEditTarget(null) }} aria-label="Close" className="text-neutral-500 hover:text-neutral-700 p-1 rounded">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
@@ -203,8 +231,8 @@ export default function Notices() {
                   </label>
 
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => { setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}) }} className="px-3 py-2 rounded-md border">Reset</button>
-                    <button type="submit" disabled={saving} className="px-4 py-2 rounded-md bg-indigo-600 text-white">{saving ? 'Saving…' : 'Publish notice'}</button>
+                    <button type="button" onClick={() => { setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="px-3 py-2 rounded-md border">Reset</button>
+                    <button type="submit" disabled={saving} className="px-4 py-2 rounded-md bg-indigo-600 text-white">{saving ? 'Saving…' : (editTarget ? 'Update notice' : 'Publish notice')}</button>
                   </div>
                 </div>
               </form>
@@ -246,7 +274,7 @@ export default function Notices() {
                   <div className="mt-4 flex items-center justify-between">
                     <div className="text-xs text-neutral-500">Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}</div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => navigator.clipboard?.writeText(n.content || '')} className="px-2 py-1 rounded border text-sm">Copy</button>
+                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm">Edit</button>
                       <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded border bg-red-600 text-white text-sm">Delete</button>
                     </div>
                   </div>
