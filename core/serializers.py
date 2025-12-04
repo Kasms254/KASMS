@@ -230,7 +230,7 @@ class NoticeSerializer(serializers.ModelSerializer):
         if not obj.expiry_date:
             return False
         from django.utils import timezone
-        return obj.expiry_date < timezone.now()
+        return obj.expiry_date < timezone.now().date()
     
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None

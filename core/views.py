@@ -536,7 +536,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
             is_active = True
         ).filter(
             Q(expiry_date__isnull=True) |
-            Q(expirty_date__gte=timezone.now())
+            Q(expiry_date__gte=timezone.now())
         )
         serializer = self.get_serializer(notices, many=True)
         return Response({
