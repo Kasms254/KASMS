@@ -236,7 +236,7 @@ class NoticeSerializer(serializers.ModelSerializer):
         return obj.created_by.get_full_name() if obj.created_by else None
     
 
-    def valiate_expiry_date(self, value):
+    def validate_expiry_date(self, value):
     
         if value:
             from django.utils import timezone
