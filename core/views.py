@@ -489,7 +489,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
 
             return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated]
+        return [IsAuthenticated()]
     
 
     def perform_create(self, serializer):
