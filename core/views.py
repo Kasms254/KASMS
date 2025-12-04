@@ -489,7 +489,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
 
             return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated]
+        return [IsAuthenticated()]
     
 
     def perform_create(self, serializer):
@@ -706,8 +706,6 @@ class ExamViewSet(viewsets.ModelViewSet):
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
 
-
-
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -718,7 +716,6 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return queryset
     
-
     def perform_create(self, serializer):
         subject = serializer.validated_data.get('subject')
 
@@ -732,7 +729,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
-        exam = self.get_results()
+        exam = self.get_object()
         results = exam.results.select_related('student', 'graded_by').all()
         serializer = ExamResultSerializer(results, many=True)
 
@@ -763,7 +760,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 defaults={'is_submitted': False}
             )
             if created:
-                crafted_count += 1
+                created_count += 1
 
 
         return Response({
@@ -792,7 +789,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             'count': exams.count(),
             'results': serializer.data
         })
-    
+
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
@@ -858,7 +855,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
         if not student_id:
             return Response({
-                'error': 'studen_id parameter is required'
+                'error': 'student_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         results = self.get_queryset().filter(student_id=student_id, is_submitted=True)

@@ -10,7 +10,7 @@ on:
     
 
 env:
-  NODE_VERSION: '18.x'
+  NODE_VERSION: '20.x'
   PYTHON_VERSION: '3.11'
 
 
@@ -91,6 +91,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Enforce Node engine
+        working-directory: ./frontend
+        run: npm config set engine-strict true
+
+      - name: Verify Lockfile sync
+        working-directory: ./frontend
+        run: npm install --package-lock-only --dry-run
+
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
@@ -99,6 +107,8 @@ jobs:
         working-directory: ./frontend
         run: npm run lint
         continue-on-error: true
+        
+
 
       - name: Build frontend
         working-directory: ./frontend
