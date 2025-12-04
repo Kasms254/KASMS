@@ -6,7 +6,7 @@ from .views import (
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet
     )
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
@@ -30,6 +30,7 @@ router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
 router.register(r'instructor-dashboard', InstructorDashboardViewset, basename='instructor_dashboard')
+router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attachment')
 
 app_name = 'core'
 
