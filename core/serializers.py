@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -290,7 +290,11 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
     
-
+class ExamAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamAttachment
+        fields = "__all__"
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'id', 'exam')
 class ExamSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -300,6 +304,8 @@ class ExamSerializer(serializers.ModelSerializer):
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
     average_score = serializers.FloatField(read_only=True)
     submission_count = serializers.IntegerField(read_only=True)
+    exam_attachment = serializers.FileField(read_only=True)
+    attachments = ExamAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Exam
@@ -322,6 +328,8 @@ class ExamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Exam date cannot be in the past.")
         return value
     
+
+
 class ExamResultSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
