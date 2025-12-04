@@ -94,7 +94,11 @@ jobs:
       - name: Enforce Node engine
         working-directory: ./frontend
         run: npm config set engine-strict true
-      
+
+      - name: Verify Lockfile sync
+        working-directory: ./frontend
+        run: npm install --package-lock-only --dry-run
+
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
@@ -108,6 +112,7 @@ jobs:
         run: npm run lint
         continue-on-error: true
         
+
 
       - name: Build frontend
         working-directory: ./frontend
