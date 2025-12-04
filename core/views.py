@@ -1316,7 +1316,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ).select_related(
             'exam', 'exam__subject', 'graded_by'
         ).order_by(
-            '-graded_at'
+            '-exam__exam_date'
         )[:10]
 
         total_attendance = Attendance.objects.filter(student=user)
@@ -1451,7 +1451,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         elif status_param == 'past':
             exams = exams.filter(exam_date__lt=today)
 
-        exams  = exams.order_by('-exam_date')
+        exams  = exams.order_by('-created_at')
 
         serializer = ExamSerializer(exams, many=True)
 
@@ -1459,7 +1459,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'count': exams.count(),
             'results': serializer.data
         })
-    
+    @action(detail=False, methods=['get'])
     def my_results(self, request):
 
         if request.user.role != 'student':
@@ -1480,7 +1480,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         if exam_id:
             results = results.filter(exam_id=exam_id)
 
-        results = results.order_by('graded_at')
+        results = results.order_by('created_at')
 
         serializer = ExamResultSerializer(results, many=True)
 
@@ -1569,7 +1569,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
 
-    def my_notices(slef, request):
+    def my_notices(self, request):
 
         if request.user.role != 'student':
             return Response({
@@ -1609,7 +1609,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
         return Response({
             'class_notices': {
-                'count': general_notices.count(),
+                'count': class_notices.count(),
                 'results': ClassNotificationSerializer(class_notices, many=True).data
             },
             'general_notices': {
@@ -1636,7 +1636,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
         if results.exists():
             total_marks = sum(r.marks_obtained for r in results)
-            total_possible = sum(r.marks_obtained for r in results)
+            total_possible = sum(r.exam.total_marks for r in results)
             overall_percentage = (total_marks /total_possible * 100) if total_possible > 0 else 0
 
         else:
@@ -1692,3 +1692,38 @@ class StudentDashboardViewset(viewsets.ViewSet):
                     'excused': attendance.filter(status='excused').count()
                 }
             })
+    @action(detail=False, methods=['get'])
+    def upcoming_schedule(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                
+                    'error': 'Only students can access this endpoint'
+                }, status=status.HTTP_403_FORBIDDEN
+            )
+        
+        from datetime import timedelta
+
+        days = int(request.query_params.get('days', 30))
+        today = timezone.now().date()
+        end_date = today + timedelta(days=days)
+
+        enrolled_class_ids = Enrollment.objects.filter(
+            student= request.user,
+            is_active = True
+        ).values_list('class_obj_id', flat=True)
+
+        upcoming_exams = Exam.objects.filter(
+            subject__class_obj_id__in = enrolled_class_ids,
+            is_active = True,
+            exam_date__gte =today,
+            exam_date__lte = end_date
+        ).select_related('subject', 'subject__class_obj').order_by('created_at')
+
+        return Response({
+            'start_date':today,
+            'end_date': end_date,
+            'exam_count': upcoming_exams.count(),
+            'exams':ExamSerializer(upcoming_exams, many=True).data
+        })
+    
