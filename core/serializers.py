@@ -496,7 +496,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
 
     def get_created_by_name(self, obj):
-        return obj.created_by.get_full_name() if obj.created_by else None
+        if isinstance(obj, ClassNotice):
+            return obj.created_by.get_full_name() if obj.created_by else None
+        return None
     
 
 class ExamReportSerializer(serializers.ModelSerializer):
