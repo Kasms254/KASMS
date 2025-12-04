@@ -68,7 +68,7 @@ const menuItems = [
         icon: 'Clipboard',
         label: 'Exams',
         href: '/list/exams',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['instructor',],
       },
       
       {
@@ -97,9 +97,9 @@ const menuItems = [
       // },
       {
         icon: 'Bell',
-        label: 'Announcements',
-        href: '/list/announcements',
-        visible: ['admin', 'instructor', 'student',],
+        label: 'Notices',
+        href: '/list/notices',
+        visible: ['admin'],
       },
     ],
   },

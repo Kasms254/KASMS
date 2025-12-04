@@ -12,6 +12,7 @@ export default function NavBar({
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifs, setNotifs] = useState([])
   const [notifsLoading, setNotifsLoading] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -64,16 +65,83 @@ export default function NavBar({
   async function fetchNotifications() {
     setNotifsLoading(true)
     try {
-      // Use the user-scoped endpoint so students only receive notices for their classes
-      const list = await api.getMyClassNotices()
-      const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
-      setNotifs(arr)
+      // Combine user-scoped class notices with urgent/global notices so bell shows everything
+      const [classNoticesResp, urgentResp] = await Promise.allSettled([
+        api.getMyClassNotices(),
+        api.getUrgentNotices(),
+      ])
+
+      const classNotices = classNoticesResp.status === 'fulfilled' ? (Array.isArray(classNoticesResp.value) ? classNoticesResp.value : (classNoticesResp.value && Array.isArray(classNoticesResp.value.results) ? classNoticesResp.value.results : [])) : []
+      const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
+
+      // Merge and sort by created_at (newest first)
+      let merged = [...urgentNotices, ...classNotices]
+
+      // Filter out notifications created by the current user (so creators
+      // don't receive their own notice in the bell). Account for serializers
+      // that may return `created_by` as an id or as an object.
+      if (user) {
+        merged = merged.filter(n => {
+          try {
+            const cb = n.created_by
+            const cbId = (cb && typeof cb === 'object') ? (cb.id || cb.pk || null) : cb
+            if (cbId !== null && String(cbId) === String(user.id)) return false
+          } catch {
+            // ignore and keep the notification
+          }
+          return true
+        })
+      }
+
+      const normalized = merged.map((n) => ({ ...(n || {}), read: n && n.read ? true : false }))
+      normalized.sort((a, b) => {
+        const ta = new Date(a.created_at || a.created || 0).getTime()
+        const tb = new Date(b.created_at || b.created || 0).getTime()
+        return tb - ta
+      })
+
+      setNotifs(normalized)
+      setUnreadCount(normalized.filter(x => !x.read).length)
     } catch (err) {
       console.debug('failed to load notifications', err)
     } finally {
       setNotifsLoading(false)
     }
   }
+
+  // Listen for client-side notice edit events so creators get a bell item
+  useEffect(() => {
+    function onNoticeEdited(e) {
+      const payload = e && e.detail ? e.detail : null
+      if (!payload) return
+      // Build a small notification object and prepend it as unread
+      const item = {
+        id: payload.id || payload.pk || `notice-${Date.now()}`,
+        title: payload.title || 'Notice updated',
+        content: payload.content || 'A notice was updated',
+        kind: 'notice',
+        noticeId: payload.id || null,
+        created_at: payload.updated_at || payload.created_at || new Date().toISOString(),
+        read: false,
+      }
+      setNotifs((s) => [item, ...s])
+      setUnreadCount((n) => n + 1)
+    }
+
+    window.addEventListener('notice:edited', onNoticeEdited)
+    return () => window.removeEventListener('notice:edited', onNoticeEdited)
+  }, [user])
+
+  // Fetch notifications automatically when a user is available so the bell
+  // shows a count without requiring the user to click it first.
+  useEffect(() => {
+    if (!user) return
+    // Don't refetch if we already have notifications loaded
+    if (notifs.length === 0) {
+      fetchNotifications().catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   const navigate = useNavigate()
 
@@ -160,7 +228,7 @@ export default function NavBar({
             bg-indigo-600 text-white text-[10px] 
             rounded-full
           ">
-            {notifs.length || 0}
+            {unreadCount || 0}
           </span>
         </button>
         {/* Notifications dropdown */}
@@ -171,7 +239,19 @@ export default function NavBar({
               {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
               {!notifsLoading && notifs.length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
               {!notifsLoading && notifs.map(n => (
-                <button key={n.id} className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm">
+                <button
+                  key={n.id}
+                  className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${!n.read ? 'bg-neutral-50' : ''}`}
+                  onClick={() => {
+                    // mark this notification as read locally
+                    setNotifs(prev => prev.map(x => (x.id === n.id ? { ...x, read: true } : x)))
+                    setUnreadCount(prev => Math.max(0, prev - (n.read ? 0 : 1)))
+                    // Optionally navigate to a relevant page; here we navigate to notices list if this is a notice
+                    if (n.noticeId) {
+                      try { navigate('/list/notices') } catch (err) { console.debug('nav error', err) }
+                    }
+                  }}
+                >
                   <div className="font-medium text-neutral-800">{n.title}</div>
                   <div className="text-xs text-neutral-500 truncate">{n.content}</div>
                   <div className="text-[11px] text-neutral-400 mt-1">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
