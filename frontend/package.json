@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "preinstall": "node -e \"const v = process.versions.node.split('.')[0]; if (v < 20) { console.error('🚫 Node 20+ is required'); process.exit(1); }\"",
-    "prepare": "husky"
+    "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('npx husky install', { stdio: 'inherit' })\""
   },
 
   "lint-staged": {
