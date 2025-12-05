@@ -216,7 +216,7 @@ class ExamAttachment(models.Model):
         ]        
                             )
     file_name = models.CharField(max_length=100, null=True, blank=True)
-    file_size = models.IntegerField(help_text="FIle size in bytes")
+    file_size = models.IntegerField(help_text="FIle size in bytes", null=True, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_attachments')
     created_at = models.DateTimeField(auto_now_add=True)
     uploaded_at = models.DateTimeField(auto_now=True)

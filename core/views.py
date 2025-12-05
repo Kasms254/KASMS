@@ -796,6 +796,15 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
     queryset = ExamAttachment.objects.all()
     serializer_class = ExamAttachmentSerializer
     parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        file = self.request.FILES.get("file")
+
+        serializer.save(uploaded_by=self.request.user,
+                        file_name = file.name if file else None,
+                        file_size = file.size if file else None)
+
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
