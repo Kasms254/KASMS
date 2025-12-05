@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent
 from rest_framework.parsers import MultiPartParser, FormParser
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -1278,3 +1278,461 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_grading': pending_grading
 
         })
+
+
+# students
+
+class StudentDashboardViewset(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    def list(self, request):
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access the Student Dashboard'
+            },
+            status=status.HTTP_401_UNAUTHORIZED)
+        
+        user = request.user
+
+        enrollments = Enrollment.objects.filter(
+            student = user,
+            is_active = True
+        ).select_related('class_obj', 'class_obj__course', 'class_obj__instructor')
+
+        enrolled_class_ids = enrollments.values_list('class_obj_id', flat=True)
+
+
+        subjects = Subject.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active = True
+        ).select_related('instructor', 'class_obj')
+
+
+        from datetime import timedelta
+        today = timezone.now().date()
+
+        upcoming_exams = Exam.objects.filter(
+            subject__class_obj_id__in =enrolled_class_ids,
+            is_active = True,
+            exam_date__gte = today,
+            exam_date__lte = today + timedelta(days=30)
+        ).select_related('subject', 'subject__class_obj').order_by('exam_date')
+
+
+        recent_results = ExamResult.objects.filter(
+            student= user,
+            is_submitted = True
+        ).select_related(
+            'exam', 'exam__subject', 'graded_by'
+        ).order_by(
+            '-exam__exam_date'
+        )[:10]
+
+        total_attendance = Attendance.objects.filter(student=user)
+        present_count = total_attendance.filter(status='present').count()
+        total_count = total_attendance.count()
+        attendance_rate = (present_count / total_count * 100) if total_count > 0 else 0
+
+
+        recent_notices = ClassNotice.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active =True
+        ).filter(
+            Q(expiry_date__isnull=True) | 
+            Q(expiry_date__gte = today)
+        ).select_related('class_obj', 'subject', 'created_by'). order_by('created_at')[:10]
+
+        general_notices = Notice.objects.filter(
+            is_active = True
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')[:5]
+
+        stats ={
+            'total_classes': enrollments.count(),
+            'total_subjects': subjects.count(),
+            'total_exams_taken':ExamResult.objects.filter(
+                student = user,
+                is_submitted = True
+            ).count(),
+            'pending_exams':upcoming_exams.count(),
+            'attendance_rate': round(attendance_rate, 2),
+            'total_attendance_records': total_count,
+            'present_days': present_count,
+            'absent_days': total_attendance.filter(status='absent').count(),
+            'late_days': total_attendance.filter(status='late').count()
+        }
+
+        submitted_results = ExamResult.objects.filter(
+            student=user,
+            is_submitted = True,
+            marks_obtained__isnull = False
+        )
+        
+        if submitted_results.exists():
+            total_marks = sum(r.marks_obtained for r in submitted_results)
+            total_possible = sum(r.exam.total_marks for r in submitted_results)
+            average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
+            stats [ 'average_grade'] = round(average_percentage, 2)
+        else:
+            stats['average_grade'] = 0
+
+
+        return Response({
+            'stats':stats,
+            'enrollments': EnrollmentSerializer(enrollments, many=True).data,
+            'subjects':SubjectSerializer(subjects, many=True).data,
+            'upcoming_exams':ExamSerializer(upcoming_exams, many=True).data,
+            'recent_results':ExamResultSerializer(recent_results, many=True).data,
+            'recent_notices':ClassNotificationSerializer(recent_notices, many=True).data,
+            'general_notices':NoticeSerializer(general_notices, many=True).data
+
+        })
+
+    @action(detail=False, methods=['get'])
+    def my_classes(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error':'ONly Students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        enrollments = Enrollment.objects.filter(
+            student = request.user,
+            is_active = True
+        ).select_related('class_obj', 'class_obj__course', 'class_obj__instructor')
+
+        serializer = EnrollmentSerializer(enrollments, many=True)
+
+        return Response({
+            'count': enrollments.count(),
+            'results':serializer.data}
+                            )
+    
+    @action(detail=False, methods=['get'])
+
+    def my_subjects(self, request):
+        if request.user.role != 'student':
+            return Response(
+                {'error': 'ONly students can access this endpoint'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        enrolled_class_ids = Enrollment.objects.filter(
+            student= request.user,
+            is_active = True ). values_list('class_obj_id', flat=True)
+    
+        subjects = Subject.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active =True
+        ).select_related('instructor', 'class_obj', 'class_obj__course')
+        serializer = SubjectSerializer(subjects, many=True)
+
+        return Response({
+            'count': subjects.count(),
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods =['get'])
+    def my_exams(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        enrolled_class_ids = Enrollment.objects.filter(
+            student = request.user,
+            is_active =True
+        ).values_list('class_obj_id', flat=True)
+
+        exams = Exam.objects.filter(
+            subject__class_obj_id__in = enrolled_class_ids,
+            is_active =True
+        ).select_related('subject', 'subject__class_obj', 'created_by')
+
+
+        status_param = request.query_params.get('status', 'all')
+        today = timezone.now().date()
+
+        if status_param == 'upcoming':
+            exams = exams.filter(exam_date__gte=today)
+        elif status_param == 'past':
+            exams = exams.filter(exam_date__lt=today)
+
+        exams  = exams.order_by('-created_at')
+
+        serializer = ExamSerializer(exams, many=True)
+
+        return Response({
+            'count': exams.count(),
+            'results': serializer.data
+        })
+    @action(detail=False, methods=['get'])
+    def my_results(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        results  = ExamResult.objects.filter(
+            student=request.user,
+            is_submitted = True
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by')
+
+        subject_id = request.query_params.get('subject_id')
+        exam_id = request.query_params.get('exam_id')
+
+        if subject_id :
+            results = results.filter(exam__subject_id = subject_id)
+        if exam_id:
+            results = results.filter(exam_id=exam_id)
+
+        results = results.order_by('created_at')
+
+        serializer = ExamResultSerializer(results, many=True)
+
+
+        if results.exists():
+            total_marks = sum(r.marks_obtained for r in results if r.marks_obtained)
+            total_possible = sum(r.exam.total_marks for r in results)
+            average = (total_marks / total_possible * 100) if total_possible > 0 else 0 
+
+            stats = {
+                'total_exams':results.count(),
+                'average_percentage': round(average, 2),
+                'total_marks_obtained': total_marks,
+                'total_posible_marks': total_possible
+            }
+
+        else:
+            stats = {
+                'total_exams': 0,
+                'average_percentage': 0,
+                'total_marks_obtained': 0,
+                'total_possible_marks': 0
+            }
+        
+        return Response({
+            'count': results.count(),
+            'stats': stats,
+            'results': serializer.data 
+            })
+    
+    @action(detail=False, methods=['get'])
+    def my_attendance(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+
+        attendance = Attendance.objects.filter(
+            student = request.user,
+        ).select_related('class_obj', 'subject', 'marked_by')
+
+
+        class_id = request.query_params.get('class_id')
+        subject_id = request.query_params.get('subject_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+
+        if class_id:
+            attendance = attendance.filter(class_obj_id = class_id)
+        if subject_id:
+            attendance = attendance.filter(subject_id = subject_id)
+        if start_date:
+            attendance = attendance.filter(date__gte=start_date)
+        if end_date:
+            attendance = attendance.filter(date__lte=end_date)
+
+        attendance = attendance.order_by('-date')
+
+        serializer = AttendanceSerializer(attendance, many=True)
+
+        total = attendance.count()
+        present = attendance.filter(status='present').count()
+        absent = attendance.filter(status='absent').count()
+        late = attendance.filter(status='late').count()
+        excused = attendance.filter(status='excused').count()
+
+
+        stats = {
+            'total_records': total,
+            'present': present,
+            'absent': absent,
+            'late': late,
+            'excused': excused,
+            'attendance_rate': round((present / total) * 100, 2) if total > 0 else 0
+        }
+
+        return Response({
+            'count': total,
+            'stats': stats,
+            'results': serializer.data
+        })
+                
+
+    @action(detail=False, methods=['get'])
+
+    def my_notices(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        enrolled_class_ids = Enrollment.objects.filter(
+            student=request.user,
+            is_active=True
+        ).values_list('class_obj_id', flat=True)
+
+        today = timezone.now().date()
+
+        class_notices = ClassNotice.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active =True
+        ).filter(
+            Q(expiry_date__isnull=True) |  Q(expiry_date__gte=today)
+         ).select_related('class_obj', 'subject', 'created_by')
+        
+
+        priority = request.query_params.get('priority')
+        if priority:
+            class_notices = class_notices.filter(priority=priority)      
+
+        class_notices = class_notices.order_by('-created_at')
+
+
+        general_notices = Notice.objects.filter(
+            is_active = True
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')
+
+        if priority:
+            general_notices = general_notices.filter(priority=priority)
+
+        return Response({
+            'class_notices': {
+                'count': class_notices.count(),
+                'results': ClassNotificationSerializer(class_notices, many=True).data
+            },
+            'general_notices': {
+                'count': general_notices.count(),
+                'results':NoticeSerializer(general_notices, many=True).data
+            }
+        })  
+    
+    @action(detail=False, methods=['get'])
+    def performance_summary(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        user = request.user
+
+        results = ExamResult.objects.filter(
+            student = user,
+            is_submitted = True,
+            marks_obtained__isnull = False
+        ).select_related('exam', 'exam__subject')
+
+        if results.exists():
+            total_marks = sum(r.marks_obtained for r in results)
+            total_possible = sum(r.exam.total_marks for r in results)
+            overall_percentage = (total_marks /total_possible * 100) if total_possible > 0 else 0
+
+        else:
+            overall_percentage = 0
+
+        enrolled_class_ids = Enrollment.objects.filter(
+            student = user,
+            is_active = True
+        ).values_list('class_obj_id', flat=True)
+
+        subjects = Subject.objects.filter(
+            class_obj_id__in =enrolled_class_ids,
+            is_active =True
+
+        )
+        subject_performance = []
+        for subject in subjects:
+            subject_results = results.filter(exam__subject=subject)
+
+            if subject_results.exists():
+                subj_marks = sum(r.marks_obtained for r in subject_results)
+                subj_possible = sum(r.exam.total_marks for r in subject_results)
+                subj_percentage = (subj_marks /subj_possible * 100) if subj_possible > 0 else 0
+
+
+                subject_performance.append({
+                        'subject_id': subject.id,
+                        'subject_name': subject.name,
+                        'subject_code': subject.code,
+                        'exams_taken':subject_results.count(),
+                        'total_marks':subj_marks,
+                        'total_possible':subj_possible,
+                        'percentage': round(subj_percentage, 2)
+                                                            }
+                )
+
+            attendance = Attendance.objects.filter(student=user)
+            total_attendance = attendance.count()
+            present = attendance.filter(status='present').count()
+
+            return Response({
+                'overall':{
+                    'total_exams':results.count(),
+                    'overall_percentage': round(overall_percentage, 2),
+                    'attendance_rate': round((present / total_attendance * 100), 2) if total_attendance > 0 else 0
+                },
+                'by_subject': subject_performance,
+                'attendance_summary':{
+                    'total': total_attendance,
+                    'present': present,
+                    'absent': attendance.filter(status='absent').count(),
+                    'late': attendance.filter(status='late').count(),
+                    'excused': attendance.filter(status='excused').count()
+                }
+            })
+    @action(detail=False, methods=['get'])
+    def upcoming_schedule(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                
+                    'error': 'Only students can access this endpoint'
+                }, status=status.HTTP_403_FORBIDDEN
+            )
+        
+        from datetime import timedelta
+
+        days = int(request.query_params.get('days', 30))
+        today = timezone.now().date()
+        end_date = today + timedelta(days=days)
+
+        enrolled_class_ids = Enrollment.objects.filter(
+            student= request.user,
+            is_active = True
+        ).values_list('class_obj_id', flat=True)
+
+        upcoming_exams = Exam.objects.filter(
+            subject__class_obj_id__in = enrolled_class_ids,
+            is_active = True,
+            exam_date__gte =today,
+            exam_date__lte = end_date
+        ).select_related('subject', 'subject__class_obj').order_by('created_at')
+
+        return Response({
+            'start_date':today,
+            'end_date': end_date,
+            'exam_count': upcoming_exams.count(),
+            'exams':ExamSerializer(upcoming_exams, many=True).data
+        })
+    

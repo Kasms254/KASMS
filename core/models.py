@@ -275,6 +275,7 @@ class ExamResult(models.Model):
 
     @property
     def grade(self):
+        
         pct = self.percentage
         if pct >= 80:
             return 'A'
@@ -340,7 +341,6 @@ class ClassNotice(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.class_obj.name}"
-
 
 class ExamReport(models.Model):
 
