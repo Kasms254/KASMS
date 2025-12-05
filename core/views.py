@@ -11,6 +11,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -698,7 +700,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
-    queryset = Exam.objects.select_related('subject', 'created_by').all()
+    queryset = Exam.objects.select_related('subject', 'created_by').prefetch_related('attachments').all()
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -732,16 +734,21 @@ class ExamViewSet(viewsets.ModelViewSet):
     def results(self, request, pk=None):
         exam = self.get_object()
         results = exam.results.select_related('student', 'graded_by').all()
-        serializer = ExamResultSerializer(results, many=True)
 
+        stats = results.aggregate(
+            total=Count('id'),
+            submitted=Count('id', filter=Q(is_submitted=True)),
+            pending=Count('id', filter=Q(is_submitted=False))
+        )
+        
+        serializer = ExamResultSerializer(results, many=True)
         return Response({
             'exam': ExamSerializer(exam).data,
-            'count': results.count(),
-            'submitted': results.filter(is_submitted=True).count(),
-            'pending':results.filter(is_submitted=False).count(),
+            'count': stats['total'],
+            'submitted': stats['submitted'],
+            'pending': stats['pending'],
             'results': serializer.data
         })
-    
     @action(detail=True, methods=['post'])
     def generate_results(self, request, pk=None):
         exam = self.get_object()
@@ -779,10 +786,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN
             )
         
-        exams = self.get_queryset().filter(
-            subject__instructor=request.user,
-            is_active=True
-        )
+        exams = self.get_queryset().filter(is_active=True)
 
         serializer = self.get_serializer(exams, many=True)
 
@@ -793,17 +797,45 @@ class ExamViewSet(viewsets.ModelViewSet):
 
 
 class ExamAttachmentViewSet(viewsets.ModelViewSet):
-    queryset = ExamAttachment.objects.all()
+    queryset = ExamAttachment.objects.select_related('exam', 'uploaded_by')
     serializer_class = ExamAttachmentSerializer
     parser_classes = [MultiPartParser, FormParser]
-    permission_classes = [IsAuthenticated]
-
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.role == 'instructor':
+            queryset = queryset.filter(exam__subject__instructor=user)
+        
+        return queryset
+    
     def perform_create(self, serializer):
         file = self.request.FILES.get("file")
+        exam_id = self.request.data.get('exam')
+        
+        if not file:
+            raise serializers.ValidationError({"file": "File is required"})
+        
+        if not exam_id:
+            raise serializers.ValidationError({"exam": "Exam ID is required"})
+        
+        try:
+            exam = Exam.objects.get(pk=exam_id)
+        except Exam.DoesNotExist:
+            raise serializers.ValidationError({"exam": "Invalid Exam ID"})
+        
 
-        serializer.save(uploaded_by=self.request.user,
-                        file_name = file.name if file else None,
-                        file_size = file.size if file else None)
+        if self.request.user.role == 'instructor':
+            if exam.subject.instructor != self.request.user:
+                raise PermissionDenied("You can only upload docs to your own exam")
+        
+
+        serializer.save(
+            exam=exam,
+            uploaded_by=self.request.user
+        )
 
 
 class ExamResultViewSet(viewsets.ModelViewSet):

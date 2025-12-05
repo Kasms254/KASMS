@@ -293,6 +293,8 @@ class ExamAttachmentSerializer(serializers.ModelSerializer):
         model = ExamAttachment
         fields = "__all__"
         read_only_fields = ('created_at', 'updated_at', 'created_by', 'id','uploaded_by')
+
+
 class ExamSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -302,13 +304,12 @@ class ExamSerializer(serializers.ModelSerializer):
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
     average_score = serializers.FloatField(read_only=True)
     submission_count = serializers.IntegerField(read_only=True)
-    exam_attachment = serializers.FileField(read_only=True)
     attachments = ExamAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Exam
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'average_score', 'id')
+        read_only_fields = ('created_at', 'updated_at','uploaded_by','average_score', 'id')
         extra_kwargs = {
             'exam_type':{'required': True},
             'title':{'required': True},
