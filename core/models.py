@@ -187,7 +187,7 @@ class Exam(models.Model):
 
     class Meta:
         db_table = 'exams'
-        ordering = ['-exam_date', 'created_at']
+        ordering = ['created_at']
         unique_together = ['subject', 'exam_date']
 
     def __str__(self):
