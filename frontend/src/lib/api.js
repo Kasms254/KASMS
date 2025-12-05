@@ -1,5 +1,4 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
-import { constants } from 'buffer'
 import * as authStore from './auth'
 
 //const API_BASE = import meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;

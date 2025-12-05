@@ -99,6 +99,21 @@ export default function Exams() {
     if (!currentForm.exam_date) return toast.error('Select exam date')
     if (!currentForm.total_marks) return toast.error('Enter total marks')
 
+    // Client-side unique constraint check: subject + exam_date must be unique
+    try {
+      const same = exams.find(x => {
+        const subjId = x.subject?.id ?? x.subject
+        const formSubj = Number(currentForm.subject)
+        const date = x.exam_date
+        return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
+      })
+      if (same) {
+        return toast.error('An exam for this subject on the selected date already exists.')
+      }
+    } catch (err) {
+      console.debug('duplicate check failed', err)
+    }
+
     // build payload including description and duration
     const toDuration = (mins) => {
       const m = Number(mins) || 0
@@ -153,8 +168,7 @@ export default function Exams() {
       console.warn('Failed to create class notice', err)
     }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to update exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to update exam')
       } finally {
         setEditLoading(false)
       }
@@ -193,8 +207,7 @@ export default function Exams() {
     console.warn('Failed to create class notice', err)
   }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to create exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to create exam')
       } finally {
         setLoading(false)
       }
@@ -331,6 +344,30 @@ export default function Exams() {
       matches.push(m[1])
     }
     return matches
+  }
+
+  // Extract friendly message from API error objects (DRF / axios friendly)
+  function getErrorMessage(err) {
+    try {
+      if (err?.response?.data) {
+        const d = err.response.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        if (d.non_field_errors) return Array.isArray(d.non_field_errors) ? d.non_field_errors.join(' ') : String(d.non_field_errors)
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (err?.data) {
+        const d = err.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (Array.isArray(err)) return err.join(' ')
+      if (err?.message) return err.message
+      return String(err)
+    } catch {
+      return 'An error occurred'
+    }
   }
 
   function cancelEdit() {
