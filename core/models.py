@@ -187,7 +187,7 @@ class Exam(models.Model):
 
     class Meta:
         db_table = 'exams'
-        ordering = ['-exam_date', 'created_at']
+        ordering = ['created_at']
         unique_together = ['subject', 'exam_date']
 
     def __str__(self):
@@ -216,7 +216,7 @@ class ExamAttachment(models.Model):
         ]        
                             )
     file_name = models.CharField(max_length=100, null=True, blank=True)
-    file_size = models.IntegerField(help_text="FIle size in bytes")
+    file_size = models.IntegerField(help_text="File size in bytes", null=True, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_attachments')
     created_at = models.DateTimeField(auto_now_add=True)
     uploaded_at = models.DateTimeField(auto_now=True)
@@ -275,6 +275,7 @@ class ExamResult(models.Model):
 
     @property
     def grade(self):
+        
         pct = self.percentage
         if pct >= 80:
             return 'A'
@@ -340,7 +341,6 @@ class ClassNotice(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.class_obj.name}"
-
 
 class ExamReport(models.Model):
 
