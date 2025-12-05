@@ -88,7 +88,6 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('class_name', None)
         return super().update(instance, validated_data)
     
-
 class UserListSerializer(serializers.ModelSerializer):
 
     role_display = serializers.CharField(source='get_role_display', read_only=True)
@@ -131,7 +130,6 @@ class CourseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This course code is already in use.")
         return value
     
-
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -294,7 +292,7 @@ class ExamAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamAttachment
         fields = "__all__"
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'id', 'exam')
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'id','uploaded_by')
 class ExamSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -328,7 +326,6 @@ class ExamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Exam date cannot be in the past.")
         return value
     
-
 
 class ExamResultSerializer(serializers.ModelSerializer):
 
@@ -418,7 +415,6 @@ class BulkExamResultSerializer(serializers.Serializer):
         return value
     
 
-
 class AttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
@@ -479,7 +475,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
 
         return value
     
-
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
