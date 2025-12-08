@@ -242,7 +242,6 @@ class NoticeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Expiry date cannot be in the past.")
         return value
     
-
 class EnrollmentSerializer(serializers.ModelSerializer):
 
     student_name = serializers.SerializerMethodField(read_only=True)
@@ -326,7 +325,6 @@ class ExamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Exam date cannot be in the past.")
         return value
     
-
 class ExamResultSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -397,7 +395,6 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 validated_data['submitted_at'] = timezone.now()
         return super().update(instance, validated_data)
     
-
 class BulkExamResultSerializer(serializers.Serializer):
 
     results = serializers.ListField(
@@ -414,7 +411,6 @@ class BulkExamResultSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
     
-
 class AttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
@@ -449,7 +445,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
             
         return attrs
     
-
 class BulkAttendanceSerializer(serializers.Serializer):
     class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
     subject = serializers.PrimaryKeyRelatedField(
@@ -475,7 +470,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
 
         return value
     
-
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -495,7 +489,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
             return obj.created_by.get_full_name() if obj.created_by else None
         return None
     
-
 class ExamReportSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True
