@@ -2,7 +2,6 @@
   "name": "frontend",
   "private": true,
   "version": "0.0.0",
-  
   "engines": {
     "node": ">=20.0.0"
   },
@@ -16,15 +15,15 @@
     "preinstall": "node -e \"const v = process.versions.node.split('.')[0]; if (v < 20) { console.error('🚫 Node 20+ is required'); process.exit(1); }\"",
     "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('npx husky install', { stdio: 'inherit' })\""
   },
-
   "lint-staged": {
-  "*.{js,jsx,ts,tsx}": [
-    "npm run lint -- --fix"
-  ]
+    "*.{js,jsx,ts,tsx}": [
+      "npm run lint -- --fix"
+    ]
   },
-  
   "dependencies": {
     "framer-motion": "^12.23.24",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.553.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

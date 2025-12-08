@@ -8,37 +8,99 @@ export default function StudentsDashboard() {
   const { user } = useAuth()
   const [classesCount, setClassesCount] = useState(null)
   const [gpa, setGpa] = useState(null)
+  const [dashboardStats, setDashboardStats] = useState(null)
+  const [activeClassName, setActiveClassName] = useState(null)
   const [loadingMetrics, setLoadingMetrics] = useState(true)
   const [calendarEvents, setCalendarEvents] = useState({})
+  // tick used to re-render the component periodically so "upcoming" windows
+  // update when the date changes without needing a backend update.
+  const [nowTick, setNowTick] = useState(0)
 
   useEffect(() => {
     let mounted = true
     async function loadMetrics() {
       setLoadingMetrics(true)
       try {
-        // Try to fetch enrollments for the current user; fall back to my classes
-        let count = null
-        if (user && user.id) {
-          try {
-            const enrolls = await api.getUserEnrollments(user.id).catch(() => null)
-            if (Array.isArray(enrolls)) count = enrolls.length
-          } catch {
-            // ignore
+        // Prefer the consolidated student-dashboard overview endpoint.
+        // Fall back to existing heuristics if backend doesn't expose it.
+        try {
+          const dash = await api.getStudentDashboard().catch(() => null)
+          if (dash && dash.stats) {
+            const s = dash.stats
+            if (mounted) {
+              setDashboardStats(s)
+              setClassesCount(s.total_classes ?? 0)
+              // prefer average grade as a GPA-like metric
+              setGpa(s.average_grade ?? user?.gpa ?? null)
+              // pick an active class name from enrollments if provided by the consolidated endpoint
+              try {
+                const enrolls = Array.isArray(dash.enrollments) ? dash.enrollments : (dash.enrollments && Array.isArray(dash.enrollments.results) ? dash.enrollments.results : [])
+                if (enrolls && enrolls.length) {
+                  const e = enrolls[0]
+                  const cname = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
+                  setActiveClassName(cname || null)
+                } else {
+                  setActiveClassName(null)
+                }
+              } catch { setActiveClassName(null) }
+              // we seed calendar events below; no separate upcomingExams state needed
+              if (Array.isArray(dash.upcoming_exams)) {
+                const ev = {}
+                dash.upcoming_exams.forEach(x => {
+                  const date = x?.exam_date || x?.date
+                  const iso = date ? `${new Date(date).getFullYear()}-${String(new Date(date).getMonth()+1).padStart(2,'0')}-${String(new Date(date).getDate()).padStart(2,'0')}` : null
+                  if (!iso) return
+                  ev[iso] = ev[iso] || []
+                  ev[iso].push({
+                    kind: 'exam',
+                    title: x.title || 'Exam',
+                    subject: x.subject_name || (x.subject && x.subject.name) || null,
+                    className: x.class_name || (x.subject && x.subject.class_obj && x.subject.class_obj.name) || null,
+                    exam_id: x.id,
+                    url: x.id ? `/exams/${x.id}` : null,
+                    duration: x.exam_duration || null,
+                  })
+                })
+                if (mounted) setCalendarEvents(ev)
+              }
+            }
+          } else {
+            // fallback: attempt older heuristics (enrollments / my classes)
+            let count = null
+            let enrollsVar = null
+            if (user && user.id) {
+              try {
+                enrollsVar = await api.getUserEnrollments(user.id).catch(() => null)
+                if (Array.isArray(enrollsVar)) count = enrollsVar.length
+                else if (enrollsVar && Array.isArray(enrollsVar.results)) count = enrollsVar.results.length
+              } catch { /* ignore */ }
+            }
+            if (count === null) {
+              try {
+                const myClasses = await api.getMyClasses().catch(() => null)
+                if (Array.isArray(myClasses)) count = myClasses.length
+                else if (myClasses && Array.isArray(myClasses.results)) count = myClasses.results.length
+              } catch { /* ignore */ }
+            }
+            if (mounted) {
+              setClassesCount(count ?? 0)
+              setGpa(user?.gpa ?? null)
+              // fallback: if enrollments were fetched above, try to use the first as active class
+              try {
+                const en = Array.isArray(enrollsVar) ? enrollsVar : (enrollsVar && Array.isArray(enrollsVar.results) ? enrollsVar.results : [])
+                if (en && en.length) {
+                  const e = en[0]
+                  const cname = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
+                  setActiveClassName(cname || null)
+                } else {
+                  setActiveClassName(null)
+                }
+              } catch { /* ignore */ }
+            }
           }
-        }
-        if (count === null) {
-          try {
-            const myClasses = await api.getMyClasses().catch(() => null)
-            if (Array.isArray(myClasses)) count = myClasses.length
-          } catch {
-            // ignore
-          }
-        }
-
-        if (mounted) {
-          setClassesCount(count ?? 0)
-          // If user object contains GPA use it; otherwise leave null
-          setGpa(user?.gpa ?? null)
+        } catch {
+          // if all else fails use previous heuristics
+          console.debug('Failed to load consolidated student dashboard')
         }
       } finally {
         if (mounted) setLoadingMetrics(false)
@@ -52,6 +114,8 @@ export default function StudentsDashboard() {
   // We poll periodically so that when an instructor posts an exam the student's
   // calendar picks it up shortly after.
   useEffect(() => {
+    // re-render every minute so upcoming list updates as dates pass
+    const tickTimer = setInterval(() => setNowTick(n => n + 1), 60 * 1000)
     let mounted = true
     let timer = null
 
@@ -66,6 +130,53 @@ export default function StudentsDashboard() {
 
     async function loadEvents() {
       try {
+        // First try the dedicated student upcoming schedule endpoint
+        try {
+          const schedule = await api.getStudentUpcomingSchedule(30).catch(() => null)
+          if (schedule && Array.isArray(schedule.exams)) {
+            const ev = {}
+            schedule.exams.forEach(x => {
+              const iso = x?.exam_date ? toISO(x.exam_date) : (x?.date ? toISO(x.date) : null)
+              if (!iso) return
+              ev[iso] = ev[iso] || []
+              ev[iso].push({
+                kind: 'exam',
+                title: x.title || 'Exam',
+                subject: x.subject_name || (x.subject && x.subject.name) || null,
+                className: x.class_name || (x.subject && x.subject.class_obj && x.subject.class_obj.name) || null,
+                exam_id: x.id,
+                url: x.id ? `/exams/${x.id}` : null,
+                duration: x.exam_duration || null,
+              })
+            })
+            // also include notices from the general/my_notices endpoint and global active notices
+            const [noticesResp, activeNoticesResp] = await Promise.all([
+              api.getMyClassNotices().catch(() => null),
+              api.getActiveNotices().catch(() => null),
+            ])
+            const classNotices = Array.isArray(noticesResp) ? noticesResp : (noticesResp && Array.isArray(noticesResp.results) ? noticesResp.results : [])
+            const activeNotices = Array.isArray(activeNoticesResp) ? activeNoticesResp : (activeNoticesResp && Array.isArray(activeNoticesResp.results) ? activeNoticesResp.results : [])
+            const notices = [...activeNotices, ...classNotices]
+            notices.forEach(n => {
+              // support many possible date fields returned by different backends
+              const date = n?.expiry_date || n?.expiry || n?.start_date || n?.event_date || n?.date || n?.notice_date || n?.created_at || n?.created || n?.updated_at || n?.published_at
+              const iso = date ? toISO(date) : null
+              if (!iso) return
+              ev[iso] = ev[iso] || []
+              ev[iso].push({
+                kind: 'notice',
+                title: n?.title || n?.message || n?.body || 'Notice',
+                noticeId: n?.id || null,
+                created_by_name: n?.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+              })
+            })
+
+            if (mounted) setCalendarEvents(ev)
+            return
+          }
+        } catch {
+          // ignore and fall back to previous logic
+        }
         // Fetch student's enrollments to be able to filter global exams
         let enrolls = []
         try {
@@ -127,7 +238,14 @@ export default function StudentsDashboard() {
           })
         }
 
-        const noticesResp = await api.getMyClassNotices().catch(() => null)
+        // fetch class-scoped notices and active/global notices so admin posts are included
+        const [noticesResp, activeNoticesResp] = await Promise.all([
+          api.getMyClassNotices().catch(() => null),
+          api.getActiveNotices().catch(() => null),
+        ])
+
+        const classNotices = Array.isArray(noticesResp) ? noticesResp : (noticesResp && Array.isArray(noticesResp.results) ? noticesResp.results : [])
+        const activeNotices = Array.isArray(activeNoticesResp) ? activeNoticesResp : (activeNoticesResp && Array.isArray(activeNoticesResp.results) ? activeNoticesResp.results : [])
 
         const ev = {}
 
@@ -135,19 +253,30 @@ export default function StudentsDashboard() {
         exams.forEach(x => {
           const iso = x?.exam_date ? toISO(x.exam_date) : (x?.date ? toISO(x.date) : null)
           if (!iso) return
-          const label = `${x.title || 'Exam'}${x.subject_name ? ` — ${x.subject_name}` : x.subject?.name ? ` — ${x.subject.name}` : ''}`
           ev[iso] = ev[iso] || []
-          ev[iso].push(label)
+          ev[iso].push({
+            kind: 'exam',
+            title: x.title || 'Exam',
+            subject: x.subject_name || (x.subject && x.subject.name) || null,
+            className: x.class_name || (x.subject && x.subject.class_obj && x.subject.class_obj.name) || null,
+            exam_id: x.id,
+            url: x.id ? `/exams/${x.id}` : null,
+            duration: x.exam_duration || null,
+          })
         })
 
-        const notices = Array.isArray(noticesResp) ? noticesResp : (noticesResp && Array.isArray(noticesResp.results) ? noticesResp.results : [])
+  const notices = [...activeNotices, ...classNotices]
         notices.forEach(n => {
-          const date = n?.date || n?.notice_date || n?.created || n?.published_at
+          const date = n?.expiry_date || n?.expiry || n?.start_date || n?.event_date || n?.date || n?.notice_date || n?.created_at || n?.created || n?.updated_at || n?.published_at
           const iso = date ? toISO(date) : null
-          const label = n?.title || n?.message || n?.body || 'Notice'
           if (!iso) return
           ev[iso] = ev[iso] || []
-          ev[iso].push(`Notice: ${label}`)
+          ev[iso].push({
+            kind: 'notice',
+            title: n?.title || n?.message || n?.body || 'Notice',
+            noticeId: n?.id || null,
+            created_by_name: n?.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+          })
         })
 
         if (mounted) setCalendarEvents(ev)
@@ -160,7 +289,12 @@ export default function StudentsDashboard() {
     loadEvents()
     timer = setInterval(() => loadEvents(), 60 * 1000)
 
-    return () => { mounted = false; if (timer) clearInterval(timer) }
+    // When notices change (created/updated/deleted) elsewhere (admin UI),
+    // re-run loadEvents so calendar immediately shows new notices.
+    function onNoticesChanged() { try { loadEvents().catch(() => {}) } catch { /* ignore */ } }
+    window.addEventListener('notices:changed', onNoticesChanged)
+
+    return () => { mounted = false; if (timer) clearInterval(timer); window.removeEventListener('notices:changed', onNoticesChanged); clearInterval(tickTimer) }
   }, [user])
 
   return (
@@ -172,10 +306,95 @@ export default function StudentsDashboard() {
 
       {/* Top cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card title="Enrolled" value={loadingMetrics ? '…' : `${classesCount ?? 0} courses`} icon="BookOpen" badge={null} accent="bg-indigo-500" colored={true} />
-        <Card title="GPA" value={gpa ?? '—'} icon="BarChart2" badge={null} accent="bg-amber-500" colored={true} />
-        <Card title="Assignments" value={'—'} icon="Clipboard" badge={null} accent="bg-sky-500" colored={true} />
-        <Card title="Notifications" value={'—'} icon="Bell" badge={null} accent="bg-pink-500" colored={true} />
+        <Card
+          title="Course enrolled"
+          value={loadingMetrics ? '…' : `${dashboardStats?.total_classes ?? classesCount ?? 0} `}
+          icon="BookOpen"
+          badge={null}
+          accent="bg-indigo-500"
+          colored={true}
+        >
+          <div className="text-xs">Subjects: {dashboardStats?.total_subjects ?? '—'}</div>
+          <div className="text-xs mt-1">Active class: {loadingMetrics ? '…' : (activeClassName ? <span title={activeClassName} className="inline-block align-middle">{activeClassName}</span> : '—')}</div>
+        </Card>
+
+        {/* Grade card: big value is student's grade (letter preferred), small text shows class/student average percent */}
+        <Card
+          title="Grade"
+          value={(() => {
+            if (loadingMetrics) return '…'
+            // Big metric: prefer the student's grade letter provided by server
+            const studentLetter = dashboardStats?.average_grade_letter
+            if (studentLetter) return studentLetter
+            // Fallback to a numeric grade (use dashboard average or user's gpa)
+            const gradeNum = dashboardStats?.average_grade != null ? `${dashboardStats.average_grade}%` : (gpa != null ? `${gpa}%` : null)
+            return gradeNum ?? '—'
+          })()}
+          icon="BarChart2"
+          badge={null}
+          accent={(() => {
+            // Use letter if present, otherwise base color on numeric average
+            const studentLetter = dashboardStats?.average_grade_letter
+            if (studentLetter) {
+              if (studentLetter === 'A') return 'bg-emerald-500'
+              if (studentLetter === 'B') return 'bg-amber-500'
+              if (studentLetter === 'C') return 'bg-sky-500'
+              if (studentLetter === 'D') return 'bg-pink-500'
+              return 'bg-rose-500'
+            }
+            const avg = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
+            if (avg == null || Number.isNaN(avg)) return 'bg-amber-500'
+            if (avg >= 80) return 'bg-emerald-500'
+            if (avg >= 70) return 'bg-amber-500'
+            if (avg >= 60) return 'bg-sky-500'
+            if (avg >= 50) return 'bg-pink-500'
+            return 'bg-rose-500'
+          })()}
+          colored={true}
+        >
+          <div className="mt-2 text-xs text-black">
+            {(() => {
+              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: …</span>
+              // Prefer an explicitly provided average letter, otherwise compute
+              // from numeric average or gpa using the same thresholds.
+              const avgLetterProvided = dashboardStats?.average_grade_letter
+              if (avgLetterProvided) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: {avgLetterProvided}</span>
+              const avgNum = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
+              const computeLetter = (n) => {
+                if (n == null || Number.isNaN(n)) return '—'
+                if (n >= 80) return 'A'
+                if (n >= 70) return 'B'
+                if (n >= 60) return 'C'
+                if (n >= 50) return 'D'
+                return 'F'
+              }
+              const letter = computeLetter(avgNum)
+              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: {letter}</span>
+            })()}
+          </div>
+        </Card>
+
+        <Card
+          title="Pending exams"
+          value={loadingMetrics ? '…' : `${dashboardStats?.pending_exams ?? '—'}`}
+          icon="Clock"
+          badge={null}
+          accent="bg-sky-500"
+          colored={true}
+        >
+          <div className="text-xs">Exams scheduled: {dashboardStats?.pending_exams ?? '—'}</div>
+        </Card>
+
+        <Card
+          title="Attendance"
+          value={loadingMetrics ? '…' : (dashboardStats?.attendance_rate != null ? `${dashboardStats.attendance_rate}%` : '—')}
+          icon="UserCheck"
+          badge={null}
+          accent="bg-pink-500"
+          colored={true}
+        >
+          <div className="text-xs">Present: {dashboardStats?.present_days ?? '—'}</div>
+        </Card>
       </section>
 
       {/* Calendar and activity */}
@@ -185,18 +404,80 @@ export default function StudentsDashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-lg font-medium mb-3 text-black">Upcoming assignments</h3>
-          {/* Placeholder - if you have an assignments endpoint, populate here */}
-          <ul className="divide-y">
-            <li className="py-2 flex justify-between items-center">
-              <span>Math homework</span>
-              <span className="text-sm text-gray-500">Due Wed</span>
-            </li>
-            <li className="py-2 flex justify-between items-center">
-              <span>Science project</span>
-              <span className="text-sm text-gray-500">Due Fri</span>
-            </li>
-          </ul>
+          <h3 className="text-lg font-medium mb-3 text-black">Upcoming assignments & events</h3>
+          {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
+          {(() => {
+            const items = []
+            Object.keys(calendarEvents || {}).forEach(iso => {
+              const evs = Array.isArray(calendarEvents[iso]) ? calendarEvents[iso] : []
+              evs.forEach(e => {
+                // normalize string events
+                if (typeof e === 'string') {
+                  items.push({ date: iso, kind: 'note', title: e })
+                } else if (e && typeof e === 'object') {
+                  items.push({ date: iso, ...e })
+                }
+              })
+            })
+
+            // sort by date desc (latest first)
+            items.sort((a, b) => {
+              if (!a.date && !b.date) return 0
+              if (!a.date) return 1
+              if (!b.date) return -1
+              // ISO strings in YYYY-MM-DD form compare lexicographically
+              return b.date.localeCompare(a.date)
+            })
+
+            const fmt = (iso) => {
+              try {
+                const d = new Date(iso)
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+              } catch { return iso }
+            }
+
+            // Show only the next 5 upcoming events (today or future), sorted nearest-first.
+            // If there are no upcoming events, fall back to the most recent 5 items.
+            const pad = (n) => String(n).padStart(2, '0')
+            const todayISO = `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`
+            const upcoming = items
+              .filter(it => it && it.date && it.date >= todayISO)
+              .sort((a, b) => a.date.localeCompare(b.date))
+              .slice(0, 5)
+            const list = (upcoming && upcoming.length) ? upcoming : items.slice(0, 5)
+
+            return (
+              <ul className="divide-y">
+                {list.length === 0 && (
+                  <li className="py-2 text-sm text-neutral-500">No upcoming events</li>
+                )}
+                {list.map((it, idx) => (
+                  <li key={`${it.date}-${idx}`} className="py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-black truncate">
+                          {it.title || it.name || (it.kind === 'notice' ? 'Notice' : 'Event')}
+                        </div>
+                        <div className="text-xs text-neutral-500 mt-1">
+                          {it.subject ? `${it.subject}${it.className ? ` · ${it.className}` : ''}` : (it.className || '')}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <div className="text-sm text-neutral-600">{fmt(it.date)}</div>
+                        <div className="mt-1">
+                          {it.url ? (
+                            <a className="text-xs text-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
+                          ) : it.kind === 'notice' ? (
+                            <span className="text-xs text-amber-700">Notice</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
         </div>
       </section>
     </div>
