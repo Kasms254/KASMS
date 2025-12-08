@@ -1,16 +1,17 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment,AttendanceSession, AttendanceLog
+from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,EnhancedAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer,QRAttendanceMarkSerializer,BiometricAttendanceSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.rest_framework import DjangoFilterBackend, SearchFilter, OrderingFilter
 from rest_framework.decorators import action
 from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent
 from rest_framework.parsers import MultiPartParser, FormParser
+import uuid
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -877,153 +878,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'results':serializer.data
         })
 
-class AttendanceViewSet(viewsets.ModelViewSet):
-
-    queryset = Attendance.objects.select_related(
-        'student', 'class_obj', 'subject', 'marked_by'
-    ).all()
-
-    serializer_class = AttendanceSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'subject', 'status', 'date']
-    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
-    ordering_fields = ['date']
-    ordering =['-date']
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-
-        if user.role == 'instructor':
-            queryset = queryset.filter(
-                Q(class_obj__instructor=user) | Q(subject__instructor=user)
-            )
-
-        return queryset
-
-    def perform_create(self, serializer):
-        serializer.save(marked_by=self.request.user)
-
-    @action(detail=False, methods=['post'])
-    def bulk_mark(self, request):
-        serializer = BulkAttendanceSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-        validated_data = serializer.validated_data
-        class_obj = validated_data['class_obj']
-        subject = validated_data['subject']
-        date = validated_data['date']
-        records = validated_data['attendance_records']
-
-
-        created_count = 0   
-        updated_count = 0
-        errors = []
-
-        for record in records:
-            try:
-                student = User.objects.get(id=record['student_id'], role='student')
-
-                attendance, created = Attendance.objects.update_or_create(
-                    student=student,
-                    class_obj=class_obj,
-                    subject=subject,
-                    date=date,
-                    defaults={
-                        'status': record['status'],
-                        'remarks':record.get('remarks', ''),
-                        'marked_by': request.user
-                    }
-                )
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
-
-            except User.DoesNotExist:
-                errors.append(f"Student {record['student_id']} does not exist.")
-            except Exception as e:
-                errors.append(str(e))
-
-        return Response({
-            'status': 'success',
-            'created': created_count,
-            'updated': updated_count,
-            'errors': errors
-        })
-
-    @action(detail=False, methods=['get'])
-    def class_attendance(self, request):
-        class_id = request.query_params.get('class_id')
-        date = request.query_params.get('date')
-
-
-        if not class_id or not date:
-            return Response(
-                {'error': 'class_id and date parameters are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        attendance = self.get_queryset().filter(class_obj_id=class_id, date=date)
-        serializer = self.get_serializer(attendance, many=True)
-
-        return Response({
-            'count': attendance.count(),
-            'present': attendance.filter(status = 'present').count(),
-            'absent': attendance.filter(status='absent').count(),
-            'results': serializer.data,
-            'late':attendance.filter(status='late').count()
-
-        })
-    @action(detail=False, methods=['get'])
-    def student_attendance(self, request):
-        student_id = request.query_params.get('student_id')
-
-        if not student_id:
-            return Response({
-                'error': 'student_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        attendance = self.get_queryset().filter(student_id=student_id)
-
-        return Response({
-            'total':attendance.count(),
-            'present': attendance.filter(status='present').count(),
-            'absent': attendance.filter(status='absent').count(),
-            'late': attendance.filter(status='late').count(),
-            'excused': attendance.filter(status='excused').count(),
-            'attendance_rate':(
-                (attendance.filter(status='present').count() / attendance.count()) * 100
-            )
-            if attendance.count() > 0 else 0
-        })
-    
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminOrInstructor])
-    def all_students_for_attendance(self, request):
-
-        students = User.objects.filter(
-            role= 'student',
-            is_active = True
-        ).select_related().order_by('first_name', 'last_name')
-
-        class_id = request.query_params.get('class_id')
-        if class_id:
-            student_ids = Enrollment.objects.filter(
-                class_obj_id=class_id,
-                is_active=True
-            ).values_list('student_id', flat=True)
-            students = students.filter(id__in=student_ids)
-
-        serializer = UserSerializer(students, many=True)
-
-        return Response({
-            'count': students.count(),
-            'results': serializer.data
-        })
 class ClassNoticeViewSet(viewsets.ModelViewSet):
 
     queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
@@ -1721,3 +1575,381 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
+
+# Attendance
+class AttendanceSessionViewSet(viewsets.ModelViewSet):
+
+    queryset = AttendanceSession.objects.select_related(
+        'class_obj', 'subject', 'created_by'
+    ).all()
+    serializer_class = AttendanceSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    filterset_fields = ['class_obj', 'subject', 'status', 'session_type', 'session_date']
+    search_fields = ['class_obj__name', 'subject__name']
+    ordering_fields = ['created_at', 'session_date', 'start_time']
+    ordering = ['-created_at']
+
+    def get_querset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'instructor':
+
+            queryset = queryset.filter(
+                Q(created_by=user) |
+                Q(class_obj__instructor=user) |
+                Q(subject__instructor=user)
+            )
+            
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+
+        if self.action == 'retrieve':
+            context['include_qr_image'] = True
+
+        return context
+    
+    def perform_create(self, serializer):
+        session = serializer.save(created_by=self.request.user)
+
+        if session.session_type == 'qr_code':
+            session.generate_qr_code()
+
+        
+        AttendanceLog.objects.create(
+            session=session,
+            action ='session_created',
+            performed_by= self.request.user,
+            details = {
+                'session_type': session.session_type,
+                'class': session.class_obj.name,
+                'subject':session.subject.name
+            }
+                            )
+    
+    @action(detail=True, methods=['post'])
+    def close_session(self, request, pk=None):
+        
+        session= self.get_object()
+
+        if session.status == 'closed':
+            return Response({
+                'error': 'Session already closed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        session.close_session()
+
+        AttendanceLog.objects.create(
+            session=session,
+            action='session_closed',
+            performed_by=self.request.user,
+            details={
+                'auto_mark_absent': session.auto_mark_absent,
+                'total_marked': session.attendance_records.count()
+            })
+        
+        serializer = self.get_serializer(session)
+
+    @action(detail=True, methods=['get'])
+    def qr_code(self, request, pk=None):
+
+        session = self.get_object()
+
+        if session.session_type != 'qr_code':
+            return Response({
+                'error': 'This session is not a QR code session'
+            },
+            status= status.HTTP_400_BAD_REQUEST)
+        
+        if not session.qr_code:
+            session.generate_qr_code()
+
+        context = self.get_serializer_context()
+        context['include_qr_image'] = True
+        serializer = self.get_serializer(session, context=context)
+
+
+        return Response(serializer.data)
+
+
+    @action(detail=True, methods=['get'])
+    def attendance_list(self, request, pk=None):
+        
+
+        session = self.get_object()
+
+        attendances = session.attendance_records.select_related(
+            'student', 'marked_by'
+        ).all()
+
+        serializer = EnhancedAttendanceSerializer(attendances, many=True)
+
+        return Response({
+            'session': AttendanceSessionSerializer(session).data,
+            'count':attendances.count(),
+            'attendances':serializer.data
+        })
+    
+    @action(detail=False, methods=['get'])
+
+    def active_sessions(self, request):
+        now = timezone.now()
+
+        active_sessions = self.get_queryset().filter(
+            status='active',
+            start_time__lte = now,
+            end_time__gte=now
+        )
+
+        serializer = self.get_serializer(active_sessions, many=True)
+
+        return Response({
+            'count': active_sessions.count(),
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def my_sessions(self, request):
+
+        if request.user.role != 'instructor':
+            return Response({
+                'error': 'Only instructors can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        sessions = self.get_querset().filter(created_by=request.user)
+
+        serializer  = self.get_serializer(sessions, many=True)
+
+        return Response({
+            'count':sessions.count(),
+            'results':serializer.data
+        })
+
+
+class EnhancedAttendanceViewSet(viewsets.ModelViewSet):
+
+    queryset = Attendance.objects.select_related(
+        'student', 'class_obj', 'subject', 'marked_by', 'attendance_session'
+    ).all()
+
+    serializer_class = EnhancedAttendanceSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['class_obj', 'subject', 'status', 'date', 'marking_method']
+    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
+    ordering_fields = ['date', 'marked_at']
+    ordering = ['-date']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        user = self.request.user
+
+        if user.role == 'instructor':
+            queryset = queryset.filter(
+                Q(class_obj__instructor=user)|
+                Q(subject__instructor=user)
+            )
+        elif user.role == 'student':
+            queryset = queryset.filter(student=user)
+
+        return queryset
+    
+    def perform_create(self, serializer):
+        
+        serializer.save(marked_by=self.request.user)
+
+
+        attendance= serializer.instance
+        AttendanceLog.objects.create(
+            attendance=attendance,
+            action='marked',
+            performed_by =self.request.user,
+            details ={
+                'status':attendance.status,
+                'method': attendance.marking_method
+            }
+
+        )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_via_qr(self, request):
+        serializer = QRAttendanceMarkSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        qr_code = serializer.validated_data['qr_code']
+        
+        try:
+            session = AttendanceSession.objects.get(
+                qr_code = qr_code
+            )
+        except AttendanceSession.DoesNotExist:
+            return Response({
+                'error': 'Invalid Qr Code'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not session.is_active():
+            return Response({
+                'error': 'this attendance session has expired'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        student = request.user
+        if student.role != 'student':
+            return Response({
+                'error': 'Only students can Mark attendance'
+            }, 
+            status =status.HTTP_400_BAD_REQUEST    
+        )
+
+        if not Enrollment.objects.filter(
+            student=student,
+            class_obj = session.class_obj,
+            is_active = True
+        ).exists():
+            return Response({
+                'error': 'You are not enrolled in this class'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        attendance_status  = session.get_attendance_status()
+        if attendance_status == 'on_time':
+            status_value = 'present'
+
+        elif attendance_status == 'late':
+            status_value = 'late'
+
+        else:
+            return Response({
+                'error': 'Session has ended'
+            }, 
+            status=status.HTTP_400_BAD_REQUEST)
+        
+        attendance, created = Attendance.objects.update_or_create(
+            student=student,
+            class_obj=session.class_obj,
+            subject=session.subject,
+            date=session.session_date,
+            defaults={
+                'status': status_value,
+                'marking_method': 'qr_code',
+                'attendance_session': session,
+                'marked_by': student,
+                'remarks': f'Marked via QR code at {timezone.now()}'
+            }
+        )
+
+        AttendanceLog.objects.create(
+            attendance = attendance,
+            session =session,
+            action = 'marked',
+            performed_by = student,
+            details = {
+                'method':'qr_code',
+                'status':status_value,
+                'created':created
+            }
+        )
+
+        serializer = EnhancedAttendanceSerializer(attendance)
+
+        return Response({
+            'status': 'success',
+            'message':f'Attendance marked as {status_value}',
+            'created':created,
+            'attendance':serializer.data
+        })            
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsAdminOrInstructor])
+    def mark_via_biometric(self, request):
+        serializer = BiometricAttendanceSerializer(data=request.data)
+
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        student = validated_data['user']
+        device = validated_data['device']
+        timestamp = validated_data['timestamp']
+
+
+        class_id = validated_data.get('class_id')
+        subject_id = validated_data.get('subject_id')
+
+        if class_id and subject_id:
+            class_obj = Class.objects.get(id=class_id)
+            subject = Subject.objects.get(id=subject_id)
+        elif device.default_class:
+
+            class_obj = device.default_class
+            subject = Subject.objects.filter(class_obj=class_obj, is_active=True).first()
+            if not subject:
+                return Response(
+                    {'error':'No active subect found for this class'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            return Response({
+                'error':'Class and Object must be specified'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+
+        if not Enrollment.objects.filter(
+            student=student,
+            class_obj = class_obj,
+            is_active =True
+        ).exists():
+            return Response({
+                'error': 'Student not enrolled in this class'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+
+        attendance_date = timestamp.date()
+        attendance, created =Attendance.objects.update_or_create(
+            student=student,
+            class_obj = class_obj,
+            subject= subject,
+            date = attendance_date,
+            defaults={
+                'status': 'present',
+                'marking_method': 'biometric',
+                'biometric_device_id': device.device_id,
+                'biometric_user_id': validated_data['biometric_user_id'],
+                'marked_by': request.user,
+                'remarks': f'marked via biometric device at {timestamp}'
+            }
+        )
+
+        device.last_sync = timezone.now()
+        device.save()
+
+        AttendanceLog.objects.create(
+            attendance = attendance,
+            action ='marked' if created else 'updated',
+            performed_by = request.user,
+            details = {
+                'method': 'biometric',
+                'device': device.device_name,
+                'timestamp':timestamp.isoformat()
+                            
+                                        }
+        )
+
+        serializer = EnhancedAttendanceSerializer(attendance)
+
+        return Response({
+            'status': 'success',
+            'message':f'Attendance marked successfuly',
+            'created':created,
+            'attendance':serializer.data
+        })
+
+        
+    
+        

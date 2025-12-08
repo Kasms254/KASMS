@@ -4,7 +4,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 import os
-
+import uuid
+from datetime import timedelta
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('admin', 'admin'),
@@ -284,41 +285,12 @@ class ExamResult(models.Model):
             return 'D'
         return 'F'
     
-class Attendance(models.Model):
-    STATUS_CHOICES = [
-       ('present', 'Present'),
-        ('absent', 'Absent'),
-        ('late', 'Late'),
-    ]
-
-    student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
-    class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendances')
-    subject =models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
-    date = models.DateField()
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='present')
-    remarks = models.TextField(null=True, blank=True)
-    marked_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='attendances_marked')
-    created_by = models.DateTimeField(auto_now_add=True)
-    updated_at =models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'attendance'
-        ordering = ['-class_obj', 'student__last_name']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['student', 'class_obj', 'subject', 'date'],
-                name='unique_attendance_per_student_class_subject_date',
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.student.get_full_name()} - {self.date} - {self.status}"
-    
 class ClassNotice(models.Model):
     PRIORITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
         ('high', 'High'),
+        ('urgent', 'Urgent'),
     ]
 
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
@@ -378,4 +350,260 @@ class ExamReport(models.Model):
 
         return total_percentage / count if count > 0 else 0
     
+# attendance
+class AttendanceSession(models.Model):
+    SESSION_TYPE_CHOICES =[
+        ('qr_code', 'QR Code'),
+        ('manual', 'Manual'),
+        ('biometric', 'Biometric'),    
+                ] 
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('closed', 'Closed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    class_obj = models.ForeignKey('Class', on_delete = models.CASCADE, related_name='attendance_sessions')
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendance_sessions')
+    created_by = models.ForeignKey('User', on_delete=models.CASCADE, related_name='created_sessions')
 
+    session_type = models.CharField(max_length=20, choices = SESSION_TYPE_CHOICES, default='manual')
+    session_date  = models.DateField(default=timezone.now)
+
+    start_time = models.DateTimeField(default=timezone.now)
+    end_time = models.DateTimeField()
+
+    qr_code = models.CharField(max_length=255, unique=True, null=True, blank=True)
+
+    allow_rate_marking = models.BooleanField(default=True)
+    late_threshold_minutes = models.IntegerField(default=15)
+    auto_mark_absent = models.BooleanField(default=True)
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    # created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'attendance_sessions'
+        # ordering = ['-created_at']
+        indexes =[
+            models.Index(fields=['qr_code']),
+            models.Index(fields=['status', 'end_time']),
+            models.Index(fields=['class_obj', 'subject', 'session_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.class_obj.name} - {self.subject.name} - {self.session_date}"
+        
+    def is_active(self):
+            
+        now = timezone.now()
+        return ({
+            self.status  == 'active' and
+            self.start_time <= now <= self.end_time
+            })
+    def is_late_allowed(self):
+        if not self.allow_late_marking:
+            return False
+        now = timezone.now()
+        late_cutoff = self.start_time + timedelta(minutes=self.late_threshold_minutes)
+        return now<=late_cutoff
+
+
+
+    def get_attendance_status(self):
+        now = timezone.now()
+        if now < self.start_time:
+            return 'not_started'
+        elif now <= self.start_time + timedelta(minutes=self.late_threshold_minutes):
+            return 'on_time'
+        elif now <= self.end_time:
+            return 'late'
+        else:
+            return 'closed'
+        
+
+    def close_session(self):
+        self.status = 'closed'
+        self.save()
+
+        if self.auto_mark_absent:
+            from .models import Enrollment, Attendance, User
+            enrolled_students = User.objects.filter(
+                enrollments__class_obj = self.class_obj,
+                enrollments__is_active= True,
+                role='student'
+            )
+
+            for student in enrolled_students:
+                Attendance.objects.get_or_create(
+                    student=student,
+                    class_obj = self.class_obj,
+                    subject = self.subject,
+                    date  = self.session_date,
+                    default={
+                        'status': 'absent',
+                        'remarks': 'Auto-marked absent (session closed)',
+                        'marked_by': self.created_by,
+                        'attendance_session': self
+                    }
+                )
+    def generate_qr_code(self):
+        if not self.qr_code:
+            self.qr_code = f"{self.id} -- {uuid.uuid4().hex[:8]}"
+            self.save()
+        return self.qr_code
+    
+class Attendance(models.Model):
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('late', 'Late'),
+        ('excused', 'Excused'),
+    ]
+
+    MARKING_METHOD_CHOICES = [
+        ('manual', 'Manual'),
+        ('qr_code', 'QR Code'),
+        ('biometric', 'Biometric'),
+        ('auto', 'Auto'),
+    ]
+
+    student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
+    class_obj = models.ForeignKey('Class', on_delete = models.CASCADE, related_name='attendances')
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
+    date  = models.DateField()
+
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='present')
+    marking_method = models.CharField(max_length=20, choices=MARKING_METHOD_CHOICES, default='manual')
+
+    attendance_session = models.ForeignKey('AttendanceSession', on_delete=models.SET_NULL, null=True, blank=True, related_name='attendances')
+
+    marked_at = models.DateTimeField(auto_now_add=True)
+    biometric_service_id = models.CharField(max_length=100, null=True, blank=True)
+    biometric_user_id = models.CharField(max_length=100, null=True, blank=True)
+
+    remarks = models.TextField(null=True, blank=True)
+    marked_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank = True,
+        related_name = 'attendances_marked'
+    )
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now = True)
+
+    class Meta:
+        db_table = 'attendance'
+        ordering = ['-date', 'class_obj', 'student__last_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['student', 'class_obj', 'subject', 'date'],
+                name = 'unique_attendance_per_student_class_subject_date'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['date', 'class_obj', 'subject']),
+            models.Index(fields=['student', 'date']),
+            models.Index(fields=['marking_method']),
+        ]
+
+    def __str__(self):
+        return f"{self.student.get_full_name()} - {self.date} - {self.status}"
+    
+class BiometricDevice(models.Model):
+
+    DEVICE_TYPE_CHOICES = [
+        ('zkteco', 'ZKTECO'),
+        ('fingerprint', 'Fingerprint'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('maintenance', 'Maintenance'),
+    ]
+
+    device_id = models.CharField(max_length=100, unique=True)
+    device_name = models.CharField(max_length=200)
+    device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES, default='zkteco')
+    ip_address = models.GenericIPAddressField()
+    port  = models.IntegerField(default=4370)
+    location = models.CharField(max_length=200, help_text="Location of the device")
+    default_class = models.ForeignKey(
+        'Class', on_delete=models.SET_NULL,null=True, blank=True, related_name  = 'biometric_devices' 
+    )
+    status = models.CharField(max_length=20, choices = STATUS_CHOICES, default='active')
+    last_sync = models.DateTimeField(null=True, blank=True)
+    device_password = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        db_table = 'biometric_devices'
+        ordering = ['location', 'device_name']
+
+    def __str__(self):
+        return f"{self.device_name} ({self.location})"
+    
+class BiometricUserMapping(models.Model):
+
+    user  = models.ForeignKey('User', on_delete=models.CASCADE, related_name = 'biometric_mappings')
+    device = models.ForeignKey('BiometricDevice', on_delete=models.CASCADE, related_name = 'user_mappings')
+    biometric_user_id = models.CharField(max_length=100)
+
+    enrolled_at  = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'biometric_user_mappings'
+        unique_together = ['device', 'biometric_user_id']
+        indexes = [
+            models.Index(fields=['user', 'device']),
+            models.Index(fields=['biometric_user_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.device.device_name} - ID:{self.biometric_user_id}"
+    
+class AttendanceLog(models.Model):
+    ACTION_CHOICES = [
+        ('marked', 'Attendance Marked'),
+        ('updated', 'Attendance Updated'),
+        ('deleted', 'Attendance Deleted'),
+        ('session_created', 'Session Created'),
+        ('session_closed', 'Session Closed'),
+        ('biometric_sync', 'Biometric Sync'),
+    ]
+
+    attendance = models.ForeignKey('Attendance', on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    session = models.ForeignKey('AttendanceSession', on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    action = models.CharField(max_length=50, choices = ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL, null=True, blank=True, related_name = 'attendance_logs'
+    )
+
+    details = models.JSONField(default=dict)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+
+    class Meta:
+        db_table = 'attendance_logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['attendance', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+        ]
+        
+    def __str__(self):
+        return f"{self.action} - {self.timestamp}"
+    
+
+
+                

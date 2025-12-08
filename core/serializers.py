@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, AttendanceSession
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -170,7 +170,6 @@ class ClassSerializer(serializers.ModelSerializer):
 
         return attrs
     
-
 class SubjectSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
@@ -523,4 +522,29 @@ class ExamReportSerializer(serializers.ModelSerializer):
         return value
     
     
-    
+# attendance
+
+class AttendanceSessionSerializerr(serializers.ModelSerializer):
+
+    class Meta:
+        model = AttendanceSession
+        fields = '__all__'
+
+
+class EnhancedAttendanceSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+
+class QRAttendanceMarkSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+
+class BiometricAttendanceSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
