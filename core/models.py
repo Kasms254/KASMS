@@ -163,8 +163,6 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
 
-
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [
@@ -203,7 +201,6 @@ class Exam(models.Model):
     @property
     def submission_count(self):
         return self.results.filter(is_submitted=True).count()
-
 
 class ExamAttachment(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')

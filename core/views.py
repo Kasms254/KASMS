@@ -169,7 +169,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
-
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
@@ -474,7 +473,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
@@ -694,7 +692,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -791,7 +788,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamAttachmentViewSet(viewsets.ModelViewSet):
     queryset = ExamAttachment.objects.all()
     serializer_class = ExamAttachmentSerializer
@@ -804,7 +800,6 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
         serializer.save(uploaded_by=self.request.user,
                         file_name = file.name if file else None,
                         file_size = file.size if file else None)
-
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
@@ -881,7 +876,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'count':results.count(),
             'results':serializer.data
         })
-
 
 class AttendanceViewSet(viewsets.ModelViewSet):
 
@@ -1099,7 +1093,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
 
 
@@ -1168,7 +1161,6 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'report': self.get_serializer(report).data,
             'students': student_data
         })
-
 
 class InstructorDashboardViewset(viewsets.ViewSet):
 
@@ -1279,9 +1271,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
 
         })
 
-
 # students
-
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
 
@@ -1410,7 +1400,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
                             )
     
     @action(detail=False, methods=['get'])
-
     def my_subjects(self, request):
         if request.user.role != 'student':
             return Response(
@@ -1431,8 +1420,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         return Response({
             'count': subjects.count(),
             'results': serializer.data
-        })
-    
+        }) 
     @action(detail=False, methods =['get'])
     def my_exams(self, request):
 
@@ -1575,9 +1563,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'results': serializer.data
         })
                 
-
     @action(detail=False, methods=['get'])
-
     def my_notices(self, request):
 
         if request.user.role != 'student':
@@ -1626,7 +1612,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 'results':NoticeSerializer(general_notices, many=True).data
             }
         })  
-    
     @action(detail=False, methods=['get'])
     def performance_summary(self, request):
 
