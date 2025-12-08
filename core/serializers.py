@@ -1,6 +1,10 @@
 from rest_framework import serializers
 from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, AttendanceSession, BiometricUserMapping
 from django.contrib.auth.password_validation import validate_password
+import qrcode
+import io
+from django.utils import timezone
+import base64
 
 class UserSerializer(serializers.ModelSerializer):
 
@@ -525,38 +529,89 @@ class ExamReportSerializer(serializers.ModelSerializer):
 # attendance
 
 class AttendanceSessionSerializerr(serializers.ModelSerializer):
+    created_by_name  = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    is_active = serializers.SerializerMethodField(read_only=True)
+    attendance_status = serializers.SerializerMethodField(read_only=True)
+    total_marked = serializers.SerializerMethodField(read_only=True)
+    total_students = serializers.SerializerMethodField(read_only=True)
+    qr_code_image = serializers.SerializerMethodField(read_only=True)
+
 
     class Meta:
-        model = AttendanceSession
+        model  = AttendanceSession
         fields = '__all__'
+        read_only_fields = ('id', 'created_by', 'qr_code', 'created_at', 'updated_at')
+
+    def get_is_active(self, obj):
+        return obj.is_active()
+
+    def get_attendance_status(self, obj):
+        return obj.get_attendance_status()
+
+    def get_total_marked(self, obj):
+        return obj.attendance_records.count()
+    
+    def get_total_students(self, obj):
+        from .models import Enrollment
+        return Enrollment.objects.filter(
+            class_obj=obj.class_obj,
+            is_active = True
+        ).count()
+    
+    def get_qr_code_image(self, obj):
+        if not obj.qr_code or not self.context.get('include_qr_image'):
+            return None
+        
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                box_size=10,
+                border=5,
+            )
+            qr_data = {
+                'session_id': str(obj.id),
+                'qr_code':obj.qr_code,
+                'class':obj.class_obj.name,
+                'subject':obj.subject.name,
+                'date':obj.session_date.isoformat(),
+
+            }
+            qr.add_data(str(qr_data))
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color='black', back_color="white")
+
+            buffer = io.ByteIO()
+            img.save(buffer, format='PNG')
+            img_str = base64.b64encode(buffer.getvalue()).decode()
+
+            return f"data:image/png;base64, {img_str}"
+        except Exception as e:
+            return None
+        
+    def validate(self, attrs):
+        start_time = attrs.get('start_time')
+        end_time = attrs.get('end_time')
 
 
-class EnhancedAttendanceSerializer(serializers.ModelSerializer):
+        if end_time and start_time and end_time  <= start_time:
+            raise serializers.ValidationError({
+                'end_time': 'End time must be after start time'
+            })
+        
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            subject = attrs.get('subject')
 
-    class Meta:
-        model = Attendance
-        fields = '__all__'
-
-class QRAttendanceMarkSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Attendance
-        fields = '__all__'
-
-class BiometricAttendanceSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Attendance
-        fields = '__all__'
-
-class BulkAttendanceSerializer(serializers.Serializer):
-    class Meta:
-        model = Attendance
-        fields = '__all__'
-
-class BiometricUserMappingSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = BiometricUserMapping
-        fields = '__all__'
-
+            if user.role == 'instructor' and subject:
+                if subject.instructor != user:
+                    raise serializers.ValidationError({
+                        'subject': 'You can only create sessions for subjects you teach'
+                    })
+                
+        return attrs
+    
+    
