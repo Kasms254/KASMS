@@ -1,13 +1,13 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment,AttendanceSession, AttendanceLog
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,EnhancedAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer,QRAttendanceMarkSerializer,BiometricAttendanceSerializer
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment,AttendanceSession, AttendanceLog,BiometricDevice,BiometricUserMapping
+from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,EnhancedAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer,QRAttendanceMarkSerializer,BiometricAttendanceSerializer, BulkAttendanceSerializer,BiometricUserMappingSerializer,BiometricDeviceSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend, SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -1575,7 +1575,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
-
 # Attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
@@ -1592,6 +1591,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_querset(self):
+        
         queryset = super().get_queryset()
         user = self.request.user
 
@@ -1671,8 +1671,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         context['include_qr_image'] = True
         serializer = self.get_serializer(session, context=context)
-
-
         return Response(serializer.data)
 
 
@@ -1695,7 +1693,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=False, methods=['get'])
-
     def active_sessions(self, request):
         now = timezone.now()
 
@@ -1950,6 +1947,156 @@ class EnhancedAttendanceViewSet(viewsets.ModelViewSet):
             'attendance':serializer.data
         })
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsAdminOrInstructor])
+    def bulk_mark(self, request):
+        serializer = BulkAttendanceSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response (serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
+        validated_data = serializer.validated_data
+        class_obj = validated_data['class_obj']
+        subject = validated_data['subject']
+        date =validated_data['date']
+        records = validated_data['attendance_records']
+
+
+        created_count = 0
+        updated_count = 0
+        errors = []
+
+
+        for record in records:
+            try:
+                student = User.objects.get(id=record['student_id'], role='student')
+
+                attendance, created  = Attendance.objects.update_or_create(
+                    student=student,
+                    class_obj=class_obj,
+                    subject = subject,
+                    date= date,
+                    defaults= {
+                        'status':record['status'],
+                        'marking_method': 'manual',
+                        'remarks':record.get('remarks', ''),
+                        'marked_by': request.user
+                    }
+                )
+
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+
+                AttendanceLog.objects.create(
+                    attendance = attendance,
+                    action = 'marked' if created else 'updated',
+                    performed_by = request.user,
+                    details = {
+                        'method':'bulk_manual',
+                        'status': record['status'],
+                    }
+                )
+
+            except User.DoesNotExist:
+                errors.append(f"Student {record['student_id']}does not exist")
+            except Exception as e:
+                errors.append(str(e))
+
+
+        return Response({
+            'status': 'success',
+            'created': created_count,
+            'updated': updated_count,
+            'errors': errors
+        })
     
-        
+    @action(detail=False, methods=['get'])
+    def my_attendance(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'ONly stduents can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        attendance = self.get_queryset().filter(student=request.user)
+
+
+        class_id = request.query_params.get('class_id')
+        subject_id  = request.query_params.get('subject_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date') 
+
+        if class_id:
+            attendance = attendance.filter(class_obj_id=class_id)
+        if subject_id:
+            attendance = attendance.filter(subject_id=subject_id)
+        if start_date:
+            attendance = attendance.filter(date__gte=start_date) 
+        if end_date:
+            attendance = attendance.filter(date__lte=end_date)
+
+
+        attendance = attendance.ordeR_by('-date')
+        serializer = EnhancedAttendanceSerializer(attendance, many=True)      
+
+        total = attendance.count()
+        present = attendance.filter(status='present').count()
+        absent = attendance.filter(status='absent').count()
+        late = attendance.filter(status='late').count()
+        excused = attendance.filter(status='excused').count()
+
+        by_method ={
+            'manual': attendance.filter(marking_method='manual').count(),
+            'qr_code':attendance.filter(marking_method='qr_code').count(),
+            'biometric':attendance.filter(marking_method='biometric').count(),
+            
+        }  
+        stats ={
+            'total_records':total,
+            'present':present,
+            'absent':absent,
+            'late':late,
+            'excused':excused,
+            'attendance_rate':round((present /total) * 100, 2) if total >0 else 0,
+            'by_method':by_method
+        }
+
+        return Response({
+            'count':total,
+            'stats':stats,
+            'results':serializer.data
+        })
+    
+
+class BiometricUserMappingViewSet(viewsets.ModelViewSet):
+    queryset = BiometricUserMapping.objects.all()
+    serializer_class = BiometricUserMappingSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    flterset_fields = ['device', 'user', 'is_active']
+    search_fields = ['user__first_name', 'user__last_name', 'biometric_user_id']
+
+class BiometricDeviceViewSet(viewsets.ModelViewSet):
+    queryset = BiometricDevice.objects.all()
+    serializer_class = BiometricDeviceSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['status', 'device_type']
+    search_fields = ['device_name', 'location', 'device_id']
+
+    @action(detail=True, methods=['post'])
+    def sync_users(self, request, pk=None):
+        device = self.get_object()
+        device.last_sync = timezone.now()
+
+        device.save()
+
+        return Response({
+            'status':'success',
+            'message':f'Users synced with {device.device_name}',
+            'last_sync':device.last_sync
+        })
+    
+
+

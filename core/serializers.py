@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, AttendanceSession
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, AttendanceSession, BiometricUserMapping
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -548,3 +548,15 @@ class BiometricAttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = '__all__'
+
+class BulkAttendanceSerializer(serializers.Serializer):
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+
+class BiometricUserMappingSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = BiometricUserMapping
+        fields = '__all__'
+

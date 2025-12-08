@@ -1,12 +1,10 @@
 from django.urls import path, include
 from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
-from .views import (
-    # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
+from .views import (UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
     ExamViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset,AttendanceSessionViewSet,EnhancedAttendanceViewSet,BiometricDeviceViewSet,BiometricUserMappingViewSet
     )
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
@@ -25,7 +23,6 @@ router.register(r'notices', NoticeViewSet, basename='notice')
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
-# router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
@@ -34,6 +31,12 @@ router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attac
 
 # stduent routes
 router.register(r'student-dashboard', StudentDashboardViewset, basename='student-dashboard')
+
+# attendance
+router.register(r'attendance-sessions', AttendanceSessionViewSet, basename='attendance-session')
+router.register(r'attendances', EnhancedAttendanceViewSet, basename='attendance')
+router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric-device')
+router.register(r'biometric-mappings', BiometricUserMappingViewSet, basename='biometric-mapping')
 app_name = 'core'
 
 def home(request):
