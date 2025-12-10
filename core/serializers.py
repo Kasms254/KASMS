@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, AttendanceSession, BiometricUserMapping
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance,BiometricDevice,AttendanceSession, ExamAttachment, ExamResult, ClassNotice
 from django.contrib.auth.password_validation import validate_password
 import qrcode
 import io
@@ -614,4 +614,117 @@ class AttendanceSessionSerializerr(serializers.ModelSerializer):
                 
         return attrs
     
+class EnhancedAttendanceSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    marked_by_name= serializers.CharField(source='marked_by.get_full_name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    marking_method_display = serializers.CharField(source='get_marking_method_display', read_only=True)
+    session_info = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_marked_by_name(self, obj):
+        return obj.marked_by.get_full_name() if obj.marked_by else None
     
+    def get_session_info(self, obj):
+        if obj.attendance_session:
+            return({
+                'session_id':str(obj.attendance_session.id),
+                'class':obj.attendance_session.class_obj.name,
+                'subject':obj.attendance_session.subject.name,
+                'date':obj.attendance_session.session_date.isoformat(),
+            })
+        
+        return None
+
+    def validate(self, attrs):
+        student = attrs.get('student')
+        class_obj = attrs.get('class_obj')
+
+        if student and class_obj:
+            from .models import Enrollment
+            if not Enrollment.objects.filter(
+                student=student,
+                class_obj=class_obj,
+                is_active=True
+            ).exists():
+                raise serializers.ValidationError({
+                    "student":"student is not enrolled in this class"
+                })
+            
+        return attrs
+    
+class QRAttendanceMarkSerializer(serializers.ModelSerializer):
+    qrcode = serializers.CharField(required=True, help_text="QR Code")
+    
+    def validate_qr_code(self, value):
+        try:
+            session = AttendanceSession.objects.get(qr_code = value)
+
+            if not session.is_active():
+                raise serializers.ValidationError(
+                    "This attendance session has expired"
+                )
+            
+            self.context['session'] = session
+
+            return value
+        except AttendanceSession.DoesNotExist:
+            raise serializers.ValidationError("INvalid QR code")
+
+
+class BiometricAttendanceSerializer(serializers.ModelSerializer):
+    device_id = serializers.CharField(required=True, help_text="Device identifier")
+    biometric_user_id = serializers.CharField(required=True, help_text="Biometric user identifier")
+    timestamp = serializers.DateTimeField(required=True, help_text="Timestamp of the attendance")
+    class_id = serializers.IntegerField(required=False, allow_null=True, help_text="Class ID")
+    subject_id = serializers.IntegerField(required=False, allow_null=True, help_text="Subject ID")
+
+    def validate(self, attrs):
+        device_id = attrs.get('device_id')
+        biometric_user_id = attrs.get('biometric_user_id')
+
+        try:
+            device = BiometricDevice.objects.get(device_id=device_id,
+                                                 status='active')
+        except BiometricDevice.DoesNotExist:
+            raise serializers.ValidationError({
+                'biometric_user_id':f'User ID {biometric_user_id} not registered on device {device_id}' 
+            })
+        
+        return attrs
+    
+class BulkAttendanceSerializer(serializers.ModelSerializer):
+
+    class_obj = serializers.PrimaryKeyRelated(
+        queryset = Class.objects.all(),
+        help_text = "Class ID"
+    )
+    subject = serializers.PrimaryKeyRelatedField(
+        queryset = Subject.objects.all(),
+        required = False,
+        allow_null = True,
+        help_text = "SUbject ID (optional)"
+    )
+    date = serializers.DateField(help_text="Date of the attendance")
+    attendance_records = serializers.ListField(
+        child = serializers.DictField(),
+        allow_empty = False,
+        help_text ="List of attendance records"
+    )
+
+    def validate_attendance_records(self, value):
+        valid_statuses = ['present', 'absent', 'late', 'excused']
+
+        for i, record in enumerate(value):
+            if 'student_id' not in record:
+                raise serializers.ValidationError({
+                    f"Record {i}: "
+                })

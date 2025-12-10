@@ -532,7 +532,7 @@ class BiometricDevice(models.Model):
     device_name = models.CharField(max_length=200)
     device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES, default='zkteco')
     ip_address = models.GenericIPAddressField()
-    port  = models.IntegerField(default=4370)
+    port = models.IntegerField(default=4370)
     location = models.CharField(max_length=200, help_text="Location of the device")
     default_class = models.ForeignKey(
         'Class', on_delete=models.SET_NULL,null=True, blank=True, related_name  = 'biometric_devices' 
@@ -540,7 +540,7 @@ class BiometricDevice(models.Model):
     status = models.CharField(max_length=20, choices = STATUS_CHOICES, default='active')
     last_sync = models.DateTimeField(null=True, blank=True)
     device_password = models.CharField(max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         db_table = 'biometric_devices'
