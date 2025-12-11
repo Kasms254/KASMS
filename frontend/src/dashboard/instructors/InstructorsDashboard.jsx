@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import api from '../../lib/api'
@@ -7,9 +8,10 @@ import { getInstructorDashboard } from '../../lib/api'
 
 export default function InstructorsDashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [classes, setClasses] = useState([])
   const [uniqueStudentsCount, setUniqueStudentsCount] = useState(0)
-  const [pendingGrading, setPendingGrading] = useState(0)
+  const [subjectsCount, setSubjectsCount] = useState(0)
   const [attendanceToday, setAttendanceToday] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -27,8 +29,11 @@ export default function InstructorsDashboard() {
         if (!mounted) return
   setClasses(Array.isArray(data.classes) ? data.classes : (data.classes && Array.isArray(data.classes)) ? data.classes : [])
   setUniqueStudentsCount(data.total_students ?? data.students ?? data.total_students_count ?? 0)
-  setPendingGrading(data.pending_grading ?? data.to_grade ?? 0)
   setAttendanceToday(data.attendance_today ?? data.attendance_today_count ?? 0)
+  // populate subjects count if provided by the dashboard endpoint
+  setSubjectsCount(
+    data.subjects_count ?? data.total_subjects ?? (Array.isArray(data.subjects) ? data.subjects.length : 0)
+  )
       } catch (err) {
         if (mounted) setError(err)
       } finally {
@@ -49,6 +54,7 @@ export default function InstructorsDashboard() {
           // res might be paginated object or array
           const examsList = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
           const ev = {}
+          const upcoming = []
           const pad = (n) => String(n).padStart(2, '0')
           const toISO = (d) => {
             try {
@@ -71,6 +77,25 @@ export default function InstructorsDashboard() {
             }
             ev[iso] = ev[iso] || []
             ev[iso].push(evt)
+            // consider as upcoming if exam_date is today or in future
+            try {
+              const d = new Date(x.exam_date)
+              if (!Number.isNaN(d.getTime())) {
+                const now = new Date()
+                if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+                  upcoming.push({
+                    kind: 'exam',
+                    id: x.id,
+                    date: d.toISOString(),
+                    title: x.title || 'Exam',
+                    subject: subject,
+                    className: className,
+                  })
+                }
+              }
+            } catch {
+              // ignore date parse issues
+            }
           })
 
           // include active/global notices on the instructor calendar
@@ -90,6 +115,24 @@ export default function InstructorsDashboard() {
                 created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
                 expiry_date: n.expiry_date || null,
               })
+              // include notice in upcoming list if its date is today or later
+              try {
+                const d = new Date(date)
+                if (!Number.isNaN(d.getTime())) {
+                  const now = new Date()
+                  if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+                    upcoming.push({
+                      kind: 'notice',
+                      id: n.id,
+                      date: d.toISOString(),
+                      title: n.title || 'Notice',
+                      created_by_name: n.created_by_name || null,
+                    })
+                  }
+                }
+              } catch {
+                // ignore
+              }
             })
           } catch {
             // non-fatal
@@ -131,9 +174,17 @@ export default function InstructorsDashboard() {
 
       {/* Cards grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card title="My classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
-        <Card title="Pending grading" value={loading ? '…' : String(pendingGrading ?? 0)} icon="CheckSquare" badge={null} accent="bg-sky-500" colored={true} />
-        <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-indigo-500" colored={true} />
+  <Card title="My classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
+  <div
+    role="button"
+    tabIndex={0}
+    onClick={() => navigate('/dashboard/instructors/subjects')}
+    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/dashboard/instructors/subjects') }}
+    className="focus:outline-none"
+  >
+    <Card title="Subjects" value={loading ? '…' : String(subjectsCount ?? 0)} icon="Book" badge={null} accent="bg-sky-500" colored={true} />
+  </div>
+  <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-indigo-500" colored={true} />
         <Card title="Attendance today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
@@ -143,12 +194,78 @@ export default function InstructorsDashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-black font-medium mb-3 ">Notes</h3>
+          <h3 className="text-lg font-medium mb-3 text-black">Upcoming assignments & events</h3>
+          {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
           {loading && <div className="p-2 text-sm text-neutral-500">Loading…</div>}
           {error && <div className="p-2 text-sm text-red-600">Failed to load: {error.message || String(error)}</div>}
-          {!loading && !error && (
-            <div className="text-sm text-neutral-500">No events yet — use the calendar to track important dates.</div>
-          )}
+          {(() => {
+            const items = []
+            Object.keys(calendarEvents || {}).forEach(iso => {
+              const evs = Array.isArray(calendarEvents[iso]) ? calendarEvents[iso] : []
+              evs.forEach(e => {
+                if (typeof e === 'string') {
+                  items.push({ date: iso, kind: 'note', title: e })
+                } else if (e && typeof e === 'object') {
+                  items.push({ date: iso, ...e })
+                }
+              })
+            })
+
+            // sort by date desc (latest first)
+            items.sort((a, b) => {
+              if (!a.date && !b.date) return 0
+              if (!a.date) return 1
+              if (!b.date) return -1
+              return b.date.localeCompare(a.date)
+            })
+
+            const fmt = (iso) => {
+              try {
+                const d = new Date(iso)
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+              } catch { return iso }
+            }
+
+            const pad = (n) => String(n).padStart(2, '0')
+            const todayISO = `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`
+            const upcoming = items
+              .filter(it => it && it.date && it.date >= todayISO)
+              .sort((a, b) => a.date.localeCompare(b.date))
+              .slice(0, 5)
+            const list = (upcoming && upcoming.length) ? upcoming : items.slice(0, 5)
+
+            return (
+              <ul className="divide-y">
+                {list.length === 0 && (
+                  <li className="py-2 text-sm text-neutral-500">No upcoming events</li>
+                )}
+                {list.map((it, idx) => (
+                  <li key={`${it.date}-${idx}`} className="py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-black truncate">
+                          {it.title || it.name || (it.kind === 'notice' ? 'Notice' : 'Event')}
+                        </div>
+                        <div className="text-xs text-neutral-500 mt-1">
+                          {it.subject ? `${it.subject}${it.className ? ` · ${it.className}` : ''}` : (it.className || '')}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <div className="text-sm text-neutral-600">{fmt(it.date)}</div>
+                        <div className="mt-1">
+                          {it.url ? (
+                            <a className="text-xs text-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
+                          ) : it.kind === 'notice' ? (
+                            <span className="text-xs text-amber-700">Notice</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
         </div>
       </section>
     </div>

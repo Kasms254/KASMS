@@ -144,6 +144,18 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                                 {`course: ${ev.course}`}
                               </span>
                             )}
+                            {/* Title / link / duration */}
+                            <div className="w-full mt-2 flex items-center justify-between">
+                              <div className="text-sm font-medium text-black truncate">{ev.title || 'Exam'}</div>
+                              <div className="flex items-center gap-2">
+                                {ev.duration ? (
+                                  <span className="text-xs text-neutral-500">{`Duration: ${String(ev.duration)}`}</span>
+                                ) : null}
+                                {ev.url ? (
+                                  <a href={ev.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">View</a>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}

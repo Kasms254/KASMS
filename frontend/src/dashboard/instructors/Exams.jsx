@@ -21,8 +21,8 @@ export default function Exams() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '' })
-  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '' })
+  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
+  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
   
   
   const [togglingId, setTogglingId] = useState(null)
@@ -99,6 +99,34 @@ export default function Exams() {
     if (!currentForm.exam_date) return toast.error('Select exam date')
     if (!currentForm.total_marks) return toast.error('Enter total marks')
 
+    // Client-side unique constraint check: subject + exam_date must be unique
+    try {
+      const same = exams.find(x => {
+        const subjId = x.subject?.id ?? x.subject
+        const formSubj = Number(currentForm.subject)
+        const date = x.exam_date
+        return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
+      })
+      if (same) {
+        return toast.error('An exam for this subject on the selected date already exists.')
+      }
+    } catch (err) {
+      console.debug('duplicate check failed', err)
+    }
+
+    // Prevent creating another active Final exam client-side
+    try {
+      const isCreatingFinal = !editingId && String(currentForm.exam_type || '').toLowerCase() === 'final'
+      if (isCreatingFinal) {
+        const hasActiveFinal = exams.some(x => String(x.exam_type || '').toLowerCase() === 'final' && !!x.is_active)
+        if (hasActiveFinal) {
+          return toast.error('An active Final exam already exists. Deactivate it before creating another Final exam.')
+        }
+      }
+    } catch (err) {
+      console.debug('active final check failed', err)
+    }
+
     // build payload including description and duration
     const toDuration = (mins) => {
       const m = Number(mins) || 0
@@ -126,7 +154,7 @@ export default function Exams() {
         toast.success('Exam updated')
     setExams(s => s.map(x => (x.id === res.id ? res : x)))
     setEditingId(null)
-    setEditForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
       // if files were selected while editing, upload them now
       if (editFiles && editFiles.length) {
         const filesToUpload = [...editFiles]
@@ -153,8 +181,7 @@ export default function Exams() {
       console.warn('Failed to create class notice', err)
     }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to update exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to update exam')
       } finally {
         setEditLoading(false)
       }
@@ -165,7 +192,7 @@ export default function Exams() {
         toast.success('Exam created')
         // prepend to list
   setExams(s => [res, ...s])
-  setCreateForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
   // if files were selected on create, upload them now (create-time uploads only)
   if (createFiles && createFiles.length) {
     const filesToUpload = [...createFiles]
@@ -193,8 +220,7 @@ export default function Exams() {
     console.warn('Failed to create class notice', err)
   }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to create exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to create exam')
       } finally {
         setLoading(false)
       }
@@ -206,7 +232,7 @@ export default function Exams() {
   setEditForm({
       title: exam.title || '',
       subject: exam.subject != null ? String(exam.subject?.id ?? exam.subject) : '',
-      exam_type: exam.exam_type || 'cat',
+  exam_type: exam.exam_type || 'final',
       exam_date: exam.exam_date || '',
       total_marks: exam.total_marks ?? '',
       description: exam.description || '',
@@ -333,9 +359,33 @@ export default function Exams() {
     return matches
   }
 
+  // Extract friendly message from API error objects (DRF / axios friendly)
+  function getErrorMessage(err) {
+    try {
+      if (err?.response?.data) {
+        const d = err.response.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        if (d.non_field_errors) return Array.isArray(d.non_field_errors) ? d.non_field_errors.join(' ') : String(d.non_field_errors)
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (err?.data) {
+        const d = err.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (Array.isArray(err)) return err.join(' ')
+      if (err?.message) return err.message
+      return String(err)
+    } catch {
+      return 'An error occurred'
+    }
+  }
+
   function cancelEdit() {
     setEditingId(null)
-  setEditForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
   setEditFiles([])
   }
 
@@ -534,7 +584,7 @@ export default function Exams() {
       </div>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div className="absolute inset-0 bg-black/50" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
@@ -542,7 +592,7 @@ export default function Exams() {
                     <h4 className="text-lg text-black font-medium">Create exam</h4>
                     <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
                 </div>
 
                 <div className="mt-4">
@@ -555,7 +605,7 @@ export default function Exams() {
                   </select>
 
                   <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., CAT 1" className="mt-1 p-2 rounded border w-full" />
+                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
 
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <div>
@@ -569,11 +619,8 @@ export default function Exams() {
                   </div>
 
                   <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <select value={createForm.exam_type} onChange={(e) => updateField('exam_type', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="cat">CAT</option>
-                    <option value="mid">MID</option>
-                    <option value="final">Final</option>
-                  </select>
+                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
+                  <input type="hidden" value={createForm.exam_type || 'final'} />
                 
                   <div className="mt-3">
                     <label className="block text-sm text-gray-700">Description</label>
@@ -593,7 +640,7 @@ export default function Exams() {
                 </div>
 
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition">Cancel</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition">Cancel</button>
                   <button type="submit" disabled={loading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{loading ? 'Saving...' : 'Create'}</button>
                 </div>
               </form>
@@ -637,7 +684,7 @@ export default function Exams() {
                   </select>
 
                   <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., CAT 1" className="mt-1 p-2 rounded border w-full" />
+                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
 
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <div>
@@ -651,11 +698,8 @@ export default function Exams() {
                   </div>
 
                   <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <select value={editForm.exam_type} onChange={(e) => updateEditField('exam_type', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="cat">CAT</option>
-                    <option value="mid">MID</option>
-                    <option value="final">Final</option>
-                  </select>
+                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
+                  <input type="hidden" value={editForm.exam_type || 'final'} />
                 
                   <div className="mt-3">
                     <label className="block text-sm text-gray-700">Description</label>

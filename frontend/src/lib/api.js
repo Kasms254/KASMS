@@ -1,5 +1,4 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
-// import { constants } from 'buffer'
 import * as authStore from './auth'
 
 // const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
@@ -230,6 +229,21 @@ export async function getMyExams() {
   return data
 }
 
+// Student dashboard endpoints (backend exposes these as a ViewSet)
+export async function getStudentDashboard() {
+  return request('/api/student-dashboard/')
+}
+
+export async function getStudentUpcomingSchedule(days = 30) {
+  const qs = `?days=${encodeURIComponent(days)}`
+  const data = await request(`/api/student-dashboard/upcoming_schedule/${qs}`)
+  return data
+}
+
+export async function getStudentPerformanceSummary() {
+  return request('/api/student-dashboard/performance_summary/')
+}
+
 export async function createExam(payload) {
   return request('/api/exams/', { method: 'POST', body: payload })
 }
@@ -238,6 +252,14 @@ export async function createExam(payload) {
 export async function getExamResults(examId) {
   if (!examId) throw new Error('examId is required')
   return request(`/api/exams/${examId}/results/`)
+}
+
+// Get all submitted results for a student (student dashboard / notifications)
+export async function getStudentResults(studentId) {
+  if (!studentId) throw new Error('studentId is required')
+  const qs = `?student_id=${encodeURIComponent(studentId)}`
+  const data = await request(`/api/exam-results/student_results/${qs}`)
+  return data
 }
 
 export async function generateExamResults(examId) {
@@ -266,6 +288,16 @@ export async function deleteExam(id) {
 
 export async function createClassNotice(payload) {
   return request('/api/class-notices/', { method: 'POST', body: payload })
+}
+
+export async function updateClassNotice(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/class-notices/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteClassNotice(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/class-notices/${id}/`, { method: 'DELETE' })
 }
 
 export async function getClassNotices(params = '') {
@@ -487,6 +519,7 @@ export default {
   getMyExams,
   createExam,
   getExamResults,
+  getStudentResults,
   generateExamResults,
   bulkGradeResults,
   gradeResult,
@@ -497,6 +530,8 @@ export default {
   getClassNotices,
   getMyClassNotices,
   createClassNotice,
+  updateClassNotice,
+  deleteClassNotice,
   // Global / site notices
   getNotices,
   getActiveNotices,
