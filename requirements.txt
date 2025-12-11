@@ -14,5 +14,6 @@ psycopg2-binary==2.9.11
 PyJWT==2.10.1
 python-decouple==3.8
 python-dotenv==1.2.1
+qrcode==8.2
 sqlparse==0.5.3
 whitenoise==6.11.0
