@@ -326,26 +326,24 @@ class ExamSerializer(serializers.ModelSerializer):
         if not self.instance and value < timezone.now().date():
             raise serializers.ValidationError("Exam date cannot be in the past.")
         return value
+
+    def validate(self, data):
+
+        exam_type = data.get('exam_type')
+        subject = data.get('subject')
+        is_active = data.get('is_active', True)
+
+        if exam_type == 'final' and is_active:
+            qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    "There is already an active Final Exam for this subject"
+                )
+            return data
+
     
-
-class ExamResultSerializer(serializers.ModelSerializer):
-
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
-    exam_title = serializers.CharField(source='exam.title', read_only=True)
-    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
-    graded_by_name = serializers.SerializerMethodField(read_only=True)
-    percentage = serializers.FloatField(read_only=True)
-    grade = serializers.CharField(read_only=True)
-
-
-    class Meta:
-        model = ExamResult
-        fields = '__all__'
-        read_only_fields = ('graded_at', 'percentage', 'grade')
-    
-    def get_graded_by_name(self, obj):
-        return obj.graded_by.get_full_name() if obj.graded_by else None
     
 class ExamResultSerializer(serializers.ModelSerializer):
 
