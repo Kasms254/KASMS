@@ -884,6 +884,15 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 result.save()
                 updated_count += 1
 
+                Notice.objects.create(
+                    title = f"Exam Graded: {result.exam.title}",
+                    description = f"Your exam '{result.exam.title}' has been graded. You scored '{result.marks_obtained}' marks.",
+                    created_by = request.user,
+                    recipient = result.student,
+                    is_active= True,
+                    priority= 'medium' 
+                )
+
             except ExamResult.DoesNotExist:
                 errors.append(f"Result{result_data.get('id')} not found.")
 
