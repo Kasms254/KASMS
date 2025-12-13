@@ -5,8 +5,11 @@ import ProtectedRoute from './components/ProtectedRoute'
 import DashboardIndex from './components/DashboardIndex'
 import AdminDashboard from './dashboard/admin/AdminDashboard'
 import InstructorsDashboard from './dashboard/instructors/InstructorsDashboard'
+import InstructorsSubjectsPage from './dashboard/instructors/SubjectsPage'
 import Attendance from './dashboard/instructors/Attendance'
 import Exams from './dashboard/instructors/Exams'
+import AddResults from './dashboard/instructors/AddResults'
+import ResultsRoute from './components/ResultsRoute'
 import StudentsDashboard from './dashboard/students/StudentsDashboard'
 import StudentsRoute from './components/StudentsRoute'
 import AddUser from './pages/AddUser'
@@ -14,10 +17,14 @@ import Courses from './dashboard/admin/Courses'
 import CourseDetail from './dashboard/admin/CourseDetail'
 import Classes from './dashboard/admin/Classes'
 import AdminStudents from './dashboard/admin/AdminStudents'
+import ClassDetail from './dashboard/instructors/ClassDetail'
 import AdminInstructors from './dashboard/admin/AdminInstructors'
 import Login from './pages/Login'
 import SubjectsPage from './dashboard/admin/SubjectsPage'
 import TeachingAssignments from './dashboard/admin/TeachingAssignments'
+import Notices from './dashboard/admin/Notices'
+import ClassNotices from './dashboard/instructors/ClassNotices'
+import Notifications from './dashboard/shared/Notifications'
 
 const App = () => {
 	return (
@@ -30,6 +37,7 @@ const App = () => {
 				<Route index element={<DashboardIndex />} />
 				<Route path="admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
 				<Route path="instructors" element={<InstructorsDashboard />} />
+					<Route path="instructors/subjects" element={<ProtectedRoute role="instructor"><InstructorsSubjectsPage /></ProtectedRoute>} />
 				<Route path="students" element={<StudentsRoute />} />
 				<Route path="add/user" element={<ProtectedRoute role="admin"><AddUser /></ProtectedRoute>} />
 			</Route>
@@ -46,6 +54,21 @@ const App = () => {
 				<Route index element={<AdminStudents />} />
 			</Route>
 
+			{/* Notices (admin) */}
+			<Route path="/list/notices" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+				<Route index element={<Notices />} />
+			</Route>
+
+			{/* Notifications (all authenticated users) */}
+			<Route path="/list/notifications" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<Notifications />} />
+			</Route>
+
+			{/* Class notices (instructors) */}
+			<Route path="/list/class-notices" element={<ProtectedRoute role="instructor"><Layout /></ProtectedRoute>}>
+				<Route index element={<ClassNotices />} />
+			</Route>
+
 			<Route path="/list/instructors" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
 				<Route index element={<AdminInstructors />} />
 			</Route>
@@ -53,7 +76,7 @@ const App = () => {
 			{/* Classes list (active classes) */}
 			<Route path="/list/classes" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Classes />} />
-				<Route path=":id" element={<div className="p-4 text-black">Class detail (coming soon)</div>} />
+				<Route path=":id" element={<ClassDetail />} />
 			</Route>
 
 			{/* Attendance (instructors & admins) */}
@@ -64,6 +87,11 @@ const App = () => {
 			{/* Exams listing (instructors, admins) */}
 			<Route path="/list/exams" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Exams />} />
+			</Route>
+
+			{/* Results listing - shows instructor grading UI for instructors, student results for students */}
+			<Route path="/list/results" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<ResultsRoute />} />
 			</Route>
 
 			{/* Subjects listing (by class) */}

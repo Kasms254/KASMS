@@ -6,7 +6,7 @@ from .views import (
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,LoginView,LogoutView,CurrentUserView,TokenRefreshView,SuperAdminSchoolViewSet,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset
     )
 
 
@@ -28,9 +28,15 @@ router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
 router.register(r'instructor-dashboard', InstructorDashboardViewset, basename='instructor_dashboard')
+router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attachment')
 
+<<<<<<< HEAD
 # superadmin register schol
 router.register(r"superadmin/schools", SuperAdminSchoolViewSet, basename="superadmin-schools")
+=======
+# stduent routes
+router.register(r'student-dashboard', StudentDashboardViewset, basename='student-dashboard')
+>>>>>>> origin/main
 app_name = 'core'
 
 def home(request):

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -9,6 +10,8 @@ export default function Exams() {
   const { user } = useAuth()
   const toast = useToast()
 
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
   const [query, setQuery] = useState('')
@@ -18,8 +21,8 @@ export default function Exams() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '' })
-  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '' })
+  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
+  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
   
   
   const [togglingId, setTogglingId] = useState(null)
@@ -29,6 +32,7 @@ export default function Exams() {
   
   const [attachmentsMap, setAttachmentsMap] = useState({})
   const [attachmentsOpenId, setAttachmentsOpenId] = useState(null)
+  const navigate = useNavigate()
 
   // fetch attachments for a single exam and stash into attachmentsMap
   async function fetchAttachmentsForExam(examId) {
@@ -95,6 +99,34 @@ export default function Exams() {
     if (!currentForm.exam_date) return toast.error('Select exam date')
     if (!currentForm.total_marks) return toast.error('Enter total marks')
 
+    // Client-side unique constraint check: subject + exam_date must be unique
+    try {
+      const same = exams.find(x => {
+        const subjId = x.subject?.id ?? x.subject
+        const formSubj = Number(currentForm.subject)
+        const date = x.exam_date
+        return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
+      })
+      if (same) {
+        return toast.error('An exam for this subject on the selected date already exists.')
+      }
+    } catch (err) {
+      console.debug('duplicate check failed', err)
+    }
+
+    // Prevent creating another active Final exam client-side
+    try {
+      const isCreatingFinal = !editingId && String(currentForm.exam_type || '').toLowerCase() === 'final'
+      if (isCreatingFinal) {
+        const hasActiveFinal = exams.some(x => String(x.exam_type || '').toLowerCase() === 'final' && !!x.is_active)
+        if (hasActiveFinal) {
+          return toast.error('An active Final exam already exists. Deactivate it before creating another Final exam.')
+        }
+      }
+    } catch (err) {
+      console.debug('active final check failed', err)
+    }
+
     // build payload including description and duration
     const toDuration = (mins) => {
       const m = Number(mins) || 0
@@ -122,7 +154,7 @@ export default function Exams() {
         toast.success('Exam updated')
     setExams(s => s.map(x => (x.id === res.id ? res : x)))
     setEditingId(null)
-    setEditForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
       // if files were selected while editing, upload them now
       if (editFiles && editFiles.length) {
         const filesToUpload = [...editFiles]
@@ -149,8 +181,7 @@ export default function Exams() {
       console.warn('Failed to create class notice', err)
     }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to update exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to update exam')
       } finally {
         setEditLoading(false)
       }
@@ -161,7 +192,7 @@ export default function Exams() {
         toast.success('Exam created')
         // prepend to list
   setExams(s => [res, ...s])
-  setCreateForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
   // if files were selected on create, upload them now (create-time uploads only)
   if (createFiles && createFiles.length) {
     const filesToUpload = [...createFiles]
@@ -174,6 +205,8 @@ export default function Exams() {
       toast.error('Failed to upload one or more files')
     } finally {
       setCreateFiles([])
+      // close create modal after uploads are handled
+      setCreateModalOpen(false)
     }
   }
   try {
@@ -187,8 +220,7 @@ export default function Exams() {
     console.warn('Failed to create class notice', err)
   }
       } catch (err) {
-        const msg = err && err.message ? err.message : (err && err.data ? JSON.stringify(err.data) : 'Failed to create exam')
-        toast.error(msg)
+        toast.error(getErrorMessage(err) || 'Failed to create exam')
       } finally {
         setLoading(false)
       }
@@ -200,7 +232,7 @@ export default function Exams() {
   setEditForm({
       title: exam.title || '',
       subject: exam.subject != null ? String(exam.subject?.id ?? exam.subject) : '',
-      exam_type: exam.exam_type || 'cat',
+  exam_type: exam.exam_type || 'final',
       exam_date: exam.exam_date || '',
       total_marks: exam.total_marks ?? '',
       description: exam.description || '',
@@ -327,9 +359,33 @@ export default function Exams() {
     return matches
   }
 
+  // Extract friendly message from API error objects (DRF / axios friendly)
+  function getErrorMessage(err) {
+    try {
+      if (err?.response?.data) {
+        const d = err.response.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        if (d.non_field_errors) return Array.isArray(d.non_field_errors) ? d.non_field_errors.join(' ') : String(d.non_field_errors)
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (err?.data) {
+        const d = err.data
+        if (typeof d === 'string') return d
+        if (Array.isArray(d)) return d.join(' ')
+        return Object.values(d).map(v => Array.isArray(v) ? v.join(' ') : String(v)).join(' ')
+      }
+      if (Array.isArray(err)) return err.join(' ')
+      if (err?.message) return err.message
+      return String(err)
+    } catch {
+      return 'An error occurred'
+    }
+  }
+
   function cancelEdit() {
     setEditingId(null)
-  setEditForm({ title: '', subject: '', exam_type: 'cat', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
   setEditFiles([])
   }
 
@@ -340,82 +396,16 @@ export default function Exams() {
           <h2 className="text-2xl font-semibold">Exams</h2>
           <p className="text-sm text-gray-600">View, filter and create exams for your subjects.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create exam</button>
+        </div>
       </header>
 
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Create panel on the left (sticky on larger screens) */}
-        <aside className="md:col-span-1">
-          <Card title="Create exam" value="" className="p-0">
-            <div className="p-4">
-              <form onSubmit={submit} className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-700">Subject</label>
-                  <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="">-- select subject --</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-1 gap-4">
+              {/* Create button (opens modal) */}
 
-                <div>
-                  <label className="block text-sm text-gray-700">Title</label>
-                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., CAT 1" className="mt-1 p-2 rounded border w-full" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-sm text-gray-700">Date</label>
-                    <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700">Total marks</label>
-                    <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-700">Type</label>
-                  <select value={createForm.exam_type} onChange={(e) => updateField('exam_type', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="cat">CAT</option>
-                    <option value="mid">MID</option>
-                    <option value="final">Final</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-700 mt-2">Description</label>
-                  <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-700">Duration (minutes)</label>
-                  <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-700 mt-2">Upload resources</label>
-                  <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="mt-1" />
-                  {createFiles && createFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{createFiles.length} resource(s) selected</div>}
-                </div>
-
-                <div className="flex justify-end items-center gap-3">
-                  {editingId ? (
-                    <>
-                      <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded border bg-red-600 text-white">Cancel</button>
-                      <button disabled={editLoading} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">{editLoading ? 'Saving...' : 'Save'}</button>
-                    </>
-                  ) : (
-                    <button disabled={loading} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">{loading ? 'Saving...' : 'Create'}</button>
-                  )}
-                </div>
-              </form>
-            </div>
-          </Card>
-        </aside>
-
-        {/* Exams list on the right */}
-        <div className="md:col-span-2">
+  {/* Exams list (full width) */}
+  <div className="md:col-span-1">
           <div className="bg-white rounded shadow p-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <h3 className="font-medium">My exams</h3>
@@ -432,101 +422,232 @@ export default function Exams() {
             {!loading && exams.length === 0 && <div className="text-sm text-gray-500">No exams found. Use the form on the left to create your first exam.</div>}
 
             {!loading && filtered.length > 0 && (
-              <div className="overflow-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-gray-600">
-                      <th className="px-2 py-2">Date</th>
-                      <th className="px-2 py-2">Title</th>
-                      <th className="px-2 py-2">Subject</th>
-                      <th className="px-2 py-2">Resources</th>
-                      <th className="px-2 py-2">Type</th>
-                      <th className="px-2 py-2">Marks</th>
-                      <th className="px-2 py-2">Created by</th>
-                      <th className="px-2 py-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((x) => {
-                      const links = parseLinksFromDescription(x.description)
-                      const files = attachmentsMap[x.id] || []
-                      const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
-                      return (
-                        <React.Fragment key={x.id}>
-                          <tr className="border-t">
-                            <td className="px-2 py-2">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
-                            <td className="px-2 py-2">
-                              <div className="flex items-center gap-2">
-                                <div className="font-medium">{x.title}</div>
-                                {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2">{x.subject_name || x.subject?.name || '—'}</td>
-                            <td className="px-2 py-2">
-                              <div className="flex items-center gap-2 justify-end">
-                                <div className="text-sm">{totalResources}</div>
-                                <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline">View</button>
-                              </div>
-                            </td>
-                            <td className="px-2 py-2">{x.exam_type_display || x.exam_type}</td>
-                            <td className="px-2 py-2">{x.total_marks ?? '—'}</td>
-                            <td className="px-2 py-2">{x.created_by_name || '—'}</td>
-                            <td className="px-2 py-2 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
-                                <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                                <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
-                              </div>
-                            </td>
-                          </tr>
+              <>
+                {/* Mobile: card list */}
+                <div className="md:hidden space-y-3">
+                  {filtered.map((x) => (
+                    <div key={x.id} className="bg-white rounded-lg p-3 shadow-sm border">
+                      <div className="flex items-start justify-between">
+                        <div>
+                                <div className="font-medium text-black text-base break-words">{x.title}</div>
+                          <div className="text-sm text-neutral-600">{x.subject_name || x.subject?.name || '—'}</div>
+                          <div className="text-sm text-neutral-500 mt-1">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-neutral-600">{x.total_marks ?? '—'} pts</div>
+                          <div className="text-xs mt-1">{x.exam_type_display || x.exam_type}</div>
+                        </div>
+                      </div>
 
-                          {attachmentsOpenId === x.id && (
-                            <tr className="bg-neutral-50">
-                              <td colSpan={8} className="px-4 py-3">
-                                <div className="space-y-2">
-                                  {/* Files */}
-                                  {(files && files.length > 0) ? (
-                                    <div>
-                                      <div className="text-sm font-medium">Uploaded files</div>
-                                      <ul className="list-disc pl-5 mt-1">
-                                        {files.map(f => (
-                                          <li key={f.id} className="text-sm">
-                                            <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
-                                            <span className="text-xs text-neutral-600">File • {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ) : <div className="text-sm text-neutral-600">No uploaded files</div>}
+                      <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm text-neutral-600 break-words">Resources: {(attachmentsMap[x.id] || []).length + (parseLinksFromDescription(x.description) || []).length}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white whitespace-nowrap">Edit</button>
+                            <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white whitespace-nowrap">Grade</button>
+                          </div>
+                        </div>
 
-                                  {/* External links parsed from description */}
-                                  {(links && links.length > 0) ? (
-                                    <div>
-                                      <div className="text-sm font-medium mt-2">Links</div>
-                                      <ul className="list-disc pl-5 mt-1">
-                                        {links.map((lnk, idx) => (
-                                          <li key={idx} className="text-sm">
-                                            <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2">{lnk}</a>
-                                            <span className="text-xs text-neutral-600">Link</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ) : null}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm text-neutral-600 break-words">Created by: {x.created_by_name || '—'}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm whitespace-nowrap">{x.is_active ? 'Deactivate' : 'Activate'}</button>
+                            <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white whitespace-nowrap">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                          </div>
+                        </div>
+
+                        {/* attachments toggle */}
+                        <div className="flex items-center justify-end">
+                          <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline break-words">{attachmentsOpenId === x.id ? 'Hide' : 'View resources'}</button>
+                        </div>
+
+                        {attachmentsOpenId === x.id && (
+                          <div className="mt-2 bg-neutral-50 p-2 rounded">
+                            {(attachmentsMap[x.id] && attachmentsMap[x.id].length > 0) ? (
+                              <div className="space-y-2">
+                                {attachmentsMap[x.id].map(f => (
+                                  <div key={f.id} className="text-sm">
+                                    {((f.file || f.file_url) || '').toLowerCase().match(/\.(png|jpe?g|gif|webp)$/) ? (
+                                      <img src={f.file_url || f.file} alt={f.file ? f.file.split('/').pop() : 'image'} className="max-w-full h-auto rounded" />
+                                    ) : (
+                                      <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-600 underline break-words">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
+                                    )}
+                                    <div className="text-xs text-neutral-600">File • {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : <div className="text-sm text-neutral-600">No resources</div>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden md:block overflow-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="text-gray-600">
+                        <th className="px-2 py-2 w-28 text-left">Date</th>
+                        <th className="px-2 py-2 text-left">Title</th>
+                        <th className="px-2 py-2 w-40 text-left">Subject</th>
+                        <th className="px-2 py-2 w-24 text-right">Resources</th>
+                        <th className="px-2 py-2 w-24 text-center">Type</th>
+                        <th className="px-2 py-2 w-20 text-center">Marks</th>
+                        <th className="px-2 py-2 w-40 text-left">Created by</th>
+                        <th className="px-2 py-2 w-35 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((x) => {
+                        const links = parseLinksFromDescription(x.description)
+                        const files = attachmentsMap[x.id] || []
+                        const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
+                        return (
+                          <React.Fragment key={x.id}>
+                            <tr className="border-t">
+                              <td className="px-2 py-2 w-28">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
+                              <td className="px-2 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium truncate max-w-[40ch]">{x.title}</div>
+                                  {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 w-40">{x.subject_name || x.subject?.name || '—'}</td>
+                              <td className="px-2 py-2 w-24">
+                                <div className="flex flex-wrap items-center gap-2 justify-end">
+                                  <div className="text-sm">{totalResources}</div>
+                                  <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline whitespace-nowrap">View</button>
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 w-24 text-center">{x.exam_type_display || x.exam_type}</td>
+                              <td className="px-2 py-2 w-20 text-center">{x.total_marks ?? '—'}</td>
+                              <td className="px-2 py-2 w-40">{x.created_by_name || '—'}</td>
+                              <td className="px-2 py-2 w-48 text-center">
+                                <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                  <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
+                                  <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white">Grade</button>
+                                  <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
+                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                                 </div>
                               </td>
                             </tr>
-                          )}
-                        </React.Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+
+                            {attachmentsOpenId === x.id && (
+                              <tr className="bg-neutral-50">
+                                <td colSpan={8} className="px-4 py-3">
+                                  <div className="space-y-2">
+                                    {/* Files */}
+                                    {(files && files.length > 0) ? (
+                                      <div>
+                                        <div className="text-sm font-medium">Uploaded files</div>
+                                        <ul className="list-disc pl-5 mt-1">
+                                          {files.map(f => (
+                                            <li key={f.id} className="text-sm">
+                                              <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
+                                              <span className="text-xs text-neutral-600">File • {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : <div className="text-sm text-neutral-600">No uploaded files</div>}
+
+                                    {/* External links parsed from description */}
+                                    {(links && links.length > 0) ? (
+                                      <div>
+                                        <div className="text-sm font-medium mt-2">Links</div>
+                                        <ul className="list-disc pl-5 mt-1">
+                                          {links.map((lnk, idx) => (
+                                            <li key={idx} className="text-sm">
+                                              <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{lnk}</a>
+                                              <span className="text-xs text-neutral-600">Link</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>
       </div>
+        {createModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
+              <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-lg text-black font-medium">Create exam</h4>
+                    <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
+                  </div>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm text-gray-700">Subject</label>
+                  <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
+                    <option value="">-- select subject --</option>
+                    {subjects.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
+                    ))}
+                  </select>
+
+                  <label className="block text-sm text-gray-700 mt-3">Title</label>
+                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
+
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <label className="block text-sm text-gray-700">Date</label>
+                      <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700">Total marks</label>
+                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    </div>
+                  </div>
+
+                  <label className="block text-sm text-gray-700 mt-3">Type</label>
+                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
+                  <input type="hidden" value={createForm.exam_type || 'final'} />
+                
+                  <div className="mt-3">
+                    <label className="block text-sm text-gray-700">Description</label>
+                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="block text-sm text-gray-700">Duration (minutes)</label>
+                    <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="block text-sm text-gray-700">Upload resources</label>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="mt-1" />
+                    {createFiles && createFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{createFiles.length} resource(s) selected</div>}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-4">
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition">Cancel</button>
+                  <button type="submit" disabled={loading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{loading ? 'Saving...' : 'Create'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         <ConfirmModal
           open={!!confirmDelete}
           title="Confirm delete"
@@ -563,7 +684,7 @@ export default function Exams() {
                   </select>
 
                   <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., CAT 1" className="mt-1 p-2 rounded border w-full" />
+                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
 
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <div>
@@ -577,11 +698,8 @@ export default function Exams() {
                   </div>
 
                   <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <select value={editForm.exam_type} onChange={(e) => updateEditField('exam_type', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="cat">CAT</option>
-                    <option value="mid">MID</option>
-                    <option value="final">Final</option>
-                  </select>
+                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
+                  <input type="hidden" value={editForm.exam_type || 'final'} />
                 
                   <div className="mt-3">
                     <label className="block text-sm text-gray-700">Description</label>

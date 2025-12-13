@@ -1,5 +1,9 @@
 from rest_framework import serializers
+<<<<<<< HEAD
 from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School
+=======
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
+>>>>>>> origin/main
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -88,7 +92,6 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('class_name', None)
         return super().update(instance, validated_data)
     
-
 class UserListSerializer(serializers.ModelSerializer):
 
     role_display = serializers.CharField(source='get_role_display', read_only=True)
@@ -131,7 +134,6 @@ class CourseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This course code is already in use.")
         return value
     
-
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -230,13 +232,13 @@ class NoticeSerializer(serializers.ModelSerializer):
         if not obj.expiry_date:
             return False
         from django.utils import timezone
-        return obj.expiry_date < timezone.now()
+        return obj.expiry_date < timezone.now().date()
     
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
     
 
-    def valiate_expiry_date(self, value):
+    def validate_expiry_date(self, value):
     
         if value:
             from django.utils import timezone
@@ -290,6 +292,12 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
     
+class ExamAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamAttachment
+        fields = "__all__"
+        read_only_fields = ('created_at', 'updated_at', 'created_by', 'id','uploaded_by')
+
 
 class ExamSerializer(serializers.ModelSerializer):
 
@@ -300,11 +308,12 @@ class ExamSerializer(serializers.ModelSerializer):
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
     average_score = serializers.FloatField(read_only=True)
     submission_count = serializers.IntegerField(read_only=True)
+    attachments = ExamAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Exam
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'average_score', 'id')
+        read_only_fields = ('created_at', 'updated_at','uploaded_by','average_score', 'id')
         extra_kwargs = {
             'exam_type':{'required': True},
             'title':{'required': True},
@@ -321,6 +330,24 @@ class ExamSerializer(serializers.ModelSerializer):
         if not self.instance and value < timezone.now().date():
             raise serializers.ValidationError("Exam date cannot be in the past.")
         return value
+
+    def validate(self, data):
+
+        exam_type = data.get('exam_type')
+        subject = data.get('subject')
+        is_active = data.get('is_active', True)
+
+        if exam_type == 'final' and is_active:
+            qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    "There is already an active Final Exam for this subject"
+                )
+            return data
+
+    
     
 class ExamResultSerializer(serializers.ModelSerializer):
 
@@ -332,24 +359,11 @@ class ExamResultSerializer(serializers.ModelSerializer):
     percentage = serializers.FloatField(read_only=True)
     grade = serializers.CharField(read_only=True)
 
+    subject_id = serializers.IntegerField(source='exam.subject.id', read_only=True)
+    subject_name = serializers.CharField(source='exam.subject.name', read_only=True)
+    subject_code = serializers.CharField(source='exam.subject.subject_code', read_only=True)
+    class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
 
-    class Meta:
-        model = ExamResult
-        fields = '__all__'
-        read_only_fields = ('graded_at', 'percentage', 'grade')
-    
-    def get_graded_by_name(self, obj):
-        return obj.graded_by.get_full_name() if obj.graded_by else None
-    
-class ExamResultSerializer(serializers.ModelSerializer):
-
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
-    exam_title = serializers.CharField(source='exam.title', read_only=True)
-    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
-    graded_by_name = serializers.SerializerMethodField(read_only=True)
-    percentage = serializers.FloatField(read_only=True)
-    grade = serializers.CharField(read_only=True)
 
 
     class Meta:
@@ -408,6 +422,10 @@ class BulkExamResultSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
     
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
 class AttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
@@ -467,6 +485,10 @@ class BulkAttendanceSerializer(serializers.Serializer):
 
         return value
     
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -482,7 +504,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
 
     def get_created_by_name(self, obj):
-        return obj.created_by.get_full_name() if obj.created_by else None
+        if isinstance(obj, ClassNotice):
+            return obj.created_by.get_full_name() if obj.created_by else None
+        return None
     
 class ExamReportSerializer(serializers.ModelSerializer):
 

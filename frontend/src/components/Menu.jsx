@@ -68,14 +68,14 @@ const menuItems = [
         icon: 'Clipboard',
         label: 'Exams',
         href: '/list/exams',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['instructor',],
       },
       
       {
         icon: 'BarChart2',
         label: 'Results',
         href: '/list/results',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['instructor', 'student',],
       },
       {
         icon: 'CheckSquare',
@@ -84,10 +84,16 @@ const menuItems = [
         visible: ['admin', 'instructor', 'student',],
       },
       {
-        icon: 'Calendar',
-        label: 'Events',
-        href: '/list/events',
-        visible: ['admin', 'instructor', 'student',],
+        icon: 'Bell',
+        label: 'Notifications',
+        href: '/list/notifications',
+        visible: ['admin', 'instructor', 'student'],
+      },
+      {
+        icon: 'Megaphone',
+        label: 'Class notices',
+        href: '/list/class-notices',
+        visible: ['instructor'],
       },
       // {
       //   icon: 'MessageCircle',
@@ -96,10 +102,10 @@ const menuItems = [
       //   visible: ['admin', 'instructor', 'student',],
       // },
       {
-        icon: 'Bell',
-        label: 'Announcements',
-        href: '/list/announcements',
-        visible: ['admin', 'instructor', 'student',],
+        icon: 'Megaphone',
+        label: 'Notices',
+        href: '/list/notices',
+        visible: ['admin'],
       },
     ],
   },

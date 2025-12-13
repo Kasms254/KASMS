@@ -12,6 +12,7 @@ export default function NavBar({
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifs, setNotifs] = useState([])
   const [notifsLoading, setNotifsLoading] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -64,16 +65,209 @@ export default function NavBar({
   async function fetchNotifications() {
     setNotifsLoading(true)
     try {
-      // Use the user-scoped endpoint so students only receive notices for their classes
-      const list = await api.getMyClassNotices()
-      const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
-      setNotifs(arr)
+      // Combine user-scoped class notices with urgent/global notices so bell shows everything
+      const promises = [
+        api.getMyClassNotices(),
+        api.getUrgentNotices(),
+        // Also include active/global notices so admin-posted notices appear
+        api.getActiveNotices(),
+      ]
+
+      // If student, also fetch their submitted results to show graded notifications
+      if (user && user.role === 'student') {
+        promises.push(api.getMyResults())
+      }
+
+      const settled = await Promise.allSettled(promises)
+  const classNoticesResp = settled[0]
+  const urgentResp = settled[1]
+  const activeResp = settled[2]
+  const studentResultsResp = settled[3]
+
+  const classNotices = classNoticesResp.status === 'fulfilled' ? (Array.isArray(classNoticesResp.value) ? classNoticesResp.value : (classNoticesResp.value && Array.isArray(classNoticesResp.value.results) ? classNoticesResp.value.results : [])) : []
+  const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
+  const activeNotices = activeResp.status === 'fulfilled' ? (Array.isArray(activeResp.value) ? activeResp.value : (activeResp.value && Array.isArray(activeResp.value.results) ? activeResp.value.results : [])) : []
+
+  // Merge and sort by created_at (newest first). Include active/global notices first.
+  let merged = [...activeNotices, ...urgentNotices, ...classNotices]
+
+      // Filter out notifications created by the current user (so creators
+      // don't receive their own notice in the bell). Account for serializers
+      // that may return `created_by` as an id or as an object.
+      if (user) {
+        merged = merged.filter(n => {
+          try {
+            const cb = n.created_by
+            const cbId = (cb && typeof cb === 'object') ? (cb.id || cb.pk || null) : cb
+            if (cbId !== null && String(cbId) === String(user.id)) return false
+          } catch {
+            // ignore and keep the notification
+          }
+          return true
+        })
+      }
+
+      const normalized = merged.map((n) => ({ ...(n || {}), read: n && n.read ? true : false }))
+      // If student results were fetched, convert graded results into notifications
+      if (studentResultsResp && studentResultsResp.status === 'fulfilled') {
+        const sr = studentResultsResp.value
+        const results = Array.isArray(sr.results) ? sr.results : (Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : []))
+        // For each result that is graded (graded_by present), create a notification object
+        results.forEach(r => {
+          try {
+            if (!r) return
+            // some serializers may include graded_by or graded_by_name
+            const gradedBy = r.graded_by || r.graded_by_name || null
+            if (!gradedBy) return
+            const id = `examresult-${r.id}`
+            // avoid duplicates
+            if (normalized.find(n => String(n.id) === String(id))) return
+            const title = r.exam_title ? `${r.exam_title} graded` : 'Result graded'
+            const content = (r.marks_obtained != null && r.exam_total_marks != null)
+              ? `You scored ${r.marks_obtained}/${r.exam_total_marks}`
+              : (r.marks_obtained != null ? `You scored ${r.marks_obtained}` : 'Result available')
+            normalized.unshift({
+              id,
+              title,
+              content,
+              kind: 'result',
+              resultId: r.id,
+              examId: r.exam || r.exam_id || null,
+              created_at: r.graded_at || r.updated_at || new Date().toISOString(),
+              read: false,
+            })
+          } catch {
+            // ignore single result conversion errors
+          }
+        })
+      }
+      normalized.sort((a, b) => {
+        const ta = new Date(a.created_at || a.created || 0).getTime()
+        const tb = new Date(b.created_at || b.created || 0).getTime()
+        return tb - ta
+      })
+
+      setNotifs(normalized)
+      setUnreadCount(normalized.filter(x => !x.read).length)
     } catch (err) {
       console.debug('failed to load notifications', err)
     } finally {
       setNotifsLoading(false)
     }
   }
+
+  // Listen for client-side notice edit events so creators get a bell item
+  useEffect(() => {
+    function onNoticeEdited(e) {
+      const payload = e && e.detail ? e.detail : null
+      if (!payload) return
+      // Build a small notification object and prepend it as unread
+      const item = {
+        id: payload.id || payload.pk || `notice-${Date.now()}`,
+        title: payload.title || 'Notice updated',
+        content: payload.content || 'A notice was updated',
+        kind: 'notice',
+        noticeId: payload.id || null,
+        created_at: payload.updated_at || payload.created_at || new Date().toISOString(),
+        read: false,
+      }
+      setNotifs((s) => [item, ...s])
+      setUnreadCount((n) => n + 1)
+    }
+
+    window.addEventListener('notice:edited', onNoticeEdited)
+    // When notices change (created/updated/deleted) elsewhere in the app,
+    // re-fetch the notifications so the bell reflects the latest state.
+    function onNoticesChanged() {
+      try { fetchNotifications().catch(() => {}) } catch { /* ignore */ }
+    }
+    window.addEventListener('notices:changed', onNoticesChanged)
+    return () => {
+      window.removeEventListener('notice:edited', onNoticeEdited)
+      window.removeEventListener('notices:changed', onNoticesChanged)
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for notifications marked read elsewhere (Notifications page action)
+  useEffect(() => {
+    function onNotificationsMarkedRead(e) {
+      try {
+        const ids = e && e.detail && Array.isArray(e.detail.ids) ? e.detail.ids : []
+        if (!ids.length) return
+        setNotifs(prev => {
+          const next = prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n)
+          setUnreadCount(next.filter(x => !x.read).length)
+          return next
+        })
+      } catch (err) {
+        console.debug('failed to mark notifications read', err)
+      }
+    }
+    window.addEventListener('notifications:marked_read', onNotificationsMarkedRead)
+    return () => window.removeEventListener('notifications:marked_read', onNotificationsMarkedRead)
+  }, [])
+
+  // Fetch notifications automatically when a user is available so the bell
+  // shows a count without requiring the user to click it first.
+  useEffect(() => {
+    if (!user) return
+    // Don't refetch if we already have notifications loaded
+    if (notifs.length === 0) {
+      fetchNotifications().catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  // Poll for new graded results for students so they receive bell notifications
+  useEffect(() => {
+    if (!user || user.role !== 'student') return
+    let mounted = true
+
+    async function pollStudentResults() {
+      try {
+        const sr = await api.getMyResults().catch(() => null)
+        if (!sr) return
+        const results = Array.isArray(sr.results) ? sr.results : (Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : []))
+        results.forEach(r => {
+          try {
+            if (!r) return
+            const gradedBy = r.graded_by || r.graded_by_name || null
+            if (!gradedBy) return
+            const id = `examresult-${r.id}`
+            // If we already have this notification, skip
+            setNotifs(prev => {
+              if (prev.find(x => String(x.id) === String(id))) return prev
+              const title = r.exam_title ? `${r.exam_title} graded` : 'Result graded'
+              const content = (r.marks_obtained != null && r.exam_total_marks != null)
+                ? `You scored ${r.marks_obtained}/${r.exam_total_marks}`
+                : (r.marks_obtained != null ? `You scored ${r.marks_obtained}` : 'Result available')
+              const item = {
+                id,
+                title,
+                content,
+                kind: 'result',
+                resultId: r.id,
+                examId: r.exam || r.exam_id || null,
+                created_at: r.graded_at || r.updated_at || new Date().toISOString(),
+                read: false,
+              }
+              setUnreadCount(n => n + 1)
+              return [item, ...prev]
+            })
+          } catch {
+            // ignore
+          }
+        })
+      } catch {
+        // ignore polling errors
+      }
+    }
+
+    // initial check + interval
+    pollStudentResults()
+    const t = setInterval(() => { if (mounted) pollStudentResults() }, 30 * 1000)
+    return () => { mounted = false; clearInterval(t) }
+  }, [user])
 
   const navigate = useNavigate()
 
@@ -160,7 +354,7 @@ export default function NavBar({
             bg-indigo-600 text-white text-[10px] 
             rounded-full
           ">
-            {notifs.length || 0}
+            {unreadCount || 0}
           </span>
         </button>
         {/* Notifications dropdown */}
@@ -170,13 +364,33 @@ export default function NavBar({
             <div className="max-h-64 overflow-auto">
               {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
               {!notifsLoading && notifs.length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
-              {!notifsLoading && notifs.map(n => (
-                <button key={n.id} className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm">
-                  <div className="font-medium text-neutral-800">{n.title}</div>
-                  <div className="text-xs text-neutral-500 truncate">{n.content}</div>
-                  <div className="text-[11px] text-neutral-400 mt-1">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
-                </button>
-              ))}
+              {!notifsLoading && notifs.map(n => {
+                const unread = !n.read
+                return (
+                  <button
+                    key={n.id}
+                    className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-neutral-50' : ''}`}
+                    onClick={() => {
+                      // mark this notification as read locally
+                      setNotifs(prev => prev.map(x => (x.id === n.id ? { ...x, read: true } : x)))
+                      setUnreadCount(prev => Math.max(0, prev - (n.read ? 0 : 1)))
+                      // Optionally navigate to a relevant page
+                      try {
+                        if (n.noticeId) {
+                          navigate('/list/notices')
+                        } else if (n.kind === 'result' && n.examId) {
+                          // navigate to exam detail or results page; adjust route if your app uses a different path
+                          navigate(`/exams/${n.examId}`)
+                        }
+                      } catch (err) { console.debug('nav error', err) }
+                    }}
+                  >
+                    <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
+                    <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
+                    <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

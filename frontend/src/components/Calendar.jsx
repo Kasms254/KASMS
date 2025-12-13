@@ -99,14 +99,68 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
         <div className="mt-4">
           <h5 className="text-sm font-medium text-black">Events on {displaySelected}</h5>
           <ul className="mt-2">
-            {(events[displaySelected] || []).length === 0 && (
-              <li className="text-sm text-black">No events</li>
-            )}
-            {(events[displaySelected] || []).map((ev, idx) => (
-              <li key={idx} className="py-1 text-sm text-black">
-                • {ev}
-              </li>
-            ))}
+                  {(events[displaySelected] || []).length === 0 && (
+                    <li className="text-sm text-black">No events</li>
+                  )}
+                  {(events[displaySelected] || []).map((ev, idx) => (
+                    <li key={idx} className="py-1 text-sm text-black">
+                      {typeof ev === 'string' ? (
+                        <>
+                          • {ev}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-neutral-500">•</span>
+                          <div className="flex items-center flex-wrap gap-2">
+                            {/** Notice */}
+                            {ev.kind === 'notice' ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                                {`notice: ${ev.title || 'Notice'}`}
+                              </span>
+                            ) : ev.kind === 'class' ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
+                                {`class: ${ev.title || ev.className || ev.class_name || 'Class'}`}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100">
+                                {`exam: ${ev.title || ev.kind || 'Exam'}`}
+                              </span>
+                            )}
+
+                            {ev.subject && (
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                                {`subject: ${ev.subject}`}
+                              </span>
+                            )}
+
+                            {(ev.className || ev.class_name) && ev.kind !== 'class' && (
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
+                                {`class: ${ev.className || ev.class_name}`}
+                              </span>
+                            )}
+
+                            {ev.course && (
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-neutral-50 text-neutral-800 border border-neutral-100">
+                                {`course: ${ev.course}`}
+                              </span>
+                            )}
+                            {/* Title / link / duration */}
+                            <div className="w-full mt-2 flex items-center justify-between">
+                              <div className="text-sm font-medium text-black truncate">{ev.title || 'Exam'}</div>
+                              <div className="flex items-center gap-2">
+                                {ev.duration ? (
+                                  <span className="text-xs text-neutral-500">{`Duration: ${String(ev.duration)}`}</span>
+                                ) : null}
+                                {ev.url ? (
+                                  <a href={ev.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">View</a>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  ))}
           </ul>
         </div>
       )}

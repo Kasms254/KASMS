@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import useAuth from '../../hooks/useAuth'
-import { getMyClasses, getClassEnrolledStudents } from '../../lib/api'
+import { getInstructorDashboard, getClassEnrolledStudents } from '../../lib/api'
 
 function initials(name = '') {
   return name
@@ -37,8 +37,9 @@ export default function InstructorStudents() {
       if (!user) return
       setLoading(true)
       try {
-        const res = await getMyClasses().catch(() => null)
-        const list = res && Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : [])
+        // Use the instructor-dashboard endpoint which reliably returns the classes
+        const data = await getInstructorDashboard()
+        const list = Array.isArray(data.classes) ? data.classes : (data && Array.isArray(data.results) ? data.results : [])
         if (!mounted) return
         const mapped = (list || []).map((c) => ({
           id: c.id,

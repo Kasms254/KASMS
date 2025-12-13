@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
+import os
 
 class School(models.Model):
     name = models.CharField(max_length=100)
@@ -206,10 +208,9 @@ class Exam(models.Model):
     is_active = models.BooleanField(default=True)
     exam_duration = models.DurationField(null=True, blank=True)
 
-
     class Meta:
         db_table = 'exams'
-        ordering = ['-exam_date', 'created_at']
+        ordering = ['created_at']
         unique_together = ['subject', 'exam_date']
 
     def __str__(self):
@@ -226,6 +227,42 @@ class Exam(models.Model):
     def submission_count(self):
         return self.results.filter(is_submitted=True).count()
 
+
+class ExamAttachment(models.Model):
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(
+        upload_to='exams/', 
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions = ['pdf', 'doc', 'docx', 'jpg','jpeg','png', 'txt']
+            )
+        ]        
+                            )
+    file_name = models.CharField(max_length=100, null=True, blank=True)
+    file_size = models.IntegerField(help_text="File size in bytes", null=True, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_attachments')
+    created_at = models.DateTimeField(auto_now_add=True)
+    uploaded_at = models.DateTimeField(auto_now=True)
+
+
+    class Meta:
+        db_table = 'exam_attachments'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.file_name} - {self.exam.title}"
+
+    def save(self, *args, **kwargs):
+        if self.file:
+            self.file_name = os.path.basename(self.file.name)
+            self.file_size = self.file.size
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
+        super().delete(*args, **kwargs)
 
 class ExamResult(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
@@ -261,6 +298,7 @@ class ExamResult(models.Model):
 
     @property
     def grade(self):
+        
         pct = self.percentage
         if pct >= 80:
             return 'A'
@@ -326,7 +364,6 @@ class ClassNotice(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.class_obj.name}"
-
 
 class ExamReport(models.Model):
 
