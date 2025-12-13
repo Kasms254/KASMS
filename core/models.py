@@ -136,6 +136,7 @@ class Notice(models.Model):
     is_active = models.BooleanField(default=True)
     expiry_date = models.DateField(null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notices_created')
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_notices", null=True, blank=True)
 
     class Meta:
         db_table = 'notices'

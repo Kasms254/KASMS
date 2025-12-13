@@ -565,6 +565,24 @@ class NoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
+
+    @action(detail=False, methods=['get'])
+    def my_notices(self, request):
+        user = request.user
+        notices = self.get_queryset().filter(
+            recipient=user,
+            is_active=True
+        ).filter(
+            Q(expiry_date__isnull=True) |
+            Q(expiry_date__gte=timezone.now())
+        )
+
+        serializer = self.get_serializer(notices, many=True)
+        return Response({
+            'count':notices.count(),
+            'results': serializer.data
+        })
+
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
     queryset = Enrollment.objects.select_related('student', 'class_obj', 'enrolled_by').all()
@@ -857,6 +875,15 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
         return queryset
     
+    def send_exam_graded_notice(result, graded_by):
+                Notice.objects.create(
+                    title = f"Exam Graded: {result.exam.title}",
+                    description = f"Your exam '{result.exam.title}' has been graded. You scored '{result.marks_obtained}' marks.",
+                    created_by = graded_by,
+                    recipient = result.student,
+                    is_active= True,
+                    priority= 'medium' 
+                )
 
     @action(detail=False, methods=['post'])
     def bulk_grade(self, request):
@@ -868,6 +895,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         results_data = serializer.validated_data['results']
         updated_count = 0
         errors = []
+        notices_sent = 0
 
         for result_data in results_data:
             try:
@@ -884,14 +912,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 result.save()
                 updated_count += 1
 
-                Notice.objects.create(
-                    title = f"Exam Graded: {result.exam.title}",
-                    description = f"Your exam '{result.exam.title}' has been graded. You scored '{result.marks_obtained}' marks.",
-                    created_by = request.user,
-                    recipient = result.student,
-                    is_active= True,
-                    priority= 'medium' 
-                )
+                send_exam_graded_notice(result, request.user)
+                notices_sent +=1
 
             except ExamResult.DoesNotExist:
                 errors.append(f"Result{result_data.get('id')} not found.")
@@ -902,7 +924,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         return Response({
             'status': 'success',
             'updated': updated_count,
-            'errors': errors
+            'errors': errors,
+            'notices_sent':notices_sent
         })
 
     @action(detail=False, methods=['get'])
