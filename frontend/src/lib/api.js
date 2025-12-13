@@ -253,13 +253,10 @@ export async function getExamResults(examId) {
   if (!examId) throw new Error('examId is required')
   return request(`/api/exams/${examId}/results/`)
 }
-
-// Get all submitted results for a student (student dashboard / notifications)
-export async function getStudentResults(studentId) {
-  if (!studentId) throw new Error('studentId is required')
-  const qs = `?student_id=${encodeURIComponent(studentId)}`
-  const data = await request(`/api/exam-results/student_results/${qs}`)
-  return data
+// student get myexam_results
+export async function getMyResults(params = {}) {
+  const qs = new URLSearchParams(params).toString()
+  return request(`/api/student-dashboard/my_results/${qs ? `?${qs}` : ''}`)
 }
 
 export async function generateExamResults(examId) {
@@ -519,7 +516,6 @@ export default {
   getMyExams,
   createExam,
   getExamResults,
-  getStudentResults,
   generateExamResults,
   bulkGradeResults,
   gradeResult,
