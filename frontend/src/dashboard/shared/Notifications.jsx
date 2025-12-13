@@ -45,7 +45,7 @@ export default function Notifications() {
           }
           // also include any recently graded results for this student
           try {
-            const r = await api.getStudentResults(user.id).catch(() => null)
+            const r = await api.getMyResults().catch(() => null)
             const results = Array.isArray(r) ? r : (r && Array.isArray(r.results) ? r.results : [])
             // map results to simple items
             const resultItems = results.map(res => ({ kind: 'result', id: res.id, title: `Result: ${res.subject_name || res.subject?.name || ''}`, date: res.updated_at || res.graded_at || res.created_at || null, meta: res }))
