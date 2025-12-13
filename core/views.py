@@ -719,16 +719,40 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return queryset
     
+    def check_final_exam_constraint(self, subject, instance=None):
+        qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+        if instance:
+            qs  = qs.exclude(pk=instance.pk)
+        if qs.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Theres already an existing final exam for this subject")
+
     def perform_create(self, serializer):
         subject = serializer.validated_data.get('subject')
+        exam_type = serializer.validated_data.get('exam_type')
+        is_active = serializer.validated_data.get('is_active', True)
 
         if self.request.user.role == 'instructor':
             if subject.instructor != self.request.user:
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You can only create exams for the subject you teach.")
+
+        if exam_type == 'final' and is_active:
+            self.check_final_exam_constraint(subject)
             
         serializer.save(created_by=self.request.user)
 
+    def perform_update(self, serializer):
+        subject = serializer.validated_data.get('subject', serializer.instance.subject)
+        exam_type = serializer.validated_data,get('exam_type', serializer.instance.exam_type)
+        is_active = serializer.validated_data.get('is_active', serializer.instance.is_active)
+
+
+        if exam_type == 'final' and is_active:
+            self._check_final_exam_constraint(subject, instance = serializer.instance)
+
+        serializer.save()
+        
 
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
@@ -749,6 +773,8 @@ class ExamViewSet(viewsets.ModelViewSet):
             'pending': stats['pending'],
             'results': serializer.data
         })
+
+
     @action(detail=True, methods=['post'])
     def generate_results(self, request, pk=None):
         exam = self.get_object()

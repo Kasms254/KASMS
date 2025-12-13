@@ -49,7 +49,7 @@ export default function Notifications() {
             const results = Array.isArray(r) ? r : (r && Array.isArray(r.results) ? r.results : [])
             // map results to simple items
             const resultItems = results.map(res => ({ kind: 'result', id: res.id, title: `Result: ${res.subject_name || res.subject?.name || ''}`, date: res.updated_at || res.graded_at || res.created_at || null, meta: res }))
-            schedule = schedule.concat(resultItems)
+            schedule = schedule.concat(resultItems) 
           } catch {
             // ignore
           }
