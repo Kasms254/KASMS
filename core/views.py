@@ -904,7 +904,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def send_exam_graded_notice(result, graded_by):
                 Notice.objects.create(
                     title = f"Exam Graded: {result.exam.title}",
-                    description = f"Your exam '{result.exam.title}' has been graded. You scored '{result.marks_obtained}' marks.",
+                    content = f"Your exam '{result.exam.title}' has been graded. You scored '{result.marks_obtained}' marks.",
                     created_by = graded_by,
                     recipient = result.student,
                     is_active= True,
@@ -938,7 +938,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 result.save()
                 updated_count += 1
 
-                send_exam_graded_notice(result, request.user)
+                self.send_exam_graded_notice(result, request.user)
                 notices_sent +=1
 
             except ExamResult.DoesNotExist:
@@ -1826,3 +1826,5 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
+
+
