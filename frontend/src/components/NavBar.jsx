@@ -75,7 +75,7 @@ export default function NavBar({
 
       // If student, also fetch their submitted results to show graded notifications
       if (user && user.role === 'student') {
-        promises.push(api.getStudentResults(user.id))
+        promises.push(api.getMyResults())
       }
 
       const settled = await Promise.allSettled(promises)
@@ -225,7 +225,7 @@ export default function NavBar({
 
     async function pollStudentResults() {
       try {
-        const sr = await api.getStudentResults(user.id).catch(() => null)
+        const sr = await api.getMyResults().catch(() => null)
         if (!sr) return
         const results = Array.isArray(sr.results) ? sr.results : (Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : []))
         results.forEach(r => {
