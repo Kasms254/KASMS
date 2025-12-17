@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
-import Card from '../../components/Card'
 import ConfirmModal from '../../components/ConfirmModal'
 
 export default function Exams() {
@@ -390,14 +389,14 @@ export default function Exams() {
   }
 
   return (
-    <div className="p-4 text-black">
-      <header className="flex items-start justify-between mb-4">
+    <div className="p-6 text-black max-w-7xl mx-auto">
+      <header className="mb-6 flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Exams</h2>
-          <p className="text-sm text-gray-600">View, filter and create exams for your subjects.</p>
+          <h2 className="text-3xl font-semibold mb-2">Exams</h2>
+          <p className="text-sm text-gray-600">View, filter and create exams for your subjects. Use the Create button to add a new exam.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Create exam</button>
+          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">Create exam</button>
         </div>
       </header>
 
@@ -406,20 +405,25 @@ export default function Exams() {
 
   {/* Exams list (full width) */}
   <div className="md:col-span-1">
-          <div className="bg-white rounded shadow p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-              <h3 className="font-medium">My exams</h3>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <input placeholder="Search by title or subject" value={query} onChange={e => setQuery(e.target.value)} className="p-2 rounded border w-full sm:w-64" />
-                <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} className="p-2 rounded border">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+              <h3 className="font-medium text-lg">My exams</h3>
+              <div className="flex items-center gap-3 w-full lg:w-auto">
+                <input placeholder="Search by title or subject" value={query} onChange={e => setQuery(e.target.value)} className="w-full lg:w-64 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} className="px-3 py-2 rounded-lg border">
                   <option value="">All subjects</option>
                   {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
             </div>
 
-            {loading && <div className="text-sm text-gray-500">Loading…</div>}
-            {!loading && exams.length === 0 && <div className="text-sm text-gray-500">No exams found. Use the form on the left to create your first exam.</div>}
+            {loading && <div className="text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div><p className="mt-2 text-gray-600">Loading...</p></div>}
+            {!loading && exams.length === 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                <h3 className="mt-2 text-lg font-medium text-gray-900">No exams found</h3>
+                <p className="mt-1 text-gray-600">You currently have no exams. Click "Create exam" to add a new exam.</p>
+              </div>
+            )}
 
             {!loading && filtered.length > 0 && (
               <>
@@ -439,20 +443,20 @@ export default function Exams() {
                         </div>
                       </div>
 
-                      <div className="mt-3 flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm text-neutral-600 break-words">Resources: {(attachmentsMap[x.id] || []).length + (parseLinksFromDescription(x.description) || []).length}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white whitespace-nowrap hover:bg-indigo-700 transition">Edit</button>
-                            <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white whitespace-nowrap">Grade</button>
+                            <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white whitespace-nowrap hover:bg-indigo-700 transition">Edit</button>
+                            <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white whitespace-nowrap">Grade</button>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm text-neutral-600 break-words">Created by: {x.created_by_name || '—'}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm whitespace-nowrap">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                            <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white whitespace-nowrap hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                            <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1.5 rounded-md border bg-white text-sm whitespace-nowrap">{x.is_active ? 'Deactivate' : 'Activate'}</button>
+                            <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white whitespace-nowrap hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                           </div>
                         </div>
 
@@ -486,50 +490,50 @@ export default function Exams() {
 
                 {/* Desktop: table */}
                 <div className="hidden md:block overflow-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead>
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-100">
                       <tr className="text-gray-600">
-                        <th className="px-2 py-2 w-28 text-left">Date</th>
-                        <th className="px-2 py-2 text-left">Title</th>
-                        <th className="px-2 py-2 w-40 text-left">Subject</th>
-                        <th className="px-2 py-2 w-24 text-right">Resources</th>
-                        <th className="px-2 py-2 w-24 text-center">Type</th>
-                        <th className="px-2 py-2 w-20 text-center">Marks</th>
-                        <th className="px-2 py-2 w-40 text-left">Created by</th>
-                        <th className="px-2 py-2 w-35 text-center">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Subject</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Resources</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Marks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Created by</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="bg-white divide-y divide-gray-200">
                       {filtered.map((x) => {
                         const links = parseLinksFromDescription(x.description)
                         const files = attachmentsMap[x.id] || []
                         const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
                         return (
                           <React.Fragment key={x.id}>
-                            <tr className="border-t">
-                              <td className="px-2 py-2 w-28">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
-                              <td className="px-2 py-2">
-                                <div className="flex items-center gap-2">
+                            <tr>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900">
+                                <div className="flex items-center gap-3">
                                   <div className="font-medium truncate max-w-[40ch]">{x.title}</div>
                                   {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
                                 </div>
                               </td>
-                              <td className="px-2 py-2 w-40">{x.subject_name || x.subject?.name || '—'}</td>
-                              <td className="px-2 py-2 w-24">
-                                <div className="flex flex-wrap items-center gap-2 justify-end">
-                                  <div className="text-sm">{totalResources}</div>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.subject_name || x.subject?.name || '—'}</td>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="text-sm text-gray-700">{totalResources}</div>
                                   <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline whitespace-nowrap">View</button>
                                 </div>
                               </td>
-                              <td className="px-2 py-2 w-24 text-center">{x.exam_type_display || x.exam_type}</td>
-                              <td className="px-2 py-2 w-20 text-center">{x.total_marks ?? '—'}</td>
-                              <td className="px-2 py-2 w-40">{x.created_by_name || '—'}</td>
-                              <td className="px-2 py-2 w-48 text-center">
+                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.exam_type_display || x.exam_type}</td>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.total_marks ?? '—'}</td>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.created_by_name || '—'}</td>
+                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">
                                 <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                  <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                                  <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white">Grade</button>
-                                  <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                                  <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                                  <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white">Grade</button>
+                                  <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1.5 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
+                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                                 </div>
                               </td>
                             </tr>
