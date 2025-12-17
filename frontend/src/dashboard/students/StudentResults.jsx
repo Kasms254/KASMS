@@ -132,7 +132,7 @@ export default function StudentResults() {
                 <button
                   onClick={() => downloadTranscript()}
                   disabled={!results || results.length === 0}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${(!results || results.length === 0) ? 'bg-indigo-300 text-white cursor-not-allowed opacity-70' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   Download transcript
                 </button>

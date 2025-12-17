@@ -1,7 +1,7 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-// const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
@@ -63,10 +63,33 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   }
 
   if (!res.ok) {
-    const message = (data && (data.detail || data.message || data.error || data.non_field_errors)) || res.statusText || 'Request failed'
-    const err = new Error(typeof message === 'string' ? message : JSON.stringify(message))
+    // Log detailed error for debugging (will be stripped in production builds)
+    console.error('API Error:', { status: res.status, url, data })
+
+    // Show sanitized error messages to users (avoid exposing internal details)
+    let userMessage
+    if (res.status === 400) {
+      userMessage = 'Invalid request. Please check your input and try again.'
+    } else if (res.status === 401) {
+      userMessage = 'Authentication failed. Please log in again.'
+    } else if (res.status === 403) {
+      userMessage = 'You do not have permission to perform this action.'
+    } else if (res.status === 404) {
+      userMessage = 'The requested resource was not found.'
+    } else if (res.status === 500) {
+      userMessage = 'A server error occurred. Please try again later.'
+    } else if (res.status >= 500) {
+      userMessage = 'Service temporarily unavailable. Please try again later.'
+    } else {
+      // For validation errors (400) with field-specific messages, allow those through
+      // since they don't expose internal details
+      const detail = data && (data.detail || data.message || data.error)
+      userMessage = detail || 'An error occurred. Please try again.'
+    }
+
+    const err = new Error(userMessage)
     err.status = res.status
-    err.data = data
+    err.data = data // Keep data for field-level validation errors
     throw err
   }
 

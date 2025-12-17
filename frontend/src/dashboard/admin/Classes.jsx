@@ -209,8 +209,8 @@ export default function ClassesList(){
             </label>
               {user && user.role === 'admin' && (
                 <>
-                  <button onClick={() => openAddClassModal()} className="bg-green-600 text-white px-3 py-1 rounded-md">Add class</button>
-                  <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+                  <button onClick={() => openAddClassModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add class</button>
+                  <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add subject</button>
                 </>
               )}
           </div>
@@ -256,7 +256,7 @@ export default function ClassesList(){
                       is_active: !!c.is_active,
                     })
                     setEditModalOpen(true)
-                    }} className="px-3 py-1 rounded-md border bg-indigo-600 text-white text-sm" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
+                    }} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
                   )}
                 </div>
               </Card>
@@ -344,8 +344,8 @@ export default function ClassesList(){
                 <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
 
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" disabled={isSaving} className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-neutral-400' : 'bg-indigo-600'}`}>{isSaving ? 'Saving...' : 'Save'}</button>
+                  <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save'}</button>
                 </div>
               </form>
             </div>
@@ -438,8 +438,8 @@ export default function ClassesList(){
                 <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
 
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" disabled={isSaving} className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-neutral-400' : 'bg-indigo-600'}`}>{isSaving ? 'Saving...' : 'Create'}</button>
+                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Create'}</button>
                 </div>
               </form>
             </div>
@@ -490,8 +490,8 @@ export default function ClassesList(){
                 </div>
 
                 <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" disabled={subjectSaving} className={`px-4 py-2 rounded-md text-white ${subjectSaving ? 'bg-neutral-400' : 'bg-blue-600'}`}>{subjectSaving ? 'Adding...' : 'Add subject'}</button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={subjectSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{subjectSaving ? 'Adding...' : 'Add subject'}</button>
                 </div>
               </form>
             </div>

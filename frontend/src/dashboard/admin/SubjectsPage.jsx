@@ -250,7 +250,7 @@ export default function SubjectsPage() {
               <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4" />
               <span>Show inactive classes</span>
             </label>
-            <button onClick={() => openAddSubjectModal()} className="bg-blue-600 text-white px-3 py-1 rounded-md">Add subject</button>
+            <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add subject</button>
           </div>
         </div>
       </header>
@@ -265,8 +265,8 @@ export default function SubjectsPage() {
               className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
-          <button aria-label="Search subjects" onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm">Search</button>
-          <button aria-label="Clear search" onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md border bg-indigo-600 text-white text-sm">Clear</button>
+          <button aria-label="Search subjects" onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Search</button>
+          <button aria-label="Clear search" onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-sm transition">Clear</button>
         </div>
 
         {debouncedQuery ? (
@@ -328,13 +328,13 @@ export default function SubjectsPage() {
                                   <div className="flex items-center justify-end gap-2">
                                     <button
                                       onClick={() => openEdit(s)}
-                                      className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white"
+                                      className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
                                       aria-label={`Edit ${s.name || s.title || 'subject'}`}
                                     >Edit</button>
                                     <button
                                       disabled={deletingId === s.id}
                                       onClick={() => handleDelete(s)}
-                                      className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white"
+                                      className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                                       aria-label={`Remove ${s.name || s.title || 'subject'}`}
                                     >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                                   </div>
@@ -362,7 +362,7 @@ export default function SubjectsPage() {
                 <div>
                   <h4 className="text-lg text-black font-medium">Add subject to class</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
               <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
                 <input placeholder="Subject name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
@@ -378,8 +378,8 @@ export default function SubjectsPage() {
                 </select>
 
                 <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm">{isSaving ? 'Saving...' : 'Add subject'}</button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add subject'}</button>
                 </div>
               </form>
             </div>
@@ -397,7 +397,7 @@ export default function SubjectsPage() {
                   <h4 className="text-lg text-black font-medium">Edit subject</h4>
                   <p className="text-sm text-neutral-500">Update subject details.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
               <div className="mt-4">
                 <label className="block mb-3">
@@ -419,8 +419,8 @@ export default function SubjectsPage() {
                 </label>
               </div>
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md border text-sm bg-red-600 text-white">Cancel</button>
-                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
               </div>
             </form>
           </div>
@@ -435,8 +435,8 @@ export default function SubjectsPage() {
               <h4 className="text-lg font-medium text-black">Confirm delete</h4>
               <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.subject_code || confirmDelete.code || confirmDelete.id}</strong>? This action cannot be undone.</p>
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md border bg-indigo-600 text-sm">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-sm transition">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>

@@ -397,7 +397,7 @@ export default function Exams() {
           <p className="text-sm text-gray-600">View, filter and create exams for your subjects.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded">Create exam</button>
+          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Create exam</button>
         </div>
       </header>
 
@@ -443,7 +443,7 @@ export default function Exams() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm text-neutral-600 break-words">Resources: {(attachmentsMap[x.id] || []).length + (parseLinksFromDescription(x.description) || []).length}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white whitespace-nowrap">Edit</button>
+                            <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white whitespace-nowrap hover:bg-indigo-700 transition">Edit</button>
                             <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white whitespace-nowrap">Grade</button>
                           </div>
                         </div>
@@ -452,7 +452,7 @@ export default function Exams() {
                           <div className="text-sm text-neutral-600 break-words">Created by: {x.created_by_name || '—'}</div>
                           <div className="flex flex-wrap items-center gap-2">
                             <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm whitespace-nowrap">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                            <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white whitespace-nowrap">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                            <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white whitespace-nowrap hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                           </div>
                         </div>
 
@@ -526,10 +526,10 @@ export default function Exams() {
                               <td className="px-2 py-2 w-40">{x.created_by_name || '—'}</td>
                               <td className="px-2 py-2 w-48 text-center">
                                 <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                  <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
+                                  <button onClick={() => startEdit(x)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
                                   <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1 rounded-md border bg-emerald-600 text-sm text-white">Grade</button>
                                   <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                                 </div>
                               </td>
                             </tr>
@@ -640,7 +640,7 @@ export default function Exams() {
                 </div>
 
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition">Cancel</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
                   <button type="submit" disabled={loading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{loading ? 'Saving...' : 'Create'}</button>
                 </div>
               </form>
@@ -721,7 +721,7 @@ export default function Exams() {
                 </div>
 
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition">Cancel</button>
+                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
                   <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </form>

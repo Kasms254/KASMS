@@ -137,7 +137,7 @@ export default function CourseDetail(){
                   <h4 className="text-lg text-black font-medium">Students in {selectedClass?.name || ''}</h4>
                   <p className="text-sm text-neutral-500">{selectedClass?.class_code || ''}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setStudentsModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setStudentsModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <div className="mt-4">
@@ -172,7 +172,7 @@ export default function CourseDetail(){
               </div>
 
               <div className="flex justify-end mt-4">
-                <button onClick={() => setStudentsModalOpen(false)} className="px-4 py-2 rounded-md border bg-red-600">Close</button>
+                <button onClick={() => setStudentsModalOpen(false)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Close</button>
               </div>
             </div>
           </div>
@@ -189,8 +189,8 @@ export default function CourseDetail(){
               <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
               <span>Show inactive classes</span>
             </label>
-            <button onClick={() => navigate('/list/courses')} className="px-3 py-1 rounded-md border bg-green-600">Back</button>
-            <button onClick={openAddModal} className="ml-2 bg-blue-600 text-white px-3 py-1 rounded-md">Add class</button>
+            <button onClick={() => navigate('/list/courses')} className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Back</button>
+            <button onClick={openAddModal} className="ml-2 bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add class</button>
           </div>
         </div>
       </div>
@@ -234,7 +234,7 @@ export default function CourseDetail(){
                 <div>
                   <h4 className="text-lg text-black font-medium">Add class to {course?.name || ''}</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
               <form onSubmit={handleAddClass} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
                 <input placeholder="Class name" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
@@ -251,8 +251,8 @@ export default function CourseDetail(){
                 </label>
 
                 <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-700 text-white">Cancel</button>
-                  <button type="submit" className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm">Add class</button>
+                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 transition">Add class</button>
                 </div>
               </form>
             </div>

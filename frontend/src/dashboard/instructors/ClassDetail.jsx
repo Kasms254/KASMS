@@ -139,11 +139,11 @@ export default function ClassDetail() {
         </div>
         <div className="flex items-center space-x-2">
           {subjectId && (
-            <button onClick={downloadCSV} disabled={marksLoading} className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+            <button onClick={downloadCSV} disabled={marksLoading} className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
               {marksLoading ? 'Preparing CSV…' : 'Download CSV'}
             </button>
           )}
-          <button onClick={() => navigate(-1)} className="px-3 py-1 rounded border">Back</button>
+          <button onClick={() => navigate(-1)} className="px-3 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Back</button>
         </div>
       </div>
 
