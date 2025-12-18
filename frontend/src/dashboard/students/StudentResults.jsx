@@ -11,27 +11,38 @@ export default function StudentResults() {
   const [error, setError] = useState(null)
 
   // Load all student results once (no class selection required)
-  useEffect(() => {
-    let mounted = true
-    async function loadStudentResults() {
-      if (!user) return
-      setLoading(true)
-      setError(null)
-      try {
-        const sr = await api.getStudentResults(user.id).catch(() => null)
-        const allResults = Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : [])
-        if (!mounted) return
-        setResults(allResults)
-      } catch (err) {
-        if (!mounted) return
-        setError(err)
-      } finally {
-        if (mounted) setLoading(false)
+      useEffect(() => {
+      let mounted = true
+
+      async function loadStudentResults() {
+        if (!user) return
+
+        setLoading(true)
+        setError(null)
+
+        try {
+          const res = await api.getMyResults()
+
+          if (!mounted) return
+
+          const allResults = Array.isArray(res)
+            ? res
+            : Array.isArray(res?.results)
+              ? res.results
+              : []
+
+          setResults(allResults)
+        } catch (err) {
+          if (!mounted) return
+          setError(err)
+        } finally {
+          if (mounted) setLoading(false)
+        }
       }
-    }
-    loadStudentResults()
-    return () => { mounted = false }
-  }, [user])
+
+      loadStudentResults()
+      return () => { mounted = false }
+    }, [user])
 
   // We keep results flat for the one-line display. Grouping by subject is no longer needed.
 
