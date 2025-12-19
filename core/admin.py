@@ -1,7 +1,12 @@
 from django.contrib import admin
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice,School
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
+@admin.register(School)
+class SchoolAdmin(admin.ModelAdmin):
+    list_display = ('name', 'subdomain', 'primary_color','secondary_color','is_active')
+    list_filter = ('name','subdomain','is_active')
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -20,7 +25,6 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('role', 'phone_number', 'svc_number'),
         }),)
     
-
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name', 'code', 'created_at', 'updated_at')
@@ -86,7 +90,6 @@ class NoticeAdmin(admin.ModelAdmin):
             obj.created_at = timezone.now()
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
-
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):

@@ -5,6 +5,17 @@ from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 import os
 
+class School(models.Model):
+    name = models.CharField(max_length=50)
+    subdomain = models.CharField(max_length=100, unique=True)
+    primary_color = models.CharField(max_length=7, default="#004AAD")
+    secondary_color = models.CharField(max_length=7, default="#FFFFFF")
+    accent_color = models.CharField(max_length=7, default="#000000")
+    logo = models.ImageField(upload_to = "schools/logo/", null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('admin', 'admin'),
@@ -36,6 +47,7 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
     email = models.CharField(max_length=25)
@@ -52,10 +64,12 @@ class User(AbstractUser):
         return f"{self.username} ({self.get_role_display()})"
     
 class Course(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField()
-  
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     level = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -71,6 +85,7 @@ class Course(models.Model):
 
 class Class(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='classes')
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=100)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='instructed_classes')
     start_date = models.DateField()
@@ -98,6 +113,7 @@ class Class(models.Model):
         return f"{self.current_enrollment} / {self.capacity}" 
     
 class Subject(models.Model):
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
     name = models.CharField(max_length=100)
     subject_code = models.CharField(max_length=20, unique=True,null=True, blank=True)
@@ -129,6 +145,8 @@ class Notice(models.Model):
         choices=PRIORITY_CHOICES,
         default='medium'
     )
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
+
     title = models.CharField(max_length=200)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -148,6 +166,7 @@ class Notice(models.Model):
     
 class Enrollment(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='enrollments')
     enrolled_by= models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_processed')
     enrollment_date = models.DateTimeField(auto_now_add=True)
@@ -173,6 +192,7 @@ class Exam(models.Model):
         ('project', 'Project'),
     ]
 
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     title = models.CharField(max_length=200)
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
@@ -206,6 +226,7 @@ class Exam(models.Model):
 
 
 class ExamAttachment(models.Model):
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(
         upload_to='exams/', 
@@ -244,7 +265,7 @@ class ExamAttachment(models.Model):
 class ExamResult(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='results')
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     marks_obtained = models.DecimalField(
         max_digits =5,
         decimal_places=2,
@@ -293,7 +314,7 @@ class Attendance(models.Model):
         ('absent', 'Absent'),
         ('late', 'Late'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendances')
     subject =models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
@@ -323,7 +344,7 @@ class ClassNotice(models.Model):
         ('medium', 'Medium'),
         ('high', 'High'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices')
     title = models.CharField(max_length=50)
@@ -344,6 +365,7 @@ class ClassNotice(models.Model):
 
 class ExamReport(models.Model):
 
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=50)
     description = models.TextField(blank=True, null=True)
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='exam_reports')
