@@ -200,7 +200,7 @@ export default function AdminInstructors() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
+  <div className="max-w-7xl mx-auto px-4">
       <header className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-semibold text-black">Instructors</h2>
@@ -208,13 +208,13 @@ export default function AdminInstructors() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md border border-neutral-200 bg-green-600 text-sm text-white hover:shadow">Download CSV</button>
+          <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 transition shadow-sm">Download CSV</button>
         </div>
       </header>
 
       <div className="mb-4 flex items-center gap-3">
         <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search instructors..." className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-        <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm">Search</button>
+        <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Search</button>
       </div>
 
       {error ? (
@@ -224,20 +224,22 @@ export default function AdminInstructors() {
       ) : filtered.length === 0 ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
-          <table className="min-w-full table-auto">
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto max-w-full">
+          {/* Make the table width constrained to the container and allow wrapping for long cells
+              so it does not push layout and hide the sidebar on wide screens. */}
+          <table className="w-full table-fixed">
             <thead>
               <tr className="text-left">
-                <th className="px-4 py-3 text-sm text-neutral-600">Service No</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Rank</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Name</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Email</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Phone</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Role</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Classes</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Active</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Created</th>
-                <th className="px-4 py-3 text-sm text-neutral-600">Actions</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Service No</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Rank</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Name</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Email</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Phone</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Role</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Classes</th>
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Active</th>
+                {/* <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Created</th> */}
+                <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -245,7 +247,7 @@ export default function AdminInstructors() {
                 <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 ">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}</div>
                       <div>
@@ -253,10 +255,10 @@ export default function AdminInstructors() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-700">{it.email || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal break-words">{it.email || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal">{it.phone_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.role_display || it.role || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-neutral-700">
+                  <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal break-words">
                     {(() => {
                       const cls = getInstructorClasses(it.id)
                       if (!cls || cls.length === 0) return '-'
@@ -277,11 +279,11 @@ export default function AdminInstructors() {
                     })()}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-700">{it.is_active ? 'Yes' : 'No'}</td>
-                  <td className="px-4 py-3 text-sm text-neutral-700">{it.created_at ? new Date(it.created_at).toLocaleString() : '-'}</td>
+                  {/* <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal">{it.created_at ? new Date(it.created_at).toLocaleString() : '-'}</td> */}
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEdit(it)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
-                      <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
+                      <button onClick={() => openEdit(it)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                      <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
                     </div>
                   </td>
                 </tr>
@@ -307,7 +309,7 @@ export default function AdminInstructors() {
                   <h4 className="text-lg text-black font-medium">Edit instructor</h4>
                   <p className="text-sm text-neutral-500">Update instructor details.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <div className="mt-4">
@@ -362,8 +364,8 @@ export default function AdminInstructors() {
               </div>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md border text-sm bg-red-600 text-white">Cancel</button>
-                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
               </div>
             </form>
           </div>
@@ -380,8 +382,8 @@ export default function AdminInstructors() {
               <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.first_name ? `${confirmDelete.first_name} ${confirmDelete.last_name}` : (confirmDelete.full_name || confirmDelete.svc_number || confirmDelete.id)}</strong>? This action cannot be undone.</p>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md border bg-indigo-600 text-white text-sm">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>

@@ -121,11 +121,14 @@ export default function Courses() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-black">Courses</h2>
+        <div>
+          <h2 className="text-xl font-semibold text-black">Courses</h2>
+          <p className="text-sm text-neutral-500 mt-1">Manage courses — create, edit, and view course details and their active classes.</p>
+        </div>
         <div>
           <button
             onClick={() => setAddModalOpen(true)}
-            className="bg-blue-600 text-white px-3 py-1 rounded-md"
+            className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition"
           >
             Add course
           </button>
@@ -142,7 +145,7 @@ export default function Courses() {
                   <h4 className="text-lg text-black font-medium">Create course</h4>
                   <p className="text-sm text-neutral-500">Add a new course to the system</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={handleAddCourse} className="mt-4">
@@ -170,8 +173,8 @@ export default function Courses() {
                   {courseErrors.description && <div className="text-sm text-rose-500 mt-1">{courseErrors.description}</div>}
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-600">Cancel</button>
-                  <button className="bg-green-600 text-white px-3 py-1 rounded-md">Create course</button>
+                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Create course</button>
                 </div>
               </form>
             </div>
@@ -190,7 +193,7 @@ export default function Courses() {
                   <h4 className="text-lg text-black font-medium">Edit course</h4>
                   <p className="text-sm text-neutral-500">Update course information</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setEditCourseModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setEditCourseModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={async (e) => {
@@ -213,8 +216,8 @@ export default function Courses() {
                   <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md border text-sm bg-red-600 text-white">Cancel</button>
-                  <button className="bg-green-600 text-white px-3 py-1 rounded-md">Save changes</button>
+                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button className="bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition">Save changes</button>
                 </div>
               </form>
             </div>
@@ -256,7 +259,7 @@ export default function Courses() {
                           });
                           setEditCourseModalOpen(true);
                         }}
-                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm"
+                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
                         aria-label={`Edit ${course.name || course.code || 'course'}`}
                       >
                         Edit

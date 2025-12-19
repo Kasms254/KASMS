@@ -134,7 +134,7 @@ const menuItems = [
   },
 ]
 
-export default function Menu({ role = 'admin', collapsed = false }) {
+export default function Menu({ role = 'admin', collapsed = false, onMobileMenuClick }) {
   const location = useLocation()
   const navigate = useNavigate()
   const auth = useAuth()
@@ -159,6 +159,7 @@ export default function Menu({ role = 'admin', collapsed = false }) {
                           auth.logout()
                         } catch { /* ignore logout errors */ }
                         navigate('/')
+                        if (onMobileMenuClick) onMobileMenuClick()
                       }}
                       className={`group relative flex items-center justify-center gap-3 text-white py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
                         location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
@@ -175,6 +176,7 @@ export default function Menu({ role = 'admin', collapsed = false }) {
                       key={item.label}
                       title={item.label}
                       aria-label={item.label}
+                      onClick={() => { if (onMobileMenuClick) onMobileMenuClick() }}
                       className={`group relative flex items-center justify-center gap-3 text-white py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
                         location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
                       }`}
@@ -201,8 +203,9 @@ export default function Menu({ role = 'admin', collapsed = false }) {
                       auth.logout()
                     } catch { /* ignore logout errors */ }
                     navigate('/')
+                    if (onMobileMenuClick) onMobileMenuClick()
                   }}
-                  className={`group relative flex items-center justify-start gap-3 text-white py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
+                  className={`group relative flex items-center justify-start gap-3 text-white py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
                     location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
                   }`}
                 >
@@ -222,7 +225,8 @@ export default function Menu({ role = 'admin', collapsed = false }) {
                 key={item.label}
                 title={item.label}
                 aria-label={item.label}
-                className={`group relative flex items-center justify-start gap-3 text-white py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
+                onClick={() => { if (onMobileMenuClick) onMobileMenuClick() }}
+                className={`group relative flex items-center justify-start gap-3 text-white py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
                   location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
                 }`}
               >

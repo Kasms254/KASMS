@@ -179,7 +179,7 @@ export default function Attendance() {
               </div>
                 <div className="flex items-center gap-3">
                   <button className="px-3 py-1 border rounded text-sm text-gray-600">Download Exl</button>
-                  <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded">
+                  <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {loading ? 'Saving...' : 'Save Attendance'}
                   </button>
                 </div>
@@ -224,7 +224,7 @@ export default function Attendance() {
               )}
 
               <div className="mt-4">
-                <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-emerald-600 text-white rounded">
+                <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {loading ? 'Saving...' : 'Submit Attendance'}
                 </button>
               </div>

@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import * as LucideIcons from 'lucide-react'
+import EmptyState from '../../components/EmptyState'
+import { useNavigate } from 'react-router-dom'
 
 function initials(name = '') {
   return name
@@ -12,6 +15,7 @@ function initials(name = '') {
 }
 
 export default function AdminStudents() {
+  const navigate = useNavigate()
   const toast = useToast()
   const reportError = (msg) => {
     if (!msg) return
@@ -328,7 +332,7 @@ export default function AdminStudents() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md border border-neutral-200 bg-green-600 text-white hover:shadow">Download CSV</button>
+          <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition shadow-sm">Download CSV</button>
         </div>
       </header>
 
@@ -343,8 +347,8 @@ export default function AdminStudents() {
               className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
-          <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm">Search</button>
-          <button onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md border bg-indigo-600 text-white text-sm">Clear</button>
+          <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Search</button>
+          <button onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Clear</button>
         </div>
 
         {debouncedQuery ? (
@@ -352,16 +356,44 @@ export default function AdminStudents() {
         ) : null}
 
         {error ? (
-          <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading students: {error.message || String(error)}</div>
+          <div className="p-6 bg-white rounded-xl border border-red-200">
+            <EmptyState
+              icon="AlertCircle"
+              title="Error loading students"
+              description={error.message || String(error)}
+              variant="minimal"
+            />
+          </div>
         ) : loading ? (
-          <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading students…</div>
+          <div className="p-6 bg-white rounded-xl border border-neutral-200">
+            <EmptyState
+              icon="Loader2"
+              title="Loading students..."
+              variant="minimal"
+            />
+          </div>
         ) : Object.keys(groups).length === 0 ? (
-          <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No students yet. Use "Add student" to create one.</div>
+          <div className="bg-white rounded-xl border border-neutral-200">
+            <EmptyState
+              icon="Users"
+              title="No students yet"
+              description="Get started by adding your first student. Students can be enrolled in classes and track their academic progress."
+              actionLabel="Add Student"
+              onAction={() => navigate('/dashboard/add/user')}
+            />
+          </div>
         ) : null}
 
   <div className="flex flex-col gap-6">
-          {Object.keys(filteredGroups).length === 0 && !debouncedQuery && (
-            <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 col-span-full text-center">No students yet. Use "Add student" to create one.</div>
+          {Object.keys(filteredGroups).length === 0 && debouncedQuery && (
+            <div className="bg-white rounded-xl border border-neutral-200">
+              <EmptyState
+                icon="SearchX"
+                title="No results found"
+                description={`No students match "${debouncedQuery}". Try adjusting your search terms.`}
+                variant="default"
+              />
+            </div>
           )}
 
           {Object.keys(filteredGroups).sort().map((className) => {
@@ -387,7 +419,42 @@ export default function AdminStudents() {
 
                 {isOpen && (
                   <div className="p-4">
-                    <div className="overflow-x-auto">
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {list.slice(0, visible).map((st) => (
+                        <div key={st.id} className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
+                                {initials(st.name || st.svc_number)}
+                              </div>
+                              <div>
+                                <div className="font-medium text-black">{st.name || '-'}</div>
+                                <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
+                              </div>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded-full ${st.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {st.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-2 text-sm mb-3">
+                            {st.rank && <div className="flex justify-between"><span className="text-neutral-600">Rank:</span><span className="text-black">{st.rank}</span></div>}
+                            <div className="flex justify-between"><span className="text-neutral-600">Email:</span><span className="text-black truncate ml-2">{st.email || '-'}</span></div>
+                            <div className="flex justify-between"><span className="text-neutral-600">Phone:</span><span className="text-black">{st.phone_number || '-'}</span></div>
+                            <div className="flex justify-between"><span className="text-neutral-600">Created:</span><span className="text-black text-xs">{st.created_at ? new Date(st.created_at).toLocaleDateString() : '-'}</span></div>
+                          </div>
+
+                          <div className="flex gap-2 pt-3 border-t border-neutral-200">
+                            <button onClick={() => openEdit(st)} className="flex-1 px-4 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                            <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="flex-1 px-4 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="min-w-full table-auto">
                         <thead>
                           <tr className="text-left">
@@ -420,8 +487,8 @@ export default function AdminStudents() {
                               <td className="px-4 py-3 text-sm text-neutral-700">{st.created_at ? new Date(st.created_at).toLocaleString() : '-'}</td>
                               <td className="px-4 py-3 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <button onClick={() => openEdit(st)} className="px-3 py-1 rounded-md border bg-indigo-600 text-sm text-white">Edit</button>
-                                  <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-1 rounded-md border bg-red-600 text-sm text-white">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
+                                  <button onClick={() => openEdit(st)} className="px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                                  <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
                                 </div>
                               </td>
                             </tr>
@@ -432,7 +499,7 @@ export default function AdminStudents() {
 
                     {list.length > visible && (
                       <div className="mt-3 text-center">
-                        <button onClick={() => loadMore(className)} className="px-3 py-1 rounded-md border bg-white text-sm">Load more</button>
+                        <button onClick={() => loadMore(className)} className="px-4 py-2 rounded-md border border-neutral-200 bg-white text-sm hover:bg-gray-50 transition">Load more</button>
                       </div>
                     )}
                   </div>
@@ -444,17 +511,19 @@ export default function AdminStudents() {
       </section>
 
       {editingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={closeEdit} />
 
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <form onSubmit={submitEdit} className="transform bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Edit student</h4>
                   <p className="text-sm text-neutral-500">Update student details (class assignment is handled via enrollments).</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
               </div>
 
               <div className="mt-4">
@@ -519,8 +588,8 @@ export default function AdminStudents() {
               </div>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md border text-sm bg-red-600">Cancel</button>
-                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
               </div>
             </form>
           </div>
@@ -528,16 +597,26 @@ export default function AdminStudents() {
       )}
       {/* Confirm delete modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-10 w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={() => setConfirmDelete(null)} />
+          <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
-              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                    <LucideIcons.AlertTriangle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <h4 className="text-lg font-medium text-black">Confirm delete</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-neutral-600 ml-13">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md border bg-indigo-600 text-sm">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>

@@ -275,7 +275,7 @@ export default function Notices() {
                     <div className="text-xs text-neutral-500">Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}</div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm">Edit</button>
-                      <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded border bg-red-600 text-white text-sm">Delete</button>
+                      <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
                     </div>
                   </div>
                 </article>
@@ -311,7 +311,7 @@ export default function Notices() {
               <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete the notice <strong>{deleteTarget?.title}</strong>? This action cannot be undone.</p>
               <div className="mt-4 flex justify-end gap-3">
                 <button onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }} className="px-3 py-2 rounded-md border">Cancel</button>
-                <button onClick={performDelete} disabled={deleting} className="px-4 py-2 rounded-md bg-red-600 text-white">{deleting ? 'Deleting…' : 'Delete'}</button>
+                <button onClick={performDelete} disabled={deleting} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deleting ? 'Deleting…' : 'Delete'}</button>
               </div>
             </div>
           </div>

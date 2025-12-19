@@ -291,26 +291,6 @@ export default function NavBar({
         >
           <LucideIcons.Menu className="w-5 h-5" />
         </button>
-
-        {/* SEARCH */}
-        <div className="
-          hidden sm:flex items-center gap-2 
-          bg-white/80 backdrop-blur 
-          border border-neutral-200 
-          rounded-full px-3 py-1.5
-          shadow-sm
-          hover:border-neutral-300 transition
-        ">
-          <LucideIcons.Search className="w-4 h-4 text-neutral-500" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="
-              w-56 bg-transparent outline-none text-sm 
-              placeholder:text-neutral-400 text-neutral-700
-            "
-          />
-        </div>
       </div>
 
       {/* RIGHT SIDE */}
@@ -359,7 +339,7 @@ export default function NavBar({
         </button>
         {/* Notifications dropdown */}
         {notifOpen && (
-          <div className="absolute right-0 mt-2 w-80 bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
+          <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
             <div className="px-3 py-2 text-sm font-medium text-neutral-700 border-b border-neutral-100">Notifications</div>
             <div className="max-h-64 overflow-auto">
               {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
@@ -435,9 +415,9 @@ export default function NavBar({
           {menuOpen && (
             <div
               className="
-                absolute right-0 mt-2 w-44 
-                bg-white border border-neutral-200 
-                rounded-xl shadow-lg overflow-hidden 
+                absolute right-0 mt-2 w-44 max-w-[calc(100vw-2rem)]
+                bg-white border border-neutral-200
+                rounded-xl shadow-lg overflow-hidden
                 py-1 animate-in fade-in
                 text-neutral-700
               "
