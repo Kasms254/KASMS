@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School
 from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
 from django.contrib.auth.password_validation import validate_password
 
@@ -500,7 +501,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
             return obj.created_by.get_full_name() if obj.created_by else None
         return None
     
-
 class ExamReportSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True
@@ -534,5 +534,179 @@ class ExamReportSerializer(serializers.ModelSerializer):
         
         return value
     
+class SchoolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=School
+        fields = "__all__"
+        read_only_fields = ('created_at')
+
+class SchoolCreatedSerializer(serializers.ModelSerializer):
+
+    created_admin = serializers.SerializerMethodField(read_only=True) 
+    class Meta:
+        model=School
+        fields = ("id", "name", "subdomain", "primary_color", "secondary_color", "accent_color", "logo", "favicon", "is_active", "created_at", "created_admin")
+        read_only_fields = ('created_at')
+
+    def get_created_admin(self, obj):
+        return getattr(obj, "_auto_created_admin", None)
     
+    def create(self, validated_data):
+        school = super().create(validated_data)
+        return school
+    
+
+class SchoolThemeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = School
+        fields = "__all__"
+        read_only_fields = ['id', 'subdomain']
+
+
+class SchoolPublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = School
+        fields  = "__all__"
+
+        read_only_fields=  ['id']
+
+
+class SchoolDetailSerializer(serializers.ModelSerializer):
+    
+    student_count = serializers.IntegerField(read_only=True)
+    instructor_count = serializers.IntegerField(read_only=True)
+    can_add_student = serializers.BooleanField(read_only=True)
+    can_add_instructor = serializers.BooleanField(read_only=True)
+
+    total_courses = serializers.SerializerMethodField(read_only=True)
+    total_classes = serializers.SerializerMethodField(read_only=True)
+    active_enrollments = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model =School
+        fields =  "__all__"
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_total_courses(self, obj):
+        return obj.courses.filter(is_active=True).count()
+
+
+    def get_total_classes(self, obj):
+        return obj.classes.filter(is_active=True).count()
+
+    def get_active_enrollments(self, obj):
+        return obj.enrollments.filter(is_active=True).count()
+
+
+class SchoolCreateSerializer(serializers.ModelSerializer):
+    
+    admin_username = serializers.CharField(write_only=True, required=False)
+    admin_email = serializers.EmailField(write_only=True, required=False)
+
+    admin_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        validators=[validate_password]
+    )
+    admin_first_name = serializers.CharField(write_only=True, required=False)
+    admin_last_name = serializers.CharField(write_only =True, required =False)
+
+    created_admin = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = School
+        fields = "__all__"
+        read_only_fields = ['id', 'created_at', 'created_admin']
+
+
+    def get_created_admin(self, obj):
+        return getattr(obj, '_auto_created_admin', None)
+
+    def validate_subdomain(self, value):
+        import re
+
+        if not re.match (r'^[a-z0-9-]+$', value):
+            raise serializers.ValidationError(
+                "Subdomain can only contain lower case letters, numbers and hypens"
+            )
+
+        reserved = ['www', 'admin', 'api', 'app', 'mail', 'ftp']
+        if value in reserved:
+            raise serializers.ValidationError(
+                f"'{value}' is a reserved subdomain."
+            )
+
+
+        if School.objects.filter(subdomain=value).exists():
+            raise serializers.ValidationError(
+                "This subdomain is already taken"
+            )
+
+        return value
+
+    def create(self, validated_data):
+
+        admin_username = validated_data.pop('admin_username', None)
+        admin_email = validated_data.pop('admin_email', None)
+        admin_password = validated_data.pop('admin_password', None)
+        admin_first_name = validated_data.pop('admin_first_name', 'School')
+        admin_last_name = validated_data.pop('admin_last_name', 'Administrator')
+
+        school = School.objects.create(**validated_data)
+
+
+        if admin_username or admin_email or admin_password:
+            admin_user  = User.objects.get(
+                school=school,
+                role = 'admin',
+                username__endswith = '_admin'
+            )
+
+            if admin_username:
+                admin_user.username = admin_username
+            if admin_email:
+                admin_user.email = admin_email
+            if admin_password:
+                admin_user.set_password(admin_password)
+            if admin_first_name:
+                admin_user.first_name = admin_first_name
+            if admin_last_name:
+                admin_user.last_name = admin_last_name
+
+
+            admin_user.save()
+
+            school._auto_created_admin={
+                'id':admin_user.id,
+                'username':admin_user.username,
+                'email':admin_user.email,
+                'svc_number':admin_user.svc_number,
+                'password_set': 'Custom password set' if admin_password else 'Default Password'
+            
+            }
+        return school
+
+class SchoolUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model =School
+        fields = "__all__"
+
+        read_only_fields = ['id']
+
+
+class SchoolStatsSerializer(serializers.Serializer):
+
+    total_students = serializers.IntegerField()
+    total_instructors = serializers.IntegerField()
+    total_admins = serializers.IntegerField()
+    total_users = serializers.IntegerField()
+    active_students = serializers.IntegerField()
+    active_instructors = serializers.IntegerField()
+    total_courses = serializers.IntegerField()
+    total_classes = serializers.IntegerField()
+    active_enrollments =serializers.IntegerField()
+    total_exams = serializers.IntegerField()
+    student_capacity_used = serializers.FloatField()
+    instructor_capacity_used = serializers.FloatField()
+
     

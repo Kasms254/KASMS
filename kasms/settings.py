@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "core",
-    # 'rest_framework.authtoken',
+        # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
 ]
@@ -51,6 +51,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
+    "core.middleware.SchoolMiddleware",
+    "core.middleware.SchoolAccessMiddleware",
 ]
 
 
@@ -81,7 +84,7 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 
 
 
-AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "core.User"
 
 DATABASES = {
     # "default": {
@@ -218,9 +221,10 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-school-subdomain",
 ]
 
-CORS_EXPOSE_HEADERS = ["Authorization"]
+CORS_EXPOSE_HEADERS = ["Authorization", "X-School-Subdomain"]
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 
@@ -248,3 +252,37 @@ AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# school
+
+SCHOOL_SUBDOMAIN_ENABLED = True
+SCHOOL_HEADER_NAME = 'X-School-Subdomain'
+DEFAULT_SCHOOL_THEME = {
+    'primary_color': '#004AAD',
+    'secondary_color': '#FFFFFF',
+    'accent_color': '#000000',
+}
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers':False,
+    'handlers':{
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root':{
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers':{
+        'core.middleware':{
+            'handlers':['console'],
+            'level':'DEBUG' if DEBUG else 'INFO',
+            'propagate':False,
+        },
+    },
+}
