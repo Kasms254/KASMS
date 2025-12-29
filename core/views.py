@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment,School
+from .serializers import UserSerializer, CourseSerializer,SchoolStatsSerializer, SchoolUpdateSerializer,SchoolDetailSerializer, SchoolPublicSerializer, SchoolThemeSerializer, ClassSerializer, EnrollmentSerializer,SchoolCreateSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,6 +14,264 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
+# school
+class SchoolViewset(viewsets.ModelViewSet):
+    queryset = School.objects.all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name', 'subdomain']
+    ordering_fields = ['created_at', 'name']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return SchoolCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return SchoolUpdateSerializer
+        elif self.action == 'theme':
+            return SchoolThemeSerializer
+        elif self.action in ['list', 'by_subdomain']:
+            return SchoolPublicSerializer
+        else:
+            return SchoolDetailSerializer
+
+    def get_permissions(self):
+
+        if self.action in ['theme', 'by_subdomain']:
+            return [AllowAny()]
+        
+        elif self.action in ['create', 'destroy', 'list']:
+            return [IsAuthenticated(), IsAdmin()]
+
+        elif self.action in ['update', 'partial_update']:
+
+            return [IsAuthenticated(), IsAdmin()]
+
+        else:
+            return [IsAuthenticated()]
+        
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.is_authenticated and user.is_superuser:
+            return queryset
+
+        if user.is_authenticated and user.school:
+            return queryset.filter(id=user.school.id)
+
+        return queryset.none()
+
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def by_subdomain(self, request):
+        
+        subdomain = request.query_params.get('subdomain')
+
+        if not subdomain:
+            return Response({
+                'error': 'subdomain parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            school = School.objects.get(subdomain=subdomain, is_active=True)
+            serializer = self.get_serializer(school)
+
+            return Response(serializer.data)
+
+        except School.DoesNotExist:
+            return Response({
+                'error': 'school not found',
+                'subdomain':subdomain
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def theme(self, request, pk=None):
+
+        school = self.get_object()
+        serializer = SchoolThemeSerializer(school)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def stats(self, request, pk=None):
+
+        school = self.get_object()
+
+        if request.user.role != 'admin' or request.user.school.id != school.id:
+            return Response({
+                'error':'Only school administrators can view stats'
+                            }, 
+                            status=status.HTTP_403_FORBIDDEN)
+
+        users = User.objects.filter(school=school)
+
+        stats ={
+            'total_students':users.filter(role='student').count(),
+            'total_instructors':users.filter(role='instructor').count(),
+            'total_admins':users.filter(role='admin').count(),
+            'total_users':users.count(),
+            'active_students':users.filter(role='student', is_active=True).count(),
+            'active_instructors':users.filter(role='instructor', is_active=True).count(),
+            'total_courses':Course.objects.filter(school=school, is_active=True).count(),
+            'total_classes':Class.objects.filter(school=school, is_active=True).count(),
+            'active_enrollments':Enrollment.objects.filter(school=school, is_active=True).count(),
+            'total_exams':Exam.objects.filter(school=school, is_active=True).count(),
+
+        }
+
+        serializer = SchoolStatsSerializer(stats)
+
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def update_theme(self, request, pk=None):
+
+        school = self.get_object()
+
+        if request.user.role != 'admin' or request.user.school.id != school.id:
+            return Response({
+                'error': 'Only School administrators can update theme'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = SchoolThemeSerializer(school, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return Response({
+                'status':'success',
+                'message':'School theme update successfully',
+                'data':serializer.data
+            })
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    @action(detail=True, methods=['get'])
+    def users (self, request, pk=None):
+        school = self.get_object()
+
+        if request.user.role != 'admin' or request.user.school.id != school.id:
+            return Response({
+                'error': 'Only school adminstrators can view users'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        users = User.objects.filter(school=school)
+
+        role = request.query_params.get('role')
+        if role:
+            users = users.filter(role=role)
+
+
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            users = users.filter(is_active=is_active.lower() == 'true')
+
+        from core.serializers import UserListSerializer
+        serializer = UserListSerializer(users, many=True)
+
+        return Response({
+            'count': users.count(),
+            'results': serializer.data
+        })
+
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+
+        if not request.user.is_superuser:
+            return Response({
+                'error': 'Only platform admins can deactivate schools'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        school = self.get_object()
+        school.is_active = False
+        school.save()
+
+
+        User.objects.filter(school=school).update(is_active=False)
+
+        return Response({
+            'status':'success',
+            'message':f'School {school.name} has been deactivated'
+        })
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+
+        if not request.user.is_superuser:
+            return Response({
+                'error': 'Only platform administrators can Add users'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        school = self.get_object()
+        school.is_active = True
+        school.save()
+
+        return Response({
+            'status': 'success',
+            'message':f'School {school.name} has been activated'
+        })
+
+    def destroy (self, request, *args,**kwargs):
+        return Response({
+            'error':'Schools cannot be deleted. Use deactivate instead'
+        }, status = status.HTTP_400_BAD_REQUEST)
+
+
+
+class CurrentSchoolViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def list(self, request):
+
+        school = getattr(request, 'school', None)
+
+
+        if not school and request.user.is_authenticated:
+            school= request.user.school
+
+        if not school:
+            return Response({
+                'error':'No school context found',
+                'detail': 'Please provide X-School-Subdomain header or authenticate'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SchoolPublicSerializer(school)
+        return Response(serializer.data)
+
+
+    @action(detail=False, methods=['get'])
+    def theme(self, request):
+
+        school = getattr(request, 'school', None)
+
+        if not school and request.user.is_authenticated:
+            school = request.user.school
+
+        if not school:
+
+            subdomain = request.query_params.get('subdomain')
+            if subdomain:
+                try:
+                    school = School.objects.get(
+                        subdomain=subdomain, is_active=True
+                    )
+                except School.DoesNotExist:
+                    return Response({
+                        'error':'School Not found'
+                    }, status=status.HTTP_404_NOT_FOUND)
+
+            else:
+                return Response({
+                    'error':'No school context found'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = SchoolThemeSerializer(school)
+        return Response(serializer.data)
+            
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
@@ -170,7 +428,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'Password for user {user.username} has been reset'  
         })
-    
 
 class CourseViewSet(viewsets.ModelViewSet):
 
@@ -696,7 +953,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -821,7 +1077,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamAttachmentViewSet(viewsets.ModelViewSet):
     queryset = ExamAttachment.objects.select_related('exam', 'uploaded_by')
     serializer_class = ExamAttachmentSerializer
@@ -862,7 +1117,6 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
             exam=exam,
             uploaded_by=self.request.user
         )
-
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
@@ -939,7 +1193,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'count':results.count(),
             'results':serializer.data
         })
-
 
 class AttendanceViewSet(viewsets.ModelViewSet):
 
@@ -1157,7 +1410,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
 
 
@@ -1226,7 +1478,6 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'report': self.get_serializer(report).data,
             'students': student_data
         })
-
 
 class InstructorDashboardViewset(viewsets.ViewSet):
 
@@ -1336,7 +1587,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_grading': pending_grading
 
         })
-
 
 # students
 
@@ -1794,3 +2044,4 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
+

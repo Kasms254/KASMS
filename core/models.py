@@ -4,6 +4,38 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 import os
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+class School(models.Model):
+    name = models.CharField(max_length=50)
+    subdomain = models.CharField(max_length=100, unique=True)
+    primary_color = models.CharField(max_length=7, default="#004AAD")
+    secondary_color = models.CharField(max_length=7, default="#FFFFFF")
+    accent_color = models.CharField(max_length=7, default="#000000")
+    logo = models.ImageField(upload_to = "schools/logo/", null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    favicon = models.ImageField(upload_to="schools/favicons/", null=True, blank=True)
+
+    class Meta:
+        db_table = 'schools'
+        verbose_name = 'School'
+        verbose_name_plural = 'Schools'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def student_count(self):
+        return self.user_set.filter(role='student', is_active=True).count()
+
+    @property
+    def instructor_count(self):
+        return self.user_set.filter(role='instructor', is_active=True).count()
+    
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -36,6 +68,7 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
     email = models.CharField(max_length=25)
@@ -50,12 +83,14 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
+
     
 class Course(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='courses')
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField()
-  
     level = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -65,12 +100,25 @@ class Course(models.Model):
         db_table = 'courses'
         verbose_name = 'Course'
         verbose_name_plural = 'Courses'
+        ordering = ['name']
+        unique_together = ['school', 'code']
 
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        return f"{self.name} - ({self.school.name if self.school else 'No School'})"
+
+    @property
+    def current_enrollment(self):
+        return self.enrollments.filter(is_active=True).count()
+
+    
+    @property
+    def enrollment_status(self):
+        return f"{self.current_enrollment} / {self.capacity}"
+
 
 class Class(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='classes')
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=100)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='instructed_classes')
     start_date = models.DateField()
@@ -98,6 +146,7 @@ class Class(models.Model):
         return f"{self.current_enrollment} / {self.capacity}" 
     
 class Subject(models.Model):
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='subjects')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
     name = models.CharField(max_length=100)
     subject_code = models.CharField(max_length=20, unique=True,null=True, blank=True)
@@ -114,7 +163,7 @@ class Subject(models.Model):
         ordering = ['class_obj', 'name']
 
     def __str__(self):
-        return f"{self.name} ({self.class_obj.name})"
+        return f"{self.name} ({self.class_obj.name}) - {self.school.name}"
     
 class Notice(models.Model):
     PRIORITY_CHOICES = [
@@ -129,6 +178,8 @@ class Notice(models.Model):
         choices=PRIORITY_CHOICES,
         default='medium'
     )
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='notices')
+
     title = models.CharField(max_length=200)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -144,10 +195,12 @@ class Notice(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.title} ({self.get_priority_display()})"
+        return f"{self.title} ({self.get_priority_display()}) - {self.school.name}"
+
     
 class Enrollment(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='enrollments')
     enrolled_by= models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_processed')
     enrollment_date = models.DateTimeField(auto_now_add=True)
@@ -163,8 +216,6 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
 
-
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [
@@ -173,6 +224,7 @@ class Exam(models.Model):
         ('project', 'Project'),
     ]
 
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='exams')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     title = models.CharField(max_length=200)
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
@@ -204,8 +256,8 @@ class Exam(models.Model):
     def submission_count(self):
         return self.results.filter(is_submitted=True).count()
 
-
 class ExamAttachment(models.Model):
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_attachments')
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(
         upload_to='exams/', 
@@ -244,7 +296,7 @@ class ExamAttachment(models.Model):
 class ExamResult(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='results')
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_results')
     marks_obtained = models.DecimalField(
         max_digits =5,
         decimal_places=2,
@@ -258,6 +310,7 @@ class ExamResult(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
+    graded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'exam_results'
@@ -293,7 +346,7 @@ class Attendance(models.Model):
         ('absent', 'Absent'),
         ('late', 'Late'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True)
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendances')
     subject =models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
@@ -323,7 +376,7 @@ class ClassNotice(models.Model):
         ('medium', 'Medium'),
         ('high', 'High'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='class_notices')
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices')
     title = models.CharField(max_length=50)
@@ -344,6 +397,7 @@ class ClassNotice(models.Model):
 
 class ExamReport(models.Model):
 
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_reports')
     title = models.CharField(max_length=50)
     description = models.TextField(blank=True, null=True)
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='exam_reports')
@@ -382,3 +436,33 @@ class ExamReport(models.Model):
         return total_percentage / count if count > 0 else 0
     
 
+@receiver(post_save, sender=School)
+def create_school_admin(sender, instance, created, **kwargs):
+
+    if created:
+        username = f"{instance.subdomain}_admin"
+        svc_number = f"ADMIN_{instance.subdomain.upper()}_{instance.id}"
+
+
+        admin_user = User.objects.create(
+            username = username,
+            email = f"admin@{instance.subdomain}.com",
+            first_name = "School",
+            last_name = "Administrator",
+            role = "Admin",
+            school = instance,
+            svc_number=svc_number,
+            is_staff=True
+        )
+
+        admin_user.set_password(f"{instance.subdomain}Admin@123")
+        admin_user.save()
+
+
+        instance._auto_created_admin = {
+            'id': admin_user.id,
+            'username': admin_user.username,
+            'email':admin_user.email,
+            'default_password':f"{instance.subdomain}Admin@123",
+            'svc_number':svc_number
+        }

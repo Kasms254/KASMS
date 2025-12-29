@@ -6,13 +6,18 @@ from .views import (
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset,SchoolViewset, CurrentSchoolViewSet
     )
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 
 
 router = DefaultRouter()
+
+# school
+
+router.register(r'schools', SchoolViewset, basename='school')
+router.register(r'current-school', CurrentSchoolViewSet, basename='current-school')
 
 # admin routes
 router.register(r'users', UserViewSet, basename='user')
