@@ -23,8 +23,8 @@ export default function CourseDetail(){
   const toast = useToast()
   const modalRef = useRef(null)
 
-  const reportError = useCallback((m)=>{ if (!m) return; if (toast?.error) return toast.error(m); if (toast?.showToast) return toast.showToast(m, { type: 'error' }); console.error(m) }, [toast])
-  const reportSuccess = useCallback((m)=>{ if (!m) return; if (toast?.success) return toast.success(m); if (toast?.showToast) return toast.showToast(m, { type: 'success' }); console.log(m) }, [toast])
+  const reportError = useCallback((m)=>{ if (!m) return; if (toast?.error) return toast.error(m); if (toast?.showToast) return toast.showToast(m, { type: 'error' }); }, [toast])
+  const reportSuccess = useCallback((m)=>{ if (!m) return; if (toast?.success) return toast.success(m); if (toast?.showToast) return toast.showToast(m, { type: 'success' }); }, [toast])
 
   useEffect(()=>{
     // focus and escape handling for modal

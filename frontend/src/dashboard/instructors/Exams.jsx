@@ -24,13 +24,13 @@ export default function Exams() {
   const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
   
   
-  const [togglingId, setTogglingId] = useState(null)
   const [createFiles, setCreateFiles] = useState([])
   const [editFiles, setEditFiles] = useState([])
   
   
   const [attachmentsMap, setAttachmentsMap] = useState({})
   const [attachmentsOpenId, setAttachmentsOpenId] = useState(null)
+  const [sortOrder, setSortOrder] = useState('newest')
   const navigate = useNavigate()
 
   // fetch attachments for a single exam and stash into attachmentsMap
@@ -87,6 +87,30 @@ export default function Exams() {
     })
   }, [exams, query, subjectFilter])
 
+  const displayed = useMemo(() => {
+    const list = [...filtered]
+    if (sortOrder === 'newest') {
+      return list.sort((a, b) => new Date(b.exam_date || 0) - new Date(a.exam_date || 0))
+    }
+    if (sortOrder === 'oldest') {
+      return list.sort((a, b) => new Date(a.exam_date || 0) - new Date(b.exam_date || 0))
+    }
+    return list
+  }, [filtered, sortOrder])
+
+  const metrics = useMemo(() => {
+    const total = exams.length
+    const active = exams.filter(x => x.is_active).length
+    const finals = exams.filter(x => String(x.exam_type || '').toLowerCase() === 'final').length
+    const upcoming = exams.filter(x => {
+      if (!x.exam_date) return false
+      const d = new Date(x.exam_date)
+      const today = new Date()
+      return d >= today
+    }).length
+    return { total, active, finals, upcoming }
+  }, [exams])
+
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
@@ -113,13 +137,17 @@ export default function Exams() {
       console.debug('duplicate check failed', err)
     }
 
-    // Prevent creating another active Final exam client-side
+    // Prevent creating another active Final exam for the SAME subject client-side
     try {
       const isCreatingFinal = !editingId && String(currentForm.exam_type || '').toLowerCase() === 'final'
       if (isCreatingFinal) {
-        const hasActiveFinal = exams.some(x => String(x.exam_type || '').toLowerCase() === 'final' && !!x.is_active)
+        const hasActiveFinal = exams.some(x => {
+          const subjId = x.subject?.id ?? x.subject
+          const formSubj = Number(currentForm.subject)
+          return Number(subjId) === Number(formSubj) && String(x.exam_type || '').toLowerCase() === 'final' && !!x.is_active
+        })
         if (hasActiveFinal) {
-          return toast.error('An active Final exam already exists. Deactivate it before creating another Final exam.')
+          return toast.error('An active Final exam already exists for this subject. Deactivate it before creating another Final exam.')
         }
       }
     } catch (err) {
@@ -204,8 +232,6 @@ export default function Exams() {
       toast.error('Failed to upload one or more files')
     } finally {
       setCreateFiles([])
-      // close create modal after uploads are handled
-      setCreateModalOpen(false)
     }
   }
   try {
@@ -218,6 +244,8 @@ export default function Exams() {
   } catch (err) {
     console.warn('Failed to create class notice', err)
   }
+  // close create modal after successful creation
+  setCreateModalOpen(false)
       } catch (err) {
         toast.error(getErrorMessage(err) || 'Failed to create exam')
       } finally {
@@ -271,22 +299,6 @@ export default function Exams() {
       setDeletingId(null)
     }
   }
-
-  async function toggleActive(exam) {
-    if (!exam) return
-    setTogglingId(exam.id)
-    try {
-      const res = await api.updateExam(exam.id, { is_active: !exam.is_active })
-      setExams(s => s.map(x => (x.id === res.id ? res : x)))
-      toast.success(res.is_active ? 'Exam activated' : 'Exam deactivated')
-    } catch (err) {
-      toast.error(err?.message || 'Failed to update exam status')
-    } finally {
-      setTogglingId(null)
-    }
-  }
-
-  
 
   function handleCreateFilesChange(e) {
     const files = Array.from(e.target.files || [])
@@ -388,88 +400,127 @@ export default function Exams() {
   setEditFiles([])
   }
 
+  function LoadingSkeleton() {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="animate-pulse rounded-lg border border-neutral-200 bg-neutral-100 p-4">
+            <div className="h-4 w-24 bg-neutral-200 rounded" />
+            <div className="mt-2 h-4 w-40 bg-neutral-200 rounded" />
+            <div className="mt-2 h-3 w-32 bg-neutral-200 rounded" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 text-black max-w-7xl mx-auto">
-      <header className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold mb-2">Exams</h2>
-          <p className="text-sm text-gray-600">View, filter and create exams for your subjects. Use the Create button to add a new exam.</p>
+      <header className="mb-6 flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <h2 className="text-3xl font-semibold mb-1">Exams</h2>
+            <p className="text-sm text-gray-600">Plan exams, share resources, and notify students in one place.</p>
+          </div>
+          <div className="flex items-center gap-2 self-start">
+            <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">Create exam</button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">Create exam</button>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[{ label: 'Total exams', value: metrics.total, tone: 'text-indigo-600' },
+            { label: 'Active', value: metrics.active, tone: 'text-emerald-600' },
+            { label: 'Finals', value: metrics.finals, tone: 'text-amber-600' },
+            { label: 'Upcoming', value: metrics.upcoming, tone: 'text-blue-600' }].map(card => (
+            <div key={card.label} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="text-xs uppercase tracking-wide text-neutral-500">{card.label}</div>
+              <div className={`mt-2 text-2xl font-semibold ${card.tone || 'text-gray-900'}`}>{card.value}</div>
+            </div>
+          ))}
         </div>
       </header>
 
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-1 gap-4">
-              {/* Create button (opens modal) */}
-
-  {/* Exams list (full width) */}
-  <div className="md:col-span-1">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
-              <h3 className="font-medium text-lg">My exams</h3>
-              <div className="flex items-center gap-3 w-full lg:w-auto">
-                <input placeholder="Search by title or subject" value={query} onChange={e => setQuery(e.target.value)} className="w-full lg:w-64 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
-                <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} className="px-3 py-2 rounded-lg border">
+      <div className="mt-4 grid grid-cols-1 gap-4">
+        <div className="bg-white rounded-lg shadow p-4 border border-neutral-200">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+              <input placeholder="Search by title or subject" value={query} onChange={e => setQuery(e.target.value)} className="w-full sm:w-72 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <div className="flex gap-2">
+                <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} className="px-3 py-2 rounded-lg border w-full sm:w-52">
                   <option value="">All subjects</option>
                   {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="px-3 py-2 rounded-lg border w-full sm:w-36">
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
                 </select>
               </div>
             </div>
 
-            {loading && <div className="text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div><p className="mt-2 text-gray-600">Loading...</p></div>}
-            {!loading && exams.length === 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-                <h3 className="mt-2 text-lg font-medium text-gray-900">No exams found</h3>
-                <p className="mt-1 text-gray-600">You currently have no exams. Click "Create exam" to add a new exam.</p>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2 text-xs text-neutral-600" aria-hidden />
+          </div>
 
-            {!loading && filtered.length > 0 && (
-              <>
-                {/* Mobile: card list */}
-                <div className="md:hidden space-y-3">
-                  {filtered.map((x) => (
-                    <div key={x.id} className="bg-white rounded-lg p-3 shadow-sm border">
+          {loading && <LoadingSkeleton />}
+
+          {!loading && exams.length === 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <h3 className="mt-2 text-lg font-medium text-gray-900">No exams yet</h3>
+              <p className="mt-1 text-gray-600">Start by creating your first exam and attaching supporting resources.</p>
+              <button onClick={() => setCreateModalOpen(true)} className="mt-3 px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">Create exam</button>
+            </div>
+          )}
+
+          {!loading && displayed.length > 0 && (
+            <>
+              {/* Mobile: card list */}
+              <div className="md:hidden space-y-3">
+                {displayed.map((x) => {
+                  const links = parseLinksFromDescription(x.description)
+                  const files = attachmentsMap[x.id] || []
+                  const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
+                  return (
+                    <div key={x.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutral-200">
                       <div className="flex items-start justify-between">
                         <div>
-                                <div className="font-medium text-black text-base break-words">{x.title}</div>
+                          <div className="font-semibold text-black text-base break-words flex items-center gap-2">
+                            {x.title}
+                            {x.is_active ? <span className="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full">Active</span> : <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full">Inactive</span>}
+                          </div>
                           <div className="text-sm text-neutral-600">{x.subject_name || x.subject?.name || '—'}</div>
-                          <div className="text-sm text-neutral-500 mt-1">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
+                          <div className="text-sm text-neutral-500 mt-1">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'} • {x.exam_duration ? `${x.exam_duration} min` : 'No duration'}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm text-neutral-600">{x.total_marks ?? '—'} pts</div>
-                          <div className="text-xs mt-1">{x.exam_type_display || x.exam_type}</div>
+                          <div className="text-xs mt-1 uppercase tracking-wide text-neutral-500">{x.exam_type_display || x.exam_type}</div>
                         </div>
                       </div>
 
-            <div className="mt-3 flex flex-col gap-2">
+                      <div className="mt-3 flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm text-neutral-600 break-words">Resources: {(attachmentsMap[x.id] || []).length + (parseLinksFromDescription(x.description) || []).length}</div>
+                          <div className="text-sm text-neutral-700 break-words">Resources: {totalResources}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white whitespace-nowrap hover:bg-indigo-700 transition">Edit</button>
                             <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white whitespace-nowrap">Grade</button>
+                            <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white whitespace-nowrap hover:bg-indigo-700 transition">Edit</button>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm text-neutral-600 break-words">Created by: {x.created_by_name || '—'}</div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1.5 rounded-md border bg-white text-sm whitespace-nowrap">{x.is_active ? 'Deactivate' : 'Activate'}</button>
                             <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white whitespace-nowrap hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
                           </div>
                         </div>
 
                         {/* attachments toggle */}
                         <div className="flex items-center justify-end">
-                          <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline break-words">{attachmentsOpenId === x.id ? 'Hide' : 'View resources'}</button>
+                          <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline break-words">{attachmentsOpenId === x.id ? 'Hide resources' : 'View resources'}</button>
                         </div>
 
                         {attachmentsOpenId === x.id && (
                           <div className="mt-2 bg-neutral-50 p-2 rounded">
-                            {(attachmentsMap[x.id] && attachmentsMap[x.id].length > 0) ? (
+                            {(files && files.length > 0) ? (
                               <div className="space-y-2">
-                                {attachmentsMap[x.id].map(f => (
+                                {files.map(f => (
                                   <div key={f.id} className="text-sm">
                                     {((f.file || f.file_url) || '').toLowerCase().match(/\.(png|jpe?g|gif|webp)$/) ? (
                                       <img src={f.file_url || f.file} alt={f.file ? f.file.split('/').pop() : 'image'} className="max-w-full h-auto rounded" />
@@ -480,110 +531,124 @@ export default function Exams() {
                                   </div>
                                 ))}
                               </div>
-                            ) : <div className="text-sm text-neutral-600">No resources</div>}
+                            ) : <div className="text-sm text-neutral-600">No uploaded files</div>}
+
+                            {(links && links.length > 0) ? (
+                              <div className="mt-2">
+                                <div className="text-sm font-medium">Links</div>
+                                <ul className="list-disc pl-5 mt-1 space-y-1">
+                                  {links.map((lnk, idx) => (
+                                    <li key={idx} className="text-sm">
+                                      <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{lnk}</a>
+                                      <span className="text-xs text-neutral-600">Link</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )})}
+              </div>
 
-                {/* Desktop: table */}
-                <div className="hidden md:block overflow-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
-                      <tr className="text-gray-600">
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Subject</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Resources</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Marks</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Created by</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filtered.map((x) => {
-                        const links = parseLinksFromDescription(x.description)
-                        const files = attachmentsMap[x.id] || []
-                        const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
-                        return (
-                          <React.Fragment key={x.id}>
-                            <tr>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900">
-                                <div className="flex items-center gap-3">
-                                  <div className="font-medium truncate max-w-[40ch]">{x.title}</div>
+              {/* Desktop: table */}
+              <div className="hidden md:block overflow-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr className="text-gray-600">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Subject</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Resources</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Marks</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Owner</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {displayed.map((x) => {
+                      const links = parseLinksFromDescription(x.description)
+                      const files = attachmentsMap[x.id] || []
+                      const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
+                      return (
+                        <React.Fragment key={x.id}>
+                          <tr className="hover:bg-neutral-50 transition">
+                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900">
+                              <div className="flex flex-col gap-1 max-w-[40ch]">
+                                <div className="flex items-center gap-2">
+                                  <div className="font-semibold truncate">{x.title}</div>
                                   {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
                                 </div>
-                              </td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.subject_name || x.subject?.name || '—'}</td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <div className="text-sm text-gray-700">{totalResources}</div>
-                                  <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline whitespace-nowrap">View</button>
-                                </div>
-                              </td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.exam_type_display || x.exam_type}</td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.total_marks ?? '—'}</td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900">{x.created_by_name || '—'}</td>
-                              <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">
-                                <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                  <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                                  <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white">Grade</button>
-                                  <button disabled={togglingId === x.id} onClick={() => toggleActive(x)} className="px-3 py-1.5 rounded-md border bg-white text-sm">{x.is_active ? 'Deactivate' : 'Activate'}</button>
-                                  <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                                <div className="text-xs text-neutral-500 line-clamp-2">{x.description || 'No description added'}</div>
+                                <div className="text-xs text-neutral-600">{x.exam_duration ? `${x.exam_duration} min` : 'No duration'}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.subject_name || x.subject?.name || '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="text-sm text-gray-700">{totalResources}</div>
+                                <button onClick={() => toggleAttachments(x.id)} className="text-sm text-blue-600 underline whitespace-nowrap">View</button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.exam_type_display || x.exam_type}</td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.total_marks ?? '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.created_by_name || '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                <button onClick={() => startEdit(x)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                                <button onClick={() => navigate(`/list/results?exam=${x.id}`)} className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white">Grade</button>
+                                <button disabled={deletingId === x.id} onClick={() => handleDelete(x)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === x.id ? 'Deleting...' : 'Remove'}</button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {attachmentsOpenId === x.id && (
+                            <tr className="bg-neutral-50">
+                              <td colSpan={8} className="px-4 py-3">
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <div>
+                                    <div className="text-sm font-medium">Uploaded files</div>
+                                    {(files && files.length > 0) ? (
+                                      <ul className="list-disc pl-5 mt-1 space-y-1">
+                                        {files.map(f => (
+                                          <li key={f.id} className="text-sm">
+                                            <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
+                                            <span className="text-xs text-neutral-600">File • {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : <div className="text-sm text-neutral-600">No uploaded files</div>}
+                                  </div>
+
+                                  <div>
+                                    <div className="text-sm font-medium">Links</div>
+                                    {(links && links.length > 0) ? (
+                                      <ul className="list-disc pl-5 mt-1 space-y-1">
+                                        {links.map((lnk, idx) => (
+                                          <li key={idx} className="text-sm">
+                                            <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{lnk}</a>
+                                            <span className="text-xs text-neutral-600">Link</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : <div className="text-sm text-neutral-600">No links</div>}
+                                  </div>
                                 </div>
                               </td>
                             </tr>
-
-                            {attachmentsOpenId === x.id && (
-                              <tr className="bg-neutral-50">
-                                <td colSpan={8} className="px-4 py-3">
-                                  <div className="space-y-2">
-                                    {/* Files */}
-                                    {(files && files.length > 0) ? (
-                                      <div>
-                                        <div className="text-sm font-medium">Uploaded files</div>
-                                        <ul className="list-disc pl-5 mt-1">
-                                          {files.map(f => (
-                                            <li key={f.id} className="text-sm">
-                                              <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
-                                              <span className="text-xs text-neutral-600">File • {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ) : <div className="text-sm text-neutral-600">No uploaded files</div>}
-
-                                    {/* External links parsed from description */}
-                                    {(links && links.length > 0) ? (
-                                      <div>
-                                        <div className="text-sm font-medium mt-2">Links</div>
-                                        <ul className="list-disc pl-5 mt-1">
-                                          {links.map((lnk, idx) => (
-                                            <li key={idx} className="text-sm">
-                                              <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-600 underline mr-2 break-words">{lnk}</a>
-                                              <span className="text-xs text-neutral-600">Link</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
+                          )}
+                        </React.Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
         {createModalOpen && (

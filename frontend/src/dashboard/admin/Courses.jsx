@@ -27,7 +27,6 @@ export default function Courses() {
     if (!msg) return
     if (toast?.success) return toast.success(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'success' })
-    console.log(msg)
   }, [toast])
     const [courseErrors, setCourseErrors] = useState({})
 

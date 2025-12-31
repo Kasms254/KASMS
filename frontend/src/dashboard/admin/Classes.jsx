@@ -169,7 +169,6 @@ export default function ClassesList(){
       setSubjectErrors({})
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
-      else console.log('Subject added')
       closeModal()
       await loadClasses()
     }catch(err){

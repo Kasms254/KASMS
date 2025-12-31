@@ -208,7 +208,6 @@ export default function SubjectsPage() {
       await api.addSubject(payload)
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
-      else console.log('Subject added')
       closeModal()
       // refresh subjects
       const s = await api.getSubjects()

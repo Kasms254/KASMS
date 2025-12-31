@@ -91,9 +91,25 @@ export default function SubjectsPage() {
               <div className="mt-1"><span className="font-medium text-black">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
               {s.subject_code ? <div className="mt-1"><span className="font-medium text-black">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              <button onClick={(e) => { e.stopPropagation(); navigate(`/list/classes/${s.class_obj?.id || s.class_obj || s.class_id || ''}?subject=${s.id}`) }} className="px-3 py-1 rounded bg-white text-black text-sm shadow-sm">View class</button>
-              <button onClick={(e) => { e.stopPropagation(); navigate(`/list/exams?subject=${s.id}`) }} className="px-3 py-1 rounded border bg-white text-black text-sm">View exams</button>
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/list/classes/${s.class_obj?.id || s.class_obj || s.class_id || ''}?subject=${s.id}`)
+                }}
+                className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+              >
+                View class
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/list/exams?subject=${s.id}`)
+                }}
+                className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white hover:bg-emerald-700 transition"
+              >
+                View exams
+              </button>
             </div>
           </div>
         ))}

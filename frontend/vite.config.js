@@ -5,13 +5,17 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // build: {
-  //   minify: 'terser',
-  //   terserOptions: {
-  //     compress: {
-  //       // Remove console logs in production builds for security
-  //       drop_console: true,
-  //       drop_debugger: true,
+  //   minify: 'esbuild', // esbuild is faster than terser
+  //   rollupOptions: {
+  //     output: {
+  //       manualChunks: {
+  //         vendor: ['react', 'react-dom', 'react-router-dom'],
+  //       },
   //     },
   //   },
+  // },
+  // esbuild: {
+  //   drop: ['console', 'debugger'],
+  //   pure: ['console.log', 'console.debug', 'console.info'],
   // },
 })

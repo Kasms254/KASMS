@@ -150,7 +150,12 @@ export default function NavBar({
       setNotifs(normalized)
       setUnreadCount(normalized.filter(x => !x.read).length)
     } catch (err) {
-      console.debug('failed to load notifications', err)
+      if (import.meta.env.DEV) {
+        console.error('Failed to load notifications:', err)
+      }
+      // Set empty notifications on error so UI doesn't break
+      setNotifs([])
+      setUnreadCount(0)
     } finally {
       setNotifsLoading(false)
     }
@@ -200,7 +205,9 @@ export default function NavBar({
           return next
         })
       } catch (err) {
-        console.debug('failed to mark notifications read', err)
+        if (import.meta.env.DEV) {
+          console.error('Failed to mark notifications read:', err)
+        }
       }
     }
     window.addEventListener('notifications:marked_read', onNotificationsMarkedRead)
@@ -213,7 +220,9 @@ export default function NavBar({
     if (!user) return
     // Don't refetch if we already have notifications loaded
     if (notifs.length === 0) {
-      fetchNotifications().catch(() => {})
+      fetchNotifications().catch(err => {
+        if (import.meta.env.DEV) console.error('Initial notification fetch failed:', err)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
@@ -441,10 +450,10 @@ export default function NavBar({
               {user ? (
                 <button
                   role="menuitem"
-                  onClick={() => {
-                    auth.logout()
+                  onClick={async () => {
+                    await auth.logout()
                     setMenuOpen(false)
-                    navigate('/')
+                    navigate('/', { replace: true })
                   }}
                   className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
                 >

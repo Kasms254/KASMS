@@ -154,9 +154,9 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                     <button
                       title={item.label}
                       aria-label={item.label}
-                      onClick={() => {
+                      onClick={async () => {
                         try {
-                          auth.logout()
+                          await auth.logout()
                         } catch { /* ignore logout errors */ }
                         navigate('/')
                         if (onMobileMenuClick) onMobileMenuClick()
@@ -198,9 +198,9 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                   key={item.label}
                   title={item.label}
                   aria-label={item.label}
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      auth.logout()
+                      await auth.logout()
                     } catch { /* ignore logout errors */ }
                     navigate('/')
                     if (onMobileMenuClick) onMobileMenuClick()
