@@ -744,12 +744,12 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
-        exam_type = serializer.validated_data,get('exam_type', serializer.instance.exam_type)
+        exam_type = serializer.validated_data.get('exam_type', serializer.instance.exam_type)
         is_active = serializer.validated_data.get('is_active', serializer.instance.is_active)
 
 
         if exam_type == 'final' and is_active:
-            self._check_final_exam_constraint(subject, instance = serializer.instance)
+            self.check_final_exam_constraint(subject, instance = serializer.instance)
 
         serializer.save()
         

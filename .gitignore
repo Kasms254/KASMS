@@ -18,6 +18,7 @@ staticfiles/
 
 .env
 .env.*
+backup.json
 
 .vscode/
 .idea/
