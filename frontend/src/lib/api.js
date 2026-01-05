@@ -545,6 +545,7 @@ export default {
   getMyExams,
   createExam,
   getExamResults,
+  getMyResults,
   generateExamResults,
   bulkGradeResults,
   gradeResult,
