@@ -1,36 +1,59 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
+import React, { lazy, Suspense } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import DashboardIndex from './components/DashboardIndex'
-import AdminDashboard from './dashboard/admin/AdminDashboard'
-import InstructorsDashboard from './dashboard/instructors/InstructorsDashboard'
-import InstructorsSubjectsPage from './dashboard/instructors/SubjectsPage'
-import Attendance from './dashboard/instructors/Attendance'
-import Exams from './dashboard/instructors/Exams'
-import AddResults from './dashboard/instructors/AddResults'
-import ResultsRoute from './components/ResultsRoute'
-import StudentsDashboard from './dashboard/students/StudentsDashboard'
-import StudentsRoute from './components/StudentsRoute'
-import AddUser from './pages/AddUser'
-import Courses from './dashboard/admin/Courses'
-import CourseDetail from './dashboard/admin/CourseDetail'
-import Classes from './dashboard/admin/Classes'
-import AdminStudents from './dashboard/admin/AdminStudents'
-import ClassDetail from './dashboard/instructors/ClassDetail'
-import AdminInstructors from './dashboard/admin/AdminInstructors'
 import Login from './pages/Login'
-import SubjectsPage from './dashboard/admin/SubjectsPage'
-import TeachingAssignments from './dashboard/admin/TeachingAssignments'
-import Notices from './dashboard/admin/Notices'
-import ClassNotices from './dashboard/instructors/ClassNotices'
-import Notifications from './dashboard/shared/Notifications'
+import useAuth from './hooks/useAuth'
+
+// Lazy load heavy dashboard components for better performance
+const AdminDashboard = lazy(() => import('./dashboard/admin/AdminDashboard'))
+const InstructorsDashboard = lazy(() => import('./dashboard/instructors/InstructorsDashboard'))
+const StudentsDashboard = lazy(() => import('./dashboard/students/StudentsDashboard'))
+const InstructorsSubjectsPage = lazy(() => import('./dashboard/instructors/SubjectsPage'))
+const Attendance = lazy(() => import('./dashboard/instructors/Attendance'))
+const Exams = lazy(() => import('./dashboard/instructors/Exams'))
+const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
+const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
+const StudentsRoute = lazy(() => import('./components/StudentsRoute'))
+const AddUser = lazy(() => import('./pages/AddUser'))
+const Courses = lazy(() => import('./dashboard/admin/Courses'))
+const CourseDetail = lazy(() => import('./dashboard/admin/CourseDetail'))
+const Classes = lazy(() => import('./dashboard/admin/Classes'))
+const AdminStudents = lazy(() => import('./dashboard/admin/AdminStudents'))
+const ClassDetail = lazy(() => import('./dashboard/instructors/ClassDetail'))
+const AdminInstructors = lazy(() => import('./dashboard/admin/AdminInstructors'))
+const SubjectsPage = lazy(() => import('./dashboard/admin/SubjectsPage'))
+const TeachingAssignments = lazy(() => import('./dashboard/admin/TeachingAssignments'))
+const Notices = lazy(() => import('./dashboard/admin/Notices'))
+const ClassNotices = lazy(() => import('./dashboard/instructors/ClassNotices'))
+const Notifications = lazy(() => import('./dashboard/shared/Notifications'))
+
+// Loading component for code-split routes
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">Loading...</p>
+    </div>
+  </div>
+)
+
+const ProtectedLogin = () => {
+	const { token, loading } = useAuth()
+	if (loading) return null
+	if (token) return <Navigate to="/dashboard" replace />
+	return <Login />
+}
 
 const App = () => {
 	return (
-		<Routes>
-			{/* Public landing: login at root */}
-			<Route path="/" element={<Login />} />
+		<ErrorBoundary>
+			<Suspense fallback={<LoadingFallback />}>
+				<Routes>
+			{/* Public landing: login at root - redirect to dashboard if already authenticated */}
+			<Route path="/" element={<ProtectedLogin />} />
 
 			{/* Application routes under /dashboard (wrapped with Layout) */}
 			<Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -104,6 +127,8 @@ const App = () => {
 				<Route index element={<TeachingAssignments />} />
 			</Route>
 		</Routes>
+			</Suspense>
+		</ErrorBoundary>
 	)
 }
 

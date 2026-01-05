@@ -16,7 +16,6 @@ export default function AddResults() {
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
-  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
   const [savedSnapshot, setSavedSnapshot] = useState([])
   const [showMarksModal, setShowMarksModal] = useState(false)
   const [marksInput, setMarksInput] = useState('')
@@ -64,9 +63,9 @@ export default function AddResults() {
     if (q) setSelectedExam(String(q))
   }, [location.search])
 
-  async function loadResults(examId) {
+  async function loadResults(examId, { skipSpinner = false } = {}) {
     if (!examId) return
-    setLoading(true)
+    if (!skipSpinner) setLoading(true)
     try {
       const resp = await api.getExamResults(examId)
       // resp contains { exam, count, submitted, pending, results }
@@ -96,34 +95,39 @@ export default function AddResults() {
     } catch (err) {
       toast.error(err?.message || 'Failed to load results')
     } finally {
-      setLoading(false)
+      if (!skipSpinner) setLoading(false)
     }
   }
 
   // load results whenever selectedExam changes
   useEffect(() => {
+    let mounted = true
+
+    async function generateAndLoad(id) {
+      if (!id) return
+      setLoading(true)
+      try {
+        await api.generateExamResults(id)
+      } catch (err) {
+        toast.error(err?.message || 'Failed to create result entries')
+      }
+      try {
+        if (mounted) await loadResults(id, { skipSpinner: true })
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
     if (selectedExam) {
-      loadResults(selectedExam)
+      generateAndLoad(selectedExam)
     } else {
       setExamInfo(null)
       setResults([])
     }
+
+    return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam])
-
-  async function handleGenerate() {
-    if (!selectedExam) return toast.error('Select an exam first')
-    setShowGenerateConfirm(false)
-    setLoading(true)
-    try {
-      await api.generateExamResults(selectedExam)
-      toast.success('Result entries generated')
-      // backend returns created count only; reload to fetch new rows
-      await loadResults(selectedExam)
-    } catch (err) {
-      toast.error(err?.message || 'Failed to generate result entries')
-    } finally { setLoading(false) }
-  }
 
   function handleConfirmApplyMarks() {
     // validate input then apply
@@ -385,13 +389,6 @@ export default function AddResults() {
               </option>
             ))}
           </select>
-          <button
-            onClick={() => setShowGenerateConfirm(true)}
-            disabled={!selectedExam || loading}
-            className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-          >
-            Create Result Entries for All Students
-          </button>
         </div>
       </div>
 
@@ -687,41 +684,6 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* Confirmation Modal for Generate */}
-      {showGenerateConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Result Entries?</h3>
-                <p className="text-gray-700 mb-4">
-                  This will create result entry rows for all students enrolled in this course.
-                  {results.length > 0 && ' Existing entries will not be affected.'}
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setShowGenerateConfirm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleGenerate}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-                  >
-                    Confirm
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Modal: Apply Marks to All */}
       {showMarksModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

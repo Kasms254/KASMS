@@ -53,26 +53,24 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     // Try to notify backend to blacklist the refresh token, then clear local tokens
-    (async () => {
-      try {
-        const refresh = authStore.getRefreshToken && authStore.getRefreshToken()
-        if (refresh) {
-          try {
-            await api.logout(refresh)
-          } catch {
-            // ignore backend logout errors
-          }
+    try {
+      const refresh = authStore.getRefreshToken && authStore.getRefreshToken()
+      if (refresh) {
+        try {
+          await api.logout(refresh)
+        } catch {
+          // ignore backend logout errors
         }
-      } catch {
-        // ignore
-      } finally {
-  try { authStore.logout() } catch { /* ignore */ }
-        setToken(null)
-        setUser(null)
       }
-    })()
+    } catch {
+      // ignore
+    } finally {
+      try { authStore.logout() } catch { /* ignore */ }
+      setToken(null)
+      setUser(null)
+    }
   }, [])
 
   return (

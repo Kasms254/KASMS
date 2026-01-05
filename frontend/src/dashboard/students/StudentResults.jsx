@@ -377,7 +377,7 @@ export default function StudentResults() {
 
       {/* Summary Banner */}
       <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
             <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Score</div>
             <div className="text-2xl font-bold text-indigo-900">{formatMarks(overall.obtained, overall.totalPossible)}</div>

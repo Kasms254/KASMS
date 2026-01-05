@@ -136,7 +136,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Cards grid - modern layout */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Link to="/list/students" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
           <UserCard type="students" count={metrics.students} />
         </Link>
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
       {/* Calendar + Recent activity area */}
       {/* prepare sample events in a stable way */}
       { /** eventsMemo is stable across renders */ }
-      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+      <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
         <div>
           <Calendar events={calendarEvents} />
         </div>

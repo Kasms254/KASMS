@@ -63,8 +63,10 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   }
 
   if (!res.ok) {
-    // Log detailed error for debugging (will be stripped in production builds)
-    console.error('API Error:', { status: res.status, url, data })
+    // Log detailed error for debugging in development only
+    if (import.meta.env.DEV) {
+      console.error('API Error:', { status: res.status, url, data })
+    }
 
     // Show sanitized error messages to users (avoid exposing internal details)
     let userMessage
@@ -396,7 +398,11 @@ export async function uploadExamAttachment(examId, file) {
 
   if (!res.ok) {
     let text = await res.text()
-    try { text = JSON.parse(text) } catch (e) { console.debug('upload parse error', e) }
+    try {
+      text = JSON.parse(text)
+    } catch (e) {
+      if (import.meta.env.DEV) console.debug('upload parse error', e)
+    }
     const err = new Error(res.statusText || 'Upload failed')
     err.status = res.status
     err.data = text

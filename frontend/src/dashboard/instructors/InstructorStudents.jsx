@@ -111,15 +111,15 @@ export default function InstructorStudents() {
 
   return (
     <div className="max-w-7xl mx-auto px-4">
-      <header className="flex items-center justify-between mb-6">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-black">My students</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold text-black">My students</h2>
           <p className="text-sm text-neutral-500">Students enrolled in classes you teach</p>
         </div>
       </header>
 
       <section className="grid gap-6">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <input
               value={searchTerm}
@@ -128,8 +128,10 @@ export default function InstructorStudents() {
               className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
-          <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm">Search</button>
-          <button onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md border bg-indigo-600 text-white text-sm">Clear</button>
+          <div className="flex gap-2 sm:gap-3">
+            <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="flex-1 sm:flex-none px-3 py-2 rounded-md bg-indigo-600 text-white text-sm whitespace-nowrap">Search</button>
+            <button onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="flex-1 sm:flex-none px-3 py-2 rounded-md border bg-indigo-600 text-white text-sm whitespace-nowrap">Clear</button>
+          </div>
         </div>
 
         {debouncedQuery ? (
@@ -175,41 +177,85 @@ export default function InstructorStudents() {
                     ) : err ? (
                       <div className="p-4 text-red-600">Error loading students: {err.message || String(err)}</div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full table-auto">
-                          <thead>
-                            <tr className="text-left">
-                              <th className="px-4 py-2 text-sm text-neutral-600">Service No</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Rank</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Email</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Phone</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Active</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Created</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {studentsForClass.slice(0, visible).map((st) => (
-                              <tr key={st.id} className="border-t last:border-b hover:bg-neutral-50">
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.svc_number || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.rank || '-'}</td>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name || st.svc_number)}</div>
-                                    <div>
-                                      <div className="font-medium text-black">{st.name || '-'}</div>
-                                    </div>
+                      <>
+                        {/* Mobile/Tablet Card View */}
+                        <div className="lg:hidden space-y-3">
+                          {studentsForClass.slice(0, visible).map((st) => (
+                            <div key={st.id} className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold shrink-0">
+                                  {initials(st.name || st.svc_number)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-black truncate">{st.name || '-'}</div>
+                                  <div className="text-sm text-neutral-600">{st.svc_number || '-'}</div>
+                                  {st.rank && <div className="text-xs text-neutral-500 mt-1">{st.rank}</div>}
+                                </div>
+                                <div className={`px-2 py-1 rounded-full text-xs ${st.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {st.is_active ? 'Active' : 'Inactive'}
+                                </div>
+                              </div>
+                              <div className="space-y-2 text-sm">
+                                {st.email && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-neutral-500 min-w-[70px]">Email:</span>
+                                    <span className="text-neutral-700 truncate">{st.email}</span>
                                   </div>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.email || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.phone_number || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.is_active ? 'Yes' : 'No'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{st.created_at ? new Date(st.created_at).toLocaleString() : '-'}</td>
+                                )}
+                                {st.phone_number && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-neutral-500 min-w-[70px]">Phone:</span>
+                                    <span className="text-neutral-700">{st.phone_number}</span>
+                                  </div>
+                                )}
+                                {st.created_at && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-neutral-500 min-w-[70px]">Joined:</span>
+                                    <span className="text-neutral-700 text-xs">{new Date(st.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:block overflow-x-auto">
+                          <table className="min-w-full table-auto">
+                            <thead>
+                              <tr className="text-left">
+                                <th className="px-4 py-2 text-sm text-neutral-600">Service No</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Rank</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Email</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Phone</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Active</th>
+                                <th className="px-4 py-2 text-sm text-neutral-600">Created</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {studentsForClass.slice(0, visible).map((st) => (
+                                <tr key={st.id} className="border-t last:border-b hover:bg-neutral-50">
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.svc_number || '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.rank || '-'}</td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">{initials(st.name || st.svc_number)}</div>
+                                      <div>
+                                        <div className="font-medium text-black">{st.name || '-'}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.email || '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.phone_number || '-'}</td>
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.is_active ? 'Yes' : 'No'}</td>
+                                  <td className="px-4 py-3 text-sm text-neutral-700">{st.created_at ? new Date(st.created_at).toLocaleString() : '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
 
                     {studentsForClass.length > visible && (

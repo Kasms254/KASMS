@@ -14,44 +14,44 @@ export default function Layout() {
   return (
     <ToastProvider>
       <div className="min-h-screen flex text-gray-900 dark:text-gray-100">
-        {/* Mobile Sidebar Overlay (drawer) */}
+        {/* Mobile/Tablet Sidebar Overlay (drawer) */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
         )}
 
-        {/* Sidebar - Desktop: always visible, Mobile: drawer */}
+        {/* Sidebar - Desktop: always visible, Mobile/Tablet: drawer */}
         <aside
           className={`
-            fixed md:static inset-y-0 left-0 z-50
+            fixed lg:static inset-y-0 left-0 z-50
             transition-transform duration-300 ease-in-out
             overflow-y-auto text-white p-4 shadow-lg
             backdrop-blur-sm bg-gradient-to-b from-[#0ea5a4]/80 to-[#166534]/80
             ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-            md:translate-x-0
-            ${collapsed ? 'md:w-20' : 'md:w-64'}
+            lg:translate-x-0
+            ${collapsed ? 'lg:w-20' : 'lg:w-64'}
             w-64
           `}
           aria-label="Sidebar navigation"
         >
           <Link to="/dashboard" className="flex items-center gap-2 mb-6" onClick={() => setMobileMenuOpen(false)}>
             <div className="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center text-white font-bold">S</div>
-            <span className={`${collapsed ? 'md:hidden' : ''} font-semibold text-lg`}>School Management System</span>
+            <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>School Management System</span>
           </Link>
           <Menu role={role} collapsed={collapsed} onMobileMenuClick={() => setMobileMenuOpen(false)} />
         </aside>
 
         {/* Main area */}
-        <div className="flex-1 min-h-screen flex flex-col w-full md:w-auto">
+        <div className="flex-1 min-h-screen flex flex-col w-full lg:w-auto">
           <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
             <NavBar
               collapsed={collapsed}
               onToggle={() => {
-                // On mobile: toggle drawer, on desktop: toggle collapse
-                if (window.innerWidth < 768) {
+                // On mobile/tablet: toggle drawer, on desktop: toggle collapse
+                if (window.innerWidth < 1024) {
                   setMobileMenuOpen((s) => !s)
                 } else {
                   setCollapsed((s) => !s)

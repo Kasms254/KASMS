@@ -27,7 +27,6 @@ export default function Courses() {
     if (!msg) return
     if (toast?.success) return toast.success(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'success' })
-    console.log(msg)
   }, [toast])
     const [courseErrors, setCourseErrors] = useState({})
 
@@ -225,7 +224,7 @@ export default function Courses() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? (
           <div>Loading...</div>
         ) : courses.length === 0 ? (

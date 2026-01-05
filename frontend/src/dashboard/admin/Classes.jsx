@@ -169,7 +169,6 @@ export default function ClassesList(){
       setSubjectErrors({})
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
-      else console.log('Subject added')
       closeModal()
       await loadClasses()
     }catch(err){
@@ -217,7 +216,7 @@ export default function ClassesList(){
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
             <div key={c.id} className="relative">

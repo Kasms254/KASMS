@@ -23,8 +23,8 @@ export default function CourseDetail(){
   const toast = useToast()
   const modalRef = useRef(null)
 
-  const reportError = useCallback((m)=>{ if (!m) return; if (toast?.error) return toast.error(m); if (toast?.showToast) return toast.showToast(m, { type: 'error' }); console.error(m) }, [toast])
-  const reportSuccess = useCallback((m)=>{ if (!m) return; if (toast?.success) return toast.success(m); if (toast?.showToast) return toast.showToast(m, { type: 'success' }); console.log(m) }, [toast])
+  const reportError = useCallback((m)=>{ if (!m) return; if (toast?.error) return toast.error(m); if (toast?.showToast) return toast.showToast(m, { type: 'error' }); }, [toast])
+  const reportSuccess = useCallback((m)=>{ if (!m) return; if (toast?.success) return toast.success(m); if (toast?.showToast) return toast.showToast(m, { type: 'success' }); }, [toast])
 
   useEffect(()=>{
     // focus and escape handling for modal
@@ -195,7 +195,7 @@ export default function CourseDetail(){
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {classes.length === 0 ? (
           <div className="text-sm text-neutral-400">No classes yet</div>
         ) : (
