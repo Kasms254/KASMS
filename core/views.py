@@ -821,7 +821,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamAttachmentViewSet(viewsets.ModelViewSet):
     queryset = ExamAttachment.objects.select_related('exam', 'uploaded_by')
     serializer_class = ExamAttachmentSerializer
@@ -862,7 +861,6 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
             exam=exam,
             uploaded_by=self.request.user
         )
-
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
@@ -939,7 +937,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'count':results.count(),
             'results':serializer.data
         })
-
 
 class AttendanceViewSet(viewsets.ModelViewSet):
 
@@ -1157,7 +1154,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
 
 
@@ -1226,7 +1222,6 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'report': self.get_serializer(report).data,
             'students': student_data
         })
-
 
 class InstructorDashboardViewset(viewsets.ViewSet):
 
@@ -1336,6 +1331,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_grading': pending_grading
 
         })
+
 
 
 # students
