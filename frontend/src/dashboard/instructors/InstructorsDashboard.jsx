@@ -173,7 +173,7 @@ export default function InstructorsDashboard() {
       </header>
 
       {/* Cards grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
   <Card title="My classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
   <div
     role="button"
@@ -188,7 +188,7 @@ export default function InstructorsDashboard() {
         <Card title="Attendance today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
-      <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div>
           <Calendar events={calendarEvents} />
         </div>
@@ -228,11 +228,10 @@ export default function InstructorsDashboard() {
 
             const pad = (n) => String(n).padStart(2, '0')
             const todayISO = `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`
-            const upcoming = items
+            const list = items
               .filter(it => it && it.date && it.date >= todayISO)
               .sort((a, b) => a.date.localeCompare(b.date))
               .slice(0, 5)
-            const list = (upcoming && upcoming.length) ? upcoming : items.slice(0, 5)
 
             return (
               <ul className="divide-y">

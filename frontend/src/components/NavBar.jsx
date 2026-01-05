@@ -288,14 +288,14 @@ export default function NavBar({
     ">
       {/* LEFT SIDE */}
       <div className="flex items-center gap-3">
-        {/* Mobile toggle */}
+        {/* Mobile/Tablet toggle */}
         <button
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="
-            p-2 rounded-md 
-            text-neutral-600 hover:bg-neutral-100 
-            md:hidden transition
+            p-2 rounded-md
+            text-neutral-600 hover:bg-neutral-100
+            lg:hidden transition
           "
         >
           <LucideIcons.Menu className="w-5 h-5" />
@@ -303,7 +303,7 @@ export default function NavBar({
       </div>
 
       {/* RIGHT SIDE */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Messages */}
         <button
           className="
@@ -410,14 +410,14 @@ export default function NavBar({
               {initials}
             </div>
 
-            <div className="hidden md:flex flex-col text-left">
+            <div className="hidden sm:flex flex-col text-left">
               <span className="text-sm font-medium text-neutral-800 leading-4">
                 {displayName || 'Guest'}
               </span>
               <span className="text-xs text-neutral-500">{user?.role || 'visitor'}</span>
             </div>
 
-            <LucideIcons.ChevronDown className="w-4 h-4 text-neutral-500 hidden md:block" />
+            <LucideIcons.ChevronDown className="w-4 h-4 text-neutral-500 hidden sm:block" />
           </button>
 
           {/* Dropdown */}

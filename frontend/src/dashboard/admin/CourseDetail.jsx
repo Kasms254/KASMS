@@ -195,7 +195,7 @@ export default function CourseDetail(){
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {classes.length === 0 ? (
           <div className="text-sm text-neutral-400">No classes yet</div>
         ) : (
