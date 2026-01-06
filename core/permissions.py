@@ -55,3 +55,9 @@ class IsOwnerOrAdmin(permissions.BasePermission):
             return obj.owner == request.user or request.user.role == 'admin'
 
         return request.user.role == 'admin'
+
+
+class IsAdminOrCommandant(BasePermission):
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['admin', 'commandant']

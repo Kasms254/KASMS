@@ -39,7 +39,7 @@ class UserViewSet(viewsets.ModelViewSet):
                                              )
         return queryset
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor, IsAdmin])
     def my_students(self, request):
         if request.user.role != 'instructor':
             return Response({
@@ -323,7 +323,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     
 
     # instructor specific classes
-    @action(detail=False, methods=['get'], permission_classes=[IsInstructor], url_path='my-classes')
+    @action(detail=False, methods=['get'], permission_classes=[IsInstructor, IsAdmin], url_path='my-classes')
     def my_classes(self, request):
         if request.user.role != 'instructor':
             return Response({
@@ -367,14 +367,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'count': students.count(),
             'results': serializer.data,
             'class':class_obj.name
-        })
-    @action(detail=False, methods=['get'])
-    def whoami(self, request):
-        return Response({
-            "id": request.user.id,
-            "email": request.user.email,
-            "role": getattr(request.user, "role", None),
-            "is_authenticated": request.user.is_authenticated,
         })
 
 class SubjectViewSet(viewsets.ModelViewSet):
