@@ -10,7 +10,9 @@ from .views import (
     )
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
-
+from .performance_viewsets import(
+    SubjectPerformanceViewSet, ClassPerformanceViewSet
+)
 
 router = DefaultRouter()
 
@@ -35,6 +37,10 @@ router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attac
 # stduent routes
 router.register(r'student-dashboard', StudentDashboardViewset, basename='student-dashboard')
 app_name = 'core'
+
+# performance summary
+router.register(r'subject-performance', SubjectPerformanceViewSet, basename='subject-performance')
+router.register(r'class-performance', ClassPerformanceViewSet, basename='class-performance')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

@@ -345,7 +345,7 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsInstructorofClass])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def my_students(self, request, pk=None):
 
         class_obj = self.get_object()

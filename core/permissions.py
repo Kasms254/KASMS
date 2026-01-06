@@ -61,3 +61,27 @@ class IsAdminOrCommandant(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'commandant']
+
+
+class  ReadOnlyForCommandant(permissions.BasePermission):
+
+    def has_permission(self, request, view):
+
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user_role = getattr(request.user, 'role', None)
+
+        if user_role == 'admin':
+            return True
+
+        
+        if user_role == "commandant":
+            return request.method in permissions.SAFE_METHODS
+
+        return False
+
+
+    message = "You do not have permission to perform this action"
+
+    
