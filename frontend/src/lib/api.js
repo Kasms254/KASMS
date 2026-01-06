@@ -1,8 +1,8 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+
 
 // Sanitize string input to prevent injection attacks
 function sanitizeInput(value) {
@@ -449,6 +449,47 @@ export async function deleteNotice(id) {
   return request(`/api/notices/${id}/`, { method: 'DELETE' })
 }
 
+// =====================
+// Performance Analytics APIs
+// =====================
+
+// Subject Performance
+export async function getSubjectPerformanceSummary(subjectId) {
+  if (!subjectId) throw new Error('subjectId is required')
+  return request(`/api/subject-performance/summary/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
+export async function compareSubjects(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/subject-performance/compare_subjects/?class_id=${encodeURIComponent(classId)}`)
+}
+
+export async function getSubjectTrendAnalysis(subjectId, days = 90) {
+  if (!subjectId) throw new Error('subjectId is required')
+  return request(`/api/subject-performance/trend_analysis/?subject_id=${encodeURIComponent(subjectId)}&days=${encodeURIComponent(days)}`)
+}
+
+// Class Performance
+export async function getClassPerformanceSummary(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/summary/?class_id=${encodeURIComponent(classId)}`)
+}
+
+export async function getClassTopPerformers(classId, limit = 10) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
+}
+
+export async function compareClasses(courseId = null) {
+  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
+  return request(`/api/class-performance/compare_classes/${qs}`)
+}
+
+export async function exportClassReport(classId, format = 'summary') {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/export_report/?class_id=${encodeURIComponent(classId)}&format=${encodeURIComponent(format)}`)
+}
+
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
   const API = API_BASE
@@ -576,6 +617,10 @@ export async function deactivateUser(id) {
   return request(`/api/users/${id}/deactivate/`, { method: 'POST' })
 }
 
+export async function resetUserPassword(id, newPassword) {
+  return request(`/api/users/${id}/reset_password/`, { method: 'POST', body: { new_password: newPassword } })
+}
+
 export default {
   login,
   getCurrentUser,
@@ -596,6 +641,7 @@ export default {
   deleteUser,
   activateUser,
   deactivateUser,
+  resetUserPassword,
   getSubjects,
   getSubjectsPaginated,
   getClassSubjects,
@@ -646,4 +692,12 @@ export default {
   getClassesPaginated,
   getCoursesPaginated,
   getNoticesPaginated,
+  // Performance Analytics
+  getSubjectPerformanceSummary,
+  compareSubjects,
+  getSubjectTrendAnalysis,
+  getClassPerformanceSummary,
+  getClassTopPerformers,
+  compareClasses,
+  exportClassReport,
 }

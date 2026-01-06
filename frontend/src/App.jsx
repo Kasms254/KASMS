@@ -29,6 +29,8 @@ const TeachingAssignments = lazy(() => import('./dashboard/admin/TeachingAssignm
 const Notices = lazy(() => import('./dashboard/admin/Notices'))
 const ClassNotices = lazy(() => import('./dashboard/instructors/ClassNotices'))
 const Notifications = lazy(() => import('./dashboard/shared/Notifications'))
+const PerformanceAnalytics = lazy(() => import('./dashboard/shared/PerformanceAnalytics'))
+const ExamReports = lazy(() => import('./dashboard/shared/ExamReports'))
 
 // Loading component for code-split routes
 const LoadingFallback = () => (
@@ -126,6 +128,16 @@ const App = () => {
 			{/* Teaching assignments: create and view instructor-class-subject assignments (admin only) */}
 			<Route path="/list/assignments" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
 				<Route index element={<TeachingAssignments />} />
+			</Route>
+
+			{/* Performance Analytics (admins & instructors) */}
+			<Route path="/analytics" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<PerformanceAnalytics />} />
+			</Route>
+
+			{/* Exam Reports (admins & instructors) */}
+			<Route path="/list/exam-reports" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<ExamReports />} />
 			</Route>
 		</Routes>
 			</Suspense>

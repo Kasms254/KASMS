@@ -38,6 +38,13 @@ export default function AdminInstructors() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  // Password reset modal state
+  const [resetPasswordUser, setResetPasswordUser] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  // Toggle activation loading
+  const [togglingId, setTogglingId] = useState(null)
 
   // Load classes list once
   useEffect(() => {
@@ -136,6 +143,62 @@ export default function AdminInstructors() {
       reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  // Toggle user activation status
+  async function toggleActivation(it) {
+    setTogglingId(it.id)
+    try {
+      if (it.is_active) {
+        await api.deactivateUser(it.id)
+        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: false } : x))
+        toast?.success?.('Instructor deactivated successfully') || toast?.showToast?.('Instructor deactivated successfully', { type: 'success' })
+      } else {
+        await api.activateUser(it.id)
+        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: true } : x))
+        toast?.success?.('Instructor activated successfully') || toast?.showToast?.('Instructor activated successfully', { type: 'success' })
+      }
+    } catch (err) {
+      reportError('Failed to update status: ' + (err.message || String(err)))
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  // Password reset handlers
+  function openResetPassword(it) {
+    setResetPasswordUser(it)
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  function closeResetPassword() {
+    setResetPasswordUser(null)
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  async function submitResetPassword(e) {
+    e.preventDefault()
+    if (!resetPasswordUser) return
+    if (newPassword.length < 6) {
+      reportError('Password must be at least 6 characters')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      reportError('Passwords do not match')
+      return
+    }
+    setResetLoading(true)
+    try {
+      await api.resetUserPassword(resetPasswordUser.id, newPassword)
+      toast?.success?.('Password reset successfully') || toast?.showToast?.('Password reset successfully', { type: 'success' })
+      closeResetPassword()
+    } catch (err) {
+      reportError('Failed to reset password: ' + (err.message || String(err)))
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -342,18 +405,18 @@ export default function AdminInstructors() {
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
         <>
-          {/* Desktop Table View */}
-          <div className="hidden md:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto max-w-full">
-            <table className="w-full table-fixed">
+          {/* Desktop Table View (large screens and above) */}
+          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto max-w-full">
+            <table className="w-full table-auto">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Service No</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Rank</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Name</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Phone</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Classes</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Subjects</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Actions</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Service No</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Rank</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Name</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Phone</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Classes</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Subjects</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,57 +424,65 @@ export default function AdminInstructors() {
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
-                    <td className="px-4 py-3 ">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
                           {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal">{it.phone_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal break-words">
+                    <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">
                       {(() => {
                         const cls = getInstructorClasses(it.id)
                         if (!cls || cls.length === 0) return '-'
-                        // show up to 3 classes, display class name
                         const labels = cls.slice(0, 3).map((c) => {
                           return c.name || c.class_obj_name || '-'
                         })
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 3} more</span> : null}
+                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{cls.length - 3} more</span> : null}
                           </div>
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal break-words">
+                    <td className="px-4 py-3 text-sm text-neutral-700">
                       {(() => {
                         const subjects = getInstructorSubjects(it.id)
                         if (!subjects || subjects.length === 0) return '-'
-                        // show up to 3 subjects, display subject name
                         const labels = subjects.slice(0, 3).map((s) => {
                           return s.name || s.subject_code || '-'
                         })
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 3} more</span> : null}
+                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{subjects.length - 3} more</span> : null}
                           </div>
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 align-middle">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(it)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                        <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
+                        <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                        <button 
+                          disabled={togglingId === it.id} 
+                          onClick={() => toggleActivation(it)} 
+                          className={`px-3 py-1.5 rounded-md text-sm text-white transition whitespace-nowrap disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                        >
+                          {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => openResetPassword(it)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition whitespace-nowrap" title="Reset Password">
+                          <LucideIcons.Key className="w-4 h-4" />
+                        </button>
+                        <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap min-w-[70px]">{deletingId === it.id ? '...' : 'Remove'}</button>
                       </div>
                     </td>
                   </tr>
@@ -420,7 +491,91 @@ export default function AdminInstructors() {
             </table>
           </div>
 
-          {/* Mobile Card View */}
+          {/* Tablet Compact View (medium screens: tablets) */}
+          <div className="hidden md:block lg:hidden bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="text-left bg-neutral-50">
+                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Instructor</th>
+                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Contact</th>
+                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Teaching</th>
+                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {instructors.map((it) => (
+                    <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md flex-shrink-0">
+                            {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                            <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
+                            {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-neutral-700">{it.phone_number || '-'}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="space-y-1">
+                          {(() => {
+                            const cls = getInstructorClasses(it.id)
+                            const subjects = getInstructorSubjects(it.id)
+                            return (
+                              <>
+                                {cls && cls.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {cls.slice(0, 2).map((c, idx) => (
+                                      <span key={idx} className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</span>
+                                    ))}
+                                    {cls.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 2}</span>}
+                                  </div>
+                                )}
+                                {subjects && subjects.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {subjects.slice(0, 2).map((s, idx) => (
+                                      <span key={idx} className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</span>
+                                    ))}
+                                    {subjects.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 2}</span>}
+                                  </div>
+                                )}
+                                {(!cls || cls.length === 0) && (!subjects || subjects.length === 0) && <span className="text-sm text-neutral-500">-</span>}
+                              </>
+                            )
+                          })()}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-col items-stretch gap-1.5">
+                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
+                          <button 
+                            disabled={togglingId === it.id} 
+                            onClick={() => toggleActivation(it)} 
+                            className={`px-3 py-1.5 rounded-md text-xs text-white transition whitespace-nowrap text-center disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          >
+                            {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => openResetPassword(it)} className="flex-1 px-3 py-1.5 rounded-md bg-purple-600 text-xs text-white hover:bg-purple-700 transition text-center" title="Reset Password">
+                              <LucideIcons.Key className="w-3 h-3 inline" />
+                            </button>
+                            <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="flex-1 px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap text-center">{deletingId === it.id ? '...' : 'Remove'}</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card View (small screens) */}
           <div className="md:hidden space-y-4">
             {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
@@ -493,9 +648,23 @@ export default function AdminInstructors() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-3 border-t border-neutral-100">
-                  <button onClick={() => openEdit(it)} className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                  <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="flex-1 px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
+                <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
+                  <div className="flex gap-2">
+                    <button onClick={() => openEdit(it)} className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button 
+                      disabled={togglingId === it.id} 
+                      onClick={() => toggleActivation(it)} 
+                      className={`flex-1 px-3 py-2 rounded-md text-sm text-white transition disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    >
+                      {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => openResetPassword(it)} className="flex-1 px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition flex items-center justify-center gap-1">
+                      <LucideIcons.Key className="w-4 h-4" /> Reset Password
+                    </button>
+                    <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="flex-1 px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -730,6 +899,52 @@ export default function AdminInstructors() {
                 <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
                 <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="w-full sm:w-auto px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetPasswordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeResetPassword} />
+          <div className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <h4 className="text-lg font-medium text-black">Reset Password</h4>
+              <p className="text-sm text-neutral-600 mt-2">
+                Set a new password for <strong>{resetPasswordUser.first_name ? `${resetPasswordUser.first_name} ${resetPasswordUser.last_name}` : (resetPasswordUser.full_name || resetPasswordUser.svc_number)}</strong>
+              </p>
+
+              <form onSubmit={submitResetPassword} className="mt-4 space-y-4">
+                <label className="block">
+                  <div className="text-sm text-neutral-600 mb-1">New Password</div>
+                  <input 
+                    type="password" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
+                    required 
+                    minLength={6}
+                  />
+                </label>
+
+                <label className="block">
+                  <div className="text-sm text-neutral-600 mb-1">Confirm Password</div>
+                  <input 
+                    type="password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
+                    required 
+                    minLength={6}
+                  />
+                </label>
+
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
+                  <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={resetLoading} className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{resetLoading ? 'Resetting...' : 'Reset Password'}</button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

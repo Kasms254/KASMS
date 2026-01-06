@@ -207,10 +207,7 @@ export default function ClassesList(){
             <span className="sm:hidden">Show inactive</span>
           </label>
             {user && user.role === 'admin' && (
-              <div className="flex gap-2">
-                <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
-                <button onClick={() => openAddSubjectModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add subject</button>
-              </div>
+              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
             )}
         </div>
       </div>

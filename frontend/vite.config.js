@@ -17,8 +17,7 @@ export default defineConfig({
     },
   },
   esbuild: {
-    // Remove console logs and debugger statements in production
+    // Remove ALL console methods and debugger statements in production
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
-    pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.debug', 'console.info'] : [],
   },
 })

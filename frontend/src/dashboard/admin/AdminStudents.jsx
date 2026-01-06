@@ -39,6 +39,13 @@ export default function AdminStudents() {
   const [classesList, setClassesList] = useState([])
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
   const [enrollmentsList, setEnrollmentsList] = useState([])
+  // Password reset modal state
+  const [resetPasswordUser, setResetPasswordUser] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  // Toggle activation loading
+  const [togglingId, setTogglingId] = useState(null)
 
 
   // fetch students from API with pagination
@@ -352,6 +359,62 @@ export default function AdminStudents() {
     }
   }
 
+  // Toggle user activation status
+  async function toggleActivation(st) {
+    setTogglingId(st.id)
+    try {
+      if (st.is_active) {
+        await api.deactivateUser(st.id)
+        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: false } : x))
+        toast?.success?.('Student deactivated successfully') || toast?.showToast?.('Student deactivated successfully', { type: 'success' })
+      } else {
+        await api.activateUser(st.id)
+        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: true } : x))
+        toast?.success?.('Student activated successfully') || toast?.showToast?.('Student activated successfully', { type: 'success' })
+      }
+    } catch (err) {
+      reportError('Failed to update status: ' + (err.message || String(err)))
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  // Password reset handlers
+  function openResetPassword(st) {
+    setResetPasswordUser(st)
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  function closeResetPassword() {
+    setResetPasswordUser(null)
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  async function submitResetPassword(e) {
+    e.preventDefault()
+    if (!resetPasswordUser) return
+    if (newPassword.length < 6) {
+      reportError('Password must be at least 6 characters')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      reportError('Passwords do not match')
+      return
+    }
+    setResetLoading(true)
+    try {
+      await api.resetUserPassword(resetPasswordUser.id, newPassword)
+      toast?.success?.('Password reset successfully') || toast?.showToast?.('Password reset successfully', { type: 'success' })
+      closeResetPassword()
+    } catch (err) {
+      reportError('Failed to reset password: ' + (err.message || String(err)))
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
@@ -507,9 +570,19 @@ export default function AdminStudents() {
                     <div className="flex justify-between gap-2"><span className="text-neutral-600">Phone:</span><span className="text-black truncate">{st.phone_number || '-'}</span></div>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-neutral-200">
-                    <button onClick={() => openEdit(st)} className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                    <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
+                  <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
+                    <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button 
+                      disabled={togglingId === st.id} 
+                      onClick={() => toggleActivation(st)} 
+                      className={`flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm text-white transition disabled:opacity-60 ${st.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    >
+                      {togglingId === st.id ? '...' : st.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button onClick={() => openResetPassword(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-purple-600 text-xs sm:text-sm text-white hover:bg-purple-700 transition">
+                      <LucideIcons.Key className="w-3 h-3 inline mr-1" />Reset
+                    </button>
+                    <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === st.id ? '...' : 'Remove'}</button>
                   </div>
                 </div>
               ))}
@@ -552,7 +625,17 @@ export default function AdminStudents() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                          <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap">{deletingId === st.id ? 'Deleting...' : 'Remove'}</button>
+                          <button 
+                            disabled={togglingId === st.id} 
+                            onClick={() => toggleActivation(st)} 
+                            className={`px-3 py-1.5 rounded-md text-xs text-white transition whitespace-nowrap disabled:opacity-60 ${st.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          >
+                            {togglingId === st.id ? '...' : st.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => openResetPassword(st)} className="px-3 py-1.5 rounded-md bg-purple-600 text-xs text-white hover:bg-purple-700 transition whitespace-nowrap" title="Reset Password">
+                            <LucideIcons.Key className="w-3 h-3" />
+                          </button>
+                          <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap">{deletingId === st.id ? '...' : 'Remove'}</button>
                         </div>
                       </td>
                     </tr>
@@ -673,6 +756,75 @@ export default function AdminStudents() {
                 <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {resetPasswordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={closeResetPassword} />
+          <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <form onSubmit={submitResetPassword} className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100">
+                    <LucideIcons.Key className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-medium text-black">Reset Password</h4>
+                    <p className="text-sm text-neutral-500">{resetPasswordUser.name || resetPasswordUser.svc_number}</p>
+                  </div>
+                </div>
+                <button type="button" aria-label="Close" onClick={closeResetPassword} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="text-sm text-neutral-600 mb-1 block">New Password</span>
+                  <input 
+                    type="password" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                    placeholder="Enter new password"
+                    required
+                    minLength={6}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm text-neutral-600 mb-1 block">Confirm Password</span>
+                  <input 
+                    type="password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                    placeholder="Confirm new password"
+                    required
+                    minLength={6}
+                  />
+                </label>
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <LucideIcons.AlertCircle className="w-4 h-4" />
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button type="button" onClick={closeResetPassword} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword} 
+                  className="px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {resetLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
