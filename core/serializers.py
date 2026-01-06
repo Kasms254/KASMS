@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus
 from django.contrib.auth.password_validation import validate_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -218,6 +218,7 @@ class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     is_expired = serializers.SerializerMethodField(read_only=True)
+    is_read = serializers.SerializerMethodField()
 
     class Meta:
         model = Notice
@@ -241,6 +242,15 @@ class NoticeSerializer(serializers.ModelSerializer):
             if value < timezone.now().date():
                 raise serializers.ValidationError("Expiry date cannot be in the past.")
         return value
+
+    def get_is_read(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return NoticeReadStatus.objects.filter(
+                user=request.user,
+                notice = obj,
+            ).exists()
+        return False
     
 
 class EnrollmentSerializer(serializers.ModelSerializer):
@@ -487,6 +497,7 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    is_read = serializers.SerializerMethodField()
 
 
     class Meta:
@@ -499,6 +510,16 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
         if isinstance(obj, ClassNotice):
             return obj.created_by.get_full_name() if obj.created_by else None
         return None
+
+    
+    def get_is_read(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return ClassNoticeReadStatus.objects.filter(
+                user=request.user,
+                class_notice=obj
+            ).exists()
+        return False
     
 
 class ExamReportSerializer(serializers.ModelSerializer):
