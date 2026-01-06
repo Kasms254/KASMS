@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
@@ -17,11 +17,110 @@ export default function Notices() {
   const [editTarget, setEditTarget] = useState(null)
   const [errors, setErrors] = useState({})
 
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterPriority, setFilterPriority] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+
   const PRIORITY_CLASSES = {
     low: 'bg-green-100 text-green-700',
     medium: 'bg-indigo-100 text-indigo-700',
     high: 'bg-amber-100 text-amber-700',
     urgent: 'bg-rose-100 text-rose-700',
+  }
+
+  // Check if a notice has expired based on expiry_date
+  const isExpired = (notice) => {
+    if (!notice.expiry_date) return false
+    const now = new Date()
+    const expiryDate = new Date(notice.expiry_date)
+    // Set to end of day for expiry date
+    expiryDate.setHours(23, 59, 59, 999)
+    return now > expiryDate
+  }
+
+  // Check if any filter is active (search or filter inputs are being used)
+  const hasActiveFilters = useMemo(() => {
+    return searchTerm.trim() !== '' ||
+           filterPriority !== 'all' ||
+           filterStatus !== 'all' ||
+           filterDateFrom !== '' ||
+           filterDateTo !== ''
+  }, [searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo])
+
+  // Filtered notices based on search and filters
+  const filteredNotices = useMemo(() => {
+    let filtered = [...notices]
+
+    // If no filters are active, hide inactive notices by default
+    if (!hasActiveFilters) {
+      filtered = filtered.filter(n => {
+        const expired = isExpired(n)
+        const effectivelyActive = n.is_active && !expired
+        return effectivelyActive
+      })
+    }
+
+    // Search by title or content
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase()
+      filtered = filtered.filter(n =>
+        (n.title || '').toLowerCase().includes(query) ||
+        (n.content || '').toLowerCase().includes(query)
+      )
+    }
+
+    // Filter by priority
+    if (filterPriority !== 'all') {
+      filtered = filtered.filter(n => n.priority === filterPriority)
+    }
+
+    // Filter by status (active/inactive)
+    // A notice is considered inactive if either:
+    // 1. is_active is false, OR
+    // 2. The expiry date has passed
+    if (filterStatus !== 'all') {
+      const isActive = filterStatus === 'active'
+      filtered = filtered.filter(n => {
+        const expired = isExpired(n)
+        const effectivelyActive = n.is_active && !expired
+        return effectivelyActive === isActive
+      })
+    }
+
+    // Filter by date range (created date)
+    if (filterDateFrom) {
+      const fromDate = new Date(filterDateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      filtered = filtered.filter(n => {
+        if (!n.created_at) return false
+        const createdDate = new Date(n.created_at)
+        return createdDate >= fromDate
+      })
+    }
+
+    if (filterDateTo) {
+      const toDate = new Date(filterDateTo)
+      toDate.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(n => {
+        if (!n.created_at) return false
+        const createdDate = new Date(n.created_at)
+        return createdDate <= toDate
+      })
+    }
+
+    return filtered
+  }, [notices, searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo, hasActiveFilters])
+
+  // Clear all filters
+  function clearFilters() {
+    setSearchTerm('')
+    setFilterPriority('all')
+    setFilterStatus('all')
+    setFilterDateFrom('')
+    setFilterDateTo('')
   }
 
   useEffect(() => {
@@ -149,14 +248,101 @@ export default function Notices() {
 
   return (
   <div className="text-black w-full">
-      <header className="flex items-start justify-between gap-4 mb-6">
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Notices</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Notices</h1>
+          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage and publish notices to users</p>
         </div>
         <div className="text-right">
-          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="px-4 py-2 rounded-md bg-indigo-600 text-white">Add notice</button>
+          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="w-full sm:w-auto px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Add notice</button>
         </div>
       </header>
+
+      {/* Search and Filter Section */}
+      <div className="bg-white rounded-xl shadow p-4 sm:p-5 mb-4 sm:mb-6">
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by title or content..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+          </div>
+
+          {/* Filters Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Priority Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="all">All Priorities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Date From */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Created From</label>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Created To</label>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+          </div>
+
+          {/* Filter Actions */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="text-xs sm:text-sm text-neutral-600">
+              Showing {filteredNotices.length} of {notices.length} notices
+            </div>
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Form modal for creating a notice */}
       {modalOpen && (
@@ -243,16 +429,21 @@ export default function Notices() {
       <div>
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium">Existing notices</h3>
-            <div className="text-sm text-neutral-500">{loading ? 'Loading…' : `${notices.length} total`}</div>
+            <h3 className="text-lg font-medium">Notices</h3>
           </div>
 
           <div className="space-y-3">
-            {!loading && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No notices yet</div>}
+            {loading && <div className="p-6 text-center text-neutral-500">Loading…</div>}
+            {!loading && filteredNotices.length === 0 && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No notices yet</div>}
+            {!loading && filteredNotices.length === 0 && notices.length > 0 && <div className="p-6 text-center text-neutral-500">No notices match your filters</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {notices.map(n => (
-                <article key={n.id} className="p-4 border rounded-lg flex flex-col justify-between">
+              {filteredNotices.map(n => {
+                const expired = isExpired(n)
+                const effectivelyActive = n.is_active && !expired
+
+                return (
+                <article key={n.id} className={`p-4 border rounded-lg flex flex-col justify-between ${expired ? 'bg-gray-50 opacity-75' : ''}`}>
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -263,8 +454,15 @@ export default function Notices() {
                           <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`inline-block text-xs px-2 py-1 rounded ${n.priority === 'urgent' ? 'bg-rose-100 text-rose-700' : 'bg-neutral-100 text-neutral-700'}`}>{n.is_active ? 'Active' : 'Inactive'}</div>
+                      <div className="text-right flex flex-col gap-1">
+                        <div className={`inline-block text-xs px-2 py-1 rounded ${effectivelyActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {effectivelyActive ? 'Active' : 'Inactive'}
+                        </div>
+                        {expired && (
+                          <div className="inline-block text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                            Expired
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -272,14 +470,18 @@ export default function Notices() {
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <div className="text-xs text-neutral-500">Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}</div>
+                    <div className="text-xs text-neutral-500">
+                      <span className={expired ? 'text-red-600 font-medium' : ''}>
+                        Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm">Edit</button>
+                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
                       <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
                     </div>
                   </div>
                 </article>
-              ))}
+              )})}
             </div>
           </div>
         </div>

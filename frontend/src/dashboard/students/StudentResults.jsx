@@ -1,53 +1,183 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import * as api from '../../lib/api'
-import { Download, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Filter } from 'lucide-react'
 
 export default function StudentResults() {
   const { user } = useAuth()
   const toast = useToast()
   const [results, setResults] = useState([])
+  const [enrollments, setEnrollments] = useState([])
+  const [selectedClassId, setSelectedClassId] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false)
   const [error, setError] = useState(null)
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [viewMode, setViewMode] = useState('table') // 'table' or 'cards'
+  const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
+  const transcriptMenuRef = useRef(null)
 
-  // Load all student results once (no class selection required)
-      useEffect(() => {
-      let mounted = true
+  // Close transcript menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (transcriptMenuRef.current && !transcriptMenuRef.current.contains(event.target)) {
+        setShowTranscriptMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-      async function loadStudentResults() {
-        if (!user) return
+  // Load student enrollments (all classes they've been enrolled in)
+  useEffect(() => {
+    let mounted = true
 
-        setLoading(true)
-        setError(null)
+    async function loadEnrollments() {
+      if (!user) return
+      setLoadingEnrollments(true)
+      try {
+        const res = await api.getStudentEnrollments()
+        if (!mounted) return
+        const enrollmentList = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.results)
+            ? res.results
+            : []
+        setEnrollments(enrollmentList)
+      } catch (err) {
+        console.error('Failed to load enrollments:', err)
+      } finally {
+        if (mounted) setLoadingEnrollments(false)
+      }
+    }
 
-        try {
-          const res = await api.getMyResults()
+    loadEnrollments()
+    return () => { mounted = false }
+  }, [user])
 
-          if (!mounted) return
+  // Load student results with optional class filter
+  useEffect(() => {
+    let mounted = true
 
-          const allResults = Array.isArray(res)
-            ? res
-            : Array.isArray(res?.results)
-              ? res.results
-              : []
+    async function loadStudentResults() {
+      if (!user) return
 
-          setResults(allResults)
-        } catch (err) {
-          if (!mounted) return
-          setError(err)
-        } finally {
-          if (mounted) setLoading(false)
+      setLoading(true)
+      setError(null)
+
+      try {
+        const params = {}
+        if (selectedClassId !== 'all') {
+          params.class_id = selectedClassId
+        }
+        const res = await api.getMyResults(params)
+
+        if (!mounted) return
+
+        const allResults = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.results)
+            ? res.results
+            : []
+
+        setResults(allResults)
+      } catch (err) {
+        if (!mounted) return
+        setError(err)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadStudentResults()
+    return () => { mounted = false }
+  }, [user, selectedClassId])
+
+  // Group results by class for display
+  const resultsByClass = useMemo(() => {
+    const groups = {}
+    for (const r of results) {
+      const classId = r.class_id || 'unknown'
+      const className = r.class_name || 'Unknown Class'
+      const courseName = r.course_name || ''
+      if (!groups[classId]) {
+        groups[classId] = {
+          classId,
+          className,
+          courseName,
+          results: []
         }
       }
+      groups[classId].results.push(r)
+    }
+    return Object.values(groups)
+  }, [results])
 
-      loadStudentResults()
-      return () => { mounted = false }
-    }, [user])
+  // Get unique classes from enrollments for the filter dropdown
+  const classOptions = useMemo(() => {
+    const options = []
+    for (const enrollment of enrollments) {
+      const classObj = enrollment.class_obj || enrollment
+      const classId = classObj.id
+      const className = classObj.name || enrollment.class_name || 'Unknown Class'
+      const courseName = classObj.course?.name || enrollment.course_name || ''
+      const isActive = enrollment.is_active !== false // default to true if not specified
+      if (classId && !options.find(o => o.id === classId)) {
+        options.push({ id: classId, name: className, courseName, isActive })
+      }
+    }
+    return options
+  }, [enrollments])
 
-  // We keep results flat for the one-line display. Grouping by subject is no longer needed.
+  // Get the active class (current enrollment)
+  const activeClass = useMemo(() => {
+    // Find the active enrollment
+    const activeEnrollment = enrollments.find(e => e.is_active !== false)
+    if (!activeEnrollment) return null
+    const classObj = activeEnrollment.class_obj || activeEnrollment
+    return {
+      id: classObj.id,
+      name: classObj.name || activeEnrollment.class_name || 'Unknown Class',
+      courseName: classObj.course?.name || activeEnrollment.course_name || ''
+    }
+  }, [enrollments])
+
+  // Get the current class to display in summary (either selected class or active class)
+  const currentClass = useMemo(() => {
+    if (selectedClassId !== 'all') {
+      // Use the selected class from filter - check both classOptions and resultsByClass
+      const selected = classOptions.find(c => String(c.id) === String(selectedClassId))
+      if (selected) {
+        return { id: selected.id, name: selected.name, courseName: selected.courseName }
+      }
+      // Fallback to resultsByClass if not found in classOptions
+      const fromResults = resultsByClass.find(g => String(g.classId) === String(selectedClassId))
+      if (fromResults) {
+        return { id: fromResults.classId, name: fromResults.className, courseName: fromResults.courseName }
+      }
+    }
+    // Default to active class, but verify it exists in results
+    if (activeClass?.id) {
+      // Check if we have results for this active class
+      const hasResults = results.some(r => String(r.class_id) === String(activeClass.id))
+      if (hasResults) {
+        return activeClass
+      }
+    }
+    // If no active class or no results for active class, use the first class with results
+    if (resultsByClass.length > 0) {
+      const first = resultsByClass[0]
+      return { id: first.classId, name: first.className, courseName: first.courseName }
+    }
+    return activeClass
+  }, [selectedClassId, classOptions, activeClass, resultsByClass, results])
+
+  // Get results for the current class only (for summary stats)
+  const currentClassResults = useMemo(() => {
+    if (!currentClass?.id) return []
+    return results.filter(r => String(r.class_id) === String(currentClass.id))
+  }, [results, currentClass])
 
   function calculateTotals(rows) {
     const valid = (rows || []).filter(r => r.marks_obtained != null && !isNaN(Number(r.marks_obtained)))
@@ -110,7 +240,7 @@ export default function StudentResults() {
     return Number.isInteger(n) ? `${n}%` : `${n.toFixed(1)}%`
   }
 
-  function calculateTrend() {
+  const calculateTrend = useCallback(() => {
     if (!results || results.length < 2) return null
     const sorted = [...results].sort((a, b) => {
       const dateA = new Date(a.graded_at || a.submitted_at || a.created_at)
@@ -119,7 +249,6 @@ export default function StudentResults() {
     })
     const recent = sorted.slice(-3).filter(r => r.percentage != null)
     if (recent.length < 2) return null
-    const avg = recent.reduce((sum, r) => sum + r.percentage, 0) / recent.length
     const firstHalf = sorted.slice(0, Math.floor(sorted.length / 2)).filter(r => r.percentage != null)
     const secondHalf = sorted.slice(Math.floor(sorted.length / 2)).filter(r => r.percentage != null)
     if (firstHalf.length === 0 || secondHalf.length === 0) return null
@@ -129,7 +258,7 @@ export default function StudentResults() {
     if (diff > 5) return { direction: 'up', value: diff, icon: TrendingUp, color: 'text-green-600' }
     if (diff < -5) return { direction: 'down', value: Math.abs(diff), icon: TrendingDown, color: 'text-red-600' }
     return { direction: 'stable', value: 0, icon: Minus, color: 'text-gray-600' }
-  }
+  }, [results])
 
   function toggleRowExpansion(id) {
     setExpandedRows(prev => {
@@ -164,9 +293,32 @@ export default function StudentResults() {
     }
   }
 
-  async function downloadTranscript() {
-    const rows = results || []
-    if (!rows || rows.length === 0) return
+  // Download transcript for a specific class or all classes
+  async function downloadTranscript(transcriptClassId = null) {
+    setShowTranscriptMenu(false)
+    
+    // Determine which results to use based on selection
+    let rows
+    let transcriptResultsByClass
+    
+    if (transcriptClassId === 'all') {
+      // All classes
+      rows = results || []
+      transcriptResultsByClass = resultsByClass
+    } else if (transcriptClassId) {
+      // Specific class
+      rows = results.filter(r => String(r.class_id) === String(transcriptClassId))
+      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(transcriptClassId))
+    } else {
+      // Current class (default)
+      rows = currentClassResults
+      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(currentClass?.id))
+    }
+    
+    if (!rows || rows.length === 0) {
+      if (toast?.error) toast.error('No results to download for the selected class.')
+      return
+    }
 
     try {
       const { jsPDF } = await import('jspdf')
@@ -177,166 +329,301 @@ export default function StudentResults() {
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 40
 
-      // Header with decorative element
-      doc.setFillColor(79, 70, 229) // indigo-600
-      doc.rect(0, 0, pageWidth, 60, 'F')
-
-      // Title
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(24)
-      doc.setFont(undefined, 'bold')
-      doc.text('Academic Transcript', margin, 35)
-
-      // Student Information Section
-      let yPos = 80
-      doc.setTextColor(0, 0, 0)
-      doc.setFontSize(12)
-      doc.setFont(undefined, 'bold')
-      doc.text('Student Information', margin, yPos)
-
-      yPos += 20
-      doc.setFontSize(10)
-      doc.setFont(undefined, 'normal')
-
       const studentName = user && user.first_name
         ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
         : 'Student'
       const studentSvc = user && user.svc_number ? user.svc_number : ''
       const studentRank = user && user.rank ? user.rank : ''
-
-      // Service Number
-      if (studentSvc) {
-        doc.text(`Service Number: ${studentSvc}`, margin, yPos)
-        yPos += 15
-      }
-
-      // Rank
-      if (studentRank) {
-        doc.text(`Rank: ${studentRank}`, margin, yPos)
-        yPos += 15
-      }
-
-      // Name
-      doc.text(`Name: ${studentName}`, margin, yPos)
-
-      // Generation date (right aligned)
       const generatedDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       })
-      doc.text(`Generated: ${generatedDate}`, pageWidth - margin - 150, yPos)
 
-      // Summary Statistics Box
-      yPos += 30
-      doc.setFillColor(249, 250, 251) // gray-50
-      doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'F')
-      doc.setDrawColor(229, 231, 235) // gray-200
-      doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'S')
-
-      yPos += 20
-      doc.setFontSize(11)
-      doc.setFont(undefined, 'bold')
-      doc.text('Overall Performance Summary', margin + 15, yPos)
-
-      yPos += 20
-      doc.setFontSize(10)
-      doc.setFont(undefined, 'normal')
-
-      const summaryLine1 = `Total Score: ${formatMarks(overall.obtained, overall.totalPossible)}`
-      const summaryLine2 = `Overall Percentage: ${formatPercentage(overall.percentage)}`
-      const overallGrade = overall.percentage != null ? toLetterGrade(overall.percentage) : '—'
-      const summaryLine3 = `Overall Grade: ${overallGrade}`
-
-      doc.text(summaryLine1, margin + 15, yPos)
-      doc.text(summaryLine2, margin + 180, yPos)
-      doc.text(summaryLine3, margin + 350, yPos)
-
-      // Add performance indicator
-      if (overall.percentage != null) {
-        const indicator = getPerformanceIndicator(overall.percentage)
-        if (indicator) {
-          yPos += 15
-          doc.setFont(undefined, 'italic')
-          doc.text(`Performance Level: ${indicator.label}`, margin + 15, yPos)
+      // Helper function to draw header on each page
+      function drawHeader(title, subtitle) {
+        doc.setFillColor(79, 70, 229) // indigo-600
+        doc.rect(0, 0, pageWidth, 60, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(24)
+        doc.setFont(undefined, 'bold')
+        doc.text(title, margin, 35)
+        if (subtitle) {
+          doc.setFontSize(12)
+          doc.setFont(undefined, 'normal')
+          doc.text(subtitle, margin, 52)
         }
       }
 
-      // Exam Results Table
-      yPos += 40
+      // Helper function to draw student info
+      function drawStudentInfo(startY) {
+        let yPos = startY
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(12)
+        doc.setFont(undefined, 'bold')
+        doc.text('Student Information', margin, yPos)
 
-      const body = rows.map(r => {
-        const subjectName = r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'
-        const score = formatMarks(r.marks_obtained, r.exam_total_marks ?? (r.exam && r.exam.total_marks))
-        const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
+        yPos += 20
+        doc.setFontSize(10)
+        doc.setFont(undefined, 'normal')
 
-        return [subjectName, score, grade]
-      })
+        if (studentSvc) {
+          doc.text(`Service Number: ${studentSvc}`, margin, yPos)
+          yPos += 15
+        }
+        if (studentRank) {
+          doc.text(`Rank: ${studentRank}`, margin, yPos)
+          yPos += 15
+        }
+        doc.text(`Name: ${studentName}`, margin, yPos)
+        doc.text(`Generated: ${generatedDate}`, pageWidth - margin - 150, yPos)
 
-      autoTable(doc, {
-        head: [['Subject', 'Score', 'Grade']],
-        body,
-        startY: yPos,
-        margin: { left: margin, right: margin },
-        styles: {
-          fontSize: 11,
-          cellPadding: 10,
-          lineColor: [229, 231, 235],
-          lineWidth: 0.5
-        },
-        headStyles: {
-          fillColor: [79, 70, 229], // indigo-600
-          textColor: 255,
-          fontSize: 12,
-          fontStyle: 'bold',
-          halign: 'left'
-        },
-        columnStyles: {
-          0: { cellWidth: 'auto', fontStyle: 'bold' }, // Subject
-          1: { cellWidth: 120, halign: 'center', fontSize: 12 }, // Score
-          2: { cellWidth: 80, halign: 'center', fontStyle: 'bold', fontSize: 13 } // Grade
-        },
-        alternateRowStyles: {
-          fillColor: [249, 250, 251] // gray-50
-        },
-        didParseCell: function(data) {
-          // Color-code grades
-          if (data.column.index === 2 && data.section === 'body') {
-            const grade = data.cell.text[0]
-            const color = getGradeColorForPDF(grade)
-            data.cell.styles.textColor = color
+        return yPos + 15
+      }
+
+      // Helper function to draw summary box
+      function drawSummaryBox(startY, classResults, classLabel) {
+        const classTotals = calculateTotals(classResults)
+        let yPos = startY
+
+        if (classLabel) {
+          doc.setFontSize(14)
+          doc.setFont(undefined, 'bold')
+          doc.setTextColor(79, 70, 229) // indigo-600
+          doc.text(classLabel, margin, yPos)
+          yPos += 20
+        }
+
+        doc.setFillColor(249, 250, 251) // gray-50
+        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'F')
+        doc.setDrawColor(229, 231, 235) // gray-200
+        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'S')
+
+        yPos += 20
+        doc.setFontSize(11)
+        doc.setFont(undefined, 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text('Performance Summary', margin + 15, yPos)
+
+        yPos += 20
+        doc.setFontSize(10)
+        doc.setFont(undefined, 'normal')
+
+        const summaryLine1 = `Total Score: ${formatMarks(classTotals.obtained, classTotals.totalPossible)}`
+        const summaryLine2 = `Percentage: ${formatPercentage(classTotals.percentage)}`
+        const classGrade = classTotals.percentage != null ? toLetterGrade(classTotals.percentage) : '—'
+        const summaryLine3 = `Grade: ${classGrade}`
+
+        doc.text(summaryLine1, margin + 15, yPos)
+        doc.text(summaryLine2, margin + 180, yPos)
+        doc.text(summaryLine3, margin + 320, yPos)
+
+        if (classTotals.percentage != null) {
+          const indicator = getPerformanceIndicator(classTotals.percentage)
+          if (indicator) {
+            yPos += 15
+            doc.setFont(undefined, 'italic')
+            doc.text(`Performance Level: ${indicator.label}`, margin + 15, yPos)
           }
-        },
-        didDrawPage: function(data) {
-          // Footer with page numbers
-          const pageCount = doc.internal.getNumberOfPages()
-          const currentPage = doc.internal.getCurrentPageInfo().pageNumber
+        }
 
+        return yPos + 40
+      }
+
+      // Helper function to draw results table
+      function drawResultsTable(startY, classResults) {
+        const body = classResults.map(r => {
+          const subjectName = r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'
+          const examTitle = r.exam_title || (r.exam && r.exam.title) || 'Exam'
+          const score = formatMarks(r.marks_obtained, r.exam_total_marks ?? (r.exam && r.exam.total_marks))
+          const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
+          return [subjectName, examTitle, score, grade]
+        })
+
+        autoTable(doc, {
+          head: [['Subject', 'Exam', 'Score', 'Grade']],
+          body,
+          startY,
+          margin: { left: margin, right: margin },
+          styles: {
+            fontSize: 10,
+            cellPadding: 8,
+            lineColor: [229, 231, 235],
+            lineWidth: 0.5
+          },
+          headStyles: {
+            fillColor: [79, 70, 229],
+            textColor: 255,
+            fontSize: 11,
+            fontStyle: 'bold',
+            halign: 'left'
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'bold' },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 70, halign: 'center', fontSize: 11 },
+            3: { cellWidth: 50, halign: 'center', fontStyle: 'bold', fontSize: 12 }
+          },
+          alternateRowStyles: {
+            fillColor: [249, 250, 251]
+          },
+          didParseCell: function(data) {
+            if (data.column.index === 3 && data.section === 'body') {
+              const grade = data.cell.text[0]
+              const color = getGradeColorForPDF(grade)
+              data.cell.styles.textColor = color
+            }
+          }
+        })
+
+        return doc.lastAutoTable.finalY + 20
+      }
+
+      // Helper function to draw footer
+      function drawFooter(classInfo) {
+        const pageCount = doc.internal.getNumberOfPages()
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i)
           doc.setFontSize(8)
-          doc.setTextColor(107, 114, 128) // gray-500
+          doc.setTextColor(107, 114, 128)
           doc.setFont(undefined, 'normal')
 
-          // Footer text
-          const footerText = `Academic Transcript - ${studentName}`
+          const footerText = classInfo 
+            ? `Academic Transcript - ${studentName} - ${classInfo}`
+            : `Academic Transcript - ${studentName}`
           doc.text(footerText, margin, pageHeight - 20)
+          doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 60, pageHeight - 20)
 
-          // Page number
-          doc.text(
-            `Page ${currentPage} of ${pageCount}`,
-            pageWidth - margin - 60,
-            pageHeight - 20
-          )
-
-          // Footer line
-          doc.setDrawColor(229, 231, 235) // gray-200
+          doc.setDrawColor(229, 231, 235)
           doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30)
         }
-      })
+      }
 
-      // Generate filename with student name and date
+      // Generate transcript based on whether we're viewing all classes or a single class
+      if (transcriptClassId === 'all' && transcriptResultsByClass.length > 1) {
+        // Multiple classes - create separate sections for each class
+        let isFirstClass = true
+
+        for (const classGroup of transcriptResultsByClass) {
+          if (!isFirstClass) {
+            doc.addPage()
+          }
+
+          const classLabel = `${classGroup.className}${classGroup.courseName ? ` — ${classGroup.courseName}` : ''}`
+          
+          drawHeader('Academic Transcript', classLabel)
+          let yPos = drawStudentInfo(80)
+          yPos = drawSummaryBox(yPos + 15, classGroup.results, null)
+          drawResultsTable(yPos, classGroup.results)
+
+          isFirstClass = false
+        }
+
+        // Add a summary page at the end with overall totals
+        doc.addPage()
+        drawHeader('Academic Transcript', 'Overall Summary - All Classes')
+        let yPos = drawStudentInfo(80)
+        
+        yPos += 15
+        doc.setFontSize(12)
+        doc.setFont(undefined, 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text('Summary by Class', margin, yPos)
+        yPos += 20
+
+        // Summary table for all classes
+        const classSummaryBody = transcriptResultsByClass.map(cg => {
+          const totals = calculateTotals(cg.results)
+          return [
+            `${cg.className}${cg.courseName ? ` (${cg.courseName})` : ''}`,
+            String(cg.results.length),
+            formatMarks(totals.obtained, totals.totalPossible),
+            formatPercentage(totals.percentage),
+            totals.percentage != null ? toLetterGrade(totals.percentage) : '—'
+          ]
+        })
+
+        autoTable(doc, {
+          head: [['Class', 'Exams', 'Score', 'Percentage', 'Grade']],
+          body: classSummaryBody,
+          startY: yPos,
+          margin: { left: margin, right: margin },
+          styles: {
+            fontSize: 10,
+            cellPadding: 8,
+            lineColor: [229, 231, 235],
+            lineWidth: 0.5
+          },
+          headStyles: {
+            fillColor: [79, 70, 229],
+            textColor: 255,
+            fontSize: 11,
+            fontStyle: 'bold'
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'bold' },
+            1: { cellWidth: 50, halign: 'center' },
+            2: { cellWidth: 70, halign: 'center' },
+            3: { cellWidth: 70, halign: 'center' },
+            4: { cellWidth: 50, halign: 'center', fontStyle: 'bold' }
+          },
+          didParseCell: function(data) {
+            if (data.column.index === 4 && data.section === 'body') {
+              const grade = data.cell.text[0]
+              const color = getGradeColorForPDF(grade)
+              data.cell.styles.textColor = color
+            }
+          }
+        })
+
+        yPos = doc.lastAutoTable.finalY + 30
+
+        // Overall totals box
+        doc.setFillColor(79, 70, 229)
+        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 60, 3, 3, 'F')
+
+        yPos += 25
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(12)
+        doc.setFont(undefined, 'bold')
+        doc.text('Combined Overall Performance', margin + 15, yPos)
+
+        yPos += 20
+        doc.setFontSize(11)
+        doc.setFont(undefined, 'normal')
+        const transcriptOverall = calculateTotals(rows)
+        const overallGrade = transcriptOverall.percentage != null ? toLetterGrade(transcriptOverall.percentage) : '—'
+        doc.text(
+          `Total: ${formatMarks(transcriptOverall.obtained, transcriptOverall.totalPossible)}  |  Percentage: ${formatPercentage(transcriptOverall.percentage)}  |  Grade: ${overallGrade}`,
+          margin + 15,
+          yPos
+        )
+
+        drawFooter('All Classes')
+      } else {
+        // Single class or one class only - simple single-page transcript
+        const classInfo = transcriptResultsByClass.length > 0 
+          ? `${transcriptResultsByClass[0]?.className || ''}${transcriptResultsByClass[0]?.courseName ? ` — ${transcriptResultsByClass[0].courseName}` : ''}`
+          : null
+
+        drawHeader('Academic Transcript', classInfo)
+        let yPos = drawStudentInfo(80)
+        yPos = drawSummaryBox(yPos + 15, rows, null)
+        drawResultsTable(yPos, rows)
+        drawFooter(classInfo)
+      }
+
+      // Generate filename
       const dateStr = new Date().toISOString().split('T')[0]
       const nameSlug = studentName.toLowerCase().replace(/\s+/g, '-')
-      const filename = `transcript-${nameSlug}-${dateStr}.pdf`
+      let filename = `transcript-${nameSlug}`
+      if (transcriptResultsByClass.length === 1) {
+        const classSlug = (transcriptResultsByClass[0]?.className || '').toLowerCase().replace(/\s+/g, '-')
+        if (classSlug) filename += `-${classSlug}`
+      } else if (transcriptResultsByClass.length > 1) {
+        filename += '-all-classes'
+      }
+      filename += `-${dateStr}.pdf`
 
       doc.save(filename)
 
@@ -351,8 +638,10 @@ export default function StudentResults() {
     }
   }
 
-  const overall = useMemo(() => calculateTotals(results), [results])
-  const trend = useMemo(() => calculateTrend(), [results])
+  // Stats for the current class (shown in summary banner)
+  const currentClassStats = useMemo(() => calculateTotals(currentClassResults), [currentClassResults])
+  // Trend for displayed results
+  const trend = useMemo(() => calculateTrend(), [calculateTrend])
 
   // Detect mobile view
   useEffect(() => {
@@ -372,23 +661,69 @@ export default function StudentResults() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-black">My Results</h2>
-        <p className="text-sm text-gray-500">All graded subjects and exams for your account</p>
+        <p className="text-sm text-gray-500">View your graded results across all classes you've been enrolled in</p>
       </header>
 
-      {/* Summary Banner */}
+      {/* Class Filter */}
+      {classOptions.length > 0 && (
+        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Filter className="w-4 h-4" />
+              <span className="font-medium">Filter by Class:</span>
+            </div>
+            <select
+              value={selectedClassId}
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              className="flex-1 sm:flex-none sm:min-w-[280px] px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              aria-label="Select a class to filter results"
+            >
+              <option value="all">All Classes</option>
+              {classOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name}{opt.courseName ? ` (${opt.courseName})` : ''}
+                </option>
+              ))}
+            </select>
+            {selectedClassId !== 'all' && (
+              <button
+                onClick={() => setSelectedClassId('all')}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
+          {loadingEnrollments && (
+            <div className="mt-2 text-xs text-gray-500">Loading classes...</div>
+          )}
+        </div>
+      )}
+
+      {/* Summary Banner - Shows current class stats */}
       <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100">
+        {currentClass && (
+          <div className="mb-4 pb-3 border-b border-indigo-200">
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              {selectedClassId !== 'all' ? 'Selected Class' : 'Current Class'}
+            </div>
+            <div className="text-lg font-semibold text-indigo-900">
+              {currentClass.name}{currentClass.courseName ? ` — ${currentClass.courseName}` : ''}
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
             <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Score</div>
-            <div className="text-2xl font-bold text-indigo-900">{formatMarks(overall.obtained, overall.totalPossible)}</div>
+            <div className="text-2xl font-bold text-indigo-900">{formatMarks(currentClassStats.obtained, currentClassStats.totalPossible)}</div>
           </div>
           <div className="space-y-1">
             <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Overall Grade</div>
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(toLetterGrade(overall.percentage))}`}>
-                {overall.percentage != null ? toLetterGrade(overall.percentage) : '—'}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(toLetterGrade(currentClassStats.percentage))}`}>
+                {currentClassStats.percentage != null ? toLetterGrade(currentClassStats.percentage) : '—'}
               </span>
-              <span className="text-lg font-semibold text-gray-700">{formatPercentage(overall.percentage)}</span>
+              <span className="text-lg font-semibold text-gray-700">{formatPercentage(currentClassStats.percentage)}</span>
             </div>
           </div>
           {trend && (
@@ -404,16 +739,74 @@ export default function StudentResults() {
               </div>
             </div>
           )}
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end relative" ref={transcriptMenuRef}>
             <button
-              onClick={() => downloadTranscript()}
+              onClick={() => setShowTranscriptMenu(!showTranscriptMenu)}
               disabled={!results || results.length === 0}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm hover:shadow"
               aria-label="Download transcript as PDF"
+              aria-expanded={showTranscriptMenu}
+              aria-haspopup="true"
             >
               <Download className="w-4 h-4" />
               Download Transcript
+              <ChevronDown className={`w-4 h-4 transition-transform ${showTranscriptMenu ? 'rotate-180' : ''}`} />
             </button>
+            
+            {/* Transcript selection dropdown */}
+            {showTranscriptMenu && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                  Select Transcript
+                </div>
+                
+                {/* Current class option */}
+                {currentClass && (
+                  <button
+                    onClick={() => downloadTranscript(currentClass.id)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{currentClass.name}</div>
+                      <div className="text-xs text-gray-500">Current Class</div>
+                    </div>
+                  </button>
+                )}
+                
+                {/* Other classes */}
+                {resultsByClass.filter(g => String(g.classId) !== String(currentClass?.id)).map(classGroup => (
+                  <button
+                    key={classGroup.classId}
+                    onClick={() => downloadTranscript(classGroup.classId)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{classGroup.className}</div>
+                      {classGroup.courseName && <div className="text-xs text-gray-500">{classGroup.courseName}</div>}
+                    </div>
+                  </button>
+                ))}
+                
+                {/* All classes option (only if multiple classes) */}
+                {resultsByClass.length > 1 && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => downloadTranscript('all')}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">All Classes Combined</div>
+                        <div className="text-xs text-gray-500">{resultsByClass.length} classes • Full transcript</div>
+                      </div>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -443,17 +836,36 @@ export default function StudentResults() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Results Yet</h3>
-            <p className="text-sm text-gray-500">Your graded results will appear here once your instructor grades your exams.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {selectedClassId !== 'all' ? 'No Results for This Class' : 'No Results Yet'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {selectedClassId !== 'all' 
+                ? 'No graded exams found for the selected class. Try selecting a different class or view all results.'
+                : 'Your graded results will appear here once your instructor grades your exams.'}
+            </p>
+            {selectedClassId !== 'all' && (
+              <button
+                onClick={() => setSelectedClassId('all')}
+                className="mt-4 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                View all results
+              </button>
+            )}
           </div>
         )}
 
         {!loading && results && results.length > 0 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-lg font-semibold text-black">
                 Exam Results <span className="text-sm font-normal text-gray-500">({results.length} {results.length === 1 ? 'exam' : 'exams'})</span>
               </h3>
+              {selectedClassId !== 'all' && resultsByClass.length > 0 && (
+                <span className="text-sm text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                  {resultsByClass[0]?.className}{resultsByClass[0]?.courseName ? ` — ${resultsByClass[0].courseName}` : ''}
+                </span>
+              )}
             </div>
 
             {/* Table View for Desktop */}
@@ -462,6 +874,9 @@ export default function StudentResults() {
                 <table className="min-w-full text-sm" role="table" aria-label="Student exam results">
                   <thead>
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      {selectedClassId === 'all' && (
+                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Class</th>
+                      )}
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Subject</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Exam</th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Score</th>
@@ -480,6 +895,12 @@ export default function StudentResults() {
                           className="hover:bg-gray-50 transition-colors duration-150"
                           role="row"
                         >
+                          {selectedClassId === 'all' && (
+                            <td className="px-4 py-4 text-sm text-gray-600">
+                              <div className="font-medium text-gray-900">{r.class_name || '—'}</div>
+                              {r.course_name && <div className="text-xs text-gray-500">{r.course_name}</div>}
+                            </td>
+                          )}
                           <td className="px-4 py-4 text-sm font-medium text-gray-900">
                             {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
                           </td>
@@ -540,6 +961,11 @@ export default function StudentResults() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
+                            {selectedClassId === 'all' && r.class_name && (
+                              <div className="text-xs text-indigo-600 font-medium mb-1">
+                                {r.class_name}{r.course_name ? ` • ${r.course_name}` : ''}
+                              </div>
+                            )}
                             <div className="font-semibold text-gray-900 truncate">
                               {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
                             </div>
@@ -576,6 +1002,12 @@ export default function StudentResults() {
                           id={`result-details-${r.id}`}
                           className="px-4 pb-4 pt-2 bg-gray-50 border-t border-neutral-200 space-y-2"
                         >
+                          {selectedClassId === 'all' && r.class_name && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Class:</span>
+                              <span className="font-medium text-gray-900">{r.class_name}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Marks Obtained:</span>
                             <span className="font-medium text-gray-900">{formatNumber(r.marks_obtained)}</span>

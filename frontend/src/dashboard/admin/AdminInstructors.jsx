@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import * as LucideIcons from 'lucide-react'
 
 function initials(name = '') {
   return name
@@ -21,11 +22,16 @@ export default function AdminInstructors() {
   }
   const [instructors, setInstructors] = useState([])
   const [classesList, setClassesList] = useState([])
+  const [subjectsList, setSubjectsList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [visibleCount, setVisibleCount] = useState(50)
+  // pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalCount, setTotalCount] = useState(0)
+  // filter state
+  const [selectedClass, setSelectedClass] = useState('all')
   // edit/delete UI state
   const [editingInstructor, setEditingInstructor] = useState(null)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true })
@@ -33,26 +39,73 @@ export default function AdminInstructors() {
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
-  // debounce search
+  // Load classes list once
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300)
-    return () => clearTimeout(t)
-  }, [searchTerm])
-
-  // fetch instructors
-  useEffect(() => {
-    let mounted = true
-    // Fetch instructors and classes in parallel so we can show assigned classes
-    Promise.all([api.getInstructors(), api.getClasses()])
-      .then(([insData, classesData]) => {
-        if (!mounted) return
-        if (Array.isArray(insData)) setInstructors(insData)
-        else if (insData && Array.isArray(insData.results)) setInstructors(insData.results)
-        else setInstructors(insData || [])
-
-        // classesData may be paginated (results) or an array
+    api.getClasses()
+      .then((classesData) => {
         const classes = Array.isArray(classesData) ? classesData : (classesData && Array.isArray(classesData.results) ? classesData.results : classesData || [])
         setClassesList(classes)
+      })
+      .catch((err) => {
+        console.error('Failed to load classes:', err)
+      })
+  }, [])
+
+  // Load subjects list once
+  useEffect(() => {
+    api.getSubjects()
+      .then((subjectsData) => {
+        const subjects = Array.isArray(subjectsData) ? subjectsData : (subjectsData && Array.isArray(subjectsData.results) ? subjectsData.results : subjectsData || [])
+        setSubjectsList(subjects)
+      })
+      .catch((err) => {
+        console.error('Failed to load subjects:', err)
+      })
+  }, [])
+
+  // fetch instructors with pagination
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    const params = new URLSearchParams()
+    params.append('page', page)
+    params.append('page_size', pageSize)
+    if (searchTerm.trim()) {
+      params.append('search', searchTerm.trim())
+    }
+
+    api
+      .getInstructorsPaginated(params.toString())
+      .then((data) => {
+        if (!mounted) return
+        let list = data.results || []
+
+        // Client-side filtering by class if a class is selected
+        if (selectedClass !== 'all') {
+          list = list.filter((it) => {
+            // Check if this instructor teaches the selected class
+            const instructorClasses = getInstructorClasses(it.id)
+            return instructorClasses.some(c => String(c.id) === String(selectedClass))
+          })
+        }
+
+        const normalized = list.map((it) => ({
+          id: it.id,
+          first_name: it.first_name,
+          last_name: it.last_name,
+          full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+          svc_number: it.svc_number,
+          email: it.email,
+          phone_number: it.phone_number,
+          rank: it.rank || it.rank_display || '',
+          role: it.role,
+          role_display: it.role_display,
+          is_active: it.is_active,
+          created_at: it.created_at,
+        }))
+        setInstructors(normalized)
+        setTotalCount(selectedClass !== 'all' ? normalized.length : data.count || 0)
+        setError(null)
       })
       .catch((err) => {
         if (!mounted) return
@@ -65,21 +118,7 @@ export default function AdminInstructors() {
     return () => {
       mounted = false
     }
-  }, [])
-
-  const filtered = useMemo(() => {
-    if (!debouncedQuery) return instructors
-    const q = debouncedQuery.toLowerCase()
-    return instructors.filter((it) => {
-      const full = (it.full_name || `${it.first_name || ''} ${it.last_name || ''}` || '').toLowerCase()
-      return (
-        full.includes(q) ||
-        (it.svc_number || '').toLowerCase().includes(q) ||
-        (it.email || '').toLowerCase().includes(q) ||
-        (it.phone_number || '').toLowerCase().includes(q)
-      )
-    })
-  }, [instructors, debouncedQuery])
+  }, [page, pageSize, searchTerm, selectedClass, classesList])
 
   function handleDelete(it) {
     setConfirmDelete(it)
@@ -164,8 +203,7 @@ export default function AdminInstructors() {
   function downloadCSV() {
     // Service No first, then Rank, Name, then the rest
     const rows = [['Service No', 'Rank', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
-    const list = filtered
-    list.slice(0, visibleCount).forEach((it) => {
+    instructors.forEach((it) => {
       const svc = it.svc_number || ''
       const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
       const email = it.email || ''
@@ -196,8 +234,14 @@ export default function AdminInstructors() {
     })
   }
 
-  function loadMore() {
-    setVisibleCount((v) => v + 50)
+  function getInstructorSubjects(instId) {
+    if (!subjectsList || subjectsList.length === 0) return []
+    return subjectsList.filter((s) => {
+      // backend may return instructor as id or nested object
+      const iid = s.instructor && typeof s.instructor === 'object' ? s.instructor.id : s.instructor
+      // Only return active subjects
+      return String(iid) === String(instId) && s.is_active
+    })
   }
 
   return (
@@ -213,16 +257,88 @@ export default function AdminInstructors() {
         </div>
       </header>
 
-      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search instructors..." className="flex-1 border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-        <button onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition whitespace-nowrap">Search</button>
+      {/* Search and Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+        <div className="flex flex-col gap-3">
+          {/* Search input and Class filter */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+            <div className="relative flex-1">
+              <input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search instructors..."
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+            <div className="w-full sm:w-64">
+              <select
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="all">All Classes</option>
+                {classesList.filter(c => c.is_active).map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name || cls.class_code || `Class ${cls.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button onClick={() => setPage(1)} className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition whitespace-nowrap shadow-sm">
+              Apply Filters
+            </button>
+            <button
+              onClick={() => {
+                setSearchTerm('')
+                setSelectedClass('all')
+                setPage(1)
+              }}
+              className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+            >
+              Clear All
+            </button>
+          </div>
+
+          {/* Filter summary badges */}
+          {(searchTerm || selectedClass !== 'all') && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
+              <span className="text-xs text-neutral-600">Active filters:</span>
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Search: "{searchTerm}"
+                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <LucideIcons.X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedClass !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Class: {classesList.find(c => String(c.id) === String(selectedClass))?.name || 'Unknown'}
+                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <LucideIcons.X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {error ? (
         <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
       ) : loading ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading instructors…</div>
-      ) : filtered.length === 0 ? (
+      ) : instructors.length === 0 ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
         <>
@@ -236,11 +352,12 @@ export default function AdminInstructors() {
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Name</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Phone</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Classes</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Subjects</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-normal">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, visibleCount).map((it) => (
+                {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
@@ -273,6 +390,24 @@ export default function AdminInstructors() {
                         )
                       })()}
                     </td>
+                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-normal break-words">
+                      {(() => {
+                        const subjects = getInstructorSubjects(it.id)
+                        if (!subjects || subjects.length === 0) return '-'
+                        // show up to 3 subjects, display subject name
+                        const labels = subjects.slice(0, 3).map((s) => {
+                          return s.name || s.subject_code || '-'
+                        })
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            {labels.map((l, idx) => (
+                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
+                            ))}
+                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 3} more</span> : null}
+                          </div>
+                        )
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openEdit(it)} className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
@@ -287,7 +422,7 @@ export default function AdminInstructors() {
 
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
-            {filtered.slice(0, visibleCount).map((it) => (
+            {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                 {/* Header with avatar and name */}
                 <div className="flex items-center gap-3 mb-4">
@@ -334,6 +469,27 @@ export default function AdminInstructors() {
                       })()}
                     </div>
                   </div>
+
+                  <div className="flex items-start">
+                    <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Subjects:</span>
+                    <div className="flex-1">
+                      {(() => {
+                        const subjects = getInstructorSubjects(it.id)
+                        if (!subjects || subjects.length === 0) return <span className="text-sm text-neutral-700">-</span>
+                        const labels = subjects.slice(0, 3).map((s) => {
+                          return s.name || s.subject_code || '-'
+                        })
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            {labels.map((l, idx) => (
+                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
+                            ))}
+                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 3} more</span> : null}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -347,9 +503,144 @@ export default function AdminInstructors() {
         </>
       )}
 
-      {filtered.length > visibleCount && (
-        <div className="mt-4 text-center">
-          <button onClick={loadMore} className="px-3 py-2 rounded-md border bg-white text-sm">Load more</button>
+      {/* Pagination Controls */}
+      {!loading && totalCount > 0 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Results info */}
+            <div className="text-sm text-neutral-600">
+              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-black">{totalCount}</span> instructors
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center gap-2">
+              {/* Previous button */}
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const totalPages = Math.ceil(totalCount / pageSize)
+                  const pages = []
+                  const maxVisible = 5
+
+                  if (totalPages <= maxVisible) {
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => setPage(i)}
+                          className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            page === i
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      )
+                    }
+                  } else {
+                    // Always show first page
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => setPage(1)}
+                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          page === 1
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        1
+                      </button>
+                    )
+
+                    // Show ellipsis if needed
+                    if (page > 3) {
+                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                    }
+
+                    // Show pages around current page
+                    const start = Math.max(2, page - 1)
+                    const end = Math.min(totalPages - 1, page + 1)
+                    for (let i = start; i <= end; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => setPage(i)}
+                          className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            page === i
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      )
+                    }
+
+                    // Show ellipsis if needed
+                    if (page < totalPages - 2) {
+                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                    }
+
+                    // Always show last page
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        onClick={() => setPage(totalPages)}
+                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          page === totalPages
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        {totalPages}
+                      </button>
+                    )
+                  }
+
+                  return pages
+                })()}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                disabled={page >= Math.ceil(totalCount / pageSize)}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page size selector */}
+              <div className="ml-2 flex items-center gap-2">
+                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="border border-neutral-200 rounded-lg px-2 py-1 text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       {/* Edit modal */}

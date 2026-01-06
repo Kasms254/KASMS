@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import * as LucideIcons from 'lucide-react'
 
 export default function SubjectsPage() {
   const [classes, setClasses] = useState([])
@@ -11,6 +12,8 @@ export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
+  // Class filter state
+  const [selectedClass, setSelectedClass] = useState('all')
   
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
@@ -39,16 +42,16 @@ export default function SubjectsPage() {
 
   useEffect(() => {
     let mounted = true
-    
+
     Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
       .then(([clsData, subjData]) => {
         if (!mounted) return
         const clsList = Array.isArray(clsData) ? clsData : (clsData && Array.isArray(clsData.results) ? clsData.results : clsData || [])
         const subjList = Array.isArray(subjData) ? subjData : (subjData && Array.isArray(subjData.results) ? subjData.results : subjData || [])
-        
+
         setClasses(clsList)
         setSubjects(subjList)
-        
+
         // fetch instructors for editing dropdown
         api.getInstructors().then((ins) => {
           if (!mounted) return
@@ -61,7 +64,7 @@ export default function SubjectsPage() {
         setError(err)
       })
       .finally(() => { if (mounted) setLoading(false) })
-    
+
     return () => { mounted = false }
   }, [])
 
@@ -95,19 +98,39 @@ export default function SubjectsPage() {
   }, [classes, subjects, showInactive])
 
   const filteredGroups = useMemo(() => {
-    if (!debouncedQuery) return groups
-    const q = debouncedQuery.toLowerCase()
-    const res = {}
-    
-    Object.keys(groups).forEach((cls) => {
-      const matches = groups[cls].filter((s) => {
-        return (s.name || s.title || '').toLowerCase().includes(q) || (s.subject_code || s.code || '').toLowerCase().includes(q)
+    let result = groups
+
+    // Apply search filter
+    if (debouncedQuery) {
+      const q = debouncedQuery.toLowerCase()
+      const res = {}
+
+      Object.keys(groups).forEach((cls) => {
+        const matches = groups[cls].filter((s) => {
+          return (s.name || s.title || '').toLowerCase().includes(q) || (s.subject_code || s.code || '').toLowerCase().includes(q)
+        })
+        if (cls.toLowerCase().includes(q) || matches.length) res[cls] = matches
       })
-      if (cls.toLowerCase().includes(q) || matches.length) res[cls] = matches
-    })
-    
-    return res
-  }, [groups, debouncedQuery])
+
+      result = res
+    }
+
+    // Apply class filter
+    if (selectedClass !== 'all') {
+      const selectedClassName = classes.find(c => String(c.id) === String(selectedClass))?.name || ''
+      const res = {}
+
+      Object.keys(result).forEach((cls) => {
+        if (cls === selectedClassName) {
+          res[cls] = result[cls]
+        }
+      })
+
+      result = res
+    }
+
+    return result
+  }, [groups, debouncedQuery, selectedClass, classes])
 
   function toggleSection(name) {
     setOpenSections((s) => ({ ...s, [name]: !s[name] }))
@@ -237,35 +260,64 @@ export default function SubjectsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-semibold text-black">Subjects</h2>
-          <p className="text-sm text-neutral-500">Browse subjects by class</p>
+    <div className="max-w-7xl mx-auto px-3 sm:px-4">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-black">Subjects</h2>
+          <p className="text-xs sm:text-sm text-neutral-500">Browse subjects by class</p>
         </div>
-        <div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
-              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4" />
-              <span>Show inactive classes</span>
-            </label>
-            <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add subject</button>
-          </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-neutral-600">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4" />
+            <span className="hidden sm:inline">Show inactive classes</span>
+            <span className="sm:hidden">Show inactive</span>
+          </label>
+          <button onClick={() => openAddSubjectModal()} className="w-full sm:w-auto bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add subject</button>
         </div>
       </header>
 
-      <section className="grid gap-6">
-        <div className="flex items-center gap-3">
+      <section className="grid gap-4 sm:gap-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search subjects or classes..."
-              className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm sm:text-base text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
-          <button aria-label="Search subjects" onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Search</button>
-          <button aria-label="Clear search" onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-sm transition">Clear</button>
+          <div className="w-full sm:w-auto sm:min-w-[200px]">
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm sm:text-base text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            >
+              <option value="all">All Classes</option>
+              {classes.filter(c => showInactive || c.is_active).map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name || cls.class_code || `Class ${cls.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            aria-label="Search subjects"
+            onClick={() => setDebouncedQuery(searchTerm.trim())}
+            className="px-3 py-2 rounded-md bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition whitespace-nowrap"
+          >
+            Search
+          </button>
+          <button
+            aria-label="Clear search"
+            onClick={() => {
+              setSearchTerm('')
+              setDebouncedQuery('')
+              setSelectedClass('all')
+            }}
+            className="px-3 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs sm:text-sm transition whitespace-nowrap"
+          >
+            Clear
+          </button>
         </div>
 
         {debouncedQuery ? (

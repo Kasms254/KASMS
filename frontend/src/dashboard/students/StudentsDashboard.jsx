@@ -318,9 +318,13 @@ export default function StudentsDashboard() {
           <div className="text-xs mt-1">Active class: {loadingMetrics ? '…' : (activeClassName ? <span title={activeClassName} className="inline-block align-middle">{activeClassName}</span> : '—')}</div>
         </Card>
 
-        {/* Grade card: big value is student's grade (letter preferred), small text shows class/student average percent */}
+        {/* Grade card: shows grade for current/active class only */}
         <Card
-          title="Grade"
+          title={(() => {
+            if (loadingMetrics) return 'Grade'
+            const className = dashboardStats?.active_class_name
+            return className ? `Grade — ${className}` : 'Grade'
+          })()}
           value={(() => {
             if (loadingMetrics) return '…'
             // Big metric: prefer the student's grade letter provided by server
@@ -354,22 +358,20 @@ export default function StudentsDashboard() {
         >
           <div className="mt-2 text-xs text-black">
             {(() => {
-              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: …</span>
-              // Prefer an explicitly provided average letter, otherwise compute
-              // from numeric average or gpa using the same thresholds.
-              const avgLetterProvided = dashboardStats?.average_grade_letter
-              if (avgLetterProvided) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: {avgLetterProvided}</span>
-              const avgNum = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
-              const computeLetter = (n) => {
-                if (n == null || Number.isNaN(n)) return '—'
-                if (n >= 80) return 'A'
-                if (n >= 70) return 'B'
-                if (n >= 60) return 'C'
-                if (n >= 50) return 'D'
-                return 'F'
+              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Score: …</span>
+              // Show total score for active class
+              const obtained = dashboardStats?.total_marks_obtained
+              const possible = dashboardStats?.total_possible_marks
+              if (obtained != null && possible != null && possible > 0) {
+                const obtainedStr = Number.isInteger(obtained) ? obtained : obtained.toFixed(1)
+                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Score: {obtainedStr}/{possible}</span>
               }
-              const letter = computeLetter(avgNum)
-              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Average: {letter}</span>
+              // Fallback to showing percentage
+              const avgNum = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
+              if (avgNum != null && !Number.isNaN(avgNum)) {
+                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">{avgNum.toFixed(1)}%</span>
+              }
+              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">No results yet</span>
             })()}
           </div>
         </Card>

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useLocation } from 'react-router-dom'
 import api from '../../lib/api'
 
 function toPercent(n) {
@@ -19,7 +19,6 @@ function gradeFromPercent(p) {
 
 export default function ClassDetail() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -196,53 +195,51 @@ export default function ClassDetail() {
   }
 
   return (
-    <div className="p-4 text-black space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Class students</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <p className="text-sm text-gray-600">{subjectId ? 'Students enrolled and their latest exam performance for this subject.' : 'Students enrolled in this class.'}</p>
-            {subjectLabel && (
-              <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-                {subjectLabel}
-              </span>
-            )}
+    <div className="p-3 sm:p-4 md:p-6 text-black space-y-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Class students</h2>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 break-words">
+                {subjectId ? 'Students enrolled and their latest exam performance for this subject.' : 'Students enrolled in this class.'}
+              </p>
+              {subjectLabel && (
+                <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 w-fit">
+                  {subjectLabel}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           {subjectId && (
-            <button
-              onClick={downloadCSV}
-              disabled={marksLoading}
-              className="px-3 py-1.5 rounded-lg bg-green-600 text-white shadow-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-            >
-              {marksLoading ? 'Preparing CSV…' : 'Download CSV'}
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={downloadCSV}
+                disabled={marksLoading}
+                className="flex-1 sm:flex-none px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white shadow-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap"
+              >
+                {marksLoading ? 'Preparing…' : 'Download CSV'}
+              </button>
+            </div>
           )}
-          <button
-            onClick={() => navigate(-1)}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-200 transition"
-          >
-            Back
-          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="bg-white border rounded-xl p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Enrolled</p>
-          <p className="text-2xl font-semibold text-gray-900">{totalStudents}</p>
-          <p className="text-xs text-gray-500">Total students in this class</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Enrolled</p>
+          <p className="text-xl sm:text-2xl font-semibold text-gray-900 my-1">{totalStudents}</p>
+          <p className="text-[10px] sm:text-xs text-gray-500">Total students in this class</p>
         </div>
-        <div className="bg-white border rounded-xl p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Graded</p>
-          <p className="text-2xl font-semibold text-green-700">{subjectId ? gradedCount : '—'}</p>
-          <p className="text-xs text-gray-500">Latest exam for selected subject</p>
+        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Graded</p>
+          <p className="text-xl sm:text-2xl font-semibold text-green-700 my-1">{subjectId ? gradedCount : '—'}</p>
+          <p className="text-[10px] sm:text-xs text-gray-500">Latest exam for selected subject</p>
         </div>
-        <div className="bg-white border rounded-xl p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Pending</p>
-          <p className="text-2xl font-semibold text-amber-600">{subjectId ? pendingCount : '—'}</p>
-          <p className="text-xs text-gray-500">Awaiting grades for this subject</p>
+        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Pending</p>
+          <p className="text-xl sm:text-2xl font-semibold text-amber-600 my-1">{subjectId ? pendingCount : '—'}</p>
+          <p className="text-[10px] sm:text-xs text-gray-500">Awaiting grades for this subject</p>
         </div>
       </div>
 
@@ -251,63 +248,65 @@ export default function ClassDetail() {
 
       {!loading && students.length === 0 && <div className="text-sm text-neutral-600">No students found for this class.</div>}
 
-      <div className="bg-white rounded-xl p-4 border shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium text-gray-800">Students enrolled in this class.</p>
-          {subjectId && <span className="text-xs text-gray-500">Showing latest exam per subject</span>}
+      <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+          <p className="text-xs sm:text-sm font-medium text-gray-800">Students enrolled in this class.</p>
+          {subjectId && <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">Showing latest exam per subject</span>}
         </div>
-        <div className="overflow-x-auto -mx-2">
-          <table className="min-w-full text-left text-sm divide-y divide-gray-200">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="px-3 py-2 font-semibold">Svc number</th>
-                <th className="px-3 py-2 font-semibold">Rank</th>
-                <th className="px-3 py-2 font-semibold">Name</th>
-                <th className="px-3 py-2 font-semibold">Marks (%)</th>
-                <th className="px-3 py-2 font-semibold">Grade</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {marksLoading
-                ? Array.from({ length: Math.min(6, Math.max(3, students.length)) || 4 }).map((_, idx) => (
-                    <tr key={idx} className="animate-pulse">
-                      <td className="px-3 py-3"><div className="h-3 w-16 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-3"><div className="h-3 w-14 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-3"><div className="h-3 w-28 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-3"><div className="h-3 w-12 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-3"><div className="h-6 w-12 bg-gray-200 rounded-full" /></td>
-                    </tr>
-                  ))
-                : students.map(st => {
-                    const stats = subjectMarks[subjectId]?.[st.id]
-                    const marks = stats?.percent != null ? toPercent(stats.percent) : null
-                    const grade = stats?.grade || (marks != null ? gradeFromPercent(marks) || '—' : '—')
-                    const badgeClass = grade
-                      ? grade === 'A' || grade === 'B'
-                        ? 'bg-green-50 text-green-700 border-green-200'
-                        : grade === 'C' || grade === 'D'
-                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-red-50 text-red-700 border-red-200'
-                      : 'bg-gray-50 text-gray-500 border-gray-200'
-                    return (
-                      <tr key={st.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-800">{st.svc_number || st.student_svc_number || '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap text-gray-700">{st.rank || '—'}</td>
-                        <td className="px-3 py-2 text-gray-900">{st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim()}</td>
-                        <td className="px-3 py-2 text-gray-800">{marks != null ? `${marks}%` : <span className="text-gray-400">—</span>}</td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${badgeClass}`}>
-                            {grade || 'Pending'}
-                          </span>
-                        </td>
+        <div className="overflow-x-auto -mx-3 sm:-mx-4">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full text-left text-xs sm:text-sm divide-y divide-gray-200">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm whitespace-nowrap">Svc number</th>
+                  <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm whitespace-nowrap">Rank</th>
+                  <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm">Name</th>
+                  <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm whitespace-nowrap">Marks (%)</th>
+                  <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm">Grade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {marksLoading
+                  ? Array.from({ length: Math.min(6, Math.max(3, students.length)) || 4 }).map((_, idx) => (
+                      <tr key={idx} className="animate-pulse">
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-12 sm:w-16 bg-gray-200 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-14 bg-gray-200 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-20 sm:w-28 bg-gray-200 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-12 bg-gray-200 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-5 sm:h-6 w-10 sm:w-12 bg-gray-200 rounded-full" /></td>
                       </tr>
-                    )
-                  })}
-            </tbody>
-          </table>
+                    ))
+                  : students.map(st => {
+                      const stats = subjectMarks[subjectId]?.[st.id]
+                      const marks = stats?.percent != null ? toPercent(stats.percent) : null
+                      const grade = stats?.grade || (marks != null ? gradeFromPercent(marks) || '—' : '—')
+                      const badgeClass = grade
+                        ? grade === 'A' || grade === 'B'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : grade === 'C' || grade === 'D'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-red-50 text-red-700 border-red-200'
+                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                      return (
+                        <tr key={st.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-gray-800 text-[10px] sm:text-xs">{st.svc_number || st.student_svc_number || '—'}</td>
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-gray-700 text-[10px] sm:text-xs">{st.rank || '—'}</td>
+                          <td className="px-2 sm:px-3 py-2 text-gray-900 text-[10px] sm:text-xs">{st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim()}</td>
+                          <td className="px-2 sm:px-3 py-2 text-gray-800 text-[10px] sm:text-xs">{marks != null ? `${marks}%` : <span className="text-gray-400">—</span>}</td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <span className={`inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold border ${badgeClass}`}>
+                              {grade || 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+              </tbody>
+            </table>
+          </div>
         </div>
         {!subjectId && (
-          <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <div className="mt-3 text-[10px] sm:text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
             Add a subject query param in the URL to see marks for that subject (e.g. ?subject=123).
           </div>
         )}

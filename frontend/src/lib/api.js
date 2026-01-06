@@ -121,8 +121,18 @@ export async function getStudents() {
   return data
 }
 
+export async function getStudentsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/students${qs}`)
+}
+
 export async function getCourses() {
   return request('/api/courses/')
+}
+
+export async function getCoursesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/courses/${qs}`)
 }
 
 export async function addCourse(payload) {
@@ -141,6 +151,11 @@ export async function getClasses(params = '') {
   // { count, results: [...] }. Unwrap results for callers that expect an array.
   if (data && Array.isArray(data.results)) return data.results
   return data
+}
+
+export async function getClassesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/classes/${qs}`)
 }
 
 // Convenience helper: get classes for the currently authenticated user.
@@ -269,6 +284,11 @@ export async function getStudentPerformanceSummary() {
   return request('/api/student-dashboard/performance_summary/')
 }
 
+// Get student's class enrollments (all enrollments including past classes)
+export async function getStudentEnrollments() {
+  return request('/api/student-dashboard/my_classes/')
+}
+
 export async function createExam(payload) {
   return request('/api/exams/', { method: 'POST', body: payload })
 }
@@ -356,6 +376,11 @@ export async function getNotices(params = '') {
   const data = await request(`/api/notices/${qs}`)
   if (data && Array.isArray(data.results)) return data.results
   return data
+}
+
+export async function getNoticesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/notices/${qs}`)
 }
 
 export async function getActiveNotices() {
@@ -456,6 +481,11 @@ export async function getInstructors() {
   return data
 }
 
+export async function getInstructorsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/instructors${qs}`)
+}
+
 export async function getUserEnrollments(userId) {
   return request(`/api/users/${userId}/enrollments/`)
 }
@@ -534,7 +564,10 @@ export default {
   getMyStudents,
   getUserEnrollments,
   addEnrollment,
+  getCourses,
+  addCourse,
   updateCourse,
+  addClass,
   updateClass,
   reactivateEnrollment,
   withdrawEnrollment,
@@ -565,4 +598,10 @@ export default {
   createNotice,
   updateNotice,
   deleteNotice,
+  // Paginated versions
+  getStudentsPaginated,
+  getInstructorsPaginated,
+  getClassesPaginated,
+  getCoursesPaginated,
+  getNoticesPaginated,
 }
