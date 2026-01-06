@@ -39,7 +39,7 @@ class UserViewSet(viewsets.ModelViewSet):
                                              )
         return queryset
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor, IsAdmin])
     def my_students(self, request):
         if request.user.role != 'instructor':
             return Response({
@@ -323,7 +323,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     
 
     # instructor specific classes
-    @action(detail=False, methods=['get'], permission_classes=[IsInstructor], url_path='my-classes')
+    @action(detail=False, methods=['get'], permission_classes=[IsInstructor, IsAdmin], url_path='my-classes')
     def my_classes(self, request):
         if request.user.role != 'instructor':
             return Response({
@@ -345,7 +345,7 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsInstructorOfClassOrAdmin])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def my_students(self, request, pk=None):
 
         class_obj = self.get_object()
@@ -367,14 +367,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'count': students.count(),
             'results': serializer.data,
             'class':class_obj.name
-        })
-    @action(detail=False, methods=['get'])
-    def whoami(self, request):
-        return Response({
-            "id": request.user.id,
-            "email": request.user.email,
-            "role": getattr(request.user, "role", None),
-            "is_authenticated": request.user.is_authenticated,
         })
 
 class SubjectViewSet(viewsets.ModelViewSet):
@@ -821,7 +813,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamAttachmentViewSet(viewsets.ModelViewSet):
     queryset = ExamAttachment.objects.select_related('exam', 'uploaded_by')
     serializer_class = ExamAttachmentSerializer
@@ -862,7 +853,6 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
             exam=exam,
             uploaded_by=self.request.user
         )
-
 
 class ExamResultViewSet(viewsets.ModelViewSet):
     queryset = ExamResult.objects.select_related('exam', 'student', 'graded_by').all()
@@ -939,7 +929,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'count':results.count(),
             'results':serializer.data
         })
-
 
 class AttendanceViewSet(viewsets.ModelViewSet):
 
@@ -1157,7 +1146,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
 
 
@@ -1226,7 +1214,6 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             'report': self.get_serializer(report).data,
             'students': student_data
         })
-
 
 class InstructorDashboardViewset(viewsets.ViewSet):
 
@@ -1336,6 +1323,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_grading': pending_grading
 
         })
+
 
 
 # students
