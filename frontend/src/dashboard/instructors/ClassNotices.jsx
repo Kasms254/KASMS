@@ -23,7 +23,6 @@ export default function ClassNotices() {
     low: 'bg-green-100 text-green-700',
     medium: 'bg-indigo-100 text-indigo-700',
     high: 'bg-amber-100 text-amber-700',
-    urgent: 'bg-rose-100 text-rose-700',
   }
 
   useEffect(() => {
@@ -58,8 +57,8 @@ export default function ClassNotices() {
     return () => { mounted = false }
   }, [])
 
-  // When a class is selected, fetch its subjects (if any) so instructor can
-  // optionally target a specific subject for the notice.
+  // When a class is selected, fetch its subjects so instructor can
+  // select the required subject for the notice.
   const auth = useAuth()
 
   useEffect(() => {
@@ -101,7 +100,7 @@ export default function ClassNotices() {
     setErrors({})
     const localErrors = {}
     if (!form.class_obj) localErrors.class_obj = 'Select a class'
-    // If backend requires subject for this class, you can enforce here.
+    if (!form.subject) localErrors.subject = 'Select a subject'
     if (!form.title || !form.title.trim()) localErrors.title = 'Title is required'
     if (!form.content || !form.content.trim()) localErrors.content = 'Content is required'
     if (Object.keys(localErrors).length) { setErrors(localErrors); return }
@@ -112,8 +111,6 @@ export default function ClassNotices() {
       // Normalize FK values to primitive ids
       if (payload.class_obj && typeof payload.class_obj === 'object') payload.class_obj = payload.class_obj.id
       if (payload.subject && typeof payload.subject === 'object') payload.subject = payload.subject.id
-      // If subject is empty string, don't send it to backend (means class-level notice)
-      if (!payload.subject) delete payload.subject
       if (!payload.expiry_date) delete payload.expiry_date
       if (editTarget && (editTarget.id || editTarget.pk)) {
         const existingId = editTarget.id || editTarget.pk
@@ -221,7 +218,7 @@ export default function ClassNotices() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`inline-block text-xs px-2 py-1 rounded ${n.priority === 'urgent' ? 'bg-rose-100 text-rose-700' : 'bg-neutral-100 text-neutral-700'}`}>{n.is_active ? 'Active' : 'Inactive'}</div>
+                        <div className={`inline-block text-xs px-2 py-1 rounded ${n.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-700'}`}>{n.is_active ? 'Active' : 'Inactive'}</div>
                       </div>
                     </div>
 
@@ -269,9 +266,9 @@ export default function ClassNotices() {
                 </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Subject (optional)</label>
-                    <select value={form.subject} onChange={e => update('subject', e.target.value)} className={`mt-2 p-2 rounded-md border w-full bg-white ${errors.subject ? 'border-rose-500' : ''}`}>
-                      <option value="">None (post to whole class)</option>
+                    <label className="block text-sm font-medium text-gray-700">Subject</label>
+                    <select value={form.subject} onChange={e => { update('subject', e.target.value); if (errors.subject) setErrors(prev => ({ ...prev, subject: undefined })) }} className={`mt-2 p-2 rounded-md border w-full bg-white ${errors.subject ? 'border-rose-500' : ''}`}>
+                      <option value="">Select subject</option>
                       {subjects.map(s => (
                         <option key={s.id} value={s.id}>{s.name || s.title || `Subject ${s.id}`}</option>
                       ))}
@@ -298,7 +295,6 @@ export default function ClassNotices() {
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
                     </select>
                   </div>
 

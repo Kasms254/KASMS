@@ -367,9 +367,9 @@ export default function NavBar({
                       try {
                         if (n.noticeId) {
                           navigate('/list/notices')
-                        } else if (n.kind === 'result' && n.examId) {
-                          // navigate to exam detail or results page; adjust route if your app uses a different path
-                          navigate(`/exams/${n.examId}`)
+                        } else if (n.kind === 'result') {
+                          // navigate to results page for grading notifications
+                          navigate('/list/results')
                         }
                       } catch (err) { console.debug('nav error', err) }
                     }}
