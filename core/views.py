@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent,IsInstructorOfClassOrAdmin
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -345,7 +345,7 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsInstructorofClass])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsInstructorOfClassOrAdmin])
     def my_students(self, request, pk=None):
 
         class_obj = self.get_object()
