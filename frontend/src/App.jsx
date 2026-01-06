@@ -41,8 +41,9 @@ const LoadingFallback = () => (
 )
 
 const ProtectedLogin = () => {
-	const { token, loading } = useAuth()
-	if (loading) return null
+	const { token } = useAuth()
+	// Don't check loading here - let the Login component handle its own loading state
+	// This prevents the white screen when login fails
 	if (token) return <Navigate to="/dashboard" replace />
 	return <Login />
 }

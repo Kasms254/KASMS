@@ -1,8 +1,19 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+
+// Sanitize string input to prevent injection attacks
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // Remove any HTML/script tags and null bytes
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\0/g, '')
+    .trim()
+}
+//const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -71,9 +82,30 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     // Show sanitized error messages to users (avoid exposing internal details)
     let userMessage
     if (res.status === 400) {
-      userMessage = 'Invalid request. Please check your input and try again.'
+      // Check if it's a login endpoint with specific error details
+      if (path.includes('/login')) {
+        const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
+        if (detail) {
+          // Handle array of errors (common in DRF)
+          if (Array.isArray(detail)) {
+            userMessage = detail.join(', ')
+          } else {
+            userMessage = String(detail)
+          }
+        } else {
+          userMessage = 'Invalid credentials. Please check your service number and password.'
+        }
+      } else {
+        userMessage = 'Invalid request. Please check your input and try again.'
+      }
     } else if (res.status === 401) {
-      userMessage = 'Authentication failed. Please log in again.'
+      // For login endpoint, provide specific message about credentials
+      if (path.includes('/login')) {
+        const detail = data && (data.detail || data.message || data.error)
+        userMessage = detail || 'Invalid service number or password. Please try again.'
+      } else {
+        userMessage = 'Authentication failed. Please log in again.'
+      }
     } else if (res.status === 403) {
       userMessage = 'You do not have permission to perform this action.'
     } else if (res.status === 404) {
@@ -83,7 +115,7 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     } else if (res.status >= 500) {
       userMessage = 'Service temporarily unavailable. Please try again later.'
     } else {
-      // For validation errors (400) with field-specific messages, allow those through
+      // For validation errors with field-specific messages, allow those through
       // since they don't expose internal details
       const detail = data && (data.detail || data.message || data.error)
       userMessage = detail || 'An error occurred. Please try again.'
@@ -99,7 +131,16 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
 }
 
 export async function login(svc_number, password) {
-  return request('/api/auth/login/', { method: 'POST', body: { svc_number, password } })
+  // Sanitize inputs before sending to API
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  return request('/api/auth/login/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizedSvcNumber,
+      password: sanitizedPassword
+    }
+  })
 }
 
 export async function logout(refresh) {
