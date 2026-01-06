@@ -338,7 +338,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             is_active=True
         ).select_related('instructor')
 
-        # Get all exams for this class
+    
         exams = Exam.objects.filter(
             subject__class_obj=class_obj,
             is_active=True
@@ -405,14 +405,14 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
 
                         subject_scores.append({
                             'subject_name': subject.name,
-                            'subject_code': getattr(subject, 'code', subject.name),  # FIXED
+                            'subject_code': getattr(subject, 'code', subject.name),  
                             'percentage': round(subj_pct, 2),
                         })
 
                 student_rankings.append({
                     'student_id': student.id,
                     'student_name': student.get_full_name(),
-                    'svc_number': getattr(student, 'svc_number', None),  # FIXED: typo
+                    'svc_number': getattr(student, 'svc_number', None), 
                     'total_exams_taken': student_results.count(),
                     'overall_percentage': round(student_percentage, 2),
                     'attendance_rate': round(attendance_rate, 2),
@@ -437,7 +437,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
         # Top 10 performers
         top_performers = student_rankings[:10]
 
-        # Subject-wise class performance
+       
         subject_performance = []
         for subject in subjects:
             subject_results = all_results.filter(exam__subject=subject)
@@ -453,20 +453,19 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 subject_performance.append({
                     'subject_id': subject.id,
                     'subject_name': subject.name,
-                    'subject_code': getattr(subject, 'code', subject.name),  # FIXED
+                    'subject_code': getattr(subject, 'code', subject.name), 
                     'instructor': subject.instructor.get_full_name() if subject.instructor else None,
                     'total_exams': Exam.objects.filter(subject=subject, is_active=True).count(),
                     'results_count': subject_results.count(),
                     'average_percentage': round(subj_avg, 2),
                     'pass_rate': round(subj_pass_rate, 2),
                     'highest_score': round(max(r.percentage for r in subject_results), 2),
-                    'lowest_score': round(min(r.percentage for r in subject_results), 2),  # FIXED: typo
+                    'lowest_score': round(min(r.percentage for r in subject_results), 2), 
                 })
 
-        # Sort subjects by performance
         subject_performance.sort(key=lambda x: x['average_percentage'], reverse=True)
 
-        # Attendance statistics
+      
         class_attendance = Attendance.objects.filter(class_obj=class_obj)
         total_attendance_records = class_attendance.count()
         present_records = class_attendance.filter(status='present').count()
@@ -485,7 +484,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'total_exams': exams.count(),
                 'total_results_submitted': all_results.count(),
                 'class_average_percentage': round(class_average, 2),
-                'class_pass_rate': round(pass_rate, 2),  # FIXED: typo
+                'class_pass_rate': round(pass_rate, 2),  
                 'class_attendance_rate': round(class_attendance_rate, 2),
             },
             'grade_distribution': grade_distribution,
@@ -603,7 +602,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                     'pass_rate': round(pass_rate, 2),
                 })
 
-        # Sort by average percentage
+      
         class_comparison.sort(key=lambda x: x['average_percentage'], reverse=True)
 
         return Response({
@@ -622,20 +621,19 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'error': 'class_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get the full summary
         request.query_params._mutable = True
         request.query_params['class_id'] = class_id
         summary_response = self.summary(request)
 
         if report_format == 'detailed':
-            # Include detailed exam results
+     
             return Response({
                 **summary_response.data,
                 'report_generated_at': timezone.now(),
                 'report_type': 'detailed',
             })
         else:
-            # Return summary only
+     
             return Response({
                 'class': summary_response.data['class'],
                 'overall_statistics': summary_response.data['overall_statistics'],
