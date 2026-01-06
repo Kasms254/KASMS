@@ -9,7 +9,7 @@ from django.db.models import Q, Count, Avg
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent,IsInstructorOfClassOrAdmin
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
