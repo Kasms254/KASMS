@@ -368,9 +368,10 @@ class ExamResultSerializer(serializers.ModelSerializer):
     subject_id = serializers.IntegerField(source='exam.subject.id', read_only=True)
     subject_name = serializers.CharField(source='exam.subject.name', read_only=True)
     subject_code = serializers.CharField(source='exam.subject.subject_code', read_only=True)
+
+    class_id = serializers.IntegerField(source='exam.subject.class_obj_id', read_only=True)
     class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
-
-
+    course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
 
     class Meta:
         model = ExamResult
