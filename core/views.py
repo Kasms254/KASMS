@@ -15,6 +15,8 @@ from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
+from datetime import timedelta
+
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -239,7 +241,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
-
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
@@ -391,7 +392,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     
 
     # instructor specific classes
-    @action(detail=False, methods=['get'], permission_classes=[IsInstructor, IsAdmin], url_path='my-classes')
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
     def my_classes(self, request):
         if request.user.role != 'instructor':
             return Response({
@@ -803,7 +804,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -1271,7 +1271,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
 
-    
 
 class ExamReportViewSet(viewsets.ModelViewSet):
 
@@ -1451,10 +1450,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
 
         })
 
-
-
 # students
-
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
 
@@ -1656,11 +1652,15 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
         subject_id = request.query_params.get('subject_id')
         exam_id = request.query_params.get('exam_id')
+        class_id = request.query_params.get('class_id')
+
 
         if subject_id :
             results = results.filter(exam__subject_id = subject_id)
         if exam_id:
             results = results.filter(exam_id=exam_id)
+        if class_id :
+            results = results.filter(exam__subject__class_obj_id=class_id)
 
         results = results.order_by('created_at')
 
@@ -1693,6 +1693,157 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'results': serializer.data 
             })
     
+    def list(self, request):
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access the Student Dashboard'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = request.user
+
+        enrollments = Enrollment.objects.filter(
+            student = user,
+            is_active=True
+        ).select_related('class_obj', 'class_obj_course', 'class_obj__instructor')
+
+        enrolled_class_ids = enrollments.values.list('class_obj_id',flat=True)
+
+        active_enrollment = enrollments.first()
+        active_class_id = None
+        active_class_name = None
+        active_course_name = None
+
+        if active_enrollment:
+            active_class_id = active_enrollment.class_obj.id
+            active_class_name = active_enrollment.class_obj.name
+            active_course_name = active_enrollment.class_obj.course.name
+
+
+        subjects = Subject.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active=True
+        ).select_related('instructor', 'class_obj')
+
+        today = timezone.now().date()
+
+        upcoming_exams = Exam.objects.filter(
+            subject__class_obj_is__in = enrolled_class_ids,
+            is_active=True,
+            exam_date__gte = today,
+            exam_date__lte = today + timedelta(days=30)
+        ).select_related('subject', 'subject__class_obj').order_by('exam_date')
+
+        recent_results = ExamResult.objects.filter(
+            student = user,
+            is_submitted=True
+        ).select_related(
+            'exam', 'exam__subject', 'graded_by'
+        ).order_by(
+            '-exam__exam_date'
+        )[:10]
+
+        total_attendance = Attendance.objects.filter(
+            student=user
+        )
+        present_count  = total_attendance.filter(
+            status='present'
+        ).count()
+        total_count = total_attendance.count()
+        attendance_rate = (present_count/total_count * 100) if total_count > 0 else 0
+
+        recent_notices = ClassNotice.objects.filter(
+            class_obj_id__in = enrolled_class_ids,
+            is_active=True
+        ).filter(
+            Q(expiry_date__is_null = True) |
+            Q(expiry_date__gte = today)
+        ).select_related(
+            'class_obj', 'subject', 'created_by'
+        ).order_by(
+            '-created_at'
+        ) [:10]
+
+        general_notices = Notice.objects.filter(
+            is_active=True
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')[:5]
+
+
+        stats  = {
+            'total_classes': enrollments.count(),
+            'total_subjects': subjects.count(),
+            'total_exams_taken':ExamResult.objects.filter(
+                student=user,
+                is_submitted=True
+            ).count(),
+            'pending_exams':upcoming_exams.count(),
+            'attendance_rate':round(attendance_rate, 2),
+            'total_attendance_records': total_count,
+            'present_days': present_count,
+            'absent_days':total_attendance.filter(status='absent').count(),
+            'late_days':total_attendance.filter(status='late').count(),
+
+        }
+
+        if active_class_id:
+            active_class_results = ExamResult.objects.filter(
+                student=user,
+                is_submitted=True,
+                marks_obtained_isnull = False,
+                exam__subject__class_obj_id = active_class_id
+            )
+
+            if active_class_results.exists():
+                total_marks = sum(r.marks_obtained for r in active_class_results)
+                total_possible = sum(r.exam.total_marks for r in active_class_results)
+                average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
+
+                if average_percentage >=90:
+                    grade_letter = 'A'
+                elif average_percentage >=80:
+                    grade_letter = 'B'
+                elif average_percentage >= 70:
+                    grade_letter = 'C'
+                elif average_percentage >= 60:
+                    grade_letter = 'D'
+                else:
+                    grade_letter = 'F'
+
+                stats['active_class_id'] = active_class_id
+                stats['active_class_name'] = active_class_name
+                stats['active_course_name'] = active_class_name
+                stats['average_grade'] = round(average_percentage, 2)
+                stats['average_grade_letter'] = grade_letter
+                stats['total_marks_obtained'] = total_marks
+                stats['total_possible_marks'] = total_possible
+
+            else:
+                stats['active_class_id'] = active_class_id
+                stats['active_class_name'] = active_class_name
+                stats['active_course_name'] = active_course_name
+                stats['average_grade'] = 0
+                stats['average_grade_letter'] = 'N/A'
+                stats['total_marks_obtained']= 0
+                stats['total_possible_marks']= 0
+
+        else:
+            stats['average_grade'] = 0
+            stats['average_grade_letter'] = 'N/A'
+            stats['total_marks_obtained']= 0
+            stats['total_possbile_marks'] = 0
+
+        return Response({
+            'stats':stats,
+            'enrollments':EnrollmentSerializer(enrollments, many=True).data,
+            'subjects':SubjectSerializer(subjects, many=True).data,
+            'upcoming_exam':ExamSerializer(upcoming_exams, many=True).data,
+            'recent_results':ExamResultSerializer(recent_results, many=True).data,
+            'general_notices':NoticeSerializer(general_notices, many=True).data
+        })
+
+        
+
     @action(detail=False, methods=['get'])
     def my_attendance(self, request):
 
@@ -1748,9 +1899,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'results': serializer.data
         })
                 
-
     @action(detail=False, methods=['get'])
-
     def my_notices(self, request):
 
         if request.user.role != 'student':
@@ -1828,7 +1977,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 'results':serializer.data
             })
 
-    
     @action(detail=False, methods=['get'])
     def performance_summary(self, request):
 
@@ -1903,6 +2051,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                     'excused': attendance.filter(status='excused').count()
                 }
             })
+
     @action(detail=False, methods=['get'])
     def upcoming_schedule(self, request):
 
