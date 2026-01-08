@@ -241,7 +241,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
-
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
@@ -805,7 +804,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -1453,7 +1451,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         })
 
 # students
-
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
 
