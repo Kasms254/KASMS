@@ -43,6 +43,7 @@ export default function AdminInstructors() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] })
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
 
@@ -167,23 +168,67 @@ export default function AdminInstructors() {
   }
 
   // Password reset handlers
+  // Password strength checker
+  function checkPasswordStrength(password) {
+    const feedback = []
+    let score = 0
+
+    if (password.length >= 8) {
+      score += 1
+      feedback.push({ met: true, text: 'At least 8 characters' })
+    } else {
+      feedback.push({ met: false, text: 'At least 8 characters' })
+    }
+
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains uppercase and lowercase' })
+    } else {
+      feedback.push({ met: false, text: 'Contains uppercase and lowercase' })
+    }
+
+    if (/\d/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains numbers' })
+    } else {
+      feedback.push({ met: false, text: 'Contains numbers' })
+    }
+
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains special characters' })
+    } else {
+      feedback.push({ met: false, text: 'Contains special characters' })
+    }
+
+    return { score, feedback }
+  }
+
   function openResetPassword(it) {
     setResetPasswordUser(it)
     setNewPassword('')
     setConfirmPassword('')
+    setPasswordStrength({ score: 0, feedback: [] })
   }
 
   function closeResetPassword() {
     setResetPasswordUser(null)
     setNewPassword('')
     setConfirmPassword('')
+    setPasswordStrength({ score: 0, feedback: [] })
+  }
+
+  function handleNewPasswordChange(e) {
+    const value = e.target.value
+    setNewPassword(value)
+    setPasswordStrength(checkPasswordStrength(value))
   }
 
   async function submitResetPassword(e) {
     e.preventDefault()
     if (!resetPasswordUser) return
-    if (newPassword.length < 6) {
-      reportError('Password must be at least 6 characters')
+    if (passwordStrength.score < 4) {
+      reportError('Password does not meet all requirements')
       return
     }
     if (newPassword !== confirmPassword) {
@@ -921,12 +966,29 @@ export default function AdminInstructors() {
                   <input 
                     type="password" 
                     value={newPassword} 
-                    onChange={(e) => setNewPassword(e.target.value)} 
+                    onChange={handleNewPasswordChange} 
                     className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
                     required 
-                    minLength={6}
+                    minLength={8}
                   />
                 </label>
+
+                {/* Password Requirements */}
+                {newPassword && (
+                  <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-neutral-500 mb-2">Password Requirements:</p>
+                    {passwordStrength.feedback.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        {item.met ? (
+                          <LucideIcons.Check className="w-3.5 h-3.5 text-green-600" />
+                        ) : (
+                          <LucideIcons.X className="w-3.5 h-3.5 text-red-500" />
+                        )}
+                        <span className={item.met ? 'text-green-700' : 'text-neutral-600'}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <label className="block">
                   <div className="text-sm text-neutral-600 mb-1">Confirm Password</div>
@@ -936,13 +998,20 @@ export default function AdminInstructors() {
                     onChange={(e) => setConfirmPassword(e.target.value)} 
                     className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
                     required 
-                    minLength={6}
+                    minLength={8}
                   />
                 </label>
 
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <LucideIcons.AlertCircle className="w-4 h-4" />
+                    Passwords do not match
+                  </p>
+                )}
+
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
                   <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={resetLoading} className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{resetLoading ? 'Resetting...' : 'Reset Password'}</button>
+                  <button type="submit" disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword || passwordStrength.score < 4} className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{resetLoading ? 'Resetting...' : 'Reset Password'}</button>
                 </div>
               </form>
             </div>

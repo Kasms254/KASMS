@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import RoleProtectedLayout from './components/RoleProtectedLayout'
+import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
+import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import useAuth from './hooks/useAuth'
@@ -58,30 +61,44 @@ const App = () => {
 			{/* Public landing: login at root - redirect to dashboard if already authenticated */}
 			<Route path="/" element={<ProtectedLogin />} />
 
-			{/* Application routes under /dashboard (wrapped with Layout) */}
+			{/* IMPORTANT: Specific routes MUST come before general routes */}
+
+			{/* Admin-only dashboard routes */}
+			<Route path="/dashboard/admin" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<AdminDashboard />} />
+			</Route>
+
+			{/* Instructor-only dashboard routes */}
+			<Route path="/dashboard/instructors" element={<RoleProtectedLayout role="instructor" />}>
+				<Route index element={<InstructorsDashboard />} />
+				<Route path="subjects" element={<InstructorsSubjectsPage />} />
+			</Route>
+
+			{/* Admin user management */}
+			<Route path="/dashboard/add/user" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<AddUser />} />
+			</Route>
+
+			{/* General dashboard routes - MUST come AFTER specific routes */}
 			<Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<DashboardIndex />} />
-				<Route path="admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
-				<Route path="instructors" element={<InstructorsDashboard />} />
-					<Route path="instructors/subjects" element={<ProtectedRoute role="instructor"><InstructorsSubjectsPage /></ProtectedRoute>} />
 				<Route path="students" element={<StudentsRoute />} />
-				<Route path="add/user" element={<ProtectedRoute role="admin"><AddUser /></ProtectedRoute>} />
 			</Route>
 
 			{/* Individual listing routes (used by sidebar links like /list/courses) */}
 			{/* These listing pages require admin role (avoid showing 403 to non-admins) */}
-			<Route path="/list/courses" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/courses" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<Courses />} />
 				<Route path=":id" element={<CourseDetail />} />
 			</Route>
 
 			{/* Admin user listings: students & instructors */}
-			<Route path="/list/students" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/students" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AdminStudents />} />
 			</Route>
 
 			{/* Notices (admin) */}
-			<Route path="/list/notices" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/notices" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<Notices />} />
 			</Route>
 
@@ -91,11 +108,11 @@ const App = () => {
 			</Route>
 
 			{/* Class notices (instructors) */}
-			<Route path="/list/class-notices" element={<ProtectedRoute role="instructor"><Layout /></ProtectedRoute>}>
+			<Route path="/list/class-notices" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<ClassNotices />} />
 			</Route>
 
-			<Route path="/list/instructors" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/instructors" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AdminInstructors />} />
 			</Route>
 
@@ -105,38 +122,38 @@ const App = () => {
 				<Route path=":id" element={<ClassDetail />} />
 			</Route>
 
-			{/* Attendance (instructors & admins) */}
-			<Route path="/list/attendance" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			{/* Attendance (instructors only) */}
+			<Route path="/list/attendance" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<Attendance />} />
 			</Route>
 
-			{/* Exams listing (instructors, admins) */}
-			<Route path="/list/exams" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			{/* Exams listing (instructors only) */}
+			<Route path="/list/exams" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<Exams />} />
 			</Route>
 
 			{/* Results listing - shows instructor grading UI for instructors, student results for students */}
-			<Route path="/list/results" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			<Route path="/list/results" element={<InstructorOrStudentLayout />}>
 				<Route index element={<ResultsRoute />} />
 			</Route>
 
 			{/* Subjects listing (by class) */}
-			<Route path="/list/subjects" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/subjects" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<SubjectsPage />} />
 			</Route>
 
 			{/* Teaching assignments: create and view instructor-class-subject assignments (admin only) */}
-			<Route path="/list/assignments" element={<ProtectedRoute role="admin"><Layout /></ProtectedRoute>}>
+			<Route path="/list/assignments" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<TeachingAssignments />} />
 			</Route>
 
 			{/* Performance Analytics (admins & instructors) */}
-			<Route path="/analytics" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			<Route path="/analytics" element={<AdminOrInstructorLayout />}>
 				<Route index element={<PerformanceAnalytics />} />
 			</Route>
 
 			{/* Exam Reports (admins & instructors) */}
-			<Route path="/list/exam-reports" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			<Route path="/list/exam-reports" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ExamReports />} />
 			</Route>
 		</Routes>

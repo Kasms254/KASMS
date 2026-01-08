@@ -201,8 +201,15 @@ export default function ExamReports() {
 
   // Filter exams based on selections
   const filteredExams = useMemo(() => {
+    // Don't show any exams if no class is selected
+    if (!selectedClass) {
+      setExamListPage(1)
+      return []
+    }
+
     const filtered = exams.filter(exam => {
-      if (selectedClass && exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
+      // Class filter is required
+      if (exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
         // Try matching via subject
         const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
@@ -388,24 +395,47 @@ export default function ExamReports() {
 
       {/* Filters - Only show when not viewing exam details */}
       {!selectedExam && (
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${
+          !selectedClass
+            ? 'border-indigo-300 ring-2 ring-indigo-100'
+            : 'border-neutral-200'
+        }`}>
           <div className="flex items-center gap-2 mb-4">
             <LucideIcons.Filter className="w-5 h-5 text-neutral-500" />
             <h3 className="font-medium text-black">Filters</h3>
+            {!selectedClass && (
+              <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full animate-pulse">
+                Select a class to view exams
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Class Filter */}
             <div>
-              <label className="block text-sm text-neutral-600 mb-1">Class</label>
+              <label className={`flex items-center gap-1 text-sm mb-1 ${
+                !selectedClass ? 'text-indigo-700 font-medium' : 'text-neutral-600'
+              }`}>
+                <LucideIcons.School className="w-4 h-4" />
+                Class
+                {!selectedClass && (
+                  <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                    Required
+                  </span>
+                )}
+              </label>
               <select
                 value={selectedClass}
                 onChange={(e) => {
                   setSelectedClass(e.target.value)
                   setSelectedSubject('')
                 }}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${
+                  !selectedClass
+                    ? 'border-indigo-300 ring-1 ring-indigo-100'
+                    : 'border-neutral-200'
+                }`}
               >
-                <option value="">All Classes</option>
+                <option value="">Select a class...</option>
                 {classes.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -414,17 +444,31 @@ export default function ExamReports() {
 
             {/* Subject Filter */}
             <div>
-              <label className="block text-sm text-neutral-600 mb-1">Subject</label>
+              <label className="flex items-center gap-1 text-sm text-neutral-600 mb-1">
+                <LucideIcons.BookOpen className="w-4 h-4" />
+                Subject
+              </label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                disabled={!selectedClass}
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                  !selectedClass
+                    ? 'bg-gray-100 cursor-not-allowed border-neutral-200'
+                    : 'border-neutral-200'
+                }`}
               >
-                <option value="">All Subjects</option>
+                <option value="">{!selectedClass ? 'Select class first...' : 'All Subjects'}</option>
                 {filteredSubjects.map(s => (
                   <option key={s.id} value={s.id}>{s.name} ({s.subject_code || 'N/A'})</option>
                 ))}
               </select>
+              {!selectedClass && (
+                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                  <LucideIcons.Info className="w-3 h-3" />
+                  Select a class first
+                </p>
+              )}
             </div>
 
             {/* Exam Type Filter */}
@@ -436,9 +480,7 @@ export default function ExamReports() {
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
                 <option value="">All Types</option>
-                <option value="cat">CAT</option>
                 <option value="final">Final</option>
-                <option value="project">Project</option>
               </select>
             </div>
 
@@ -486,11 +528,27 @@ export default function ExamReports() {
       {!selectedExam && (
         <>
           {filteredExams.length === 0 ? (
-            <EmptyState
-              icon={LucideIcons.FileText}
-              title="No exams found"
-              description="There are no exams matching your current filters."
-            />
+            !selectedClass ? (
+              <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl border-2 border-dashed border-indigo-200 p-8 md:p-12 text-center">
+                <div className="max-w-md mx-auto">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LucideIcons.FileText className="w-8 h-8 md:w-10 md:h-10 text-indigo-600" />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">
+                    Select a Class to View Exam Reports
+                  </h3>
+                  <p className="text-sm md:text-base text-gray-600">
+                    Choose a class from the dropdown above to view exam reports, analyze student performance, and generate detailed statistics.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                icon={LucideIcons.FileText}
+                title="No exams found"
+                description="There are no exams matching your current filters for this class."
+              />
+            )
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
               <div className="overflow-x-auto">

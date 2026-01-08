@@ -366,7 +366,8 @@ export default function PerformanceAnalytics() {
   // Selected filters
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '')
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
-  const [viewMode, setViewMode] = useState('class') // 'class', 'subject', or 'trends'
+  // Instructors default to 'subject' view since they don't have access to class-level analytics
+  const [viewMode, setViewMode] = useState(user?.role === 'instructor' ? 'subject' : 'class')
 
   // Analytics data
   const [classPerformance, setClassPerformance] = useState(null)
@@ -393,11 +394,6 @@ export default function PerformanceAnalytics() {
 
         setClasses(classList)
         setSubjects(subjectList)
-
-        // Auto-select first class if none selected
-        if (classList.length > 0 && !selectedClass) {
-          setSelectedClass(String(classList[0].id))
-        }
       } catch (err) {
         console.error('Failed to load data:', err)
         setError(err.message)
@@ -421,7 +417,19 @@ export default function PerformanceAnalytics() {
   // Load analytics when class/subject changes
   useEffect(() => {
     async function loadAnalytics() {
-      if (!selectedClass && !selectedSubject) return
+      // Don't load analytics if required filters aren't selected
+      if (viewMode === 'class' && !selectedClass) {
+        setClassPerformance(null)
+        setSubjectComparison(null)
+        setClassComparison(null)
+        return
+      }
+
+      if ((viewMode === 'subject' || viewMode === 'trends') && !selectedSubject) {
+        setSubjectPerformance(null)
+        setTrendData(null)
+        return
+      }
 
       setAnalyticsLoading(true)
       setError(null)
@@ -442,9 +450,11 @@ export default function PerformanceAnalytics() {
           setTrendData(trends)
         }
 
-        // Also load class comparison for overview
-        const classComp = await api.compareClasses().catch(() => null)
-        setClassComparison(classComp)
+        // Also load class comparison for overview when in class view
+        if (viewMode === 'class' && selectedClass) {
+          const classComp = await api.compareClasses().catch(() => null)
+          setClassComparison(classComp)
+        }
 
       } catch (err) {
         console.error('Failed to load analytics:', err)
@@ -492,18 +502,21 @@ export default function PerformanceAnalytics() {
 
       {/* View Mode Toggle */}
       <div className="bg-white rounded-xl border border-gray-200 p-1.5 md:p-2 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
-        <button
-          onClick={() => setViewMode('class')}
-          className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-            viewMode === 'class'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Icons.Layers className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
-          <span className="hidden sm:inline">Class View</span>
-          <span className="sm:hidden">Class</span>
-        </button>
+        {/* Class View - only visible to admins */}
+        {user?.role !== 'instructor' && (
+          <button
+            onClick={() => setViewMode('class')}
+            className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'class'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Icons.Layers className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
+            <span className="hidden sm:inline">Class View</span>
+            <span className="sm:hidden">Class</span>
+          </button>
+        )}
         <button
           onClick={() => setViewMode('subject')}
           className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
@@ -523,7 +536,6 @@ export default function PerformanceAnalytics() {
               ? 'bg-indigo-600 text-white shadow-md'
               : 'text-gray-600 hover:bg-gray-100'
           }`}
-          disabled={!selectedSubject}
         >
           <Icons.LineChart className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
           <span className="hidden sm:inline">Trend Analysis</span>
@@ -532,12 +544,23 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm">
+      <div className={`bg-white rounded-xl border p-3 md:p-4 shadow-sm transition-all ${
+        !selectedClass
+          ? 'border-indigo-300 ring-2 ring-indigo-100'
+          : 'border-gray-200'
+      }`}>
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
           <div className="flex-1 min-w-0 sm:min-w-[200px]">
-            <label className="flex items-center gap-1 text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
+            <label className={`flex items-center gap-1 text-xs md:text-sm font-medium mb-1.5 md:mb-2 ${
+              !selectedClass ? 'text-indigo-700' : 'text-gray-700'
+            }`}>
               <Icons.School className="w-3 h-3 md:w-4 md:h-4" />
               Select Class
+              {!selectedClass && (
+                <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+                  Required
+                </span>
+              )}
             </label>
             <select
               value={selectedClass}
@@ -545,9 +568,13 @@ export default function PerformanceAnalytics() {
                 setSelectedClass(e.target.value)
                 setSelectedSubject('')
               }}
-              className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm"
+              className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm transition-all ${
+                !selectedClass
+                  ? 'border-indigo-300 ring-1 ring-indigo-100'
+                  : 'border-gray-300'
+              }`}
             >
-              <option value="">All Classes</option>
+              <option value="">Select a class...</option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.course_name ? `(${c.course_name})` : ''}
@@ -558,22 +585,44 @@ export default function PerformanceAnalytics() {
 
           {(viewMode === 'subject' || viewMode === 'trends') && (
             <div className="flex-1 min-w-0 sm:min-w-[200px]">
-              <label className="flex items-center gap-1 text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">
+              <label className={`flex items-center gap-1 text-xs md:text-sm font-medium mb-1.5 md:mb-2 ${
+                !selectedSubject ? 'text-indigo-700' : 'text-gray-700'
+              }`}>
                 <Icons.BookOpen className="w-3 h-3 md:w-4 md:h-4" />
                 Select Subject
+                {!selectedSubject && selectedClass && (
+                  <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+                    Required
+                  </span>
+                )}
               </label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm"
+                disabled={!selectedClass}
+                className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm transition-all ${
+                  !selectedClass
+                    ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                    : !selectedSubject
+                    ? 'border-indigo-300 ring-1 ring-indigo-100'
+                    : 'border-gray-300'
+                }`}
               >
-                <option value="">Select a subject</option>
+                <option value="">
+                  {!selectedClass ? 'Select a class first...' : 'Select a subject...'}
+                </option>
                 {filteredSubjects.map(s => (
                   <option key={s.id} value={s.id}>
                     {s.name} {s.code ? `(${s.code})` : ''}
                   </option>
                 ))}
               </select>
+              {!selectedClass && (
+                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                  <Icons.Info className="w-3 h-3" />
+                  Please select a class first
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -904,8 +953,8 @@ export default function PerformanceAnalytics() {
         </>
       )}
 
-      {/* Class Comparison Section */}
-      {classComparison?.classes && classComparison.classes.length > 0 && (
+      {/* Class Comparison Section - only show in class view */}
+      {viewMode === 'class' && classComparison?.classes && classComparison.classes.length > 0 && (
         <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
           <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Icons.GitCompare className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
@@ -950,17 +999,48 @@ export default function PerformanceAnalytics() {
 
       {/* Empty state */}
       {!analyticsLoading && !classPerformance && !subjectPerformance && !trendData && (
-        <EmptyState
-          icon="BarChart2"
-          title="No analytics data"
-          description={
-            viewMode === 'class'
-              ? "Select a class to view performance analytics"
-              : viewMode === 'subject'
-              ? "Select a subject to view performance analytics"
-              : "Select a subject to view trend analysis"
-          }
-        />
+        <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl border-2 border-dashed border-indigo-200 p-8 md:p-12 text-center">
+          <div className="max-w-md mx-auto">
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icons.BarChart2 className="w-8 h-8 md:w-10 md:h-10 text-indigo-600" />
+            </div>
+            <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">
+              {viewMode === 'class' ? 'Select a Class to View Analytics' :
+               !selectedClass ? 'Select a Class First' :
+               viewMode === 'subject' ? 'Select a Subject to View Performance' :
+               'Select a Subject for Trend Analysis'}
+            </h3>
+            <p className="text-sm md:text-base text-gray-600 mb-6">
+              {viewMode === 'class' ? 'Choose a class from the dropdown above to view detailed performance metrics, grade distribution, top performers, and subject comparisons.' :
+               !selectedClass ? 'You need to select a class before choosing a subject. Please select a class from the dropdown above to continue.' :
+               viewMode === 'subject' ? 'Choose a subject from the dropdown above to view exam breakdowns, student performance, and grade distribution for that subject.' :
+               'Choose a subject from the dropdown above to analyze performance trends over time with visual charts and exam history.'}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-500">
+              {selectedClass || viewMode === 'class' ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Icons.Users className="w-4 h-4 text-indigo-500" />
+                    <span>Student Rankings</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icons.PieChart className="w-4 h-4 text-indigo-500" />
+                    <span>Grade Distribution</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Icons.TrendingUp className="w-4 h-4 text-indigo-500" />
+                    <span>Performance Insights</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <Icons.AlertCircle className="w-4 h-4" />
+                  <span>Class selection required first</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
