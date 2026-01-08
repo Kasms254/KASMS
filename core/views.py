@@ -13,6 +13,8 @@ from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructo
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db.models import Q
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -80,13 +82,79 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def students(self, request):
-        students = User.objects.filter(role='student', is_active=True).order_by('first_name', 'last_name')
-        serializer = UserListSerializer(students, many=True)
-        return Response({
-            'count': students.count(),
+        search_query = request.query_params.get('search','').strip()
+        class_is_active_param = request.query_params.get('class_is_active', 'true').lower()
+        page_number  = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+
+        filter_by_active_class = class_is_active_param in ['true', '1', 'yes']
+
+        students_qs = User.objects.filter(
+            role='student',
+            is_active=True
+        ).prefetch_related(
+            'enrollments',
+            'enrollments__class_obj'
+        )
+
+        if search_query:
+            students_qs = students_qs.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains= search_query) |
+                Q(first_name__icontains= search_query) |
+                Q(last_name__icontains = search_query) |
+                Q(svc_number__icontains = search_query)
+            )
+        else:
+
+            if filter_by_active_class:
+
+                active_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active=True
+                ).values_list('student_id', flat=True).distinct()
+
+                students_qs = students_qs.filter(id__in=active_student_ids)
+
+        
+        if 'class_is_active' in request.query_params:
+            if filter_by_active_class:
+                active_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active = True
+                ).values_list('student_id', flat=True).distinct()
+                students_qs = students_qs.filter(id__in=active_student_ids)
+            else:
+
+                inactive_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active =False
+                ).values_list('student_id', flat=True).distinct()
+                students_qs = students_qs.filter(id__in=inactive_student_ids)
+
+        students_qs = students_qs.order_by('first_name', 'last_name')
+
+        paginator = Paginator(students_qs, page_size)
+        page_obj = paginator.get_page(page_number)
+
+
+        serializer = UserListSerializer(page_obj.object_list, many=True)
+
+        response_data ={
+            'count':paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page':page_obj.number,
+            'page_size':page_size,
+            'next':page_obj.next_page_number() if page_obj.has_next() else None,
+            'previous':page_obj.previous_page_number() if page_obj.has_previous() else None,
             'results': serializer.data
-        })
-    
+        }            
+
+        if search_query:
+            response_data['search_query'] = search_query
+
+        return Response(response_data)
+
     @action(detail=False, methods=['get'])
     def commandants(self, request):
         commandants = User.objects.filter(role='commandant', is_active=True).order_by('first_name', 'last_name')
