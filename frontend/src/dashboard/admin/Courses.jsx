@@ -119,15 +119,15 @@ export default function Courses() {
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-semibold text-black">Courses</h2>
-          <p className="text-sm text-neutral-500 mt-1">Manage courses — create, edit, and view course details and their active classes.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-black">Courses</h2>
+          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage courses — create, edit, and view course details and their active classes.</p>
         </div>
         <div>
           <button
             onClick={() => setAddModalOpen(true)}
-            className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition"
+            className="w-full sm:w-auto bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition"
           >
             Add course
           </button>

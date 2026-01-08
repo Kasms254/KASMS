@@ -361,15 +361,15 @@ export default function AddResults() {
   }, [hasChanges])
 
   return (
-    <div className="p-6 text-black max-w-7xl mx-auto">
-      <header className="mb-6">
-        <h2 className="text-3xl font-semibold mb-2">Grade Results</h2>
-        <p className="text-gray-600">Select an exam and enter marks for your students. Use Tab/Enter to navigate, arrow keys to move between rows.</p>
+    <div className="p-3 sm:p-4 md:p-6 text-black max-w-7xl mx-auto">
+      <header className="mb-4 sm:mb-6">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-2">Grade Results</h2>
+        <p className="text-xs sm:text-sm md:text-base text-gray-600">Select an exam and enter marks for your students. <span className="hidden sm:inline">Use Tab/Enter to navigate, arrow keys to move between rows.</span></p>
       </header>
 
       {/* Exam Selection */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Select Exam</label>
+      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
         <div className="flex gap-3 items-center flex-wrap">
           <select
             value={selectedExam}
@@ -380,7 +380,7 @@ export default function AddResults() {
               setSearchTerm('');
               setSortConfig({ key: null, direction: 'asc' });
             }}
-            className="flex-1 min-w-[250px] p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex-1 min-w-full sm:min-w-[250px] p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           >
             <option value="">-- Select an exam --</option>
             {exams.map(ex => (
@@ -401,25 +401,25 @@ export default function AddResults() {
 
       {/* Empty State - No Exam Selected */}
       {!loading && !selectedExam && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <svg className="mx-auto h-12 w-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6 text-center">
+          <svg className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <h3 className="mt-2 text-lg font-medium text-gray-900">No exam selected</h3>
-          <p className="mt-1 text-gray-600">Please select an exam from the dropdown above to begin grading.</p>
+          <h3 className="mt-2 text-base sm:text-lg font-medium text-gray-900">No exam selected</h3>
+          <p className="mt-1 text-xs sm:text-sm text-gray-600">Please select an exam from the dropdown above to begin grading.</p>
         </div>
       )}
 
       {/* Empty State - No Results */}
       {!loading && results.length === 0 && examInfo && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <div className="flex items-start gap-3">
-            <svg className="h-6 w-6 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <svg className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div className="flex-1">
-              <h3 className="text-lg font-medium text-gray-900">No result entries found</h3>
-              <p className="mt-1 text-gray-700">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">No result entries found</h3>
+              <p className="mt-1 text-xs sm:text-sm text-gray-700">
                 {examStats.count === 0
                   ? 'No students are enrolled in this course. Please ensure students are added to the course before creating result entries.'
                   : 'Result entries have not been generated yet. Click "Create Result Entries for All Students" above to generate rows for all enrolled students.'}
@@ -433,23 +433,23 @@ export default function AddResults() {
       {results.length > 0 && (
         <div className="bg-white rounded-lg shadow-lg">
           {/* Exam Info Cards */}
-          <div className="p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-xs font-medium text-gray-600 uppercase">Exam</div>
-                <div className="text-lg font-semibold text-gray-900 truncate">{examInfo?.title || '—'}</div>
+          <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Exam</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate" title={examInfo?.title || '—'}>{examInfo?.title || '—'}</div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-xs font-medium text-gray-600 uppercase">Total Marks</div>
-                <div className="text-lg font-semibold text-indigo-600">{examInfo?.total_marks ?? '—'}</div>
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-indigo-600">{examInfo?.total_marks ?? '—'}</div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-xs font-medium text-gray-600 uppercase">Total Students</div>
-                <div className="text-lg font-semibold text-gray-900">{examStats.count}</div>
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Students</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">{examStats.count}</div>
               </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-xs font-medium text-gray-600 uppercase">Progress</div>
-                <div className="text-lg font-semibold">
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Progress</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold">
                   <span className="text-green-600">{examStats.submitted}</span>
                   <span className="text-gray-400 mx-1">/</span>
                   <span className="text-orange-600">{examStats.pending}</span>
@@ -459,16 +459,16 @@ export default function AddResults() {
           </div>
 
           {/* Search and Bulk Actions */}
-          <div className="p-4 border-b bg-gray-50">
-            <div className="flex flex-col lg:flex-row gap-3">
+          <div className="p-3 sm:p-4 border-b bg-gray-50">
+            <div className="flex flex-col gap-3">
               {/* Search */}
-              <div className="flex-1">
+              <div className="w-full">
                 <input
                   type="text"
                   placeholder="Search by student name or service number..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
 
@@ -481,9 +481,9 @@ export default function AddResults() {
                     setMarksError('')
                     setShowMarksModal(true)
                   }}
-                  className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
                 >
-                  Apply Marks to All
+                  Apply Marks
                 </button>
                 <button
                   onClick={() => {
@@ -491,195 +491,203 @@ export default function AddResults() {
                     setRemarksInput('')
                     setShowRemarksModal(true)
                   }}
-                  className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
                 >
-                  Apply Remarks to All
+                  Apply Remarks
                 </button>
                 <button
                   onClick={handleUndo}
                   disabled={!hasChanges}
-                  className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  Undo Changes
+                  Undo
                 </button>
               </div>
             </div>
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th
-                    onClick={() => handleSort('svc_number')}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      Svc No
-                      {sortConfig.key === 'svc_number' && (
-                        <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => handleSort('student_name')}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      Student Name
-                      {sortConfig.key === 'student_name' && (
-                        <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => handleSort('marks_obtained')}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      Marks (/{examInfo?.total_marks || '?'})
-                      {sortConfig.key === 'marks_obtained' && (
-                        <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => handleSort('percentage')}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      Percentage
-                      {sortConfig.key === 'percentage' && (
-                        <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => handleSort('grade')}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      Grade
-                      {sortConfig.key === 'grade' && (
-                        <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Remarks
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAndSortedResults.map((r) => {
-                  const actualIdx = results.findIndex(row => row.id === r.id);
-                  return (
-                    <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {r.svc_number || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {r.student_name || '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div>
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="inline-block min-w-full align-middle px-3 sm:px-0">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th
+                      onClick={() => handleSort('svc_number')}
+                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="hidden sm:inline">Svc No</span>
+                        <span className="sm:hidden">Svc</span>
+                        {sortConfig.key === 'svc_number' && (
+                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('student_name')}
+                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="hidden sm:inline">Student Name</span>
+                        <span className="sm:hidden">Name</span>
+                        {sortConfig.key === 'student_name' && (
+                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('marks_obtained')}
+                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="hidden sm:inline">Marks (/{examInfo?.total_marks || '?'})</span>
+                        <span className="sm:hidden">Marks</span>
+                        {sortConfig.key === 'marks_obtained' && (
+                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('percentage')}
+                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="hidden sm:inline">Percentage</span>
+                        <span className="sm:hidden">%</span>
+                        {sortConfig.key === 'percentage' && (
+                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('grade')}
+                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                    >
+                      <div className="flex items-center gap-1">
+                        Grade
+                        {sortConfig.key === 'grade' && (
+                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Remarks
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredAndSortedResults.map((r) => {
+                    const actualIdx = results.findIndex(row => row.id === r.id);
+                    return (
+                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap text-[10px] sm:text-xs md:text-sm text-gray-900">
+                          {r.svc_number || '-'}
+                        </td>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-[10px] sm:text-xs md:text-sm text-gray-900">
+                          {r.student_name || '-'}
+                        </td>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3">
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              max={examInfo?.total_marks || undefined}
+                              step="0.5"
+                              value={r.marks_obtained}
+                              onChange={e => updateRow(actualIdx, 'marks_obtained', e.target.value)}
+                              onKeyDown={e => handleKeyDown(e, actualIdx, 'marks_obtained')}
+                              data-idx={actualIdx}
+                              data-field="marks_obtained"
+                              placeholder="Marks"
+                              className={`w-full px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-xs md:text-sm rounded-md border ${
+                                r.errors?.marks_obtained
+                                  ? 'border-red-500 focus:ring-red-500'
+                                  : 'border-gray-300 focus:ring-indigo-500'
+                              } focus:ring-2 focus:border-transparent`}
+                            />
+                            {r.errors?.marks_obtained && (
+                              <div className="text-[10px] sm:text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap text-[10px] sm:text-xs md:text-sm">
+                          <span className={`font-medium ${
+                            Number(r.percentage) >= 70 ? 'text-green-600' :
+                            Number(r.percentage) >= 50 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {formatPercentage(r.percentage)}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap">
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-full ${
+                            r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
+                            r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
+                            r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
+                            r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
+                            r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {r.grade || '-'}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3">
                           <input
-                            type="number"
-                            min="0"
-                            max={examInfo?.total_marks || undefined}
-                            step="0.5"
-                            value={r.marks_obtained}
-                            onChange={e => updateRow(actualIdx, 'marks_obtained', e.target.value)}
-                            onKeyDown={e => handleKeyDown(e, actualIdx, 'marks_obtained')}
+                            type="text"
+                            value={r.remarks}
+                            onChange={e => updateRow(actualIdx, 'remarks', e.target.value)}
+                            onKeyDown={e => handleKeyDown(e, actualIdx, 'remarks')}
                             data-idx={actualIdx}
-                            data-field="marks_obtained"
-                            placeholder="Enter marks"
-                            className={`w-full px-2 py-1.5 text-sm rounded-md border ${
-                              r.errors?.marks_obtained
-                                ? 'border-red-500 focus:ring-red-500'
-                                : 'border-gray-300 focus:ring-indigo-500'
-                            } focus:ring-2 focus:border-transparent`}
+                            data-field="remarks"
+                            placeholder="Remarks"
+                            className="w-full px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-xs md:text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                           />
-                          {r.errors?.marks_obtained && (
-                            <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`font-medium ${
-                          Number(r.percentage) >= 70 ? 'text-green-600' :
-                          Number(r.percentage) >= 50 ? 'text-yellow-600' :
-                          'text-red-600'
-                        }`}>
-                          {formatPercentage(r.percentage)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                          r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
-                          r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
-                          r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
-                          r.grade === 'F' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {r.grade || '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={r.remarks}
-                          onChange={e => updateRow(actualIdx, 'remarks', e.target.value)}
-                          onKeyDown={e => handleKeyDown(e, actualIdx, 'remarks')}
-                          data-idx={actualIdx}
-                          data-field="remarks"
-                          placeholder="Add remarks (optional)"
-                          className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Footer with Save Button */}
-          <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              {hasChanges && (
-                <div className="flex items-center gap-2 text-yellow-700 bg-yellow-100 px-3 py-1.5 rounded-lg">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="font-medium">You have unsaved changes</span>
-                </div>
-              )}
-              {filteredAndSortedResults.length < results.length && (
-                <div className="text-sm text-gray-600">
-                  Showing {filteredAndSortedResults.length} of {results.length} students
-                </div>
-              )}
+          <div className="p-3 sm:p-4 border-t bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                {hasChanges && (
+                  <div className="flex items-center gap-2 text-yellow-700 bg-yellow-100 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm">
+                    <svg className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="font-medium">Unsaved changes</span>
+                  </div>
+                )}
+                {filteredAndSortedResults.length < results.length && (
+                  <div className="text-xs sm:text-sm text-gray-600">
+                    Showing {filteredAndSortedResults.length} of {results.length} students
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={!hasChanges || saving}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg"
+              >
+                {saving ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </span>
+                ) : (
+                  'Save All Grades'
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-              className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg"
-            >
-              {saving ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </span>
-              ) : (
-                'Save All Grades'
-              )}
-            </button>
           </div>
         </div>
       )}

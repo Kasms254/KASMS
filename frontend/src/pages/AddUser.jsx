@@ -4,10 +4,25 @@ import * as api from '../lib/api'
 import useToast from '../hooks/useToast'
 
 const roles = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'instructor', label: 'Instructor' },
-  { value: 'student', label: 'Student' },
-  { value: 'commandant', label: 'Commandant' },
+  { value: 'student', label: 'Student', description: 'Can view classes, exams, and results' },
+  { value: 'instructor', label: 'Instructor', description: 'Can manage classes and grade exams' },
+  { value: 'admin', label: 'Admin', description: 'Full system access' },
+  { value: 'commandant', label: 'Commandant', description: 'Oversight and management' },
+]
+
+const ranks = [
+  { value: 'general', label: 'General' },
+  { value: 'lieutenant colonel', label: 'Lieutenant Colonel' },
+  { value: 'major', label: 'Major' },
+  { value: 'captain', label: 'Captain' },
+  { value: 'lieutenant', label: 'Lieutenant' },
+  { value: 'warrant_officer_1', label: 'Warrant Officer I' },
+  { value: 'warrant_officer_2', label: 'Warrant Officer II' },
+  { value: 'seniorsergeant', label: 'Senior Sergeant' },
+  { value: 'sergeant', label: 'Sergeant' },
+  { value: 'corporal', label: 'Corporal' },
+  { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'private', label: 'Private' },
 ]
 
 export default function AddUser({ onSuccess } = {}) {
@@ -19,7 +34,7 @@ export default function AddUser({ onSuccess } = {}) {
     svc_number: '',
     phone_number: '',
     role: 'student',
-  rank: '',
+    rank: '',
     class_obj: '',
     password: '',
     password2: '',
@@ -27,10 +42,12 @@ export default function AddUser({ onSuccess } = {}) {
   })
   const [classes, setClasses] = useState([])
   const [loadingClasses, setLoadingClasses] = useState(false)
+  const [classesError, setClassesError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] })
+  const [touched, setTouched] = useState({})
   const navigate = useNavigate()
   const toast = useToast()
   const reportError = (msg) => {
@@ -122,25 +139,75 @@ export default function AddUser({ onSuccess } = {}) {
     setError(null)
     setFieldErrors({})
 
-    // basic client-side checks — build fieldErrors so missing fields are highlighted
-    const required = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'password', 'password2']
+    // Field-specific validation with descriptive messages
     const fErrs = {}
-    for (const k of required) {
-      if (!form[k]) fErrs[k] = 'This field is required'
+
+    // Username validation
+    if (!form.username) {
+      fErrs.username = 'Username is required'
+    } else if (form.username.length < 3) {
+      fErrs.username = 'Username must be at least 3 characters'
+    } else if (!/^[a-zA-Z0-9_]+$/.test(form.username)) {
+      fErrs.username = 'Username can only contain letters, numbers, and underscores'
     }
-    // require class for students
+
+    // Name validation
+    if (!form.first_name) {
+      fErrs.first_name = 'First name is required'
+    } else if (form.first_name.length < 2) {
+      fErrs.first_name = 'First name must be at least 2 characters'
+    }
+
+    if (!form.last_name) {
+      fErrs.last_name = 'Last name is required'
+    } else if (form.last_name.length < 2) {
+      fErrs.last_name = 'Last name must be at least 2 characters'
+    }
+
+    // Email validation
+    if (!form.email) {
+      fErrs.email = 'Email address is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      fErrs.email = 'Please enter a valid email address (e.g., name@example.com)'
+    }
+
+    // Service number validation
+    if (!form.svc_number) {
+      fErrs.svc_number = 'Service number is required'
+    } else if (form.svc_number.length < 3) {
+      fErrs.svc_number = 'Please enter a valid service number'
+    }
+
+    // Rank validation
+    if (!form.rank) {
+      fErrs.rank = 'Please select a rank from the list'
+    }
+
+    // Class validation for students
     if (form.role === 'student' && !form.class_obj) {
-      fErrs.class_obj = 'Please select a class'
+      fErrs.class_obj = 'Students must be assigned to a class'
     }
-    // password match
-    if (form.password && form.password2 && form.password !== form.password2) {
-      fErrs.password2 = 'Passwords do not match'
+
+    // Password validation
+    if (!form.password) {
+      fErrs.password = 'Password is required'
+    } else if (form.password.length < 8) {
+      fErrs.password = 'Password must be at least 8 characters long'
+    } else if (passwordStrength.score < 2) {
+      fErrs.password = 'Password is too weak. Include uppercase, lowercase, numbers, and special characters'
+    }
+
+    if (!form.password2) {
+      fErrs.password2 = 'Please confirm your password'
+    } else if (form.password && form.password2 && form.password !== form.password2) {
+      fErrs.password2 = 'Passwords do not match. Please re-enter to confirm'
     }
 
     if (Object.keys(fErrs).length) {
       setFieldErrors(fErrs)
       const first = Object.keys(fErrs)[0]
-      setError('Please correct the highlighted fields')
+      const errorCount = Object.keys(fErrs).length
+      setError(`Please fix ${errorCount} ${errorCount === 1 ? 'error' : 'errors'} before submitting`)
       // focus first invalid input if present
       const el = typeof document !== 'undefined' && document.querySelector ? document.querySelector(`[name="${first}"]`) : null
       if (el && typeof el.focus === 'function') el.focus()
@@ -178,21 +245,64 @@ export default function AddUser({ onSuccess } = {}) {
       // API may return structured errors
       const data = err?.data || null
       if (data && typeof data === 'object') {
-        // map field errors
+        // map field errors with user-friendly messages
         const fErrs = {}
+        const fieldLabels = {
+          username: 'Username',
+          email: 'Email',
+          svc_number: 'Service number',
+          first_name: 'First name',
+          last_name: 'Last name',
+          password: 'Password',
+          password2: 'Confirm password',
+          rank: 'Rank',
+          class_obj: 'Class',
+          phone_number: 'Phone number',
+          role: 'Role',
+        }
+
         for (const k of Object.keys(data)) {
-          fErrs[k] = Array.isArray(data[k]) ? data[k].join(' ') : String(data[k])
+          const rawMsg = Array.isArray(data[k]) ? data[k].join(' ') : String(data[k])
+          // Make common backend messages more user-friendly
+          let friendlyMsg = rawMsg
+            .replace(/this field/gi, fieldLabels[k] || 'This field')
+            .replace(/a user with this username already exists/gi, 'This username is already taken. Please choose another')
+            .replace(/a user with this email already exists/gi, 'An account with this email already exists')
+            .replace(/a user with this svc_number already exists/gi, 'This service number is already registered')
+            .replace(/enter a valid email/gi, 'Please enter a valid email address')
+            .replace(/this password is too common/gi, 'This password is too common. Please choose a stronger one')
+            .replace(/this password is entirely numeric/gi, 'Password cannot be all numbers')
+          fErrs[k] = friendlyMsg
         }
         setFieldErrors(fErrs)
+
         if (data.detail || data.error) {
           setError(data.detail || data.error)
           reportError(data.detail || data.error)
+        } else if (data.non_field_errors) {
+          const nonFieldMsg = Array.isArray(data.non_field_errors) 
+            ? data.non_field_errors.join(' ') 
+            : String(data.non_field_errors)
+          setError(nonFieldMsg)
+          reportError(nonFieldMsg)
         } else {
-          setError('There were validation errors')
-          reportError('There were validation errors')
+          const errorCount = Object.keys(fErrs).length
+          const msg = `Please fix ${errorCount} ${errorCount === 1 ? 'error' : 'errors'} to continue`
+          setError(msg)
+          reportError(msg)
         }
       } else {
-        const msg = err?.message || 'Failed to create user'
+        // Handle network or unknown errors with friendly messages
+        let msg = err?.message || 'Failed to create user'
+        if (msg.includes('Network') || msg.includes('fetch')) {
+          msg = 'Unable to connect to the server. Please check your internet connection and try again.'
+        } else if (msg.includes('500') || msg.includes('Internal Server')) {
+          msg = 'Something went wrong on our end. Please try again later or contact support.'
+        } else if (msg.includes('401') || msg.includes('Unauthorized')) {
+          msg = 'Your session has expired. Please log in again.'
+        } else if (msg.includes('403') || msg.includes('Forbidden')) {
+          msg = 'You do not have permission to create users.'
+        }
         setError(msg)
         reportError(msg)
       }
@@ -228,8 +338,16 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Rank</label>
-                <select name="rank" value={form.rank} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.rank ? 'border-rose-500' : 'border-neutral-200'}`}>
-                  <option value="">Unassigned</option>
+                <select
+                  name="rank"
+                  value={form.rank}
+                  onChange={onChange}
+                  required
+                  className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+                    fieldErrors.rank ? 'border-rose-500' : 'border-neutral-200'
+                  }`}
+                >
+                  <option value="" disabled>-- Select a rank --</option>
                   <option value="general">General</option>
                   <option value="lieutenant colonel">Lieutenant Colonel</option>
                   <option value="major">Major</option>

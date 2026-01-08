@@ -60,8 +60,14 @@ const menuItems = [
       },
       {
         icon: 'TrendingUp',
-        label: 'Add Analytics',
+        label: 'Analytics',
         href: '/analytics',
+        visible: ['admin', 'instructor'],
+      },
+      {
+        icon: 'FileBarChart',
+        label: 'Exam Reports',
+        href: '/list/exam-reports',
         visible: ['admin', 'instructor'],
       },
       {

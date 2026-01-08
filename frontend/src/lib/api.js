@@ -1,7 +1,19 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-// const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+
+
+// Sanitize string input to prevent injection attacks
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // Remove any HTML/script tags and null bytes
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\0/g, '')
+    .trim()
+}
 const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
@@ -71,9 +83,30 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     // Show sanitized error messages to users (avoid exposing internal details)
     let userMessage
     if (res.status === 400) {
-      userMessage = 'Invalid request. Please check your input and try again.'
+      // Check if it's a login endpoint with specific error details
+      if (path.includes('/login')) {
+        const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
+        if (detail) {
+          // Handle array of errors (common in DRF)
+          if (Array.isArray(detail)) {
+            userMessage = detail.join(', ')
+          } else {
+            userMessage = String(detail)
+          }
+        } else {
+          userMessage = 'Invalid credentials. Please check your service number and password.'
+        }
+      } else {
+        userMessage = 'Invalid request. Please check your input and try again.'
+      }
     } else if (res.status === 401) {
-      userMessage = 'Authentication failed. Please log in again.'
+      // For login endpoint, provide specific message about credentials
+      if (path.includes('/login')) {
+        const detail = data && (data.detail || data.message || data.error)
+        userMessage = detail || 'Invalid service number or password. Please try again.'
+      } else {
+        userMessage = 'Authentication failed. Please log in again.'
+      }
     } else if (res.status === 403) {
       userMessage = 'You do not have permission to perform this action.'
     } else if (res.status === 404) {
@@ -83,7 +116,7 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     } else if (res.status >= 500) {
       userMessage = 'Service temporarily unavailable. Please try again later.'
     } else {
-      // For validation errors (400) with field-specific messages, allow those through
+      // For validation errors with field-specific messages, allow those through
       // since they don't expose internal details
       const detail = data && (data.detail || data.message || data.error)
       userMessage = detail || 'An error occurred. Please try again.'
@@ -99,7 +132,16 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
 }
 
 export async function login(svc_number, password) {
-  return request('/api/auth/login/', { method: 'POST', body: { svc_number, password } })
+  // Sanitize inputs before sending to API
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  return request('/api/auth/login/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizedSvcNumber,
+      password: sanitizedPassword
+    }
+  })
 }
 
 export async function logout(refresh) {
@@ -121,8 +163,18 @@ export async function getStudents() {
   return data
 }
 
+export async function getStudentsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/students${qs}`)
+}
+
 export async function getCourses() {
   return request('/api/courses/')
+}
+
+export async function getCoursesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/courses/${qs}`)
 }
 
 export async function addCourse(payload) {
@@ -141,6 +193,11 @@ export async function getClasses(params = '') {
   // { count, results: [...] }. Unwrap results for callers that expect an array.
   if (data && Array.isArray(data.results)) return data.results
   return data
+}
+
+export async function getClassesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/classes/${qs}`)
 }
 
 // Convenience helper: get classes for the currently authenticated user.
@@ -269,6 +326,11 @@ export async function getStudentPerformanceSummary() {
   return request('/api/student-dashboard/performance_summary/')
 }
 
+// Get student's class enrollments (all enrollments including past classes)
+export async function getStudentEnrollments() {
+  return request('/api/student-dashboard/my_classes/')
+}
+
 export async function createExam(payload) {
   return request('/api/exams/', { method: 'POST', body: payload })
 }
@@ -358,6 +420,11 @@ export async function getNotices(params = '') {
   return data
 }
 
+export async function getNoticesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/notices/${qs}`)
+}
+
 export async function getActiveNotices() {
   const data = await request('/api/notices/active/')
   if (data && Array.isArray(data.results)) return data.results
@@ -380,6 +447,47 @@ export async function updateNotice(id, payload) {
 
 export async function deleteNotice(id) {
   return request(`/api/notices/${id}/`, { method: 'DELETE' })
+}
+
+// =====================
+// Performance Analytics APIs
+// =====================
+
+// Subject Performance
+export async function getSubjectPerformanceSummary(subjectId) {
+  if (!subjectId) throw new Error('subjectId is required')
+  return request(`/api/subject-performance/summary/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
+export async function compareSubjects(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/subject-performance/compare_subjects/?class_id=${encodeURIComponent(classId)}`)
+}
+
+export async function getSubjectTrendAnalysis(subjectId, days = 90) {
+  if (!subjectId) throw new Error('subjectId is required')
+  return request(`/api/subject-performance/trend_analysis/?subject_id=${encodeURIComponent(subjectId)}&days=${encodeURIComponent(days)}`)
+}
+
+// Class Performance
+export async function getClassPerformanceSummary(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/summary/?class_id=${encodeURIComponent(classId)}`)
+}
+
+export async function getClassTopPerformers(classId, limit = 10) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
+}
+
+export async function compareClasses(courseId = null) {
+  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
+  return request(`/api/class-performance/compare_classes/${qs}`)
+}
+
+export async function exportClassReport(classId, format = 'summary') {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/export_report/?class_id=${encodeURIComponent(classId)}&format=${encodeURIComponent(format)}`)
 }
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
@@ -456,6 +564,11 @@ export async function getInstructors() {
   return data
 }
 
+export async function getInstructorsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/instructors${qs}`)
+}
+
 export async function getUserEnrollments(userId) {
   return request(`/api/users/${userId}/enrollments/`)
 }
@@ -504,6 +617,10 @@ export async function deactivateUser(id) {
   return request(`/api/users/${id}/deactivate/`, { method: 'POST' })
 }
 
+export async function resetUserPassword(id, newPassword) {
+  return request(`/api/users/${id}/reset_password/`, { method: 'POST', body: { new_password: newPassword } })
+}
+
 export default {
   login,
   getCurrentUser,
@@ -524,6 +641,7 @@ export default {
   deleteUser,
   activateUser,
   deactivateUser,
+  resetUserPassword,
   getSubjects,
   getSubjectsPaginated,
   getClassSubjects,
@@ -534,7 +652,10 @@ export default {
   getMyStudents,
   getUserEnrollments,
   addEnrollment,
+  getCourses,
+  addCourse,
   updateCourse,
+  addClass,
   updateClass,
   reactivateEnrollment,
   withdrawEnrollment,
@@ -565,4 +686,18 @@ export default {
   createNotice,
   updateNotice,
   deleteNotice,
+  // Paginated versions
+  getStudentsPaginated,
+  getInstructorsPaginated,
+  getClassesPaginated,
+  getCoursesPaginated,
+  getNoticesPaginated,
+  // Performance Analytics
+  getSubjectPerformanceSummary,
+  compareSubjects,
+  getSubjectTrendAnalysis,
+  getClassPerformanceSummary,
+  getClassTopPerformers,
+  compareClasses,
+  exportClassReport,
 }

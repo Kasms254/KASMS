@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // build: {
+  //   // Disable source maps in production to hide source code
+  //   sourcemap: false,
   //   minify: 'esbuild', // esbuild is faster than terser
   //   rollupOptions: {
   //     output: {
@@ -15,7 +17,7 @@ export default defineConfig({
   //   },
   // },
   // esbuild: {
-  //   drop: ['console', 'debugger'],
-  //   pure: ['console.log', 'console.debug', 'console.info'],
+  //   // Remove ALL console methods and debugger statements in production
+  //   drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
   // },
 })

@@ -45,11 +45,31 @@ export function AuthProvider({ children }) {
       authStore.login({ access: newAccess, refresh: newRefresh })
       setToken(newAccess)
       setUser(userInfo)
+      setLoading(false)
       return { ok: true }
     } catch (err) {
-      return { ok: false, error: err?.message || String(err) }
-    } finally {
+      // Extract field-level errors if present
+      const fieldErrors = {}
+      if (err?.data) {
+        // Handle Django REST Framework field-level errors
+        if (err.data.svc_number) {
+          fieldErrors.svc_number = Array.isArray(err.data.svc_number)
+            ? err.data.svc_number[0]
+            : err.data.svc_number
+        }
+        if (err.data.password) {
+          fieldErrors.password = Array.isArray(err.data.password)
+            ? err.data.password[0]
+            : err.data.password
+        }
+      }
+
       setLoading(false)
+      return {
+        ok: false,
+        error: err?.message || String(err),
+        fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : null
+      }
     }
   }, [])
 

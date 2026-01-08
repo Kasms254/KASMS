@@ -195,24 +195,20 @@ export default function ClassesList(){
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-semibold text-black">Classes</h2>
-          <p className="text-sm text-neutral-500">Click a class to view details. Toggle to include inactive classes.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
+          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details. Toggle to include inactive classes.</p>
         </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <label className="inline-flex items-center gap-2 text-sm text-black">
-              <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
-              <span>Show inactive classes</span>
-            </label>
-              {user && user.role === 'admin' && (
-                <>
-                  <button onClick={() => openAddClassModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add class</button>
-                  <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add subject</button>
-                </>
-              )}
-          </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
+            <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
+            <span className="hidden sm:inline">Show inactive classes</span>
+            <span className="sm:hidden">Show inactive</span>
+          </label>
+            {user && user.role === 'admin' && (
+              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
+            )}
         </div>
       </div>
 

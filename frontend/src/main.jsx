@@ -6,6 +6,31 @@ import ScrollToTop from './components/ScrollToTop'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthProvider'
 
+// Security: Disable DevTools and console logging in production
+if (typeof window !== 'undefined' && import.meta.env.PROD) {
+  // Disable React DevTools
+  if (typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'object') {
+    for (let [key, value] of Object.entries(window.__REACT_DEVTOOLS_GLOBAL_HOOK__)) {
+      window.__REACT_DEVTOOLS_GLOBAL_HOOK__[key] = typeof value === 'function' ? () => {} : null
+    }
+  }
+
+  // Disable console methods to prevent data exposure
+  const noop = () => {}
+  console.log = noop
+  console.debug = noop
+  console.info = noop
+  console.warn = noop
+  console.error = noop
+  console.trace = noop
+  console.dir = noop
+  console.dirxml = noop
+  console.table = noop
+  console.group = noop
+  console.groupCollapsed = noop
+  console.groupEnd = noop
+}
+
 if (typeof window !== 'undefined' && window.localStorage) {
   try {
     const keysToRemove = ['accessToken', 'refreshToken', 'authToken', 'auth_token', 'access_token', 'skl_auth_token']

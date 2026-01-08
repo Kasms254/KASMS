@@ -1,6 +1,7 @@
 import React from 'react'
 import { Navigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
+import AccessDenied from './AccessDenied'
 
 export default function ProtectedRoute({ children, role = null }) {
   const { user, token, loading } = useAuth()
@@ -17,9 +18,10 @@ export default function ProtectedRoute({ children, role = null }) {
     return <Navigate to="/" replace />
   }
 
+  // Role-based access control: show access denied page instead of redirecting
+  // This prevents users from bypassing authorization by manipulating URLs
   if (role && (!user || user.role !== role)) {
-    // Not authorized for this role
-    return <Navigate to="/dashboard" replace />
+    return <AccessDenied />
   }
 
   return <>{children}</>

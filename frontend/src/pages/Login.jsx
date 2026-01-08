@@ -7,27 +7,101 @@ export default function Login() {
   const [svc_number, setSvc_number] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
 
+  // Sanitize and validate service number input (numbers only)
+  const handleServiceNumberChange = (e) => {
+    let value = e.target.value
+    // Remove any non-numeric characters (numbers only)
+    value = value.replace(/[^0-9]/g, '')
+    // Limit length to reasonable service number length (e.g., 15 digits)
+    value = value.slice(0, 15)
+    setSvc_number(value)
+    // Clear field error on change
+    if (fieldErrors.svc_number) {
+      setFieldErrors((prev) => ({ ...prev, svc_number: null }))
+    }
+  }
+
+  // Sanitize password input (prevent control characters but allow special chars)
+  const handlePasswordChange = (e) => {
+    let value = e.target.value
+    // Remove control characters and null bytes that could cause issues
+    value = value.replace(/[\x00-\x1F\x7F]/g, '')
+    // Limit length to reasonable password length
+    value = value.slice(0, 128)
+    setPassword(value)
+    // Clear field error on change
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => ({ ...prev, password: null }))
+    }
+  }
+
+  // Client-side validation before submission
+  const validateForm = () => {
+    const errors = {}
+
+    // Validate service number (must be numeric)
+    if (!svc_number.trim()) {
+      errors.svc_number = 'Service number is required'
+    } else if (!/^[0-9]+$/.test(svc_number)) {
+      errors.svc_number = 'Service number must contain only numbers'
+    } else if (svc_number.length < 3) {
+      errors.svc_number = 'Service number must be at least 3 digits'
+    } else if (svc_number.length > 15) {
+      errors.svc_number = 'Service number must not exceed 15 digits'
+    }
+
+    // Validate password
+    if (!password) {
+      errors.password = 'Password is required'
+    } else if (password.length < 4) {
+      errors.password = 'Password must be at least 4 characters'
+    } else if (password.length > 128) {
+      errors.password = 'Password must not exceed 128 characters'
+    }
+
+    return errors
+  }
+
   const onSubmit = async (e) => {
     e.preventDefault()
+
+    // Client-side validation
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors)
+      setError('Please fix the errors below.')
+      return
+    }
+
     setLoading(true)
     setError(null)
+    setFieldErrors({})
+
     try {
-      const result = await login(svc_number, password)
+      // Trim values before sending to API
+      const result = await login(svc_number.trim(), password)
       if (result.ok) {
         // go to dashboard after successful login
         navigate('/dashboard')
-        return
+      } else {
+        // Check if there are field-level errors
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors)
+          setError('Please fix the errors below.')
+        } else {
+          // show inline error
+          setError(result.error || 'Login failed. Please check your credentials and try again.')
+        }
+        setLoading(false)
       }
-      // show inline error
-      setError(result.error || 'Login failed')
     } catch (err) {
-      setError(err?.message || 'Login failed')
-    } finally {
+      setError(err?.message || 'An unexpected error occurred. Please try again.')
       setLoading(false)
     }
   }
@@ -74,20 +148,39 @@ export default function Login() {
             <p className="text-sm text-gray-500">Use your school credentials to continue</p>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form
+            onSubmit={onSubmit}
+            className="space-y-4"
+            noValidate
+            autoComplete="on"
+          >
             <label className="block">
               <span className="text-sm text-gray-700">Service Number</span>
               <div className="mt-1 relative">
                 {renderIcon('Mail', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
                 <input
                   type="text"
+                  inputMode="numeric"
                   required
                   value={svc_number}
-                  onChange={(e) => setSvc_number(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  placeholder="Service Number"
+                  onChange={handleServiceNumberChange}
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                    fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'focus:ring-indigo-200'
+                  }`}
+                  placeholder="e.g., 123456"
+                  aria-invalid={!!fieldErrors.svc_number}
+                  aria-describedby={fieldErrors.svc_number ? 'svc-number-error' : undefined}
+                  autoComplete="username"
+                  maxLength={15}
+                  pattern="[0-9]+"
+                  title="Service number must contain only numbers"
                 />
               </div>
+              {fieldErrors.svc_number && (
+                <p id="svc-number-error" className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.svc_number}
+                </p>
+              )}
             </label>
 
             <label className="block">
@@ -98,19 +191,32 @@ export default function Login() {
                   type={show ? 'text' : 'password'}
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  onChange={handlePasswordChange}
+                  className={`w-full pl-10 pr-10 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                    fieldErrors.password ? 'border-red-300 focus:ring-red-200' : 'focus:ring-indigo-200'
+                  }`}
                   placeholder="Your password"
+                  aria-invalid={!!fieldErrors.password}
+                  aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                  autoComplete="current-password"
+                  maxLength={128}
+                  minLength={4}
                 />
                 <button
                   type="button"
                   onClick={() => setShow((s) => !s)}
-                  className="absolute right-2 top-2 text-gray-500 p-1 rounded"
+                  className="absolute right-2 top-2 text-gray-500 p-1 rounded hover:bg-gray-100 transition-colors"
                   aria-label={show ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
                 >
                   {show ? renderIcon('EyeOff', { className: 'w-4 h-4' }) : renderIcon('Eye', { className: 'w-4 h-4' })}
                 </button>
               </div>
+              {fieldErrors.password && (
+                <p id="password-error" className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.password}
+                </p>
+              )}
             </label>
 
             <div className="flex items-center justify-between">
@@ -135,8 +241,12 @@ export default function Login() {
             </div>
 
             {error ? (
-              <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded p-2">
-                {error}
+              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
+                <div className="flex-1">
+                  <p className="font-medium">Login Failed</p>
+                  <p className="text-red-500 mt-0.5">{error}</p>
+                </div>
               </div>
             ) : null}
 
