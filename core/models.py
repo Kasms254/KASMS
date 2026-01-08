@@ -382,3 +382,34 @@ class ExamReport(models.Model):
         return total_percentage / count if count > 0 else 0
     
 
+class NoticeReadStatus(models.Model):
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='notice_read_statuses')
+    notice = models.ForeignKey('Notice', on_delete=models.CASCADE, related_name='read_statuses')
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notice_read_statuses'
+        unique_together = ['user', 'notice']
+        ordering  =['-read_at']
+
+        def __str__(self):
+            return f"{self.user.username} read {self.notice.title}"
+
+
+class ClassNoticeReadStatus(models.Model):
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='class_notice_read_statuses')
+    class_notice = models.ForeignKey('ClassNotice', on_delete=models.CASCADE, related_name='read_statuses')
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'class_notice_read_statuses'
+        unique_together = ['user', 'class_notice']
+        ordering = ['-read_at']
+
+
+    def __str__(self):
+        return f"{self.user.username} read {self.class_notice.title}"
+
+        
+
+
