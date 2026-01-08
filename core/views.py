@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus
 from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
@@ -13,6 +13,8 @@ from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructo
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db.models import Q
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -80,13 +82,79 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def students(self, request):
-        students = User.objects.filter(role='student', is_active=True).order_by('first_name', 'last_name')
-        serializer = UserListSerializer(students, many=True)
-        return Response({
-            'count': students.count(),
+        search_query = request.query_params.get('search','').strip()
+        class_is_active_param = request.query_params.get('class_is_active', 'true').lower()
+        page_number  = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+
+        filter_by_active_class = class_is_active_param in ['true', '1', 'yes']
+
+        students_qs = User.objects.filter(
+            role='student',
+            is_active=True
+        ).prefetch_related(
+            'enrollments',
+            'enrollments__class_obj'
+        )
+
+        if search_query:
+            students_qs = students_qs.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains= search_query) |
+                Q(first_name__icontains= search_query) |
+                Q(last_name__icontains = search_query) |
+                Q(svc_number__icontains = search_query)
+            )
+        else:
+
+            if filter_by_active_class:
+
+                active_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active=True
+                ).values_list('student_id', flat=True).distinct()
+
+                students_qs = students_qs.filter(id__in=active_student_ids)
+
+        
+        if 'class_is_active' in request.query_params:
+            if filter_by_active_class:
+                active_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active = True
+                ).values_list('student_id', flat=True).distinct()
+                students_qs = students_qs.filter(id__in=active_student_ids)
+            else:
+
+                inactive_student_ids = Enrollment.objects.filter(
+                    is_active=True,
+                    class_obj__is_active =False
+                ).values_list('student_id', flat=True).distinct()
+                students_qs = students_qs.filter(id__in=inactive_student_ids)
+
+        students_qs = students_qs.order_by('first_name', 'last_name')
+
+        paginator = Paginator(students_qs, page_size)
+        page_obj = paginator.get_page(page_number)
+
+
+        serializer = UserListSerializer(page_obj.object_list, many=True)
+
+        response_data ={
+            'count':paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page':page_obj.number,
+            'page_size':page_size,
+            'next':page_obj.next_page_number() if page_obj.has_next() else None,
+            'previous':page_obj.previous_page_number() if page_obj.has_previous() else None,
             'results': serializer.data
-        })
-    
+        }            
+
+        if search_query:
+            response_data['search_query'] = search_query
+
+        return Response(response_data)
+
     @action(detail=False, methods=['get'])
     def commandants(self, request):
         commandants = User.objects.filter(role='commandant', is_active=True).order_by('first_name', 'last_name')
@@ -556,6 +624,53 @@ class NoticeViewSet(viewsets.ModelViewSet):
             'count': expired_notices.count(),
             'results': serializer.data
         })
+
+
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        notice = self.get_object()
+
+        read_status, created = NoticeReadStatus.objects.get_or_create(
+            user=request.user,
+            notice=notices
+        )
+
+        return Response({
+            'message': 'Notice marked as read' if created else 'ALready Marked as read',
+            'read_at': read_status.read_at
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_as_unread(self, request, pk=None):
+        notice = self.get_object()
+        deleted_count = NoticeReadStatus.objects.filter(
+            user=request.user,
+            notice = notice
+        ).delete()[0]
+
+        return Response({
+            'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
+        })
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        read_notice_ids = NoticeReadStatus.objects.filter(
+            user =request.user
+        ).values_list('notice_id', flat=True)
+
+        unread_notices = self.get_queryset().filter(
+            is_active=True
+        ).exclude(
+            id__in=read_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        )
+
+        serializer = self.get_serializer(unread_notices, many=True)
+        return Response({
+            'count':unread_notices.count(),
+            'results':serializer.data
+        })
+
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
@@ -1128,23 +1243,35 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             elif class_obj.instructor != self.request.user and not subject:
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You cannot create notices for classes you don't teach.")
-            
-    @action(detail=False, methods=['get'])
-    def my_notices(self, request):
 
-        notices = self.get_queryset().filter(is_active=True)
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        notice = self.get_object()
+        read_status, created = ClassNoticeReadStatus.objects.get_or_create(
+            user=request.user,
+            class_notice=notice
+        )
 
-        if request.user.role != 'student':
-            notices =notices.filter(
-                Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
-            )
+        return Response(
+            {
+                'message': 'Notice Marked as read' if created else 'Already marked as read',
+                'read_at': read_status.read_at
+            }
+        )
 
-        serializer = self.get_serializer(notices, many=True)
+    @action(detail=True, methods=['post'])
+    def mark_as_unread(self, request, pk=None):
+        notice = self.get_object()
+        deleted_count = ClassNoticeReadStatus.objects.filter(
+            user=request.user,
+            class_notice=notice
+        ).delete()[0]
 
         return Response({
-            'count':notices.count(),
-            'results': serializer.data
+            'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
+
+    
 
 class ExamReportViewSet(viewsets.ModelViewSet):
 
@@ -1627,51 +1754,80 @@ class StudentDashboardViewset(viewsets.ViewSet):
     def my_notices(self, request):
 
         if request.user.role != 'student':
+                
+            enrolled_class_ids = Enrollment.objects.filter(
+                student=request.user,
+                is_active=True
+            ).values_list('class_obj_id', flat=True)
+
+            today = timezone.now().date()
+
+            class_notices = ClassNotice.objects.filter(
+                class_obj_id__in = enrolled_class_ids,
+                is_active =True
+            ).filter(
+                Q(expiry_date__isnull=True) |  Q(expiry_date__gte=today)
+            ).select_related('class_obj', 'subject', 'created_by')
+            
+
+            priority = request.query_params.get('priority')
+            if priority:
+                class_notices = class_notices.filter(priority=priority)      
+
+            class_notices = class_notices.order_by('-created_at')
+
+
+            general_notices = Notice.objects.filter(
+                is_active = True
+            ).filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+            ).select_related('created_by').order_by('-created_at')
+
+            if priority:
+                general_notices = general_notices.filter(priority=priority)
+
+            
+            general_notices = general_notices.order_by('-created_at')
+
+            context  ={'request': request}
+
             return Response({
-                'error': 'Only students can access this endpoint'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        enrolled_class_ids = Enrollment.objects.filter(
-            student=request.user,
-            is_active=True
-        ).values_list('class_obj_id', flat=True)
+                'class_notices': {
+                    'count': class_notices.count(),
+                    'results': ClassNotificationSerializer(class_notices, many=True).data
+                },
+                'general_notices': {
+                    'count': general_notices.count(),
+                    'results':NoticeSerializer(general_notices, many=True).data
+                }
+            })  
+        else:
+            if request.user.role == "admin":
+                notices = Notice.objects.filter(is_active=True)
 
-        today = timezone.now().date()
+            elif request.user.role  == "instructor":
+                notices = Notice.objects.filter(
+                    Q(created_by = request.user) | Q(created_by__is_null=True),
+                    is_active=True
+                )
+            else:
+                notices = Notice.objects.filter(is_active=True)
 
-        class_notices = ClassNotice.objects.filter(
-            class_obj_id__in = enrolled_class_ids,
-            is_active =True
-        ).filter(
-            Q(expiry_date__isnull=True) |  Q(expiry_date__gte=today)
-         ).select_related('class_obj', 'subject', 'created_by')
-        
+            notices = notices.filter(
+                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.now())
 
-        priority = request.query_params.get('priority')
-        if priority:
-            class_notices = class_notices.filter(priority=priority)      
-
-        class_notices = class_notices.order_by('-created_at')
+            ).select_related('created_by').order_by('-created_at')
 
 
-        general_notices = Notice.objects.filter(
-            is_active = True
-        ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
-        ).select_related('created_by').order_by('-created_at')
+            context = {'request':request}
 
-        if priority:
-            general_notices = general_notices.filter(priority=priority)
+            serializer = NoticeSerializer(notices, many=True, context = context)
 
-        return Response({
-            'class_notices': {
-                'count': class_notices.count(),
-                'results': ClassNotificationSerializer(class_notices, many=True).data
-            },
-            'general_notices': {
-                'count': general_notices.count(),
-                'results':NoticeSerializer(general_notices, many=True).data
-            }
-        })  
+            return Response({
+                'count':notices.count(),
+                'results':serializer.data
+            })
+
     
     @action(detail=False, methods=['get'])
     def performance_summary(self, request):
