@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, getMyClasses, addClass, getCourses } from '../../lib/api'
+import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -35,42 +35,36 @@ export default function ClassesList(){
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try{
-      // If showOnlyActive is true request only active classes, otherwise request all
+      // showOnlyActive: true = show active, false = show inactive only
       // If current user is an instructor, prefer to call the instructor-specific endpoint
       let data
       if (user && user.role === 'instructor') {
         try {
-          // When showing only active classes, prefer the instructor-specific endpoint which already
-          // filters by active status on the server. When the instructor wants to see inactive classes
-          // as well, request all classes filtered by instructor id from the general classes endpoint.
-          if (showOnlyActive) {
-            data = await getMyClasses()
-          } else {
-            const params = `instructor=${user.id}`
-            data = await getClasses(params)
-          }
+          // Filter by instructor and active status
+          const params = `instructor=${user.id}&is_active=${showOnlyActive}`
+          data = await getClasses(params)
         } catch {
-          // If the instructor-specific endpoint or filtering fails, fall back to fetching all classes
-          // and perform local filtering for this instructor (including inactive when requested).
+          // If filtering fails, fall back to fetching all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
           const list = listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
-          // If showOnlyActive is true, filter further for active
-          const finalList = showOnlyActive ? list.filter((c) => c.is_active) : list
+          // Filter by active status
+          const finalList = list.filter((c) => c.is_active === showOnlyActive)
           setClasses(finalList)
           data = finalList
         }
       } else {
-        // Non-instructor: request classes with optional is_active filter and server-side instructor filter when provided
-        const params = showOnlyActive ? 'is_active=true' : ''
+        // Non-instructor: filter by is_active
+        const params = `is_active=${showOnlyActive}`
         try {
           data = await getClasses(params)
         } catch {
-          // fallback: fetch all classes
+          // fallback: fetch all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
-          setClasses(listAll)
-          data = listAll
+          const filtered = listAll.filter((c) => c.is_active === showOnlyActive)
+          setClasses(filtered)
+          data = filtered
         }
       }
 
@@ -198,13 +192,13 @@ export default function ClassesList(){
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details. Toggle to include inactive classes.</p>
+          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
             <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
-            <span className="hidden sm:inline">Show inactive classes</span>
-            <span className="sm:hidden">Show inactive</span>
+            <span className="hidden sm:inline">Show only inactive classes</span>
+            <span className="sm:hidden">Only inactive</span>
           </label>
             {user && user.role === 'admin' && (
               <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>

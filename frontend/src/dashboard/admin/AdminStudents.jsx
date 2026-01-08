@@ -350,7 +350,10 @@ export default function AdminStudents() {
     try {
       await api.deleteUser(st.id)
       setStudents((s) => s.filter((x) => x.id !== st.id))
+      // close confirm modal and also the edit modal if open
       setConfirmDelete(null)
+      closeEdit()
+      toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
       setError(err)
       // prefer toast later; keep simple for now
@@ -617,17 +620,6 @@ export default function AdminStudents() {
 
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
                     <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                    <button 
-                      disabled={togglingId === st.id} 
-                      onClick={() => toggleActivation(st)} 
-                      className={`flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm text-white transition disabled:opacity-60 ${st.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                    >
-                      {togglingId === st.id ? '...' : st.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button onClick={() => openResetPassword(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-purple-600 text-xs sm:text-sm text-white hover:bg-purple-700 transition">
-                      <LucideIcons.Key className="w-3 h-3 inline mr-1" />Reset
-                    </button>
-                    <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === st.id ? '...' : 'Remove'}</button>
                   </div>
                 </div>
               ))}
@@ -670,17 +662,6 @@ export default function AdminStudents() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                          <button 
-                            disabled={togglingId === st.id} 
-                            onClick={() => toggleActivation(st)} 
-                            className={`px-3 py-1.5 rounded-md text-xs text-white transition whitespace-nowrap disabled:opacity-60 ${st.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                          >
-                            {togglingId === st.id ? '...' : st.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button onClick={() => openResetPassword(st)} className="px-3 py-1.5 rounded-md bg-purple-600 text-xs text-white hover:bg-purple-700 transition whitespace-nowrap" title="Reset Password">
-                            <LucideIcons.Key className="w-3 h-3" />
-                          </button>
-                          <button disabled={deletingId === st.id} onClick={() => handleDelete(st)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap">{deletingId === st.id ? '...' : 'Remove'}</button>
                         </div>
                       </td>
                     </tr>
@@ -705,6 +686,16 @@ export default function AdminStudents() {
                 </div>
                 <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
                   <LucideIcons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 mb-4">
+                <button type="button" onClick={() => openResetPassword(editingStudent)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                  <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
+                </button>
+
+                <button type="button" onClick={() => handleDelete(editingStudent)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
+                  Delete User
                 </button>
               </div>
 

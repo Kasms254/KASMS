@@ -377,66 +377,59 @@ export default function NavBar({
               )}
             </div>
             <div className="max-h-64 overflow-auto">
-              {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
-              {!notifsLoading && notifs.length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
-              {!notifsLoading && notifs.map(n => {
-                const unread = !n.read
-                return (
-                  <button
-                    key={n.id}
-                    className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-indigo-50/50' : ''}`}
-                    onClick={async () => {
-                      // Close dropdown
-                      setNotifOpen(false)
-                      
-                      // Mark as read locally first for instant UI feedback
-                      if (unread) {
-                        setNotifs(prev => {
-                          const updated = prev.map(x => (x.id === n.id ? { ...x, read: true } : x))
-                          // Recalculate unread count from updated list
-                          setUnreadCount(updated.filter(x => !x.read).length)
-                          return updated
-                        })
-                        
-                        // Call backend to persist read status using originalId
-                        const noticeId = n.originalId || n.noticeId || n.id
-                        if (noticeId && n.kind !== 'result') {
-                          try {
-                            if (n.noticeType === 'class_notice') {
-                              console.log('Marking class notice as read:', noticeId)
-                              await api.markClassNoticeAsRead(noticeId)
-                            } else {
-                              console.log('Marking notice as read:', noticeId)
-                              await api.markNoticeAsRead(noticeId)
+                {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
+                {!notifsLoading && notifs.filter(n => !n.read).length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
+                {!notifsLoading && notifs.filter(n => !n.read).map(n => {
+                  const unread = !n.read
+                  return (
+                    <button
+                      key={n.id}
+                      className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-indigo-50/50' : ''}`}
+                      onClick={async () => {
+                        // Close dropdown
+                        setNotifOpen(false)
+                        // Mark as read locally first for instant UI feedback
+                        if (unread) {
+                          setNotifs(prev => {
+                            const updated = prev.map(x => (x.id === n.id ? { ...x, read: true } : x))
+                            setUnreadCount(updated.filter(x => !x.read).length)
+                            return updated
+                          })
+                          // Call backend to persist read status using originalId
+                          const noticeId = n.originalId || n.noticeId || n.id
+                          if (noticeId && n.kind !== 'result') {
+                            try {
+                              if (n.noticeType === 'class_notice') {
+                                await api.markClassNoticeAsRead(noticeId)
+                              } else {
+                                await api.markNoticeAsRead(noticeId)
+                              }
+                            } catch (err) {
+                              console.error('Failed to mark as read:', err)
                             }
-                            console.log('Successfully marked as read')
-                          } catch (err) {
-                            console.error('Failed to mark as read:', err)
                           }
                         }
-                      }
-                      
-                      // Navigate to appropriate page
-                      try {
-                        if (n.kind === 'result') {
-                          navigate('/list/results')
-                        } else {
-                          navigate('/list/notifications')
-                        }
-                      } catch (err) { console.debug('nav error', err) }
-                    }}
-                  >
-                    <div className="flex items-start gap-2">
-                      {unread && <span className="w-2 h-2 mt-1.5 rounded-full bg-indigo-500 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
-                        <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
-                        <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                        // Navigate to appropriate page
+                        try {
+                          if (n.kind === 'result') {
+                            navigate('/list/results')
+                          } else {
+                            navigate('/list/notifications')
+                          }
+                        } catch (err) { console.debug('nav error', err) }
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        {unread && <span className="w-2 h-2 mt-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
+                          <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
+                          <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                )
-              })}
+                    </button>
+                  )
+                })}
             </div>
             {/* Mark all as read button */}
             {unreadCount > 0 && (
