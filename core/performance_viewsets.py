@@ -435,7 +435,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             student['rank'] = idx
 
         # Top 10 performers
-        top_performers = student_rankings[:10]
+        top_performers = student_rankings[:3]
 
        
         subject_performance = []
