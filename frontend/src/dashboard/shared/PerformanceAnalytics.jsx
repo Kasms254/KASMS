@@ -4,6 +4,8 @@ import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
+import ClassPerformanceBarChart from '../../components/ClassPerformanceBarChart'
+import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import * as Icons from 'lucide-react'
 
 // Loading Skeleton Component
@@ -217,6 +219,9 @@ function TopPerformersList({ performers }) {
     return <p className="text-sm text-gray-500">No data available</p>
   }
 
+  // Show only top 3 performers
+  const topThree = performers.slice(0, 3)
+
   const getMedalIcon = (rank) => {
     if (rank === 1) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-amber-400" />
     if (rank === 2) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
@@ -230,14 +235,14 @@ function TopPerformersList({ performers }) {
         <thead>
           <tr className="border-b border-gray-200">
             <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">Rank</th>
+            <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">SVC Number</th>
             <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">Student</th>
-            <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600 hidden sm:table-cell">SVC Number</th>
             <th className="text-right py-2 px-1 md:px-2 font-medium text-gray-600">Score</th>
             <th className="text-right py-2 px-1 md:px-2 font-medium text-gray-600 hidden md:table-cell">Attendance</th>
           </tr>
         </thead>
         <tbody>
-          {performers.map((p, idx) => (
+          {topThree.map((p, idx) => (
             <tr key={p.student_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
               <td className="py-2 px-1 md:px-2">
                 <div className="flex items-center gap-0.5 md:gap-1">
@@ -252,8 +257,8 @@ function TopPerformersList({ performers }) {
                   </span>
                 </div>
               </td>
+              <td className="py-2 px-1 md:px-2 text-gray-600 text-xs md:text-sm">{p.svc_number || '-'}</td>
               <td className="py-2 px-1 md:px-2 font-medium text-gray-800 text-xs md:text-sm">{p.student_name}</td>
-              <td className="py-2 px-1 md:px-2 text-gray-600 text-xs md:text-sm hidden sm:table-cell">{p.svc_number || '-'}</td>
               <td className="py-2 px-1 md:px-2 text-right">
                 <span className={`font-semibold text-xs md:text-sm ${
                   p.percentage >= 70 ? 'text-emerald-600' :
@@ -314,7 +319,10 @@ function SubjectComparison({ subjects }) {
                   {subj.instructor && (
                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                       <Icons.User className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{subj.instructor}</span>
+                      <span className="truncate">
+                        {subj.instructor_rank && <span className="font-medium">{subj.instructor_rank} </span>}
+                        {subj.instructor}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -744,55 +752,7 @@ export default function PerformanceAnalytics() {
           {/* All Students Table */}
           {classPerformance.all_students && classPerformance.all_students.length > 0 && (
             <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
-              <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.Users className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
-                All Students Performance
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs md:text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Rank</th>
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Student Name</th>
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">SVC Number</th>
-                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden md:table-cell">Exams Taken</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Overall %</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Attendance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classPerformance.all_students.map((student, idx) => (
-                      <tr key={student.student_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="py-2 md:py-3 px-2 md:px-3">
-                          <span className={`inline-flex items-center justify-center w-6 h-6 md:w-7 md:h-7 rounded-full text-xs font-bold ${
-                            student.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                            student.rank === 2 ? 'bg-gray-200 text-gray-700' :
-                            student.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {student.rank}
-                          </span>
-                        </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-gray-800">{student.student_name}</td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-gray-600 hidden sm:table-cell">{student.svc_number || '-'}</td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600 hidden md:table-cell">{student.total_exams_taken || 0}</td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right">
-                          <span className={`font-semibold ${
-                            student.overall_percentage >= 70 ? 'text-emerald-600' :
-                            student.overall_percentage >= 50 ? 'text-amber-600' :
-                            'text-red-600'
-                          }`}>
-                            {student.overall_percentage?.toFixed(1) || 0}%
-                          </span>
-                        </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-gray-600 hidden lg:table-cell">
-                          {student.attendance_rate?.toFixed(1) || 0}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <StudentPerformanceTable students={classPerformance.all_students} />
             </section>
           )}
         </>
@@ -989,43 +949,10 @@ export default function PerformanceAnalytics() {
       {viewMode === 'class' && classComparison?.classes && classComparison.classes.length > 0 && (
         <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
           <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Icons.GitCompare className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+            <Icons.BarChart2 className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
             Class Performance Comparison
           </h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs md:text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Class</th>
-                  <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Course</th>
-                  <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden md:table-cell">Instructor</th>
-                  <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Students</th>
-                  <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Avg Score</th>
-                  <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Pass Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classComparison.classes.map((cls, idx) => (
-                  <tr key={cls.class_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-gray-800">{cls.class_name}</td>
-                    <td className="py-2 md:py-3 px-2 md:px-3 text-gray-600 hidden sm:table-cell">{cls.course || '-'}</td>
-                    <td className="py-2 md:py-3 px-2 md:px-3 text-gray-600 hidden md:table-cell">{cls.instructor || '-'}</td>
-                    <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600 hidden lg:table-cell">{cls.total_students}</td>
-                    <td className="py-2 md:py-3 px-2 md:px-3 text-right">
-                      <span className={`font-semibold ${
-                        cls.average_percentage >= 70 ? 'text-emerald-600' :
-                        cls.average_percentage >= 50 ? 'text-amber-600' :
-                        'text-red-600'
-                      }`}>
-                        {cls.average_percentage?.toFixed(1) || 0}%
-                      </span>
-                    </td>
-                    <td className="py-2 md:py-3 px-2 md:px-3 text-right text-gray-600">{cls.pass_rate?.toFixed(1) || 0}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ClassPerformanceBarChart classes={classComparison.classes} />
         </section>
       )}
 

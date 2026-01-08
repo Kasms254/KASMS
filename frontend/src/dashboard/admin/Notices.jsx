@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function Notices() {
   const toast = useToast()
@@ -307,26 +308,20 @@ export default function Notices() {
             </div>
 
             {/* Date From */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Created From</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
+            <ModernDatePicker
+              label="Created From"
+              value={filterDateFrom}
+              onChange={(value) => setFilterDateFrom(value)}
+              placeholder="Select start date"
+            />
 
             {/* Date To */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Created To</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
+            <ModernDatePicker
+              label="Created To"
+              value={filterDateTo}
+              onChange={(value) => setFilterDateTo(value)}
+              placeholder="Select end date"
+            />
           </div>
 
           {/* Filter Actions */}
