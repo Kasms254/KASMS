@@ -1,7 +1,7 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 
 
 // Sanitize string input to prevent injection attacks
@@ -14,7 +14,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-const API_BASE = import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -201,25 +201,9 @@ export async function getClassesPaginated(params = '') {
 }
 
 // Convenience helper: get classes for the currently authenticated user.
-// Some backends expose `/api/classes/mine/` or `/api/classes/mine` — try both.
+// Backend exposes `/api/classes/my-classes/` (hyphenated) for instructors.
 export async function getMyClasses() {
-  // The deployed backend historically exposed `my_classes` (underscore).
-  // Try the underscore form first to avoid noisy 404s in browsers, then
-  // fall back to the hyphenated form if needed.
-  try {
-    return await request('/api/classes/my-classes/')
-  } catch {
-    try {
-      return await request('/api/classes/my_classes/')
-    } catch {
-      // Last attempt without trailing slash (both variants)
-      try {
-        return await request('/api/classes/my-classes')
-      } catch {
-        return await request('/api/classes/my_classes')
-      }
-    }
-  }
+  return request('/api/classes/my-classes/')
 }
 
 // Instructor dashboard endpoints
@@ -391,25 +375,10 @@ export async function getClassNotices(params = '') {
   return data
 }
 
-// Get class notices scoped to the current user. Backend exposes `my_notices`
-// (or `my-notices`) depending on routing; try common variants and fall back
-// to the generic list.
+// Get class notices scoped to the current user. The backend's get_queryset
+// already filters by user role, so we just use the base endpoint.
 export async function getMyClassNotices(params = '') {
-  const qs = params ? `?${params}` : ''
-  try {
-    const data = await request(`/api/class-notices/my_notices/${qs}`)
-    if (data && Array.isArray(data.results)) return data.results
-    return data
-  } catch {
-    try {
-      const data = await request(`/api/class-notices/my-notices/${qs}`)
-      if (data && Array.isArray(data.results)) return data.results
-      return data
-    } catch {
-      // Fall back to the generic list endpoint
-      return getClassNotices(params)
-    }
-  }
+  return getClassNotices(params)
 }
 
 // Global notices (admin/site-wide)
@@ -447,6 +416,37 @@ export async function updateNotice(id, payload) {
 
 export async function deleteNotice(id) {
   return request(`/api/notices/${id}/`, { method: 'DELETE' })
+}
+
+// Get unread notices for the current user
+export async function getUnreadNotices() {
+  const data = await request('/api/notices/unread/')
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+// Mark a notice as read
+export async function markNoticeAsRead(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/notices/${id}/mark_as_read/`, { method: 'POST', body: {} })
+}
+
+// Mark a notice as unread
+export async function markNoticeAsUnread(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/notices/${id}/mark_as_unread/`, { method: 'POST', body: {} })
+}
+
+// Mark a class notice as read
+export async function markClassNoticeAsRead(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/class-notices/${id}/mark_as_read/`, { method: 'POST', body: {} })
+}
+
+// Mark a class notice as unread
+export async function markClassNoticeAsUnread(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/class-notices/${id}/mark_as_unread/`, { method: 'POST', body: {} })
 }
 
 // =====================
@@ -686,6 +686,11 @@ export default {
   createNotice,
   updateNotice,
   deleteNotice,
+  getUnreadNotices,
+  markNoticeAsRead,
+  markNoticeAsUnread,
+  markClassNoticeAsRead,
+  markClassNoticeAsUnread,
   // Paginated versions
   getStudentsPaginated,
   getInstructorsPaginated,

@@ -28,7 +28,7 @@ export default function AdminInstructors() {
   const [searchTerm, setSearchTerm] = useState('')
   // pagination state
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
   // filter state
   const [selectedClass, setSelectedClass] = useState('all')
@@ -471,12 +471,10 @@ export default function AdminInstructors() {
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
                           {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                        </div>
+                        <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
@@ -552,15 +550,10 @@ export default function AdminInstructors() {
                   {instructors.map((it) => (
                     <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md flex-shrink-0">
-                            {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                            <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                            {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
-                          </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                          <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
+                          {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -624,15 +617,10 @@ export default function AdminInstructors() {
           <div className="md:hidden space-y-4">
             {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
-                {/* Header with avatar and name */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-base shadow-lg flex-shrink-0">
-                    {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-black truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                    <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                  </div>
+                {/* Header with name */}
+                <div className="mb-4">
+                  <div className="font-medium text-black text-lg">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                  <div className="text-sm text-neutral-500">{it.svc_number || '-'}</div>
                 </div>
 
                 {/* Details */}

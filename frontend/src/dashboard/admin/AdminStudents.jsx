@@ -28,7 +28,7 @@ export default function AdminStudents() {
   const [error, setError] = useState(null)
   // Pagination state
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
   // edit / delete UI state
   const [editingStudent, setEditingStudent] = useState(null)
@@ -931,7 +931,7 @@ export default function AdminStudents() {
 
                   if (startPage > 1) {
                     pages.push(
-                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
                         1
                       </button>
                     )
@@ -948,7 +948,7 @@ export default function AdminStudents() {
                         className={`px-3 py-1.5 text-sm rounded-lg transition ${
                           page === i
                             ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                            : 'border border-neutral-200 bg-white hover:bg-neutral-50'
+                            : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'
                         }`}
                       >
                         {i}
@@ -961,7 +961,7 @@ export default function AdminStudents() {
                       pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
                     }
                     pages.push(
-                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
                         {totalPages}
                       </button>
                     )

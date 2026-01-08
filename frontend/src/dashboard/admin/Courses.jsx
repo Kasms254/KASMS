@@ -243,8 +243,8 @@ export default function Courses() {
                   accent="bg-indigo-600"
                   colored={true}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="truncate text-xs text-neutral-500 mr-4">{course.description}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="line-clamp-2 text-xs text-neutral-500 flex-1 min-w-0" title={course.description}>{course.description}</div>
                     <div>
                       <button
                         onClick={(e) => {

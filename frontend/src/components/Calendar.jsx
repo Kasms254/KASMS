@@ -15,7 +15,33 @@ function formatISO(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export default function Calendar({ events = {}, selected: selectedProp, onSelect, showEvents = true }) {
+// Priority ranking for sorting events (lower = more urgent)
+function getEventPriority(ev) {
+  if (typeof ev === 'string') return 50
+
+  // Priority-based ranking for notices
+  if (ev.priority === 'urgent') return 1
+  if (ev.priority === 'high') return 2
+  if (ev.priority === 'medium') return 3
+  if (ev.priority === 'low') return 4
+
+  // Kind-based ranking
+  if (ev.kind === 'notice') return 10
+  if (ev.kind === 'exam') return 20
+  if (ev.kind === 'class') return 30
+
+  return 50
+}
+
+// Sort events by urgency and return top N
+function getMostUrgentEvents(eventList, maxCount = 2) {
+  if (!Array.isArray(eventList) || eventList.length === 0) return []
+  
+  const sorted = [...eventList].sort((a, b) => getEventPriority(a) - getEventPriority(b))
+  return sorted.slice(0, maxCount)
+}
+
+export default function Calendar({ events = {}, selected: selectedProp, onSelect, showEvents = true, maxEventsPerDay = 2 }) {
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
   const [selected, setSelected] = useState(() => formatISO(new Date()))
 
@@ -95,14 +121,24 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
         })}
       </div>
 
-      {showEvents && (
+      {showEvents && (() => {
+        const allEvents = events[displaySelected] || []
+        const urgentEvents = getMostUrgentEvents(allEvents, maxEventsPerDay)
+        const remainingCount = allEvents.length - urgentEvents.length
+
+        return (
         <div className="mt-4">
-          <h5 className="text-sm font-medium text-black">Events on {displaySelected}</h5>
+          <h5 className="text-sm font-medium text-black">
+            Events on {displaySelected}
+            {allEvents.length > 0 && (
+              <span className="ml-2 text-xs text-neutral-500">({allEvents.length} total)</span>
+            )}
+          </h5>
           <ul className="mt-2">
-                  {(events[displaySelected] || []).length === 0 && (
+                  {allEvents.length === 0 && (
                     <li className="text-sm text-black">No events</li>
                   )}
-                  {(events[displaySelected] || []).map((ev, idx) => (
+                  {urgentEvents.map((ev, idx) => (
                     <li key={idx} className="py-1 text-sm text-black">
                       {typeof ev === 'string' ? (
                         <>
@@ -112,6 +148,12 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                         <div className="flex items-center gap-3">
                           <span className="text-neutral-500">•</span>
                           <div className="flex items-center flex-wrap gap-2">
+                            {/* Priority badge for urgent/high priority */}
+                            {(ev.priority === 'urgent' || ev.priority === 'high') && (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${ev.priority === 'urgent' ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-orange-100 text-orange-800 border border-orange-200'}`}>
+                                {ev.priority}
+                              </span>
+                            )}
                             {/** Notice */}
                             {ev.kind === 'notice' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
@@ -161,9 +203,15 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                       )}
                     </li>
                   ))}
+                  {remainingCount > 0 && (
+                    <li className="py-2 text-xs text-neutral-500 italic border-t border-neutral-100 mt-2">
+                      +{remainingCount} more event{remainingCount > 1 ? 's' : ''} (showing most urgent)
+                    </li>
+                  )}
           </ul>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

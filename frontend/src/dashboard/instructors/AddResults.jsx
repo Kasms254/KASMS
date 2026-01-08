@@ -22,7 +22,11 @@ export default function AddResults() {
   const [marksError, setMarksError] = useState('')
   const [showRemarksModal, setShowRemarksModal] = useState(false)
   const [remarksInput, setRemarksInput] = useState('')
-  
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
   // Helper to normalize numbers for input display: remove trailing .0 for integers
   function normalizeNumberForInput(v) {
     if (v === '' || v == null) return ''
@@ -312,6 +316,21 @@ export default function AddResults() {
     return filtered
   }, [results, searchTerm, sortConfig])
 
+  // Paginated results
+  const paginatedResults = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredAndSortedResults.slice(startIndex, endIndex)
+  }, [filteredAndSortedResults, currentPage, itemsPerPage])
+
+  // Total pages calculation
+  const totalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage)
+
+  // Reset to page 1 when search term or sort changes
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, sortConfig])
+
   // Keyboard navigation
   function handleKeyDown(e, idx, field) {
     if (e.key === 'Enter') {
@@ -461,15 +480,33 @@ export default function AddResults() {
           {/* Search and Bulk Actions */}
           <div className="p-3 sm:p-4 border-b bg-gray-50">
             <div className="flex flex-col gap-3">
-              {/* Search */}
-              <div className="w-full">
-                <input
-                  type="text"
-                  placeholder="Search by student name or service number..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
+              {/* Search and Per Page selector */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by student name or service number..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={e => {
+                      setItemsPerPage(Number(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="px-2 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
 
               {/* Bulk Actions */}
@@ -577,7 +614,7 @@ export default function AddResults() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAndSortedResults.map((r) => {
+                  {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     return (
                       <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
@@ -652,6 +689,88 @@ export default function AddResults() {
             </div>
           </div>
 
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="p-3 sm:p-4 border-t bg-white">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Results info */}
+                <div className="text-xs sm:text-sm text-gray-600">
+                  Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredAndSortedResults.length)}</span> of{' '}
+                  <span className="font-medium">{filteredAndSortedResults.length}</span> results
+                </div>
+
+                {/* Pagination buttons */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="First page"
+                  >
+                    «
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Previous page"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Page numbers */}
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const pageNumbers = []
+                      const maxButtons = 5
+                      let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2))
+                      let endPage = Math.min(totalPages, startPage + maxButtons - 1)
+
+                      if (endPage - startPage + 1 < maxButtons) {
+                        startPage = Math.max(1, endPage - maxButtons + 1)
+                      }
+
+                      for (let i = startPage; i <= endPage; i++) {
+                        pageNumbers.push(
+                          <button
+                            key={i}
+                            onClick={() => setCurrentPage(i)}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg transition ${
+                              currentPage === i
+                                ? 'bg-indigo-600 text-white font-medium'
+                                : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        )
+                      }
+                      return pageNumbers
+                    })()}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Next page"
+                  >
+                    ›
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Last page"
+                  >
+                    »
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Footer with Save Button */}
           <div className="p-3 sm:p-4 border-t bg-gray-50">
             <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
@@ -664,11 +783,13 @@ export default function AddResults() {
                     <span className="font-medium">Unsaved changes</span>
                   </div>
                 )}
-                {filteredAndSortedResults.length < results.length && (
-                  <div className="text-xs sm:text-sm text-gray-600">
-                    Showing {filteredAndSortedResults.length} of {results.length} students
-                  </div>
-                )}
+                <div className="text-xs sm:text-sm text-gray-600">
+                  {filteredAndSortedResults.length < results.length ? (
+                    <>Filtered: {filteredAndSortedResults.length} of {results.length} students</>
+                  ) : (
+                    <>Total: {results.length} students</>
+                  )}
+                </div>
               </div>
               <button
                 onClick={handleSave}

@@ -20,7 +20,7 @@ export default function InstructorStudents() {
   const [error, setError] = useState(null)
   // Pagination state
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
@@ -389,7 +389,7 @@ export default function InstructorStudents() {
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Results info */}
-            <div className="text-sm text-neutral-600">
+            <div className="text-sm text-black">
               Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
               <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
               <span className="font-semibold text-black">{totalCount}</span> students
@@ -423,7 +423,7 @@ export default function InstructorStudents() {
 
                   if (startPage > 1) {
                     pages.push(
-                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
                         1
                       </button>
                     )
@@ -440,7 +440,7 @@ export default function InstructorStudents() {
                         className={`px-3 py-1.5 text-sm rounded-lg transition ${
                           page === i
                             ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                            : 'border border-neutral-200 bg-white hover:bg-neutral-50'
+                            : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'
                         }`}
                       >
                         {i}
@@ -453,7 +453,7 @@ export default function InstructorStudents() {
                       pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
                     }
                     pages.push(
-                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
                         {totalPages}
                       </button>
                     )
@@ -475,7 +475,7 @@ export default function InstructorStudents() {
 
               {/* Page size selector */}
               <div className="ml-2 flex items-center gap-2">
-                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <span className="text-sm text-black hidden sm:inline">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {

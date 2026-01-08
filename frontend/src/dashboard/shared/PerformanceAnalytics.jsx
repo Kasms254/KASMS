@@ -276,80 +276,112 @@ function TopPerformersList({ performers }) {
 
 // Enhanced Subject Comparison with better visuals
 function SubjectComparison({ subjects }) {
+  const [showAll, setShowAll] = useState(false)
+  const MAX_VISIBLE = 3
+
   if (!subjects || subjects.length === 0) {
     return <p className="text-sm text-gray-500">No subjects to compare</p>
   }
 
+  // Sort by average percentage descending
+  const sortedSubjects = [...subjects].sort((a, b) => (b.average_percentage || 0) - (a.average_percentage || 0))
+  const visibleSubjects = showAll ? sortedSubjects : sortedSubjects.slice(0, MAX_VISIBLE)
+  const hiddenCount = sortedSubjects.length - MAX_VISIBLE
+
   return (
-    <div className="space-y-3">
-      {subjects.map((subj, idx) => (
-        <div key={subj.subject_id || idx} className="bg-gradient-to-r from-gray-50 to-white rounded-lg p-3 md:p-4 border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
-                subj.average_percentage >= 70 ? 'bg-emerald-100' :
-                subj.average_percentage >= 50 ? 'bg-amber-100' :
-                'bg-red-100'
-              }`}>
-                <Icons.BookOpen className={`w-4 h-4 md:w-5 md:h-5 ${
+    <div>
+      <div className={`space-y-3 ${!showAll && hiddenCount > 0 ? 'max-h-[600px] overflow-hidden' : ''}`}>
+        {visibleSubjects.map((subj, idx) => (
+          <div key={subj.subject_id || idx} className="bg-gradient-to-r from-gray-50 to-white rounded-lg p-3 md:p-4 border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
+                  {idx + 1}
+                </div>
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
+                  subj.average_percentage >= 70 ? 'bg-emerald-100' :
+                  subj.average_percentage >= 50 ? 'bg-amber-100' :
+                  'bg-red-100'
+                }`}>
+                  <Icons.BookOpen className={`w-4 h-4 md:w-5 md:h-5 ${
+                    subj.average_percentage >= 70 ? 'text-emerald-600' :
+                    subj.average_percentage >= 50 ? 'text-amber-600' :
+                    'text-red-600'
+                  }`} />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-gray-800 text-sm md:text-base truncate block" title={subj.subject_name}>{subj.subject_name}</span>
+                  {subj.instructor && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                      <Icons.User className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{subj.instructor}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="text-left sm:text-right shrink-0">
+                <div className={`text-xl md:text-2xl font-bold ${
                   subj.average_percentage >= 70 ? 'text-emerald-600' :
                   subj.average_percentage >= 50 ? 'text-amber-600' :
                   'text-red-600'
-                }`} />
-              </div>
-              <div>
-                <span className="font-semibold text-gray-800 text-sm md:text-base">{subj.subject_name}</span>
-                {subj.instructor && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                    <Icons.User className="w-3 h-3" />
-                    {subj.instructor}
-                  </div>
-                )}
+                }`}>
+                  {subj.average_percentage?.toFixed(1)}%
+                </div>
+                <div className="text-xs text-gray-500">Class Average</div>
               </div>
             </div>
-            <div className="text-left sm:text-right">
-              <div className={`text-xl md:text-2xl font-bold ${
-                subj.average_percentage >= 70 ? 'text-emerald-600' :
-                subj.average_percentage >= 50 ? 'text-amber-600' :
-                'text-red-600'
-              }`}>
-                {subj.average_percentage?.toFixed(1)}%
-              </div>
-              <div className="text-xs text-gray-500">Class Average</div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-3">
-            <div className="text-center p-2 bg-white rounded border border-gray-100">
-              <div className="text-xs text-gray-500">Pass Rate</div>
-              <div className="font-semibold text-gray-800">{subj.pass_rate?.toFixed(1)}%</div>
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
+                <div className="text-[10px] text-gray-500">Pass Rate</div>
+                <div className="font-semibold text-gray-800 text-sm">{subj.pass_rate?.toFixed(0)}%</div>
+              </div>
+              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
+                <div className="text-[10px] text-gray-500">Exams</div>
+                <div className="font-semibold text-gray-800 text-sm">{subj.total_exams || 0}</div>
+              </div>
+              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
+                <div className="text-[10px] text-gray-500">Highest</div>
+                <div className="font-semibold text-emerald-600 text-sm">{subj.highest_score?.toFixed(0)}%</div>
+              </div>
+              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
+                <div className="text-[10px] text-gray-500">Lowest</div>
+                <div className="font-semibold text-red-600 text-sm">{subj.lowest_score?.toFixed(0)}%</div>
+              </div>
             </div>
-            <div className="text-center p-2 bg-white rounded border border-gray-100">
-              <div className="text-xs text-gray-500">Exams</div>
-              <div className="font-semibold text-gray-800">{subj.total_exams || 0}</div>
-            </div>
-            <div className="text-center p-2 bg-white rounded border border-gray-100">
-              <div className="text-xs text-gray-500">Highest</div>
-              <div className="font-semibold text-emerald-600">{subj.highest_score?.toFixed(1)}%</div>
-            </div>
-            <div className="text-center p-2 bg-white rounded border border-gray-100">
-              <div className="text-xs text-gray-500">Lowest</div>
-              <div className="font-semibold text-red-600">{subj.lowest_score?.toFixed(1)}%</div>
-            </div>
-          </div>
 
-          <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                subj.average_percentage >= 70 ? 'bg-emerald-500' :
-                subj.average_percentage >= 50 ? 'bg-amber-500' :
-                'bg-red-500'
-              }`}
-              style={{ width: `${subj.average_percentage || 0}%` }}
-            />
+            <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  subj.average_percentage >= 70 ? 'bg-emerald-500' :
+                  subj.average_percentage >= 50 ? 'bg-amber-500' :
+                  'bg-red-500'
+                }`}
+                style={{ width: `${subj.average_percentage || 0}%` }}
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      {hiddenCount > 0 && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="mt-4 w-full py-2 px-4 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          {showAll ? (
+            <>
+              <Icons.ChevronUp className="w-4 h-4" />
+              Show less
+            </>
+          ) : (
+            <>
+              <Icons.ChevronDown className="w-4 h-4" />
+              Show {hiddenCount} more subject{hiddenCount > 1 ? 's' : ''}
+            </>
+          )}
+        </button>
+      )}
     </div>
   )
 }
@@ -692,7 +724,7 @@ export default function PerformanceAnalytics() {
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Icons.Trophy className="w-5 h-5 text-amber-500" />
-                Top 10 Performers
+                Top 3 Performers
               </h3>
               <TopPerformersList performers={classPerformance.top_performers} />
             </div>

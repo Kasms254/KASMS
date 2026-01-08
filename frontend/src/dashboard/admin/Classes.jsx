@@ -215,7 +215,7 @@ export default function ClassesList(){
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
-            <div key={c.id} className="relative">
+            <div key={c.id} className="relative h-full">
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
@@ -223,15 +223,17 @@ export default function ClassesList(){
                 icon="Layers"
                 accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
                 colored={true}
+                className="h-full flex flex-col"
               >
-                <div>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
-                <div className="mt-1">{c.start_date || ''} → {c.end_date || ''}</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
-                  <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  {user && user.role === 'admin' && (
+                <div className="flex flex-col flex-1">
+                  <div className="truncate" title={c.instructor_name || c.instructor || 'TBD'}>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
+                  <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
+                  <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                    <span className={`text-xs ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>{c.is_active ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    {user && user.role === 'admin' && (
                     <button onClick={async () => {
                     // ensure instructors list is loaded for the select
                     try {
@@ -253,6 +255,7 @@ export default function ClassesList(){
                     setEditModalOpen(true)
                     }} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
                   )}
+                  </div>
                 </div>
               </Card>
             </div>
