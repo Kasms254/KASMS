@@ -325,7 +325,7 @@ class ClassNotice(models.Model):
     ]
 
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='class_notices')
-    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices')
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='class_notices', null=True, blank=True)
     title = models.CharField(max_length=50)
     content = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
