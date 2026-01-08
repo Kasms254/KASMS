@@ -1240,9 +1240,13 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             if subject and subject.instructor != self.request.user:
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You can only create notices for subjects you teach.")
-            elif class_obj.instructor != self.request.user and not subject:
+            
+            if not subject and class_obj and class_obj.instructor != self.request.user:
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("You cannot create notices for classes you don't teach.")
+                raise PermissionDenied("You cannot create notices for classes you dont teach!")
+
+        serializer.save(created_by=self.request.user)
+
 
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
