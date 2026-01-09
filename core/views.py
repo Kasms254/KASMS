@@ -75,12 +75,48 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def instructors(self, request):
-        instructors = User.objects.filter(role='instructor', is_active=True).order_by('first_name', 'last_name')
-        serializer = UserListSerializer(instructors, many=True)
-        return Response({
-            'count': instructors.count(),
-            'results': serializer.data
-        })
+        search_query = request.query_params.get('search', '').strip()
+        page_number = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+
+        instructors_qs = User.objects.filter(
+            role = 'instructor',
+            is_active=True
+        )
+
+        if search_query:
+            instructors_qs = instructors_qs.filter(
+                Q(username__icontains = search_query) |
+                Q(email__icontains = search_query) |
+                Q(first_name__icontains = search_query) |
+                Q(last_name__icontains = search_query) |
+                Q(svc_number__icontains=search_query) |
+                Q(phone_number__icontains=search_query)
+            )
+
+        instructors_qs = instructors_qs.order_by('first_name', 'last_name')
+
+        paginator = Paginator(instructors_qs,page_size)
+        page_obj   = paginator.get_page(page_number)
+
+        serializer = UserListSerializer(page_obj.object_list, many=True)
+
+        response_data = {
+            'count': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page':page_obj.number,
+            'page_size':page_size,
+            'next':page_obj.next_page_number() if page_obj.has_next() else None,
+            'previous':page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'results':serializer.data
+        }
+
+        if search_query:
+            response_data['search_query'] = search_query
+
+        return Response(
+            response_data
+        )
     
     @action(detail=False, methods=['get'])
     def students(self, request):
