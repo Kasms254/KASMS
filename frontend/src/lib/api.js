@@ -172,6 +172,29 @@ export async function getCourses() {
   return request('/api/courses/')
 }
 
+// Fetch ALL courses by iterating through all pages
+export async function getAllCourses() {
+  let allCourses = []
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    try {
+      const data = await getCoursesPaginated(`page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allCourses = [...allCourses, ...results]
+
+      // Check if there are more pages
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allCourses
+}
+
 export async function getCoursesPaginated(params = '') {
   const qs = params ? `?${params}` : ''
   return request(`/api/courses/${qs}`)
@@ -193,6 +216,30 @@ export async function getClasses(params = '') {
   // { count, results: [...] }. Unwrap results for callers that expect an array.
   if (data && Array.isArray(data.results)) return data.results
   return data
+}
+
+// Fetch ALL classes by iterating through all pages
+export async function getAllClasses(params = '') {
+  let allClasses = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+
+  while (hasMore) {
+    try {
+      const data = await getClassesPaginated(`${baseParams}page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allClasses = [...allClasses, ...results]
+
+      // Check if there are more pages
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allClasses
 }
 
 export async function getClassesPaginated(params = '') {
@@ -267,6 +314,30 @@ export async function getSubjects(params = '') {
   const data = await request(`/api/subjects/${qs}`)
   if (data && Array.isArray(data.results)) return data.results
   return data
+}
+
+// Fetch ALL subjects by iterating through all pages
+export async function getAllSubjects(params = '') {
+  let allSubjects = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+
+  while (hasMore) {
+    try {
+      const data = await getSubjectsPaginated(`${baseParams}page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allSubjects = [...allSubjects, ...results]
+
+      // Check if there are more pages
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allSubjects
 }
 
 // Instructor-specific subjects (subjects taught by the current instructor)
@@ -564,6 +635,29 @@ export async function getInstructors() {
   return data
 }
 
+// Fetch ALL instructors by iterating through all pages
+export async function getAllInstructors() {
+  let allInstructors = []
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    try {
+      const data = await getInstructorsPaginated(`page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allInstructors = [...allInstructors, ...results]
+
+      // Check if there are more pages
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allInstructors
+}
+
 export async function getInstructorsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
   return request(`/api/users/instructors${qs}`)
@@ -626,8 +720,10 @@ export default {
   getCurrentUser,
   getStudents,
   getClasses,
+  getAllClasses,
   getMyClasses,
   getInstructors,
+  getAllInstructors,
   assignInstructorToSubject,
   removeInstructorFromSubject,
   markAttendance,
@@ -643,6 +739,7 @@ export default {
   deactivateUser,
   resetUserPassword,
   getSubjects,
+  getAllSubjects,
   getSubjectsPaginated,
   getClassSubjects,
   getClassEnrolledStudents,
@@ -653,6 +750,7 @@ export default {
   getUserEnrollments,
   addEnrollment,
   getCourses,
+  getAllCourses,
   addCourse,
   updateCourse,
   addClass,

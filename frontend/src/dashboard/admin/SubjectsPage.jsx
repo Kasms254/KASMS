@@ -46,19 +46,19 @@ export default function SubjectsPage() {
   useEffect(() => {
     let mounted = true
 
-    Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
+    Promise.all([api.getAllClasses().catch(() => null), api.getAllSubjects().catch(() => null)])
       .then(([clsData, subjData]) => {
         if (!mounted) return
-        const clsList = Array.isArray(clsData) ? clsData : (clsData && Array.isArray(clsData.results) ? clsData.results : clsData || [])
-        const subjList = Array.isArray(subjData) ? subjData : (subjData && Array.isArray(subjData.results) ? subjData.results : subjData || [])
+        const clsList = Array.isArray(clsData) ? clsData : []
+        const subjList = Array.isArray(subjData) ? subjData : []
 
         setClasses(clsList)
         setSubjects(subjList)
 
         // fetch instructors for editing dropdown
-        api.getInstructors().then((ins) => {
+        api.getAllInstructors().then((ins) => {
           if (!mounted) return
-          const list = Array.isArray(ins) ? ins : (ins && Array.isArray(ins.results) ? ins.results : ins || [])
+          const list = Array.isArray(ins) ? ins : []
           setInstructors(list)
         }).catch(() => {})
       })
@@ -260,8 +260,8 @@ export default function SubjectsPage() {
 
   async function openAddSubjectModal(classId = ''){
     try{
-      const ins = await api.getInstructors()
-      const list = Array.isArray(ins) ? ins : (ins && Array.isArray(ins.results) ? ins.results : ins || [])
+      const ins = await api.getAllInstructors()
+      const list = Array.isArray(ins) ? ins : []
       setInstructors(list)
     }catch{
       setInstructors([])
@@ -293,8 +293,8 @@ export default function SubjectsPage() {
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       closeModal()
       // refresh subjects
-      const s = await api.getSubjects()
-      const subjList = Array.isArray(s) ? s : (s && Array.isArray(s.results) ? s.results : s || [])
+      const s = await api.getAllSubjects()
+      const subjList = Array.isArray(s) ? s : []
       setSubjects(subjList)
     }catch(err){
       const d = err?.data

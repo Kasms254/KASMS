@@ -119,7 +119,7 @@ export default function AddUser({ onSuccess } = {}) {
       setLoadingClasses(true)
       try {
         // Request only active classes from the backend
-        const data = await api.getClasses('is_active=true')
+        const data = await api.getAllClasses('is_active=true')
         if (!mounted) return
         // expect array
         setClasses(Array.isArray(data) ? data : [])

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getClassesPaginated, getInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getCourses } from '../../lib/api'
+import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getAllCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -121,8 +121,8 @@ export default function ClassesList(){
 
   async function openAddSubjectModal(classId = ''){
     try{
-      const ins = await getInstructors()
-      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
+      const ins = await getAllInstructors()
+      setInstructors(Array.isArray(ins) ? ins : [])
     }catch{
       setInstructors([])
     }
@@ -136,9 +136,9 @@ export default function ClassesList(){
 
   async function openAddClassModal(){
     try{
-      const [ins, courses] = await Promise.all([getInstructors().catch(()=>[]), getCourses().catch(()=>[])])
-      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
-      setCoursesList(Array.isArray(courses) ? courses : (courses && courses.results) ? courses.results : [])
+      const [ins, courses] = await Promise.all([getAllInstructors().catch(()=>[]), getAllCourses().catch(()=>[])])
+      setInstructors(Array.isArray(ins) ? ins : [])
+      setCoursesList(Array.isArray(courses) ? courses : [])
     }catch{
       setInstructors([])
       setCoursesList([])
@@ -255,8 +255,8 @@ export default function ClassesList(){
                     <button onClick={async () => {
                     // ensure instructors list is loaded for the select
                     try {
-                      const ins = await getInstructors()
-                      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
+                      const ins = await getAllInstructors()
+                      setInstructors(Array.isArray(ins) ? ins : [])
                     } catch {
                       setInstructors([])
                     }

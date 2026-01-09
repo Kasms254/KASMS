@@ -183,10 +183,11 @@ export default function ExamReports() {
       try {
         const [examsData, classesData, subjectsData] = await Promise.all([
           isAdmin ? api.getExams() : api.getMyExams(),
-          isAdmin ? api.getClasses() : api.getMyClasses(),
-          isAdmin ? api.getSubjects() : api.getMySubjects()
+          isAdmin ? api.getAllClasses() : api.getMyClasses(),
+          isAdmin ? api.getAllSubjects() : api.getMySubjects()
         ])
-        
+
+        // Handle both direct arrays and paginated responses {count, results}
         setExams(Array.isArray(examsData) ? examsData : (examsData?.results || []))
         setClasses(Array.isArray(classesData) ? classesData : (classesData?.results || []))
         setSubjects(Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results || []))

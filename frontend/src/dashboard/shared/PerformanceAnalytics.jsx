@@ -423,14 +423,13 @@ export default function PerformanceAnalytics() {
       setLoading(true)
       try {
         const [classesResp, subjectsResp] = await Promise.all([
-          user?.role === 'instructor' ? api.getMyClasses() : api.getClasses('is_active=true'),
-          user?.role === 'instructor' ? api.getMySubjects() : api.getSubjects('is_active=true'),
+          user?.role === 'instructor' ? api.getMyClasses() : api.getAllClasses('is_active=true'),
+          user?.role === 'instructor' ? api.getMySubjects() : api.getAllSubjects('is_active=true'),
         ])
 
-        const classList = Array.isArray(classesResp) ? classesResp :
-          (classesResp?.results || [])
-        const subjectList = Array.isArray(subjectsResp) ? subjectsResp :
-          (subjectsResp?.results || [])
+        // Handle both direct arrays and paginated responses {count, results}
+        const classList = Array.isArray(classesResp) ? classesResp : (classesResp?.results || [])
+        const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results || [])
 
         setClasses(classList)
         setSubjects(subjectList)
