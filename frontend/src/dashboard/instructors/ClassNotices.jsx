@@ -321,7 +321,7 @@ export default function ClassNotices() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Expiry / Event date</label>
-                    <input type="date" value={form.expiry_date} onChange={e => update('expiry_date', e.target.value)} className="mt-2 p-2 rounded-md border w-full bg-white" />
+                    <input type="date" value={form.expiry_date} onChange={e => update('expiry_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-2 p-2 rounded-md border w-full bg-white" />
                   </div>
                 </div>
 

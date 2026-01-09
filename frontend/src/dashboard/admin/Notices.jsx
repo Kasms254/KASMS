@@ -412,6 +412,7 @@ export default function Notices() {
                       type="date"
                       value={form.expiry_date}
                       onChange={e => update('expiry_date', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
                       className="mt-2 p-2 rounded-md border w-full bg-white"
                     />
                     {errors.expiry_date && <div className="text-rose-600 text-sm mt-1">{errors.expiry_date}</div>}

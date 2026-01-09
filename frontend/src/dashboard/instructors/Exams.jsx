@@ -755,7 +755,7 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <div>
                       <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                      <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
                     </div>
                     <div>
                       <label className="block text-sm text-gray-700">Total marks</label>
@@ -834,7 +834,7 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <div>
                       <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={editForm.exam_date} onChange={(e) => updateEditField('exam_date', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                      <input type="date" value={editForm.exam_date} onChange={(e) => updateEditField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
                     </div>
                     <div>
                       <label className="block text-sm text-gray-700">Total marks</label>
