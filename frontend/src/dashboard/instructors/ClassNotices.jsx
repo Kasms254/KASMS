@@ -19,6 +19,12 @@ export default function ClassNotices() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const itemsPerPage = 10
+
   const PRIORITY_CLASSES = {
     low: 'bg-green-100 text-green-700',
     medium: 'bg-indigo-100 text-indigo-700',
@@ -30,9 +36,23 @@ export default function ClassNotices() {
     async function load() {
       setLoading(true)
       try {
-        const res = await api.getMyClassNotices()
-        const list = Array.isArray(res) ? res : (res && Array.isArray(res.results) ? res.results : [])
-        if (mounted) setNotices(list)
+        // Use paginated API with page parameter
+        const params = new URLSearchParams({ page: currentPage, page_size: itemsPerPage })
+        const res = await api.getMyClassNotices(params.toString())
+
+        if (!mounted) return
+
+        // Handle paginated response
+        if (res && typeof res === 'object') {
+          const list = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : [])
+          setNotices(list)
+          setTotalCount(res.count || list.length)
+          setTotalPages(Math.ceil((res.count || list.length) / itemsPerPage))
+        } else {
+          setNotices([])
+          setTotalCount(0)
+          setTotalPages(1)
+        }
       } catch (err) {
         toast.error(err?.message || 'Failed to load class notices')
       } finally { if (mounted) setLoading(false) }
@@ -40,7 +60,7 @@ export default function ClassNotices() {
 
     load()
     return () => { mounted = false }
-  }, [toast])
+  }, [toast, currentPage, itemsPerPage])
 
   useEffect(() => {
     let mounted = true
@@ -137,6 +157,8 @@ export default function ClassNotices() {
         const existingId = editTarget.id || editTarget.pk
         const updated = await api.updateClassNotice(existingId, payload)
         toast.success('Notice updated')
+        // Reload from first page to reflect update
+        setCurrentPage(1)
         // If backend returned a different id (it created a new object), remove old one and add the updated
         if (updated && (String(updated.id) !== String(existingId))) {
           setNotices(s => [updated, ...(s || []).filter(x => String(x.id) !== String(existingId))])
@@ -147,6 +169,8 @@ export default function ClassNotices() {
       } else {
         const created = await api.createClassNotice(payload)
         toast.success('Class notice created')
+        // Go to first page to see new notice
+        setCurrentPage(1)
         // Prepend to list
         setNotices(s => [created, ...(s || [])])
       }
@@ -195,6 +219,10 @@ export default function ClassNotices() {
       toast.success('Notice deleted')
       setDeleteConfirmOpen(false)
       setDeleteTarget(null)
+      // If this was the last notice on the page and we're not on page 1, go back one page
+      if (notices.length === 1 && currentPage > 1) {
+        setCurrentPage(p => p - 1)
+      }
       try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
     } catch (err) {
       toast.error(err?.message || 'Failed to delete notice')
@@ -219,7 +247,7 @@ export default function ClassNotices() {
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">Your class notices</h3>
-            <div className="text-sm text-neutral-500">{loading ? 'Loading…' : `${notices.length} total`}</div>
+            <div className="text-sm text-neutral-500">{loading ? 'Loading…' : `${totalCount} total`}</div>
           </div>
 
           <div className="space-y-3">
@@ -256,6 +284,48 @@ export default function ClassNotices() {
                 </article>
               ))}
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-neutral-200">
+                <div className="text-sm text-neutral-600">
+                  Showing page {currentPage} of {totalPages} ({totalCount} total notices)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Previous
+                  </button>
+                  <div className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium">
+                    {currentPage}
+                  </div>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Next
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Last
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
