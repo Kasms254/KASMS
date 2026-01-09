@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getCourses } from '../../lib/api'
+import { getClasses, getClassesPaginated, getInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -9,6 +9,10 @@ export default function ClassesList(){
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showOnlyActive, setShowOnlyActive] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [pageSize] = useState(12)
   // global modal open state; class selection is handled inside the form
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
@@ -40,9 +44,9 @@ export default function ClassesList(){
       let data
       if (user && user.role === 'instructor') {
         try {
-          // Filter by instructor and active status
-          const params = `instructor=${user.id}&is_active=${showOnlyActive}`
-          data = await getClasses(params)
+          // Filter by instructor and active status with pagination
+          const params = `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+          data = await getClassesPaginated(params)
         } catch {
           // If filtering fails, fall back to fetching all classes and filter locally
           const all = await getClasses()
@@ -51,24 +55,35 @@ export default function ClassesList(){
           // Filter by active status
           const finalList = list.filter((c) => c.is_active === showOnlyActive)
           setClasses(finalList)
-          data = finalList
+          setTotalCount(finalList.length)
+          setTotalPages(1)
+          data = { results: finalList, count: finalList.length }
         }
       } else {
-        // Non-instructor: filter by is_active
-        const params = `is_active=${showOnlyActive}`
+        // Non-instructor: filter by is_active with pagination
+        const params = `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
         try {
-          data = await getClasses(params)
+          data = await getClassesPaginated(params)
         } catch {
           // fallback: fetch all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
           const filtered = listAll.filter((c) => c.is_active === showOnlyActive)
           setClasses(filtered)
-          data = filtered
+          setTotalCount(filtered.length)
+          setTotalPages(1)
+          data = { results: filtered, count: filtered.length }
         }
       }
 
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+
+      // Update pagination metadata
+      if (data && data.count !== undefined) {
+        setTotalCount(data.count)
+        setTotalPages(Math.ceil(data.count / pageSize))
+      }
+
       // If the server already provided a count (current_enrollment or enrollment_count), reuse it.
       const initialMapped = list.map((cl) => ({ ...cl, students_count: cl.current_enrollment ?? cl.enrollment_count ?? (cl.students_count ?? null) }))
       setClasses(initialMapped)
@@ -100,7 +115,7 @@ export default function ClassesList(){
     }catch{
       reportError('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [reportError, showOnlyActive, user])
+  }, [reportError, showOnlyActive, user, currentPage, pageSize])
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
@@ -196,7 +211,10 @@ export default function ClassesList(){
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
-            <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
+            <input type="checkbox" checked={!showOnlyActive} onChange={() => {
+              setShowOnlyActive((s) => !s)
+              setCurrentPage(1)
+            }} />
             <span className="hidden sm:inline">Show only inactive classes</span>
             <span className="sm:hidden">Only inactive</span>
           </label>
@@ -205,6 +223,12 @@ export default function ClassesList(){
             )}
         </div>
       </div>
+
+      {totalCount > 0 && (
+        <div className="mb-3 text-sm text-neutral-600">
+          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} classes
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
@@ -256,6 +280,45 @@ export default function ClassesList(){
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-neutral-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
   {/* Edit Class Modal */}
   {editModalOpen && (
