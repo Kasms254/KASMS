@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getCourses, getClasses, addClass, getInstructors, getClassEnrolledStudents } from '../../lib/api'
+import { getCourses, getAllClasses, addClass, getAllInstructors, getClassEnrolledStudents } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 
@@ -51,8 +51,8 @@ export default function CourseDetail(){
   const loadClasses = useCallback(async () => {
     try{
       const params = showOnlyActive ? `course=${id}&is_active=true` : `course=${id}`
-      const data = await getClasses(params)
-      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const data = await getAllClasses(params)
+      const list = Array.isArray(data) ? data : []
       setClasses(list)
 
       // fetch enrolled students count for each class (best-effort)
@@ -76,8 +76,8 @@ export default function CourseDetail(){
 
   async function openAddModal(){
     try{
-      const ins = await getInstructors()
-      setInstructors(Array.isArray(ins) ? ins : (ins && ins.results) ? ins.results : [])
+      const ins = await getAllInstructors()
+      setInstructors(Array.isArray(ins) ? ins : [])
     }catch(e){ setInstructors([]) }
     setModalOpen(true)
   }

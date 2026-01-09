@@ -49,9 +49,9 @@ export default function AdminInstructors() {
 
   // Load classes list once
   useEffect(() => {
-    api.getClasses()
+    api.getAllClasses()
       .then((classesData) => {
-        const classes = Array.isArray(classesData) ? classesData : (classesData && Array.isArray(classesData.results) ? classesData.results : classesData || [])
+        const classes = Array.isArray(classesData) ? classesData : []
         setClassesList(classes)
       })
       .catch((err) => {
@@ -61,9 +61,9 @@ export default function AdminInstructors() {
 
   // Load subjects list once
   useEffect(() => {
-    api.getSubjects()
+    api.getAllSubjects()
       .then((subjectsData) => {
-        const subjects = Array.isArray(subjectsData) ? subjectsData : (subjectsData && Array.isArray(subjectsData.results) ? subjectsData.results : subjectsData || [])
+        const subjects = Array.isArray(subjectsData) ? subjectsData : []
         setSubjectsList(subjects)
       })
       .catch((err) => {

@@ -17,18 +17,19 @@ export default function AdminDashboard() {
 
   async function loadMetrics() {
     try {
+      // Use paginated endpoints to get accurate counts without fetching all data
       const [studentsResp, instructorsResp, usersResp, subjectsResp, classesResp] = await Promise.all([
-        api.getStudents().catch(() => null),
-        api.getInstructors().catch(() => null),
+        api.getStudentsPaginated('page=1&page_size=1').catch(() => null),
+        api.getInstructorsPaginated('page=1&page_size=1').catch(() => null),
         api.getUsers().catch(() => null),
-        api.getSubjects().catch(() => null),
-        api.getClasses('is_active=true').catch(() => null),
+        api.getSubjectsPaginated('page=1&page_size=1').catch(() => null),
+        api.getClassesPaginated('is_active=true&page=1&page_size=1').catch(() => null),
       ])
-      const studentsCount = Array.isArray(studentsResp) ? studentsResp.length : (studentsResp?.count ?? null)
-      const instructorsCount = Array.isArray(instructorsResp) ? instructorsResp.length : (instructorsResp?.count ?? null)
+      const studentsCount = studentsResp?.count ?? null
+      const instructorsCount = instructorsResp?.count ?? null
       const adminsCount = usersResp ? (Array.isArray(usersResp.results) ? usersResp.results.filter(u => u.role === 'admin').length : null) : null
-      const subjectsCount = Array.isArray(subjectsResp) ? subjectsResp.length : (subjectsResp?.count ?? null)
-      const activeClassesCount = Array.isArray(classesResp) ? classesResp.length : (classesResp?.count ?? null)
+      const subjectsCount = subjectsResp?.count ?? null
+      const activeClassesCount = classesResp?.count ?? null
       setMetrics({
         students: studentsCount,
         instructors: instructorsCount,

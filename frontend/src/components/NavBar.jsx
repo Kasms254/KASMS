@@ -63,6 +63,14 @@ export default function NavBar({
 
   // fetch notifications when opening bell
   async function fetchNotifications() {
+    // Admins don't receive notifications - they create them
+    if (user && user.role === 'admin') {
+      setNotifs([])
+      setUnreadCount(0)
+      setNotifsLoading(false)
+      return
+    }
+
     setNotifsLoading(true)
     try {
       // Combine user-scoped class notices with urgent/global notices so bell shows everything
@@ -162,14 +170,35 @@ export default function NavBar({
           }
         })
       }
-      normalized.sort((a, b) => {
+      // Filter out expired notifications
+      const now = new Date()
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(now.getDate() - 7)
+
+      const filtered = normalized.filter(n => {
+        // For exams, check if exam date has passed
+        if (n.kind === 'exam' && n.exam_date) {
+          const examDate = new Date(n.exam_date)
+          return examDate >= now
+        }
+        // For notices with expiry date, check if still valid
+        if ((n.kind === 'notice' || n.noticeType) && n.expiry_date) {
+          const expiryDate = new Date(n.expiry_date)
+          return expiryDate >= now
+        }
+        // For items without specific event dates, show if within 7 days of creation
+        const createdDate = new Date(n.created_at || n.created || 0)
+        return createdDate >= sevenDaysAgo
+      })
+
+      filtered.sort((a, b) => {
         const ta = new Date(a.created_at || a.created || 0).getTime()
         const tb = new Date(b.created_at || b.created || 0).getTime()
         return tb - ta
       })
 
-      setNotifs(normalized)
-      setUnreadCount(normalized.filter(x => !x.read).length)
+      setNotifs(filtered)
+      setUnreadCount(filtered.filter(x => !x.read).length)
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Failed to load notifications:', err)
@@ -220,8 +249,21 @@ export default function NavBar({
       try {
         const ids = e && e.detail && Array.isArray(e.detail.ids) ? e.detail.ids : []
         if (!ids.length) return
+
+        if (import.meta.env.DEV) {
+          console.log('NavBar received notifications:marked_read event with IDs:', ids)
+        }
+
         setNotifs(prev => {
-          const next = prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n)
+          // Match by both the prefixed ID and the originalId (raw backend ID)
+          const next = prev.map(n => {
+            const matchesPrefixedId = ids.includes(n.id)
+            const matchesOriginalId = n.originalId && ids.includes(n.originalId)
+            if (matchesPrefixedId || matchesOriginalId) {
+              return { ...n, read: true }
+            }
+            return n
+          })
           setUnreadCount(next.filter(x => !x.read).length)
           return next
         })
@@ -239,6 +281,8 @@ export default function NavBar({
   // shows a count without requiring the user to click it first.
   useEffect(() => {
     if (!user) return
+    // Admins don't get notifications
+    if (user.role === 'admin') return
     // Don't refetch if we already have notifications loaded
     if (notifs.length === 0) {
       fetchNotifications().catch(err => {
@@ -399,13 +443,31 @@ export default function NavBar({
                           const noticeId = n.originalId || n.noticeId || n.id
                           if (noticeId && n.kind !== 'result') {
                             try {
+                              if (import.meta.env.DEV) {
+                                console.log(`NavBar marking notification as read: ID=${noticeId}, type=${n.noticeType}`)
+                              }
+
                               if (n.noticeType === 'class_notice') {
                                 await api.markClassNoticeAsRead(noticeId)
                               } else {
                                 await api.markNoticeAsRead(noticeId)
                               }
+
+                              if (import.meta.env.DEV) {
+                                console.log(`NavBar successfully marked notification ${noticeId} as read`)
+                              }
+
+                              // Dispatch event to sync with Notifications page
+                              try {
+                                window.dispatchEvent(new CustomEvent('notices:changed'))
+                              } catch (err) {
+                                console.debug('Failed to dispatch notices:changed event:', err)
+                              }
                             } catch (err) {
-                              console.error('Failed to mark as read:', err)
+                              // If 404, the notice was deleted - silently continue
+                              if (err.message && !err.message.includes('not found')) {
+                                console.error('Failed to mark as read:', err)
+                              }
                             }
                           }
                         }
@@ -439,9 +501,14 @@ export default function NavBar({
                     // Mark all as read locally
                     setNotifs(prev => prev.map(x => ({ ...x, read: true })))
                     setUnreadCount(0)
-                    
+
                     // Mark all as read on backend
                     const unreadNotifs = notifs.filter(n => !n.read && n.kind !== 'result')
+
+                    if (import.meta.env.DEV) {
+                      console.log(`NavBar marking ${unreadNotifs.length} notifications as read`)
+                    }
+
                     for (const n of unreadNotifs) {
                       const noticeId = n.originalId || n.noticeId
                       if (!noticeId) continue
@@ -452,8 +519,22 @@ export default function NavBar({
                           await api.markNoticeAsRead(noticeId)
                         }
                       } catch (err) {
-                        console.error('Failed to mark as read:', err)
+                        // If 404, the notice was deleted - silently continue
+                        if (err.message && !err.message.includes('not found')) {
+                          console.error(`Failed to mark notification ${noticeId} as read:`, err)
+                        }
                       }
+                    }
+
+                    if (import.meta.env.DEV) {
+                      console.log('NavBar finished marking all as read, dispatching event')
+                    }
+
+                    // Dispatch event to sync with Notifications page
+                    try {
+                      window.dispatchEvent(new CustomEvent('notices:changed'))
+                    } catch (err) {
+                      console.debug('Failed to dispatch notices:changed event:', err)
                     }
                   }}
                   className="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1"

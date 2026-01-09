@@ -103,7 +103,7 @@ export default function AdminStudents() {
 
   // Load available classes for filter
   useEffect(() => {
-    api.getClasses('is_active=true')
+    api.getAllClasses('is_active=true')
       .then((data) => {
         const classList = Array.isArray(data) ? data : []
         setAvailableClasses(classList)
@@ -213,8 +213,8 @@ export default function AdminStudents() {
     })
     // fetch classes (if not loaded) and the student's enrollments to get active class
     if (classesList.length === 0) {
-      api.getClasses('is_active=true').then((c) => {
-        const list = Array.isArray(c) ? c : (c && c.results) || []
+      api.getAllClasses('is_active=true').then((c) => {
+        const list = Array.isArray(c) ? c : []
         // normalize ids to strings so <select> option values always match
         const normalized = list.map((cls) => ({ ...cls, id: cls.id != null ? String(cls.id) : cls.id }))
         setClassesList(normalized)

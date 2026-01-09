@@ -42,7 +42,7 @@ const menuItems = [
         icon: 'FileText',
         label: 'Assignments',
         href: '/list/assignments',
-        visible: ['admin', 'student',],
+        visible: ['admin'],
       },
       {
         icon: 'Book',

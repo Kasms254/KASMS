@@ -194,14 +194,56 @@ export default function Notifications() {
 
   const unreadCount = useMemo(() => items.filter(i => !i.read).length, [items])
 
-  const handleMarkRead = useCallback((ids) => {
-    setItems(prev => prev.map(i => ids.includes(i.id) ? { ...i, read: true } : i))
+  const handleMarkRead = useCallback(async (ids) => {
+    // Update local state first for instant UI feedback
+    setItems(prev => prev.map(i => {
+      if (ids.includes(i.id)) {
+        // Update the meta.is_read field so it persists correctly
+        return { ...i, read: true, meta: { ...i.meta, is_read: true, read: true } }
+      }
+      return i
+    }))
+
+    // Dispatch event to sync with NavBar
     try {
       window.dispatchEvent(new CustomEvent('notifications:marked_read', { detail: { ids } }))
     } catch (err) {
       console.debug('notify mark read dispatch failed', err)
     }
-  }, [])
+
+    // Call backend API to persist read status for each notification
+    for (const id of ids) {
+      const item = items.find(i => i.id === id)
+      if (!item || !item.meta) {
+        continue
+      }
+
+      try {
+        const noticeId = item.meta.id
+        if (!noticeId) {
+          continue
+        }
+
+        // Determine if it's a class notice or regular notice
+        const isClassNotice = !!item.meta.class_obj
+
+        if (isClassNotice) {
+          await api.markClassNoticeAsRead(noticeId)
+        } else {
+          await api.markNoticeAsRead(noticeId)
+        }
+      } catch (err) {
+        // If 404, the notice was deleted - silently continue
+        if (err.message && err.message.includes('not found')) {
+          continue
+        }
+        // Log other errors only in development
+        if (import.meta.env.DEV) {
+          console.error(`Failed to mark notification ${id} as read:`, err)
+        }
+      }
+    }
+  }, [items])
 
   const handleMarkAllRead = useCallback(() => {
     const ids = items.map(x => x.id)
@@ -223,20 +265,25 @@ export default function Notifications() {
     let mounted = true
     async function load() {
       if (!user) return
+
+      const role = (user && user.role) || (user && user.is_staff ? 'admin' : null) || 'student'
+
+      // Admins don't receive notifications - they create them
+      if (role === 'admin') {
+        if (mounted) {
+          setItems([])
+          setLoading(false)
+        }
+        return
+      }
+
       setLoading(true)
       try {
-        const role = (user && user.role) || (user && user.is_staff ? 'admin' : null) || 'student'
-
-  let notices = []
+        let notices = []
         let exams = []
         let schedule = []
         // load data depending on role
-        if (role === 'admin') {
-          const n = await api.getNotices().catch(() => [])
-          notices = Array.isArray(n) ? n : (n && Array.isArray(n.results) ? n.results : [])
-          const e = await api.getExams().catch(() => [])
-          exams = Array.isArray(e) ? e : (e && Array.isArray(e.results) ? e.results : [])
-        } else if (role === 'instructor') {
+        if (role === 'instructor') {
           const n = await api.getMyClassNotices().catch(() => [])
           notices = Array.isArray(n) ? n : (n && Array.isArray(n.results) ? n.results : [])
           const e = await api.getMyExams().catch(() => [])
@@ -276,11 +323,22 @@ export default function Notifications() {
         }
 
         // map notices to normalized items and dedupe by id
+        // Filter out notifications created by the current user (instructors shouldn't see their own notices)
         const seen = new Set()
         const noticeItems = (notices || []).flatMap(n => n ? [n] : []).reduce((acc, n) => {
           const id = n && n.id ? String(n.id) : null
           if (id && seen.has(id)) return acc
           if (id) seen.add(id)
+
+          // Skip notifications created by the current user
+          try {
+            const cb = n.created_by
+            const cbId = (cb && typeof cb === 'object') ? (cb.id || cb.pk || null) : cb
+            if (cbId !== null && String(cbId) === String(user.id)) return acc
+          } catch {
+            // ignore and keep the notification
+          }
+
           acc.push({ kind: 'notice', id: n.id, title: n.title, date: n.expiry_date || n.start_date || n.created_at || n.created, meta: n })
           return acc
         }, [])
@@ -292,9 +350,28 @@ export default function Notifications() {
 
   const merged = [...noticeItems, ...examItems, ...schedItems]
         // filter items with a date, convert date to Date, sort desc by date
+        const now = new Date()
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(now.getDate() - 7)
+
         const normalized = merged
           .map(i => ({ ...i, _date: i.date ? new Date(i.date) : null, read: (i.meta && (i.meta.read || i.meta.is_read)) ? true : false }))
           .filter(i => i._date && !Number.isNaN(i._date.getTime()))
+          .filter(i => {
+            // For exams, check if exam date has passed
+            if (i.kind === 'exam' && i.meta?.exam_date) {
+              const examDate = new Date(i.meta.exam_date)
+              return examDate >= now || !Number.isNaN(examDate.getTime())
+            }
+            // For notices with expiry date, check if still valid
+            if (i.kind === 'notice' && i.meta?.expiry_date) {
+              const expiryDate = new Date(i.meta.expiry_date)
+              return expiryDate >= now || !Number.isNaN(expiryDate.getTime())
+            }
+            // For items without specific event dates, show if within 7 days of creation
+            const createdDate = i.meta?.created_at ? new Date(i.meta.created_at) : i._date
+            return createdDate >= sevenDaysAgo
+          })
           .sort((a, b) => b._date - a._date)
 
         if (mounted) setItems(normalized)
@@ -305,7 +382,19 @@ export default function Notifications() {
       }
     }
     load()
-    return () => { mounted = false }
+
+    // Listen for notices:changed event to refetch when notices are updated elsewhere
+    function onNoticesChanged() {
+      if (mounted) {
+        load().catch(() => {})
+      }
+    }
+    window.addEventListener('notices:changed', onNoticesChanged)
+
+    return () => {
+      mounted = false
+      window.removeEventListener('notices:changed', onNoticesChanged)
+    }
   }, [user])
 
   // Keyboard navigation for modal
