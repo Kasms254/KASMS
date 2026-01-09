@@ -1081,6 +1081,190 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'results':serializer.data
         })
 
+
+    def _create_grade_notification(self, exam_result):
+        try:
+            percentage = (exam_result.marks_obtained / exam_result.exam.total_marks * 100) if exam_result.exam.total_marks > 0 else 0
+
+            if percentage >= 90:
+                grade_letter = 'A'
+            elif percentage >= 80:
+                grade_letter = 'B'
+            elif percentage >= 70:
+                grade_letter = 'C'
+            elif percentage >= 60:
+                grade_letter = 'D'
+            else:
+                grade_letter = 'F'
+
+            title = f"Grade Posted: {exam_result.exam.title}"
+
+            content = f"""Your exam has been graded!
+            Exam: {exam_result.exam.title}
+            Subject: {exam_result.exam.subject.name}
+            Class: {exam_result.exam.subject.class_obj.name}
+            Score : {exam_result.marks_obtained} / {exam_result.exam.total_marks}
+            Percentage : {percentage:.2f}%
+            Grade: {grade_letter}
+
+            {f'Remarks: {exam_result.remarks}' if exam_result.remarks else ''}
+
+            Graded by : {exam_result.graded_by.get_full_name() if exam_result.graded_by else 'System'}
+            Date: { exam_result.graded_at.strftime('%B %d, %Y at %I:%M %p') if exam_result.graded_at else 'N/A'}
+
+            """
+
+            ClassNotice.objects.create(
+                class_obj=exam_result.exam.subject.class_obj,
+                subject = exam_result.exam.subject,
+                title=title,
+                content=content,
+                priority='medium',
+                created_by = exam_result.graded_by,
+                is_active=True
+            )
+
+            return True
+        except Exception as e:
+
+            return False
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            old_instance = self.get_object()
+            was_graded = old_instance.is_submitted and old_instance.marks_obtained is not None
+
+            instance = serializer.save()
+
+            is_newly_graded = instance.is_submitted and instance.marks_obtained is not None and not was_graded
+
+            if is_newly_graded:
+
+                self._create_grade_notification(instance)
+
+    @action(detail=False, methods=['post'])
+    def bulk_grade(self, request):
+        serializer = BulkExamResultSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        results_data = serializer.validated_data['results']
+        updated_count = 0
+        notified_count = 0 
+        errors = []
+
+        with transaction.atomic():
+            for result_data in results_data:
+                try:
+                    result = ExamResult.objects.get(
+                        id = result_data.get('id'),
+                        exam__subject__instructor = request.user
+                    )
+
+                    result.marks_obtained = result_data['marks_obtained']
+                    results.remarks = reuslt_data.get('remarks', '')
+                    results.is_submitted = True
+                    result.submitted_at = timezone.now()
+                    result.graded_by = request.user
+                    result.graded_at = timezone.now()
+                    result.save()
+
+                    updated_count +=1
+
+                    if self._create_grade_notification(result):
+                        notified_count +=1
+
+                except ExamResult.DoesNotExist:
+                    errors.append(f"Result {result_data.get('id')} not found")
+                except Exception as e:
+                    errors.append(f"Error processing result {result_data.get('id')}: {str(e)}")
+
+
+            
+        return Response({
+            'status': 'success',
+            'updated': updated_count,
+            'notified': notified_count,
+            'errors':errors
+        })
+
+    @action(detail=True, methods=['post'])
+
+    def grade(self, request, pk=None):
+        result = self.get_object()
+
+        if request.user.role == 'instructor':
+            if result.exam.subject.instructor != request.user:
+                return Response(
+                    {'error': 'You can only grade results for exams in subjects that you teach.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        marks_obtained = request.data.get('marks_obtained')
+        remarks = request.data.get('remarks', '')
+
+        if marks_obtained is None:
+            return Response(
+                {'error': 'marks_obtained is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            marks_obtained = float(marks_obtained)
+
+        except (ValueError, TypeError):
+            return Response(
+                {'error':'marks_obtained must be a valid number'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if marks_obtained < 0 or marks_obtained > result.exam.total_marks:
+            return Response({
+                'error': f'marks obtained must be between 0 and {result.exam.total_marks}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+
+            result.marks_obtained = marks_obtained
+            result.remarks = remarks
+            result.is_submitted = True
+            result.submitted_at = timezone.now()
+            result.graded_by = request.user
+            result.graded_at = timezone.now()
+            result.save()
+
+            notification_created = self._create_grade_notification(result)
+
+
+        serializer = self.get_serializer(result)
+
+        return Response({
+            'status': 'success',
+            'message':'Result grade successfully',
+            'notification_sent':notification_created,
+            'result':serializer.data
+        })
+
+    @action(detail=False, methods=['get'])
+    def student_results(self, request):
+
+        student_id = request.query_params.get('student_id')
+
+        if not student_id:
+            return Response({
+                'error': 'student_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+
+        serializer = self.get_serializer(results, many=True)
+
+        return Response({
+            'count': results.count(),
+            'results':serializer.data
+        })
+
 class AttendanceViewSet(viewsets.ModelViewSet):
 
     queryset = Attendance.objects.select_related(
