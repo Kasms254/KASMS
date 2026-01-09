@@ -26,7 +26,7 @@ export default function Layout() {
         {/* Sidebar - Desktop: always visible, Mobile/Tablet: drawer */}
         <aside
           className={`
-            fixed lg:static inset-y-0 left-0 z-50
+            sidebar fixed inset-y-0 left-0 z-50
             transition-transform duration-300 ease-in-out
             overflow-y-auto text-white p-4 shadow-lg
             backdrop-blur-sm bg-gradient-to-b from-[#0ea5a4]/80 to-[#166534]/80
@@ -45,7 +45,7 @@ export default function Layout() {
         </aside>
 
         {/* Main area */}
-        <div className="flex-1 min-h-screen flex flex-col w-full lg:w-auto">
+        <div className={`flex-1 min-h-screen flex flex-col w-full lg:w-auto transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
           <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
             <NavBar
               collapsed={collapsed}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getInstructors, addSubject, getClassEnrolledStudents, updateClass, getMyClasses, addClass, getCourses } from '../../lib/api'
+import { getClasses, getClassesPaginated, getInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -9,6 +9,10 @@ export default function ClassesList(){
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showOnlyActive, setShowOnlyActive] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [pageSize] = useState(12)
   // global modal open state; class selection is handled inside the form
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
@@ -35,46 +39,51 @@ export default function ClassesList(){
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try{
-      // If showOnlyActive is true request only active classes, otherwise request all
+      // showOnlyActive: true = show active, false = show inactive only
       // If current user is an instructor, prefer to call the instructor-specific endpoint
       let data
       if (user && user.role === 'instructor') {
         try {
-          // When showing only active classes, prefer the instructor-specific endpoint which already
-          // filters by active status on the server. When the instructor wants to see inactive classes
-          // as well, request all classes filtered by instructor id from the general classes endpoint.
-          if (showOnlyActive) {
-            data = await getMyClasses()
-          } else {
-            const params = `instructor=${user.id}`
-            data = await getClasses(params)
-          }
+          // Filter by instructor and active status with pagination
+          const params = `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+          data = await getClassesPaginated(params)
         } catch {
-          // If the instructor-specific endpoint or filtering fails, fall back to fetching all classes
-          // and perform local filtering for this instructor (including inactive when requested).
+          // If filtering fails, fall back to fetching all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
           const list = listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
-          // If showOnlyActive is true, filter further for active
-          const finalList = showOnlyActive ? list.filter((c) => c.is_active) : list
+          // Filter by active status
+          const finalList = list.filter((c) => c.is_active === showOnlyActive)
           setClasses(finalList)
-          data = finalList
+          setTotalCount(finalList.length)
+          setTotalPages(1)
+          data = { results: finalList, count: finalList.length }
         }
       } else {
-        // Non-instructor: request classes with optional is_active filter and server-side instructor filter when provided
-        const params = showOnlyActive ? 'is_active=true' : ''
+        // Non-instructor: filter by is_active with pagination
+        const params = `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
         try {
-          data = await getClasses(params)
+          data = await getClassesPaginated(params)
         } catch {
-          // fallback: fetch all classes
+          // fallback: fetch all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
-          setClasses(listAll)
-          data = listAll
+          const filtered = listAll.filter((c) => c.is_active === showOnlyActive)
+          setClasses(filtered)
+          setTotalCount(filtered.length)
+          setTotalPages(1)
+          data = { results: filtered, count: filtered.length }
         }
       }
 
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+
+      // Update pagination metadata
+      if (data && data.count !== undefined) {
+        setTotalCount(data.count)
+        setTotalPages(Math.ceil(data.count / pageSize))
+      }
+
       // If the server already provided a count (current_enrollment or enrollment_count), reuse it.
       const initialMapped = list.map((cl) => ({ ...cl, students_count: cl.current_enrollment ?? cl.enrollment_count ?? (cl.students_count ?? null) }))
       setClasses(initialMapped)
@@ -106,7 +115,7 @@ export default function ClassesList(){
     }catch{
       reportError('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [reportError, showOnlyActive, user])
+  }, [reportError, showOnlyActive, user, currentPage, pageSize])
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
@@ -198,13 +207,16 @@ export default function ClassesList(){
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details. Toggle to include inactive classes.</p>
+          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
-            <input type="checkbox" checked={!showOnlyActive} onChange={() => setShowOnlyActive((s) => !s)} />
-            <span className="hidden sm:inline">Show inactive classes</span>
-            <span className="sm:hidden">Show inactive</span>
+            <input type="checkbox" checked={!showOnlyActive} onChange={() => {
+              setShowOnlyActive((s) => !s)
+              setCurrentPage(1)
+            }} />
+            <span className="hidden sm:inline">Show only inactive classes</span>
+            <span className="sm:hidden">Only inactive</span>
           </label>
             {user && user.role === 'admin' && (
               <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
@@ -212,10 +224,16 @@ export default function ClassesList(){
         </div>
       </div>
 
+      {totalCount > 0 && (
+        <div className="mb-3 text-sm text-neutral-600">
+          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} classes
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
-            <div key={c.id} className="relative">
+            <div key={c.id} className="relative h-full">
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
@@ -223,15 +241,17 @@ export default function ClassesList(){
                 icon="Layers"
                 accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
                 colored={true}
+                className="h-full flex flex-col"
               >
-                <div>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
-                <div className="mt-1">{c.start_date || ''} → {c.end_date || ''}</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
-                  <div className={`text-sm ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>Status: {c.is_active ? 'Active' : 'Inactive'}</div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  {user && user.role === 'admin' && (
+                <div className="flex flex-col flex-1">
+                  <div className="truncate" title={c.instructor_name || c.instructor || 'TBD'}>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
+                  <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
+                  <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                    <span className={`text-xs ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>{c.is_active ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    {user && user.role === 'admin' && (
                     <button onClick={async () => {
                     // ensure instructors list is loaded for the select
                     try {
@@ -253,12 +273,52 @@ export default function ClassesList(){
                     setEditModalOpen(true)
                     }} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
                   )}
+                  </div>
                 </div>
               </Card>
             </div>
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-neutral-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
   {/* Edit Class Modal */}
   {editModalOpen && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Card from '../../components/Card'
-import { getCourses, addCourse, updateCourse, getClasses } from '../../lib/api'
+import { getCoursesPaginated, addCourse, updateCourse, getClasses } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
@@ -12,6 +12,10 @@ export default function Courses() {
   const [editingCourse, setEditingCourse] = useState(null)
   const [editCourseModalOpen, setEditCourseModalOpen] = useState(false)
   const [editCourseForm, setEditCourseForm] = useState({ name: '', code: '', description: '', is_active: true })
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [pageSize] = useState(12)
   // modal state
   const addModalRef = useRef(null)
   const navigate = useNavigate()
@@ -35,8 +39,16 @@ export default function Courses() {
     ;(async () => {
       setLoading(true)
       try {
-        const data = await getCourses()
+        const params = `page=${currentPage}&page_size=${pageSize}`
+        const data = await getCoursesPaginated(params)
         const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+
+        // Update pagination metadata
+        if (data && data.count !== undefined) {
+          setTotalCount(data.count)
+          setTotalPages(Math.ceil(data.count / pageSize))
+        }
+
         // For each course fetch number of active classes. Use Promise.allSettled to avoid single failure breaking everything.
         const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
         const mapped = list.map((course, idx) => {
@@ -55,13 +67,21 @@ export default function Courses() {
         setLoading(false)
       }
     })()
-  }, [reportError])
+  }, [reportError, currentPage, pageSize])
 
   async function load() {
     setLoading(true)
     try {
-      const data = await getCourses()
+      const params = `page=${currentPage}&page_size=${pageSize}`
+      const data = await getCoursesPaginated(params)
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+
+      // Update pagination metadata
+      if (data && data.count !== undefined) {
+        setTotalCount(data.count)
+        setTotalPages(Math.ceil(data.count / pageSize))
+      }
+
       // fetch active class counts per course
       const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
       const mapped = list.map((course, idx) => {
@@ -181,6 +201,12 @@ export default function Courses() {
         </div>
       )}
 
+      {totalCount > 0 && (
+        <div className="mb-3 text-sm text-neutral-600">
+          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} courses
+        </div>
+      )}
+
       {/* Edit Course Modal */}
       {editCourseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -243,8 +269,8 @@ export default function Courses() {
                   accent="bg-indigo-600"
                   colored={true}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="truncate text-xs text-neutral-500 mr-4">{course.description}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="line-clamp-2 text-xs text-neutral-500 flex-1 min-w-0" title={course.description}>{course.description}</div>
                     <div>
                       <button
                         onClick={(e) => {
@@ -274,6 +300,45 @@ export default function Courses() {
 
       {/* course detail moved to dedicated page (/list/courses/:id) */}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-neutral-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

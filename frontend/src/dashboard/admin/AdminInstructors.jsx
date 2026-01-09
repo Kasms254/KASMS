@@ -28,7 +28,7 @@ export default function AdminInstructors() {
   const [searchTerm, setSearchTerm] = useState('')
   // pagination state
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
   // filter state
   const [selectedClass, setSelectedClass] = useState('all')
@@ -138,7 +138,10 @@ export default function AdminInstructors() {
     try {
       await api.deleteUser(it.id)
       setInstructors((s) => s.filter((x) => x.id !== it.id))
+      // close confirm modal and edit modal if open
       setConfirmDelete(null)
+      closeEdit()
+      toast?.success?.('Instructor deleted successfully') || toast?.showToast?.('Instructor deleted successfully', { type: 'success' })
     } catch (err) {
       setError(err)
       reportError('Failed to delete instructor: ' + (err.message || String(err)))
@@ -471,12 +474,10 @@ export default function AdminInstructors() {
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
                           {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                        </div>
+                        <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
@@ -517,17 +518,6 @@ export default function AdminInstructors() {
                     <td className="px-4 py-3 align-middle">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                        <button 
-                          disabled={togglingId === it.id} 
-                          onClick={() => toggleActivation(it)} 
-                          className={`px-3 py-1.5 rounded-md text-sm text-white transition whitespace-nowrap disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                          {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button onClick={() => openResetPassword(it)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition whitespace-nowrap" title="Reset Password">
-                          <LucideIcons.Key className="w-4 h-4" />
-                        </button>
-                        <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap min-w-[70px]">{deletingId === it.id ? '...' : 'Remove'}</button>
                       </div>
                     </td>
                   </tr>
@@ -552,15 +542,10 @@ export default function AdminInstructors() {
                   {instructors.map((it) => (
                     <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md flex-shrink-0">
-                            {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                            <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                            {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
-                          </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                          <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
+                          {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -598,19 +583,6 @@ export default function AdminInstructors() {
                       <td className="px-3 py-3">
                         <div className="flex flex-col items-stretch gap-1.5">
                           <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
-                          <button 
-                            disabled={togglingId === it.id} 
-                            onClick={() => toggleActivation(it)} 
-                            className={`px-3 py-1.5 rounded-md text-xs text-white transition whitespace-nowrap text-center disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                          >
-                            {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <div className="flex gap-1.5">
-                            <button onClick={() => openResetPassword(it)} className="flex-1 px-3 py-1.5 rounded-md bg-purple-600 text-xs text-white hover:bg-purple-700 transition text-center" title="Reset Password">
-                              <LucideIcons.Key className="w-3 h-3 inline" />
-                            </button>
-                            <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="flex-1 px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap text-center">{deletingId === it.id ? '...' : 'Remove'}</button>
-                          </div>
                         </div>
                       </td>
                     </tr>
@@ -624,15 +596,10 @@ export default function AdminInstructors() {
           <div className="md:hidden space-y-4">
             {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
-                {/* Header with avatar and name */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-base shadow-lg flex-shrink-0">
-                    {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-black truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                    <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                  </div>
+                {/* Header with name */}
+                <div className="mb-4">
+                  <div className="font-medium text-black text-lg">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                  <div className="text-sm text-neutral-500">{it.svc_number || '-'}</div>
                 </div>
 
                 {/* Details */}
@@ -693,24 +660,9 @@ export default function AdminInstructors() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(it)} className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                    <button 
-                      disabled={togglingId === it.id} 
-                      onClick={() => toggleActivation(it)} 
-                      className={`flex-1 px-3 py-2 rounded-md text-sm text-white transition disabled:opacity-60 ${it.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                    >
-                      {togglingId === it.id ? '...' : it.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
+                  <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
+                    <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openResetPassword(it)} className="flex-1 px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition flex items-center justify-center gap-1">
-                      <LucideIcons.Key className="w-4 h-4" /> Reset Password
-                    </button>
-                    <button disabled={deletingId === it.id} onClick={() => handleDelete(it)} className="flex-1 px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === it.id ? 'Deleting...' : 'Remove'}</button>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
@@ -861,7 +813,7 @@ export default function AdminInstructors() {
       {editingInstructor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
             <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -920,6 +872,16 @@ export default function AdminInstructors() {
                   <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
                   <span className="text-sm text-neutral-600">Active</span>
                 </label>
+              
+                <div className="flex items-center gap-2 mb-4">
+                  <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                    <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
+                  </button>
+
+                  <button type="button" onClick={() => handleDelete(editingInstructor)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
+                    Delete User
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">

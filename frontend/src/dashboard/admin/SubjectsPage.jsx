@@ -1,17 +1,28 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import * as LucideIcons from 'lucide-react'
 
 export default function SubjectsPage() {
   const [classes, setClasses] = useState([])
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [openSections, setOpenSections] = useState({})
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
-  
+
+  // pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // filter state
+  const [selectedClass, setSelectedClass] = useState('all')
+  const [selectedInstructor, setSelectedInstructor] = useState('all')
+
+  // sorting state
+  const [sortField, setSortField] = useState('name') // name, code, class, instructor
+  const [sortDirection, setSortDirection] = useState('asc') // asc, desc
+
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
   const [editForm, setEditForm] = useState({ name: '', code: '', instructor: '' })
@@ -33,22 +44,17 @@ export default function SubjectsPage() {
   }
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(searchTerm.trim()), 300)
-    return () => clearTimeout(t)
-  }, [searchTerm])
-
-  useEffect(() => {
     let mounted = true
-    
+
     Promise.all([api.getClasses().catch(() => null), api.getSubjects().catch(() => null)])
       .then(([clsData, subjData]) => {
         if (!mounted) return
         const clsList = Array.isArray(clsData) ? clsData : (clsData && Array.isArray(clsData.results) ? clsData.results : clsData || [])
         const subjList = Array.isArray(subjData) ? subjData : (subjData && Array.isArray(subjData.results) ? subjData.results : subjData || [])
-        
+
         setClasses(clsList)
         setSubjects(subjList)
-        
+
         // fetch instructors for editing dropdown
         api.getInstructors().then((ins) => {
           if (!mounted) return
@@ -61,56 +67,138 @@ export default function SubjectsPage() {
         setError(err)
       })
       .finally(() => { if (mounted) setLoading(false) })
-    
+
     return () => { mounted = false }
   }, [])
 
-  const groups = useMemo(() => {
-    // Map class name -> subjects[]
-    const map = {}
-    // filter classes according to showInactive flag
-    const filteredClasses = classes.filter((c) => showInactive || c.is_active)
-
-    // index classes by id
-    const byId = {}
-    filteredClasses.forEach((c) => { byId[c.id] = c })
-
-    subjects.forEach((s) => {
+  // Enhanced subjects list with class and instructor names, service number, and rank
+  const enrichedSubjects = useMemo(() => {
+    return subjects.map((s) => {
       const cid = s.class_obj || s.class || (s.class_obj_id ?? null)
-      const cls = byId[cid]
-      // if subject belongs to an inactive class and we're hiding inactive, skip it
-      if (cid && !cls) return
-      const name = cls ? (cls.name || cls.class_name) : (s.class_name || 'Unassigned')
-      if (!map[name]) map[name] = []
-      map[name].push(s)
+      const cls = classes.find((c) => c.id === cid)
+      const className = cls ? (cls.name || cls.class_name) : (s.class_name || 'Unassigned')
+
+      const iid = s.instructor && typeof s.instructor === 'object' ? s.instructor.id : s.instructor
+      const instructor = instructors.find((i) => i.id === iid)
+      const instructorName = instructor ? (instructor.full_name || `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim()) : (s.instructor_name || '-')
+      const instructorSvcNumber = instructor?.svc_number || '-'
+      const instructorRank = instructor?.rank || instructor?.rank_display || '-'
+
+      return {
+        ...s,
+        className,
+        instructorName,
+        instructorSvcNumber,
+        instructorRank,
+        classIsActive: cls ? cls.is_active : true,
+      }
     })
+  }, [subjects, classes, instructors])
 
-    // ensure (filtered) classes with no subjects still show
-    filteredClasses.forEach((c) => {
-      const name = c.name || c.class_name || `Class ${c.id}`
-      if (!map[name]) map[name] = []
-    })
+  // Filter and sort subjects
+  const filteredAndSortedSubjects = useMemo(() => {
+    let filtered = enrichedSubjects
 
-    return map
-  }, [classes, subjects, showInactive])
+    // Filter by inactive classes
+    if (!showInactive) {
+      filtered = filtered.filter((s) => s.classIsActive)
+    }
 
-  const filteredGroups = useMemo(() => {
-    if (!debouncedQuery) return groups
-    const q = debouncedQuery.toLowerCase()
-    const res = {}
-    
-    Object.keys(groups).forEach((cls) => {
-      const matches = groups[cls].filter((s) => {
-        return (s.name || s.title || '').toLowerCase().includes(q) || (s.subject_code || s.code || '').toLowerCase().includes(q)
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      filtered = filtered.filter((s) => {
+        return (
+          (s.name || s.title || '').toLowerCase().includes(q) ||
+          (s.subject_code || s.code || '').toLowerCase().includes(q) ||
+          s.className.toLowerCase().includes(q) ||
+          s.instructorName.toLowerCase().includes(q) ||
+          s.instructorSvcNumber.toLowerCase().includes(q) ||
+          s.instructorRank.toLowerCase().includes(q)
+        )
       })
-      if (cls.toLowerCase().includes(q) || matches.length) res[cls] = matches
-    })
-    
-    return res
-  }, [groups, debouncedQuery])
+    }
 
-  function toggleSection(name) {
-    setOpenSections((s) => ({ ...s, [name]: !s[name] }))
+    // Filter by class
+    if (selectedClass !== 'all') {
+      filtered = filtered.filter((s) => {
+        const cid = s.class_obj || s.class || (s.class_obj_id ?? null)
+        return String(cid) === String(selectedClass)
+      })
+    }
+
+    // Filter by instructor
+    if (selectedInstructor !== 'all') {
+      filtered = filtered.filter((s) => {
+        const iid = s.instructor && typeof s.instructor === 'object' ? s.instructor.id : s.instructor
+        return String(iid) === String(selectedInstructor)
+      })
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let aVal, bVal
+
+      switch (sortField) {
+        case 'name':
+          aVal = (a.name || a.title || '').toLowerCase()
+          bVal = (b.name || b.title || '').toLowerCase()
+          break
+        case 'code':
+          aVal = (a.subject_code || a.code || '').toLowerCase()
+          bVal = (b.subject_code || b.code || '').toLowerCase()
+          break
+        case 'class':
+          aVal = a.className.toLowerCase()
+          bVal = b.className.toLowerCase()
+          break
+        case 'instructor':
+          aVal = a.instructorName.toLowerCase()
+          bVal = b.instructorName.toLowerCase()
+          break
+        case 'svcNumber':
+          aVal = a.instructorSvcNumber.toLowerCase()
+          bVal = b.instructorSvcNumber.toLowerCase()
+          break
+        case 'rank':
+          aVal = a.instructorRank.toLowerCase()
+          bVal = b.instructorRank.toLowerCase()
+          break
+        default:
+          aVal = ''
+          bVal = ''
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return filtered
+  }, [enrichedSubjects, showInactive, searchTerm, selectedClass, selectedInstructor, sortField, sortDirection])
+
+  // Paginate
+  const totalCount = filteredAndSortedSubjects.length
+  const totalPages = Math.ceil(totalCount / pageSize)
+  const paginatedSubjects = useMemo(() => {
+    const start = (page - 1) * pageSize
+    const end = start + pageSize
+    return filteredAndSortedSubjects.slice(start, end)
+  }, [filteredAndSortedSubjects, page, pageSize])
+
+  // Sort handler
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  function SortIcon({ field }) {
+    if (sortField !== field) return <LucideIcons.ChevronsUpDown className="w-4 h-4 text-neutral-400" />
+    return sortDirection === 'asc' ? <LucideIcons.ChevronUp className="w-4 h-4 text-indigo-600" /> : <LucideIcons.ChevronDown className="w-4 h-4 text-indigo-600" />
   }
 
   function openEdit(subj) {
@@ -169,11 +257,6 @@ export default function SubjectsPage() {
       setDeletingId(null)
     }
   }
-
-  const totalMatches = useMemo(() => {
-    if (!debouncedQuery) return 0
-    return Object.values(filteredGroups).reduce((acc, arr) => acc + arr.length, 0)
-  }, [filteredGroups, debouncedQuery])
 
   async function openAddSubjectModal(classId = ''){
     try{
@@ -237,120 +320,442 @@ export default function SubjectsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <header className="flex items-center justify-between mb-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-2xl font-semibold text-black">Subjects</h2>
-          <p className="text-sm text-neutral-500">Browse subjects by class</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-black">Subjects</h2>
+          <p className="text-sm text-neutral-500">Manage subjects with sorting and filters</p>
         </div>
-        <div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
-              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4" />
-              <span>Show inactive classes</span>
-            </label>
-            <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Add subject</button>
-          </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition shadow-sm whitespace-nowrap">Add Subject</button>
         </div>
       </header>
 
-      <section className="grid gap-6">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search subjects or classes..."
-              className="w-full border border-neutral-200 rounded px-3 py-2 text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
+      {/* Search and Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+        <div className="flex flex-col gap-3">
+          {/* Search input and filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+            <div className="relative flex-1">
+              <input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search subjects, classes, instructors, service numbers, or ranks..."
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+            <div className="w-full sm:w-48">
+              <select
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="all">All Classes</option>
+                {classes.filter(c => showInactive || c.is_active).map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name || cls.class_code || `Class ${cls.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full sm:w-48">
+              <select
+                value={selectedInstructor}
+                onChange={(e) => {
+                  setSelectedInstructor(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="all">All Instructors</option>
+                {instructors.map((ins) => (
+                  <option key={ins.id} value={ins.id}>
+                    {ins.full_name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <button aria-label="Search subjects" onClick={() => setDebouncedQuery(searchTerm.trim())} className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Search</button>
-          <button aria-label="Clear search" onClick={() => { setSearchTerm(''); setDebouncedQuery('') }} className="px-3 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-sm transition">Clear</button>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <input type="checkbox" checked={showInactive} onChange={(e) => {
+                setShowInactive(e.target.checked)
+                setPage(1)
+              }} className="w-4 h-4" />
+              <span>Show inactive classes</span>
+            </label>
+            <button
+              onClick={() => {
+                setSearchTerm('')
+                setSelectedClass('all')
+                setSelectedInstructor('all')
+                setPage(1)
+              }}
+              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          {/* Filter summary badges */}
+          {(searchTerm || selectedClass !== 'all' || selectedInstructor !== 'all') && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
+              <span className="text-xs text-neutral-600">Active filters:</span>
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Search: "{searchTerm}"
+                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <LucideIcons.X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedClass !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Class: {classes.find(c => String(c.id) === String(selectedClass))?.name || 'Unknown'}
+                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <LucideIcons.X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedInstructor !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Instructor: {instructors.find(i => String(i.id) === String(selectedInstructor))?.full_name || 'Unknown'}
+                  <button onClick={() => { setSelectedInstructor('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <LucideIcons.X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
+      </div>
 
-        {debouncedQuery ? (
-          <div className="text-sm text-neutral-600">Found {totalMatches} result{totalMatches !== 1 ? 's' : ''} for "{debouncedQuery}"</div>
-        ) : null}
-
-        {error ? (
-          <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading subjects: {error.message || String(error)}</div>
-        ) : loading ? (
-          <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading…</div>
-        ) : Object.keys(groups).length === 0 ? (
-          <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No classes or subjects yet.</div>
-        ) : null}
-
-        <div className="flex flex-col gap-6">
-          {Object.keys(filteredGroups).sort().map((className) => {
-            const list = filteredGroups[className]
-            const isOpen = !!openSections[className]
-            
-            return (
-              <div key={className} className="bg-white rounded-xl p-0 border border-neutral-200 shadow-sm overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => toggleSection(className)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-neutral-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-neutral-500">Class</span>
-                      <span className="text-lg font-medium text-black">{className}</span>
-                    </div>
-                    <span className="text-sm bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{(groups[className] || []).length} subjects</span>
-                  </div>
-                  <div className="text-sm text-neutral-500">{isOpen ? 'Collapse' : 'Expand'}</div>
-                </button>
-
-                {isOpen && (
-                  <div className="p-4">
-                    {(list || []).length === 0 ? (
-                      <div className="text-sm text-neutral-500">No subjects in this class.</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full table-auto">
-                          <thead>
-                            <tr className="text-left">
-                              <th className="px-4 py-2 text-sm text-neutral-600">Name</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Code</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600">Instructor</th>
-                              <th className="px-4 py-2 text-sm text-neutral-600 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {list.map((s) => (
-                              <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
-                                <td className="px-4 py-3 text-sm text-neutral-700">{s.name ?? s.title ?? 'Untitled'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{s.subject_code || s.code || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{(s.instructor && (s.instructor.full_name || s.instructor.name)) || s.instructor_name || '-'}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={() => openEdit(s)}
-                                      className="px-3 py-1 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
-                                      aria-label={`Edit ${s.name || s.title || 'subject'}`}
-                                    >Edit</button>
-                                    <button
-                                      disabled={deletingId === s.id}
-                                      onClick={() => handleDelete(s)}
-                                      className="px-3 py-1 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                                      aria-label={`Remove ${s.name || s.title || 'subject'}`}
-                                    >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+      {error ? (
+        <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading subjects: {error.message || String(error)}</div>
+      ) : loading ? (
+        <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading subjects…</div>
+      ) : totalCount === 0 ? (
+        <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No subjects found.</div>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+            <table className="w-full table-auto">
+              <thead>
+                <tr className="text-left bg-neutral-50">
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Subject Name <SortIcon field="name" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Class <SortIcon field="class" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Service No <SortIcon field="svcNumber" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('rank')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Rank <SortIcon field="rank" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Instructor <SortIcon field="instructor" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedSubjects.map((s) => (
+                  <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
+                    <td className="px-4 py-3 text-sm text-neutral-700 font-medium">{s.name ?? s.title ?? 'Untitled'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorSvcNumber}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorRank}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorName}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(s)}
+                          className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+                          aria-label={`Edit ${s.name || s.title || 'subject'}`}
+                        >Edit</button>
+                        <button
+                          disabled={deletingId === s.id}
+                          onClick={() => handleDelete(s)}
+                          className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                          aria-label={`Remove ${s.name || s.title || 'subject'}`}
+                        >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                       </div>
-                    )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Tablet View */}
+          <div className="hidden md:block lg:hidden bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+            <table className="w-full table-auto">
+              <thead>
+                <tr className="text-left bg-neutral-50">
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Subject <SortIcon field="name" />
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Class <SortIcon field="class" />
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Service No <SortIcon field="svcNumber" />
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Instructor <SortIcon field="instructor" />
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedSubjects.map((s) => (
+                  <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-black text-sm">{s.name ?? s.title ?? 'Untitled'}</div>
+                    </td>
+                    <td className="px-3 py-3 text-sm">
+                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-sm text-neutral-700">{s.instructorSvcNumber}</div>
+                      <div className="text-xs text-neutral-500">{s.instructorRank}</div>
+                    </td>
+                    <td className="px-3 py-3 text-sm text-neutral-700">{s.instructorName}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col items-stretch gap-1.5">
+                        <button
+                          onClick={() => openEdit(s)}
+                          className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center"
+                        >Edit</button>
+                        <button
+                          disabled={deletingId === s.id}
+                          onClick={() => handleDelete(s)}
+                          className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap text-center"
+                        >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {paginatedSubjects.map((s) => (
+              <div key={s.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+                <div className="space-y-3">
+                  <div>
+                    <div className="font-medium text-black text-lg">{s.name ?? s.title ?? 'Untitled'}</div>
                   </div>
-                )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Class:</span>
+                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Service No:</span>
+                      <span className="text-sm text-neutral-700">{s.instructorSvcNumber}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Rank:</span>
+                      <span className="text-sm text-neutral-700">{s.instructorRank}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Instructor:</span>
+                      <span className="text-sm text-neutral-700">{s.instructorName}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-neutral-100">
+                    <button
+                      onClick={() => openEdit(s)}
+                      className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+                    >Edit</button>
+                    <button
+                      disabled={deletingId === s.id}
+                      onClick={() => handleDelete(s)}
+                      className="flex-1 px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                    >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
+                  </div>
+                </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Pagination Controls */}
+      {!loading && totalCount > 0 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Results info */}
+            <div className="text-sm text-neutral-600">
+              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-black">{totalCount}</span> subjects
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center gap-2">
+              {/* Previous button */}
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const pages = []
+                  const maxVisible = 5
+
+                  if (totalPages <= maxVisible) {
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => setPage(i)}
+                          className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            page === i
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      )
+                    }
+                  } else {
+                    // Always show first page
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => setPage(1)}
+                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          page === 1
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        1
+                      </button>
+                    )
+
+                    // Show ellipsis if needed
+                    if (page > 3) {
+                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                    }
+
+                    // Show pages around current page
+                    const start = Math.max(2, page - 1)
+                    const end = Math.min(totalPages - 1, page + 1)
+                    for (let i = start; i <= end; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => setPage(i)}
+                          className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            page === i
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      )
+                    }
+
+                    // Show ellipsis if needed
+                    if (page < totalPages - 2) {
+                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                    }
+
+                    // Always show last page
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        onClick={() => setPage(totalPages)}
+                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          page === totalPages
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        {totalPages}
+                      </button>
+                    )
+                  }
+
+                  return pages
+                })()}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page size selector */}
+              <div className="ml-2 flex items-center gap-2">
+                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="border border-neutral-200 rounded-lg px-2 py-1 text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

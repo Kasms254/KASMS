@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function Notices() {
   const toast = useToast()
@@ -278,11 +279,11 @@ export default function Notices() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Priority Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">Priority</label>
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-indigo-300 transition-colors"
               >
                 <option value="all">All Priorities</option>
                 <option value="low">Low</option>
@@ -294,11 +295,11 @@ export default function Notices() {
 
             {/* Status Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-indigo-300 transition-colors"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -307,26 +308,20 @@ export default function Notices() {
             </div>
 
             {/* Date From */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Created From</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
+            <ModernDatePicker
+              label="Created From"
+              value={filterDateFrom}
+              onChange={(value) => setFilterDateFrom(value)}
+              placeholder="Select start date"
+            />
 
             {/* Date To */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Created To</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              />
-            </div>
+            <ModernDatePicker
+              label="Created To"
+              value={filterDateTo}
+              onChange={(value) => setFilterDateTo(value)}
+              placeholder="Select end date"
+            />
           </div>
 
           {/* Filter Actions */}
@@ -392,7 +387,12 @@ export default function Notices() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Expiry / Event date</label>
-                    <input type="date" value={form.expiry_date} onChange={e => update('expiry_date', e.target.value)} className="mt-2 p-2 rounded-md border w-full bg-white" />
+                    <input
+                      type="date"
+                      value={form.expiry_date}
+                      onChange={e => update('expiry_date', e.target.value)}
+                      className="mt-2 p-2 rounded-md border w-full bg-white"
+                    />
                     {errors.expiry_date && <div className="text-rose-600 text-sm mt-1">{errors.expiry_date}</div>}
                   </div>
                 </div>

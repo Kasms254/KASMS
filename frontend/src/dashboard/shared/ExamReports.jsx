@@ -4,6 +4,7 @@ import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 /**
  * Pagination Component
@@ -171,8 +172,9 @@ export default function ExamReports() {
   // Pagination state
   const [examListPage, setExamListPage] = useState(1)
   const [resultsPage, setResultsPage] = useState(1)
+  const [resultsSearchTerm, setResultsSearchTerm] = useState('')
   const examsPerPage = 10
-  const resultsPerPage = 20
+  const resultsPerPage = 10
 
   // Fetch initial data
   useEffect(() => {
@@ -299,12 +301,20 @@ export default function ExamReports() {
     }
   }, [examResults, selectedExam])
 
-  // Sorted results by marks
+  // Sorted results by marks with search filter
   const sortedResults = useMemo(() => {
-    return [...examResults]
-      .filter(r => r.is_submitted && r.marks_obtained != null)
-      .sort((a, b) => parseFloat(b.marks_obtained) - parseFloat(a.marks_obtained))
-  }, [examResults])
+    const submitted = examResults.filter(r => r.is_submitted && r.marks_obtained != null)
+
+    // Apply search filter
+    const filtered = resultsSearchTerm
+      ? submitted.filter(r =>
+          r.student_name?.toLowerCase().includes(resultsSearchTerm.toLowerCase()) ||
+          r.student_svc_number?.toLowerCase().includes(resultsSearchTerm.toLowerCase())
+        )
+      : submitted
+
+    return filtered.sort((a, b) => parseFloat(b.marks_obtained) - parseFloat(a.marks_obtained))
+  }, [examResults, resultsSearchTerm])
 
   // Paginated results for detail view
   const paginatedResults = useMemo(() => {
@@ -320,9 +330,10 @@ export default function ExamReports() {
     return examResults.filter(r => !r.is_submitted || r.marks_obtained == null)
   }, [examResults])
 
-  // Reset results page when exam changes
+  // Reset results page and search when exam changes
   useEffect(() => {
     setResultsPage(1)
+    setResultsSearchTerm('')
   }, [selectedExam])
 
   // Get grade color
@@ -485,24 +496,18 @@ export default function ExamReports() {
             </div>
 
             {/* Date Range */}
-            <div>
-              <label className="block text-sm text-neutral-600 mb-1">From Date</label>
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-neutral-600 mb-1">To Date</label>
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+            <ModernDatePicker
+              label="From Date"
+              value={dateRange.start}
+              onChange={(value) => setDateRange(prev => ({ ...prev, start: value }))}
+              placeholder="Select start date"
+            />
+            <ModernDatePicker
+              label="To Date"
+              value={dateRange.end}
+              onChange={(value) => setDateRange(prev => ({ ...prev, end: value }))}
+              placeholder="Select end date"
+            />
           </div>
           
           {/* Clear filters */}
@@ -721,16 +726,55 @@ export default function ExamReports() {
               {/* Results Table */}
               <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
                 <div className="p-4 border-b border-neutral-200">
-                  <h3 className="text-base md:text-lg font-semibold text-black">Student Results</h3>
-                  <p className="text-xs md:text-sm text-neutral-500">Ranked by performance</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="text-base md:text-lg font-semibold text-black">Student Results</h3>
+                      <p className="text-xs md:text-sm text-neutral-500">Ranked by performance</p>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by student name or service number..."
+                      value={resultsSearchTerm}
+                      onChange={(e) => {
+                        setResultsSearchTerm(e.target.value)
+                        setResultsPage(1)
+                      }}
+                      className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    {resultsSearchTerm && (
+                      <button
+                        onClick={() => {
+                          setResultsSearchTerm('')
+                          setResultsPage(1)
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <LucideIcons.X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Results Info */}
+                  {resultsSearchTerm && (
+                    <div className="text-sm text-gray-600 mt-2">
+                      Found <span className="font-semibold text-gray-900">{sortedResults.length}</span> of{' '}
+                      <span className="font-semibold text-gray-900">{examResults.filter(r => r.is_submitted && r.marks_obtained != null).length}</span> results
+                    </div>
+                  )}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-neutral-200">
                     <thead className="bg-neutral-50">
                       <tr>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
+                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
+                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden md:table-cell">Rank</th>
                         <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden md:table-cell">SVC Number</th>
                         <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Marks</th>
                         <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden sm:table-cell">Percentage</th>
                         <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
@@ -741,25 +785,28 @@ export default function ExamReports() {
                       {paginatedResults.map((result, idx) => {
                         const pct = calcPercentage(result.marks_obtained, selectedExam.total_marks)
                         const grade = getGrade(pct)
-                        // Calculate the actual rank based on the page
-                        const actualRank = (resultsPage - 1) * resultsPerPage + idx + 1
+                        // Calculate the serial number based on the page
+                        const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
                         return (
                           <tr key={result.id} className="hover:bg-neutral-50 transition">
                             <td className="px-2 md:px-4 py-3">
                               <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm ${
-                                actualRank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                actualRank === 2 ? 'bg-gray-100 text-gray-700' :
-                                actualRank === 3 ? 'bg-orange-100 text-orange-700' :
+                                serialNumber === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                serialNumber === 2 ? 'bg-gray-100 text-gray-700' :
+                                serialNumber === 3 ? 'bg-orange-100 text-orange-700' :
                                 'bg-neutral-100 text-neutral-600'
                               }`}>
-                                {actualRank}
+                                {serialNumber}
                               </div>
+                            </td>
+                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                              {result.student_svc_number || 'N/A'}
+                            </td>
+                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                              {result.student_rank || 'N/A'}
                             </td>
                             <td className="px-2 md:px-4 py-3">
                               <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
-                              {result.student_svc_number || 'N/A'}
                             </td>
                             <td className="px-2 md:px-4 py-3 text-xs md:text-sm font-medium text-black">
                               {result.marks_obtained} / {selectedExam.total_marks}
@@ -793,35 +840,110 @@ export default function ExamReports() {
                       })}
 
                       {/* Pending Results - only show on last page */}
-                      {resultsPage === totalResultsPages && pendingResults.map(result => (
-                        <tr key={result.id} className="bg-amber-50/50">
-                          <td className="px-2 md:px-4 py-3">
-                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600">
-                              <LucideIcons.Clock className="w-3 h-3 md:w-4 md:h-4" />
-                            </div>
-                          </td>
-                          <td className="px-2 md:px-4 py-3">
-                            <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
-                          </td>
-                          <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
-                            {result.student_svc_number || 'N/A'}
-                          </td>
-                          <td className="px-2 md:px-4 py-3 text-xs md:text-sm text-amber-600 font-medium" colSpan={4}>
-                            Pending Grading
-                          </td>
-                        </tr>
-                      ))}
+                      {resultsPage === totalResultsPages && pendingResults.map((result, idx) => {
+                        const serialNumber = sortedResults.length + idx + 1
+                        return (
+                          <tr key={result.id} className="bg-amber-50/50">
+                            <td className="px-2 md:px-4 py-3">
+                              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-xs md:text-sm">
+                                {serialNumber}
+                              </div>
+                            </td>
+                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                              {result.student_svc_number || 'N/A'}
+                            </td>
+                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                              {result.student_rank || 'N/A'}
+                            </td>
+                            <td className="px-2 md:px-4 py-3">
+                              <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
+                            </td>
+                            <td className="px-2 md:px-4 py-3 text-xs md:text-sm text-amber-600 font-medium" colSpan={4}>
+                              Pending Grading
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Pagination for Student Results */}
-                {sortedResults.length > 0 && (
-                  <Pagination
-                    currentPage={resultsPage}
-                    totalPages={totalResultsPages}
-                    onPageChange={setResultsPage}
-                  />
+                {totalResultsPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
+                    <div className="text-sm text-gray-600">
+                      Showing <span className="font-semibold text-gray-900">{(resultsPage - 1) * resultsPerPage + 1}</span> to{' '}
+                      <span className="font-semibold text-gray-900">{Math.min(resultsPage * resultsPerPage, sortedResults.length)}</span> of{' '}
+                      <span className="font-semibold text-gray-900">{sortedResults.length}</span> results
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setResultsPage(1)}
+                        disabled={resultsPage === 1}
+                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="First page"
+                      >
+                        <LucideIcons.ChevronsLeft className="w-4 h-4 text-black" />
+                      </button>
+
+                      <button
+                        onClick={() => setResultsPage(p => Math.max(1, p - 1))}
+                        disabled={resultsPage === 1}
+                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Previous page"
+                      >
+                        <LucideIcons.ChevronLeft className="w-4 h-4 text-black" />
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalResultsPages) }, (_, i) => {
+                          let pageNum
+                          if (totalResultsPages <= 5) {
+                            pageNum = i + 1
+                          } else if (resultsPage <= 3) {
+                            pageNum = i + 1
+                          } else if (resultsPage >= totalResultsPages - 2) {
+                            pageNum = totalResultsPages - 4 + i
+                          } else {
+                            pageNum = resultsPage - 2 + i
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setResultsPage(pageNum)}
+                              className={`min-w-[2rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                resultsPage === pageNum
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => setResultsPage(p => Math.min(totalResultsPages, p + 1))}
+                        disabled={resultsPage === totalResultsPages}
+                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Next page"
+                      >
+                        <LucideIcons.ChevronRight className="w-4 h-4 text-black" />
+                      </button>
+
+                      <button
+                        onClick={() => setResultsPage(totalResultsPages)}
+                        disabled={resultsPage === totalResultsPages}
+                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Last page"
+                      >
+                        <LucideIcons.ChevronsRight className="w-4 h-4 text-black" />
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {examResults.length === 0 && (

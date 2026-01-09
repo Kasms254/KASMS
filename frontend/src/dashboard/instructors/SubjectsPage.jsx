@@ -71,27 +71,32 @@ export default function SubjectsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((s, idx) => (
-          <div key={s.id} className={`rounded-xl p-4 hover:shadow-lg transition cursor-pointer ${gradientClasses[idx % gradientClasses.length] || ''}`} onClick={() => {
+          <div key={s.id} className={`rounded-xl p-4 hover:shadow-lg transition cursor-pointer flex flex-col h-full min-h-[200px] ${gradientClasses[idx % gradientClasses.length] || ''}`} onClick={() => {
             // navigate to class page with subject context if available
             const clsId = s.class_obj?.id || s.class_obj || s.class_id || s.class_obj_id
             if (clsId) navigate(`/list/classes/${clsId}?subject=${s.id}`)
           }}>
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-black truncate">{s.name || 'Untitled'}</div>
-                <div className="text-sm text-neutral-600 mt-1">{s.subject_code || ''}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-lg font-semibold text-black truncate" title={s.name || 'Untitled'}>{s.name || 'Untitled'}</div>
+                <div className="text-sm text-neutral-600 mt-1 truncate">{s.subject_code || ''}</div>
               </div>
-              <div className="text-right">
+              <div className="text-right flex-shrink-0">
                 <div className="text-sm text-neutral-600">Class</div>
-                <div className="text-sm font-medium text-black">{s.class_name || s.class_obj?.name || '—'}</div>
+                <div className="text-sm font-medium text-black truncate max-w-[120px]" title={s.class_name || s.class_obj?.name || '—'}>{s.class_name || s.class_obj?.name || '—'}</div>
               </div>
             </div>
-            <div className="mt-3 text-sm text-neutral-600">
-              <div><span className="font-medium text-black">Subject:</span> <span className="ml-1">{s.name || '—'}</span></div>
-              <div className="mt-1"><span className="font-medium text-black">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
-              {s.subject_code ? <div className="mt-1"><span className="font-medium text-black">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
+            {s.description && (
+              <div className="mt-2 text-sm text-neutral-600 line-clamp-2" title={s.description}>
+                {s.description}
+              </div>
+            )}
+            <div className="mt-3 text-sm text-neutral-600 flex-1">
+              <div className="truncate"><span className="font-medium text-black">Subject:</span> <span className="ml-1">{s.name || '—'}</span></div>
+              <div className="mt-1 truncate"><span className="font-medium text-black">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
+              {s.subject_code ? <div className="mt-1 truncate"><span className="font-medium text-black">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
             </div>
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 flex items-center gap-2 pt-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation();

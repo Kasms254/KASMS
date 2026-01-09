@@ -24,9 +24,8 @@ const menuItems = [
         icon: 'Users',
         label: 'Students',
         href: '/dashboard/students',
-        visible: ['admin', 'instructor'],
+        visible: ['instructor'],
       },
-      
       {
         icon: 'BookOpen',
         label: 'Courses',
@@ -43,13 +42,13 @@ const menuItems = [
         icon: 'FileText',
         label: 'Assignments',
         href: '/list/assignments',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['admin', 'student',],
       },
       {
         icon: 'Book',
         label: 'Lessons',
         href: '/list/lessons',
-        visible: ['admin', 'instructor'],
+        visible: ['instructor'],
       },
       {
         icon: 'Award',
@@ -113,23 +112,6 @@ const menuItems = [
         href: '/list/notices',
         visible: ['admin'],
       },
-    ],
-  },
-  {
-    title: 'OTHER',
-    items: [
-      // {
-      //   icon: 'User',
-      //   label: 'Profile',
-      //   href: '/profile',
-      //   visible: ['admin', 'instructor', 'student',],
-      // },
-      // {
-      //   icon: 'Settings',
-      //   label: 'Settings',
-      //   href: '/settings',
-      //   visible: ['admin', 'instructor', 'student',],
-      // },
       {
         icon: 'LogOut',
         label: 'Logout',
@@ -167,13 +149,11 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                         navigate('/')
                         if (onMobileMenuClick) onMobileMenuClick()
                       }}
-                      className={`group relative flex items-center justify-center gap-3 text-white py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
-                        location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
-                      }`}
+                      className="group relative flex items-center justify-center gap-3 text-red-300 py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
                     >
                       {(() => {
                         const Icon = LucideIcons[item.icon] || LucideIcons.FileText
-                        return <Icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                        return <Icon className="w-6 h-6 text-red-300 group-hover:text-red-200" strokeWidth={1.5} />
                       })()}
                     </button>
                   ) : (
@@ -211,13 +191,11 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                     navigate('/')
                     if (onMobileMenuClick) onMobileMenuClick()
                   }}
-                  className={`group relative flex items-center justify-start gap-3 text-white py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
-                    location.pathname === item.href ? 'bg-white/10 ring-1 ring-white/20' : ''
-                  }`}
+                  className="group relative flex items-center justify-start gap-3 text-red-300 py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
                 >
                   {(() => {
                     const Icon = LucideIcons[item.icon] || LucideIcons.FileText
-                    return <Icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                    return <Icon className="w-6 h-6 text-red-300 group-hover:text-red-200" strokeWidth={1.5} />
                   })()}
 
                   <span className={`${'block'}`}>{item.label}</span>

@@ -49,3 +49,13 @@ img, picture, video, canvas, svg, iframe, embed, object {
     scroll-behavior: auto !important;
   }
 }
+
+/* Hide scrollbar for sidebar (Shadcn style) */
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

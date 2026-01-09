@@ -22,6 +22,7 @@ export default function Card({
     'bg-sky-500': { bg: 'bg-sky-50', text: 'text-sky-800', plate: 'bg-sky-500' },
     'bg-amber-500': { bg: 'bg-amber-50', text: 'text-amber-800', plate: 'bg-amber-500' },
     'bg-pink-500': { bg: 'bg-pink-50', text: 'text-pink-800', plate: 'bg-pink-500' },
+    'bg-neutral-400': { bg: 'bg-neutral-50', text: 'text-neutral-700', plate: 'bg-neutral-400' },
     // fallback
     // make the default card light and legible (avoid very dark cards)
     default: { bg: 'bg-white', text: 'text-gray-900', plate: 'bg-indigo-600' },
@@ -48,8 +49,8 @@ export default function Card({
         ) : null}
       </div>
 
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold my-3 sm:my-4 text-black truncate">{value ?? '-'}</h1>
-        <h2 className="capitalize text-sm sm:text-sm md:text-base font-medium text-black truncate">{title}</h2>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold my-3 sm:my-4 text-black line-clamp-2" title={value}>{value ?? '-'}</h1>
+        <h2 className="capitalize text-sm sm:text-sm md:text-base font-medium text-black truncate" title={title}>{title}</h2>
         {children ? (
           <div className="mt-2 text-xs text-neutral-500">{children}</div>
         ) : null}

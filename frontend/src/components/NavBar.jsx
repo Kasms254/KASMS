@@ -88,8 +88,16 @@ export default function NavBar({
   const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
   const activeNotices = activeResp.status === 'fulfilled' ? (Array.isArray(activeResp.value) ? activeResp.value : (activeResp.value && Array.isArray(activeResp.value.results) ? activeResp.value.results : [])) : []
 
-  // Merge and sort by created_at (newest first). Include active/global notices first.
-  let merged = [...activeNotices, ...urgentNotices, ...classNotices]
+  // Merge all notifications and remove duplicates by ID
+  const allNotices = [...activeNotices, ...urgentNotices, ...classNotices]
+  const seenIds = new Set()
+  let merged = allNotices.filter(n => {
+    if (!n || !n.id) return false
+    const key = `${n.class_obj ? 'class' : 'notice'}-${n.id}`
+    if (seenIds.has(key)) return false
+    seenIds.add(key)
+    return true
+  })
 
       // Filter out notifications created by the current user (so creators
       // don't receive their own notice in the bell). Account for serializers
@@ -107,7 +115,20 @@ export default function NavBar({
         })
       }
 
-      const normalized = merged.map((n) => ({ ...(n || {}), read: n && n.read ? true : false }))
+      // Use backend's is_read field if available, otherwise default to false
+      // Also track notice type for proper API calls when marking as read
+      // Use unique IDs to distinguish between regular notices and class notices
+      const normalized = merged.map((n) => {
+        const isClassNotice = !!n.class_obj
+        return {
+          ...(n || {}),
+          id: isClassNotice ? `class-${n.id}` : `notice-${n.id}`,
+          originalId: n.id, // Keep original ID for API calls
+          read: n?.is_read === true,
+          noticeType: isClassNotice ? 'class_notice' : 'notice',
+          noticeId: n.id,
+        }
+      })
       // If student results were fetched, convert graded results into notifications
       if (studentResultsResp && studentResultsResp.status === 'fulfilled') {
         const sr = studentResultsResp.value
@@ -349,38 +370,98 @@ export default function NavBar({
         {/* Notifications dropdown */}
         {notifOpen && (
           <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
-            <div className="px-3 py-2 text-sm font-medium text-neutral-700 border-b border-neutral-100">Notifications</div>
-            <div className="max-h-64 overflow-auto">
-              {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
-              {!notifsLoading && notifs.length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
-              {!notifsLoading && notifs.map(n => {
-                const unread = !n.read
-                return (
-                  <button
-                    key={n.id}
-                    className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-neutral-50' : ''}`}
-                    onClick={() => {
-                      // mark this notification as read locally
-                      setNotifs(prev => prev.map(x => (x.id === n.id ? { ...x, read: true } : x)))
-                      setUnreadCount(prev => Math.max(0, prev - (n.read ? 0 : 1)))
-                      // Optionally navigate to a relevant page
-                      try {
-                        if (n.noticeId) {
-                          navigate('/list/notices')
-                        } else if (n.kind === 'result') {
-                          // navigate to results page for grading notifications
-                          navigate('/list/results')
-                        }
-                      } catch (err) { console.debug('nav error', err) }
-                    }}
-                  >
-                    <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
-                    <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
-                    <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
-                  </button>
-                )
-              })}
+            <div className="px-3 py-2 text-sm font-medium text-neutral-700 border-b border-neutral-100 flex items-center justify-between">
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{unreadCount} unread</span>
+              )}
             </div>
+            <div className="max-h-64 overflow-auto">
+                {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
+                {!notifsLoading && notifs.filter(n => !n.read).length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
+                {!notifsLoading && notifs.filter(n => !n.read).map(n => {
+                  const unread = !n.read
+                  return (
+                    <button
+                      key={n.id}
+                      className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-indigo-50/50' : ''}`}
+                      onClick={async () => {
+                        // Close dropdown
+                        setNotifOpen(false)
+                        // Mark as read locally first for instant UI feedback
+                        if (unread) {
+                          setNotifs(prev => {
+                            const updated = prev.map(x => (x.id === n.id ? { ...x, read: true } : x))
+                            setUnreadCount(updated.filter(x => !x.read).length)
+                            return updated
+                          })
+                          // Call backend to persist read status using originalId
+                          const noticeId = n.originalId || n.noticeId || n.id
+                          if (noticeId && n.kind !== 'result') {
+                            try {
+                              if (n.noticeType === 'class_notice') {
+                                await api.markClassNoticeAsRead(noticeId)
+                              } else {
+                                await api.markNoticeAsRead(noticeId)
+                              }
+                            } catch (err) {
+                              console.error('Failed to mark as read:', err)
+                            }
+                          }
+                        }
+                        // Navigate to appropriate page
+                        try {
+                          if (n.kind === 'result') {
+                            navigate('/list/results')
+                          } else {
+                            navigate('/list/notifications')
+                          }
+                        } catch (err) { console.debug('nav error', err) }
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        {unread && <span className="w-2 h-2 mt-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
+                          <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
+                          <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+            </div>
+            {/* Mark all as read button */}
+            {unreadCount > 0 && (
+              <div className="px-3 py-2 border-t border-neutral-100">
+                <button
+                  onClick={async () => {
+                    // Mark all as read locally
+                    setNotifs(prev => prev.map(x => ({ ...x, read: true })))
+                    setUnreadCount(0)
+                    
+                    // Mark all as read on backend
+                    const unreadNotifs = notifs.filter(n => !n.read && n.kind !== 'result')
+                    for (const n of unreadNotifs) {
+                      const noticeId = n.originalId || n.noticeId
+                      if (!noticeId) continue
+                      try {
+                        if (n.noticeType === 'class_notice') {
+                          await api.markClassNoticeAsRead(noticeId)
+                        } else {
+                          await api.markNoticeAsRead(noticeId)
+                        }
+                      } catch (err) {
+                        console.error('Failed to mark as read:', err)
+                      }
+                    }
+                  }}
+                  className="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1"
+                >
+                  Mark all as read
+                </button>
+              </div>
+            )}
           </div>
         )}
         </div>

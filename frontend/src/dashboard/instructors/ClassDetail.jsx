@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
+import * as LucideIcons from 'lucide-react'
 import api from '../../lib/api'
 
 function toPercent(n) {
@@ -25,6 +26,9 @@ export default function ClassDetail() {
   const [marksLoading, setMarksLoading] = useState(false)
   const [subjectMarks, setSubjectMarks] = useState({}) // NEW: store marks per subject separately
   const [subjectName, setSubjectName] = useState('')
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const location = useLocation()
   const subjectIdParam = new URLSearchParams(location.search).get('subject')
@@ -35,6 +39,12 @@ export default function ClassDetail() {
   const gradedCount = subjectId ? Object.values(subjectStats).filter(v => v?.percent != null).length : 0
   const pendingCount = subjectId ? Math.max(0, totalStudents - gradedCount) : totalStudents
   const subjectLabel = subjectId ? (subjectName || `Subject ${subjectId}`) : null
+
+  // Calculate paginated students
+  const startIndex = (page - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedStudents = students.slice(startIndex, endIndex)
+  const totalPages = Math.ceil(totalStudents / pageSize)
 
   useEffect(() => {
     let mounted = true
@@ -267,7 +277,7 @@ export default function ClassDetail() {
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {marksLoading
-                  ? Array.from({ length: Math.min(6, Math.max(3, students.length)) || 4 }).map((_, idx) => (
+                  ? Array.from({ length: Math.min(6, Math.max(3, paginatedStudents.length)) || 4 }).map((_, idx) => (
                       <tr key={idx} className="animate-pulse">
                         <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-12 sm:w-16 bg-gray-200 rounded" /></td>
                         <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-14 bg-gray-200 rounded" /></td>
@@ -276,7 +286,7 @@ export default function ClassDetail() {
                         <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-5 sm:h-6 w-10 sm:w-12 bg-gray-200 rounded-full" /></td>
                       </tr>
                     ))
-                  : students.map(st => {
+                  : paginatedStudents.map(st => {
                       const stats = subjectMarks[subjectId]?.[st.id]
                       const marks = stats?.percent != null ? toPercent(stats.percent) : null
                       const grade = stats?.grade || (marks != null ? gradeFromPercent(marks) || '—' : '—')
@@ -311,6 +321,116 @@ export default function ClassDetail() {
           </div>
         )}
       </div>
+
+      {/* Modern Pagination Controls */}
+      {!loading && totalStudents > 0 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Results info */}
+            <div className="text-sm text-black">
+              Showing <span className="font-semibold text-black">{Math.min(startIndex + 1, totalStudents)}</span> to{' '}
+              <span className="font-semibold text-black">{Math.min(endIndex, totalStudents)}</span> of{' '}
+              <span className="font-semibold text-black">{totalStudents}</span> students
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center gap-2">
+              {/* Previous button */}
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                aria-label="Previous page"
+              >
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const pages = []
+                  const maxVisible = 5
+
+                  let startPage = Math.max(1, page - Math.floor(maxVisible / 2))
+                  let endPage = Math.min(totalPages, startPage + maxVisible - 1)
+
+                  if (endPage - startPage < maxVisible - 1) {
+                    startPage = Math.max(1, endPage - maxVisible + 1)
+                  }
+
+                  if (startPage > 1) {
+                    pages.push(
+                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                        1
+                      </button>
+                    )
+                    if (startPage > 2) {
+                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                    }
+                  }
+
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        onClick={() => setPage(i)}
+                        className={`px-3 py-1.5 text-sm rounded-lg transition ${
+                          page === i
+                            ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                            : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    )
+                  }
+
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                    }
+                    pages.push(
+                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                        {totalPages}
+                      </button>
+                    )
+                  }
+
+                  return pages
+                })()}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                aria-label="Next page"
+              >
+                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+              </button>
+
+              {/* Page size selector */}
+              <div className="ml-2 flex items-center gap-2">
+                <span className="text-sm text-black hidden sm:inline">Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
