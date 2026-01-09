@@ -1422,7 +1422,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).count()
 
 
-        today = timezone.now().date()
+        today = timezone.now()
         today_attendance = Attendance.objects.filter(
             Q(class_obj__instructor=user) & Q(subject__instructor=user),
             date=today
@@ -1557,7 +1557,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
 
         status_param = request.query_params.get('status', 'all')
-        today = timezone.now().date()
+        today = timezone.now()
 
         if status_param == 'upcoming':
             exams = exams.filter(exam_date__gte=today)
@@ -1660,7 +1660,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             is_active=True
         ).select_related('instructor', 'class_obj')
 
-        today = timezone.now().date()
+        today = timezone.now()
 
         upcoming_exams = Exam.objects.filter(
             subject__class_obj_id__in = enrolled_class_ids,
@@ -1845,7 +1845,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 is_active=True
             ).values_list('class_obj_id', flat=True)
 
-            today = timezone.now().date()
+            today = timezone.now()
 
             class_notices = ClassNotice.objects.filter(
                 class_obj_id__in = enrolled_class_ids,
@@ -2001,7 +2001,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         from datetime import timedelta
 
         days = int(request.query_params.get('days', 30))
-        today = timezone.now().date()
+        today = timezone.now()
         end_date = today + timedelta(days=days)
 
         enrolled_class_ids = Enrollment.objects.filter(
