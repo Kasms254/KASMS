@@ -163,8 +163,6 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
 
-
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [
@@ -203,7 +201,6 @@ class Exam(models.Model):
     @property
     def submission_count(self):
         return self.results.filter(is_submitted=True).count()
-
 
 class ExamAttachment(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
@@ -381,7 +378,6 @@ class ExamReport(models.Model):
 
         return total_percentage / count if count > 0 else 0
     
-
 class NoticeReadStatus(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='notice_read_statuses')
     notice = models.ForeignKey('Notice', on_delete=models.CASCADE, related_name='read_statuses')
@@ -394,7 +390,6 @@ class NoticeReadStatus(models.Model):
 
         def __str__(self):
             return f"{self.user.username} read {self.notice.title}"
-
 
 class ClassNoticeReadStatus(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='class_notice_read_statuses')
