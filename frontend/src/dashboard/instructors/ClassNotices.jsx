@@ -103,6 +103,27 @@ export default function ClassNotices() {
     if (!form.subject) localErrors.subject = 'Select a subject'
     if (!form.title || !form.title.trim()) localErrors.title = 'Title is required'
     if (!form.content || !form.content.trim()) localErrors.content = 'Content is required'
+
+    // Validate dates are not in the past
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (form.start_date) {
+      const startDate = new Date(form.start_date)
+      startDate.setHours(0, 0, 0, 0)
+      if (startDate < today) {
+        localErrors.start_date = 'Start date cannot be in the past'
+      }
+    }
+
+    if (form.expiry_date) {
+      const expiryDate = new Date(form.expiry_date)
+      expiryDate.setHours(0, 0, 0, 0)
+      if (expiryDate < today) {
+        localErrors.expiry_date = 'Expiry date cannot be in the past'
+      }
+    }
+
     if (Object.keys(localErrors).length) { setErrors(localErrors); return }
 
     setSaving(true)
