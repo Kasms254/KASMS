@@ -669,7 +669,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
 
         read_status, created = NoticeReadStatus.objects.get_or_create(
             user=request.user,
-            notice=notices
+            notice=notice
         )
 
         return Response({
@@ -1422,7 +1422,7 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).count()
 
 
-        today = timezone.now().date()
+        today = timezone.now()
         today_attendance = Attendance.objects.filter(
             Q(class_obj__instructor=user) & Q(subject__instructor=user),
             date=today
@@ -1494,110 +1494,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
 
-    def list(self, request):
-        if request.user.role != 'student':
-            return Response({
-                'error': 'Only students can access the Student Dashboard'
-            },
-            status=status.HTTP_401_UNAUTHORIZED)
-        
-        user = request.user
-
-        enrollments = Enrollment.objects.filter(
-            student = user,
-            is_active = True
-        ).select_related('class_obj', 'class_obj__course', 'class_obj__instructor')
-
-        enrolled_class_ids = enrollments.values_list('class_obj_id', flat=True)
-
-
-        subjects = Subject.objects.filter(
-            class_obj_id__in = enrolled_class_ids,
-            is_active = True
-        ).select_related('instructor', 'class_obj')
-
-
-        from datetime import timedelta
-        today = timezone.now().date()
-
-        upcoming_exams = Exam.objects.filter(
-            subject__class_obj_id__in =enrolled_class_ids,
-            is_active = True,
-            exam_date__gte = today,
-            exam_date__lte = today + timedelta(days=30)
-        ).select_related('subject', 'subject__class_obj').order_by('exam_date')
-
-
-        recent_results = ExamResult.objects.filter(
-            student= user,
-            is_submitted = True
-        ).select_related(
-            'exam', 'exam__subject', 'graded_by'
-        ).order_by(
-            '-exam__exam_date'
-        )[:10]
-
-        total_attendance = Attendance.objects.filter(student=user)
-        present_count = total_attendance.filter(status='present').count()
-        total_count = total_attendance.count()
-        attendance_rate = (present_count / total_count * 100) if total_count > 0 else 0
-
-
-        recent_notices = ClassNotice.objects.filter(
-            class_obj_id__in = enrolled_class_ids,
-            is_active =True
-        ).filter(
-            Q(expiry_date__isnull=True) | 
-            Q(expiry_date__gte = today)
-        ).select_related('class_obj', 'subject', 'created_by'). order_by('created_at')[:10]
-
-        general_notices = Notice.objects.filter(
-            is_active = True
-        ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
-        ).select_related('created_by').order_by('-created_at')[:5]
-
-        stats ={
-            'total_classes': enrollments.count(),
-            'total_subjects': subjects.count(),
-            'total_exams_taken':ExamResult.objects.filter(
-                student = user,
-                is_submitted = True
-            ).count(),
-            'pending_exams':upcoming_exams.count(),
-            'attendance_rate': round(attendance_rate, 2),
-            'total_attendance_records': total_count,
-            'present_days': present_count,
-            'absent_days': total_attendance.filter(status='absent').count(),
-            'late_days': total_attendance.filter(status='late').count()
-        }
-
-        submitted_results = ExamResult.objects.filter(
-            student=user,
-            is_submitted = True,
-            marks_obtained__isnull = False
-        )
-        
-        if submitted_results.exists():
-            total_marks = sum(r.marks_obtained for r in submitted_results)
-            total_possible = sum(r.exam.total_marks for r in submitted_results)
-            average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
-            stats [ 'average_grade'] = round(average_percentage, 2)
-        else:
-            stats['average_grade'] = 0
-
-
-        return Response({
-            'stats':stats,
-            'enrollments': EnrollmentSerializer(enrollments, many=True).data,
-            'subjects':SubjectSerializer(subjects, many=True).data,
-            'upcoming_exams':ExamSerializer(upcoming_exams, many=True).data,
-            'recent_results':ExamResultSerializer(recent_results, many=True).data,
-            'recent_notices':ClassNotificationSerializer(recent_notices, many=True).data,
-            'general_notices':NoticeSerializer(general_notices, many=True).data
-
-        })
-
     @action(detail=False, methods=['get'])
     def my_classes(self, request):
 
@@ -1619,7 +1515,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
                             )
     
     @action(detail=False, methods=['get'])
-
     def my_subjects(self, request):
         if request.user.role != 'student':
             return Response(
@@ -1662,7 +1557,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
 
         status_param = request.query_params.get('status', 'all')
-        today = timezone.now().date()
+        today = timezone.now()
 
         if status_param == 'upcoming':
             exams = exams.filter(exam_date__gte=today)
@@ -1677,6 +1572,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'count': exams.count(),
             'results': serializer.data
         })
+
     @action(detail=False, methods=['get'])
     def my_results(self, request):
 
@@ -1716,7 +1612,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 'total_exams':results.count(),
                 'average_percentage': round(average, 2),
                 'total_marks_obtained': total_marks,
-                'total_posible_marks': total_possible
+                'total_possible_marks': total_possible
             }
 
         else:
@@ -1744,9 +1640,9 @@ class StudentDashboardViewset(viewsets.ViewSet):
         enrollments = Enrollment.objects.filter(
             student = user,
             is_active=True
-        ).select_related('class_obj', 'class_obj_course', 'class_obj__instructor')
+        ).select_related('class_obj', 'class_obj__course', 'class_obj__instructor')
 
-        enrolled_class_ids = enrollments.values.list('class_obj_id',flat=True)
+        enrolled_class_ids = enrollments.values_list('class_obj_id',flat=True)
 
         active_enrollment = enrollments.first()
         active_class_id = None
@@ -1764,10 +1660,10 @@ class StudentDashboardViewset(viewsets.ViewSet):
             is_active=True
         ).select_related('instructor', 'class_obj')
 
-        today = timezone.now().date()
+        today = timezone.now()
 
         upcoming_exams = Exam.objects.filter(
-            subject__class_obj_is__in = enrolled_class_ids,
+            subject__class_obj_id__in = enrolled_class_ids,
             is_active=True,
             exam_date__gte = today,
             exam_date__lte = today + timedelta(days=30)
@@ -1795,7 +1691,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             class_obj_id__in = enrolled_class_ids,
             is_active=True
         ).filter(
-            Q(expiry_date__is_null = True) |
+            Q(expiry_date__isnull = True) |
             Q(expiry_date__gte = today)
         ).select_related(
             'class_obj', 'subject', 'created_by'
@@ -1830,7 +1726,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             active_class_results = ExamResult.objects.filter(
                 student=user,
                 is_submitted=True,
-                marks_obtained_isnull = False,
+                marks_obtained__isnull = False,
                 exam__subject__class_obj_id = active_class_id
             )
 
@@ -1852,7 +1748,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
                 stats['active_class_id'] = active_class_id
                 stats['active_class_name'] = active_class_name
-                stats['active_course_name'] = active_class_name
+                stats['active_course_name'] = active_course_name
                 stats['average_grade'] = round(average_percentage, 2)
                 stats['average_grade_letter'] = grade_letter
                 stats['total_marks_obtained'] = total_marks
@@ -1877,7 +1773,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'stats':stats,
             'enrollments':EnrollmentSerializer(enrollments, many=True).data,
             'subjects':SubjectSerializer(subjects, many=True).data,
-            'upcoming_exam':ExamSerializer(upcoming_exams, many=True).data,
+            'upcoming_exams':ExamSerializer(upcoming_exams, many=True).data,
             'recent_results':ExamResultSerializer(recent_results, many=True).data,
             'general_notices':NoticeSerializer(general_notices, many=True).data
         })
@@ -1949,7 +1845,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 is_active=True
             ).values_list('class_obj_id', flat=True)
 
-            today = timezone.now().date()
+            today = timezone.now()
 
             class_notices = ClassNotice.objects.filter(
                 class_obj_id__in = enrolled_class_ids,
@@ -1996,7 +1892,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             elif request.user.role  == "instructor":
                 notices = Notice.objects.filter(
-                    Q(created_by = request.user) | Q(created_by__is_null=True),
+                    Q(created_by = request.user) | Q(created_by__isnull=True),
                     is_active=True
                 )
             else:
@@ -2105,7 +2001,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         from datetime import timedelta
 
         days = int(request.query_params.get('days', 30))
-        today = timezone.now().date()
+        today = timezone.now()
         end_date = today + timedelta(days=days)
 
         enrolled_class_ids = Enrollment.objects.filter(
@@ -2118,7 +2014,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             is_active = True,
             exam_date__gte =today,
             exam_date__lte = end_date
-        ).select_related('subject', 'subject__class_obj').order_by('created_at')
+        ).select_related('subject', 'subject__class_obj').order_by('exam_date')
 
         return Response({
             'start_date':today,
