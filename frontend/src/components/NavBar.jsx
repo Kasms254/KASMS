@@ -250,9 +250,7 @@ export default function NavBar({
         const ids = e && e.detail && Array.isArray(e.detail.ids) ? e.detail.ids : []
         if (!ids.length) return
 
-        if (import.meta.env.DEV) {
-          console.log('NavBar received notifications:marked_read event with IDs:', ids)
-        }
+        
 
         setNotifs(prev => {
           // Match by both the prefixed ID and the originalId (raw backend ID)
@@ -439,35 +437,29 @@ export default function NavBar({
                             setUnreadCount(updated.filter(x => !x.read).length)
                             return updated
                           })
-                          // Call backend to persist read status using originalId
-                          const noticeId = n.originalId || n.noticeId || n.id
-                          if (noticeId && n.kind !== 'result') {
-                            try {
-                              if (import.meta.env.DEV) {
-                                console.log(`NavBar marking notification as read: ID=${noticeId}, type=${n.noticeType}`)
+                          // Persist read status to backend.
+                          // For class/global notices use their endpoints, for result notifications
+                          // call the exam-result mark endpoint we added in api.js.
+                          try {
+                            if (n.kind === 'result' && n.resultId) {
+                              await api.markExamResultAsRead(n.resultId)
+                            } else {
+                              const noticeId = n.originalId || n.noticeId || n.id
+                              if (noticeId) {
+                                if (n.noticeType === 'class_notice') {
+                                  await api.markClassNoticeAsRead(noticeId)
+                                } else {
+                                  await api.markNoticeAsRead(noticeId)
+                                }
                               }
+                            }
 
-                              if (n.noticeType === 'class_notice') {
-                                await api.markClassNoticeAsRead(noticeId)
-                              } else {
-                                await api.markNoticeAsRead(noticeId)
-                              }
-
-                              if (import.meta.env.DEV) {
-                                console.log(`NavBar successfully marked notification ${noticeId} as read`)
-                              }
-
-                              // Dispatch event to sync with Notifications page
-                              try {
-                                window.dispatchEvent(new CustomEvent('notices:changed'))
-                              } catch (err) {
-                                console.debug('Failed to dispatch notices:changed event:', err)
-                              }
-                            } catch (err) {
-                              // If 404, the notice was deleted - silently continue
-                              if (err.message && !err.message.includes('not found')) {
-                                console.error('Failed to mark as read:', err)
-                              }
+                            // Dispatch event to sync with Notifications page
+                            try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('Failed to dispatch notices:changed event:', err) }
+                          } catch (err) {
+                            // If 404, the notice was deleted - silently continue
+                            if (err.message && !err.message.includes('not found')) {
+                              console.error('Failed to mark as read:', err)
                             }
                           }
                         }
@@ -505,9 +497,7 @@ export default function NavBar({
                     // Mark all as read on backend
                     const unreadNotifs = notifs.filter(n => !n.read && n.kind !== 'result')
 
-                    if (import.meta.env.DEV) {
-                      console.log(`NavBar marking ${unreadNotifs.length} notifications as read`)
-                    }
+                    
 
                     for (const n of unreadNotifs) {
                       const noticeId = n.originalId || n.noticeId
@@ -526,9 +516,7 @@ export default function NavBar({
                       }
                     }
 
-                    if (import.meta.env.DEV) {
-                      console.log('NavBar finished marking all as read, dispatching event')
-                    }
+                    
 
                     // Dispatch event to sync with Notifications page
                     try {

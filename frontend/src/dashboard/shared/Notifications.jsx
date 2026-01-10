@@ -219,10 +219,16 @@ export default function Notifications() {
       }
 
       try {
-        const noticeId = item.meta.id
-        if (!noticeId) {
+        // For exam result notifications, call the exam-result endpoint
+        if (item.kind === 'result') {
+          const resultId = item.meta.id
+          if (!resultId) continue
+          await api.markExamResultAsRead(resultId)
           continue
         }
+
+        const noticeId = item.meta.id
+        if (!noticeId) continue
 
         // Determine if it's a class notice or regular notice
         const isClassNotice = !!item.meta.class_obj
