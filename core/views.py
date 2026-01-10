@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamResultNotificationReadStatus, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus
 from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
@@ -16,6 +16,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from datetime import timedelta
+from django.db import transaction
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -1014,54 +1015,26 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     search_fields = ['student__first_name', 'student__last_name', '']
     ordering_fields = ['marks_obtained', 'created_at']
     ordering = ['-exam__exam_date', 'created_at']
+    
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
 
-        if user.role != 'instructor':
-            queryset = queryset.filter(graded_by=user)
+        if user.role == 'instructor':
+            queryset = queryset.filter(exam__subject__instructor=user)
+
+        elif user.role == 'student':
+            queryset = queryset.filter(student=user)
 
         return queryset
-    
 
-    @action(detail=False, methods=['post'])
-    def bulk_grade(self, request):
-        serializer = BulkExamResultSerializer(data=request.data)
 
-        if not serializer.is_valid():
-            return Response (serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        results_data = serializer.validated_data['results']
-        updated_count = 0
-        errors = []
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
-        for result_data in results_data:
-            try:
-                result = ExamResult.objects.get(
-                    id=result_data.get('id'),
-                    exam__subject__instructor=request.user
-                )
-                result.marks_obtained = result_data['marks_obtained']
-                result.remarks =result_data.get('remarks', '')
-                result.is_submitted = True
-                result.submitted_at = timezone.now()
-                result.graded_by = request.user
-                result.graded_at =timezone.now()
-                result.save()
-                updated_count += 1
-
-            except ExamResult.DoesNotExist:
-                errors.append(f"Result{result_data.get('id')} not found.")
-
-            except Exception as e:
-                errors.append(str(e))
-
-        return Response({
-            'status': 'success',
-            'updated': updated_count,
-            'errors': errors
-        })
 
     @action(detail=False, methods=['get'])
     def student_results(self, request):
@@ -1163,7 +1136,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = reuslt_data.get('remarks', '')
+                    results.remarks = result_data.get('remarks', '')
                     results.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
@@ -1190,7 +1163,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'])
-
     def grade(self, request, pk=None):
         result = self.get_object()
 
@@ -1263,6 +1235,120 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         return Response({
             'count': results.count(),
             'results':serializer.data
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_notification_as_read(self, request, pk=None):
+
+        exam_result = self.get_object()
+
+        if exam_result.student != request.user:
+            return Response({
+                'error': 'You can only mark your own exam result notification as read'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not exam_result.is_submitted or exam_result.marks_obtained is None:
+            return Response(
+                {
+                    'error': 'This exam result has not been graded yet'
+                },status=status.HTTP_400_BAD_REQUEST
+            )
+
+        read_status, created = ExamResultNotificationReadStatus.objects.get_or_create(
+            user= request.user,
+            exam_result=exam_result
+        )
+        return Response({
+            'status':'success',
+            'message': 'Notification marked as read' if created else 'Already marked as read',
+            'read_at': read_status.read_at,
+            'exam_result_id':exam_result.id,
+            'exam_title':exam_result.exam.title
+        })
+
+    @action(detail=True, methods=['post'], permission_classes = [IsAuthenticated])
+    def mark_notification_as_unread(self, request, pk=None):
+        exam_result = self.get_object()
+
+        if exam_result.student != request.user:
+            return Response(
+                {
+                    'error': 'You can only mark your own exam result notification as unread.'
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        deleted_count = ExamResultNotificationReadStatus.objects.filter(
+            user=request.user,
+            exam_result=exam_result
+        ).delete()[0]
+
+        return Response({
+            'status': 'success',
+            'message': 'Notification marked as unread' if deleted_count > 0 else 'Was not marked as read',
+            'deleted_count': deleted_count,
+            'exam_result_id':exam_result.id,
+            'exam_title':exam_result.exam.title
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def unread_notifications(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access their unread notifications'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        
+        read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+            user =request.user
+        ).values_list('exam_result_id', flat=True)
+
+        unread_results = ExamResult.objects.filter(
+            student= request.user,
+            is_submitted= True,
+            marks_obtained__isnull = False
+        ).exclude(
+            id__in = read_result_ids
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by').order_by('-graded_at')
+
+        serializer = self.get_serializer(unread_results, many=True)
+
+        return Response({
+            'count': unread_results.count(),
+            'results':serializer.data
+        })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def mark_all_as_read(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can mark notifications as read'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        graded_results = ExamResult.objects.filter(
+            student = request.user,
+            is_submitted=True,
+            marks_obtained__isnull = False
+        )
+
+        created_count = 0
+
+        with transaction.atomic():
+            for result in graded_results:
+                _, created = ExamResultNotificationReadStatus.objects.get_or_create(
+                    user = request.user,
+                    exam_result=result
+                )
+                if created:
+                    created_count +=1
+
+        return Response({
+            'status': 'success',
+            'message': f'Marked {created_count} notification as read',
+            'marked_count': created_count,
+            'total_results': graded_results.count()
         })
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -1756,7 +1842,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'count': exams.count(),
             'results': serializer.data
         })
-
+    
     @action(detail=False, methods=['get'])
     def my_results(self, request):
 
@@ -1765,53 +1851,75 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 'error': 'Only students can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        results  = ExamResult.objects.filter(
+        results = ExamResult.objects.filter(
             student=request.user,
-            is_submitted = True
+            is_submitted=True
         ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by')
 
         subject_id = request.query_params.get('subject_id')
         exam_id = request.query_params.get('exam_id')
         class_id = request.query_params.get('class_id')
+        show_unread_only = request.query_params.get('unread_only', 'false').lower() == 'true'
 
-
-        if subject_id :
-            results = results.filter(exam__subject_id = subject_id)
+        if subject_id:
+            results = results.filter(exam__subject_id=subject_id)
         if exam_id:
             results = results.filter(exam_id=exam_id)
-        if class_id :
+        if class_id:
             results = results.filter(exam__subject__class_obj_id=class_id)
+        
+        if show_unread_only:
+            read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+                user=request.user
+            ).values_list('exam_result_id', flat=True)
+            results = results.exclude(id__in=read_result_ids)
 
-        results = results.order_by('created_at')
+        results = results.order_by('-graded_at')
 
-        serializer = ExamResultSerializer(results, many=True)
+        read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+            user=request.user
+        ).values_list('exam_result_id', flat=True)
+        
+        unread_count = ExamResult.objects.filter(
+            student=request.user,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).exclude(
+            id__in=read_result_ids
+        ).count()
 
+        serializer = ExamResultSerializer(
+            results, 
+            many=True, 
+            context={'request': request}
+        )
 
         if results.exists():
-            total_marks = sum(r.marks_obtained for r in results if r.marks_obtained)
+            total_marks = sum(float(r.marks_obtained) for r in results if r.marks_obtained)
             total_possible = sum(r.exam.total_marks for r in results)
-            average = (total_marks / total_possible * 100) if total_possible > 0 else 0 
+            average = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
             stats = {
-                'total_exams':results.count(),
+                'total_exams': results.count(),
                 'average_percentage': round(average, 2),
                 'total_marks_obtained': total_marks,
-                'total_possible_marks': total_possible
+                'total_possible_marks': total_possible,
+                'unread_notifications': unread_count
             }
-
         else:
             stats = {
                 'total_exams': 0,
                 'average_percentage': 0,
                 'total_marks_obtained': 0,
-                'total_possible_marks': 0
+                'total_possible_marks': 0,
+                'unread_notifications': unread_count
             }
         
         return Response({
             'count': results.count(),
             'stats': stats,
-            'results': serializer.data 
-            })
+            'results': serializer.data
+        })
     
     def list(self, request):
         if request.user.role != 'student':
@@ -1889,6 +1997,36 @@ class StudentDashboardViewset(viewsets.ViewSet):
             Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
         ).select_related('created_by').order_by('-created_at')[:5]
 
+        read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+            user=user
+        ).values_list('exam_result_id', flat=True)
+
+        unread_exam_results_count = ExamResult.objects.filter(
+            student=user,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).exclude(
+            id__in=read_result_ids
+        ).count()
+
+        read_notice_ids = ClassNoticeReadStatus.objects.filter(
+            user=user
+        ).values_list('class_notice_id', flat=True)
+        
+        unread_class_notices_count = ClassNotice.objects.filter(
+            class_obj_id__in=enrolled_class_ids,
+            is_active=True
+        ).exclude(
+            id__in=read_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).count()
+
+        stats['unread_notifications'] = {
+            'exam_results': unread_exam_results_count,
+            'class_notices': unread_class_notices_count,
+            'total': unread_exam_results_count + unread_class_notices_count
+        }
 
         stats  = {
             'total_classes': enrollments.count(),
@@ -1958,7 +2096,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'enrollments':EnrollmentSerializer(enrollments, many=True).data,
             'subjects':SubjectSerializer(subjects, many=True).data,
             'upcoming_exams':ExamSerializer(upcoming_exams, many=True).data,
-            'recent_results':ExamResultSerializer(recent_results, many=True).data,
+            'recent_results':ExamResultSerializer(recent_results, many=True, context={'request': request}).data,
             'general_notices':NoticeSerializer(general_notices, many=True).data
         })
 
@@ -2207,3 +2345,65 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
+
+    @action(detail=False, methods=['get'])
+    def notification_summary(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error': 'Only students can access notifications summary'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+            user=request.user
+        ).values_list('exam_result_id', flat=True)
+
+        unread_exam_results_count = ExamResult.objects.filter(
+            student = request.user,
+            is_submitted= True,
+            marks_obtained__isnull = False
+        ).exclude(
+            id__in = read_result_ids
+        ).count()
+
+        read_general_notice_ids = NoticeReadStatus.objects.filter(
+            user=request.user
+        ).values_list('notice_id', flat=True)
+
+        unread_general_notices_count = Notice.objects.filter(
+            is_active=True
+        ).exclude(
+            id__in = read_general_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) |
+            Q(expiry_date__gte = timezone.now())
+        ).count()
+        enrolled_class_ids = Enrollment.objects.filter(
+            student=request.user,
+            is_active=True
+        ).values_list('class_obj_id', flat=True)
+
+        read_class_notice_ids = ClassNoticeReadStatus.objects.filter(
+            user=request.user
+        ).values_list('class_notice_id', flat=True)
+
+        unread_class_notices_count = ClassNotice.objects.filter(
+            class_obj_id__in=enrolled_class_ids,
+            is_active=True
+        ).exclude(
+            id__in=read_class_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        ).count()
+        return Response({
+            'unread_counts': {
+                'exam_results': unread_exam_results_count,
+                'class_notices': unread_class_notices_count,
+                'general_notices': unread_general_notices_count,
+                'total':(
+                    unread_exam_results_count +
+                    unread_class_notices_count +
+                    unread_general_notices_count
+                )
+            }
+        })
