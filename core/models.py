@@ -163,8 +163,6 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
 
-
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [
@@ -203,7 +201,6 @@ class Exam(models.Model):
     @property
     def submission_count(self):
         return self.results.filter(is_submitted=True).count()
-
 
 class ExamAttachment(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
@@ -381,7 +378,6 @@ class ExamReport(models.Model):
 
         return total_percentage / count if count > 0 else 0
     
-
 class NoticeReadStatus(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='notice_read_statuses')
     notice = models.ForeignKey('Notice', on_delete=models.CASCADE, related_name='read_statuses')
@@ -394,7 +390,6 @@ class NoticeReadStatus(models.Model):
 
         def __str__(self):
             return f"{self.user.username} read {self.notice.title}"
-
 
 class ClassNoticeReadStatus(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='class_notice_read_statuses')
@@ -410,6 +405,173 @@ class ClassNoticeReadStatus(models.Model):
     def __str__(self):
         return f"{self.user.username} read {self.class_notice.title}"
 
+# Attendance
+
+class AttendanceSession(models.Model):
+    SESSION_TYPE_CHOICES = [
+        ('class', 'Class Session'),
+        ('exam', 'Exam Session'),
+        ('bedcheck', 'Bedcheck Session'),
+        ('lab', 'Lab Session'),
+        ('other', 'Other'),
+    ]
+
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    session_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    title = models.CharField(max_length=200)
+    session_type = models.CharField(max_length=20, choices=SESSION_TYPE_CHOICES, default='class')
+    description = models.TextField(blank=True, null=True)
+
+    class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendance_sessions')
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendance_sessions', null=True, blank=True)
+    created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, related_name='sessions_created')
+
+
+    scheduled_start = models.DateTimeField()
+    scheduled_end = models.DateTimeField()
+    actual_start = models.DateTimeField(null=True, blank=True)
+    actual_end = models.DateTimeField(null=True, blank=True)
+
+    duration_minutes = models.IntegerField(validators=[MinValueValidator(1)], default=60)
+    qr_refresh_interval = models.IntegerField(
+        validators=[MinValueValidator(10), MaxValueValidator(300)],
+        default=30,
+        help_text="Minutes after start time to still mark as present"
+    )
+
+    qr_code_secret = models.CharField(max_length=255, blank=True)
+    qr_last_generated = models.DateTimeField(null=True, blank=True)
+    qr_generation_count  = models.IntegerField(default=0)
+
+    enable_qr_scan = models.BooleanField(default=True)
+    enable_manual_marking =models.DateTimeField(null=True, blank=True)
+    enable_biometric = models.BooleanField(default=False)
+    require_location = models.BooleanField(default=False)
+
+    alllowed_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    allowed_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_radius_meters = models.IntegerField(default=100, null=True, blank=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now = True)
+    
+    class Meta:
+        db_table = 'attendance_sessions'
+        verbose_name = 'Attendance Session'
+        verbose_name_plural = 'Attendance Sessions'
+        ordering = ['-scheduled_start']
+        indexes = [
+            models.Index(fields=['session_id']),
+            models.Index(fields=['class_obj', 'scheduled_start']),
+            models.Index(fields=['status', 'scheduled_start']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.get_session_type_display()} ({self.scheduled_start.date()})"
+
+
+    def generate_qr_token(self):
+        current_time = timezone.now()
+        time_window = int(current_time.timestamp() / self.qr_refresh_interval)
+
+        hash_input = f"{self.session_id}:{time_window}:{self.qr_code_secret}"
+
+        token = hashlib.sha256(hash_input.encode().hexdigest()[:16])
+
+        self.qr_last_generated = current_time
+        self.qr_generation_count += 1
+        self.save(update_fields=['qr_last_generated', 'qr_generation_count'])
+
+        return token
+
+    def verify_qr_token(self, token, tolerance_windows=1):
+
+        current_time = timezone.now()
+        current_window = int(current_time.timestamp() / self.qr_refresh_interval)
+
+        for offset in range(-tolerance_windows, tolerance_windows + 1):
+            time_window = current_window + offset
+            hash_input = f"{self.session_id}: {time_window} : {self.qr_code_secret}"
+            valid_token = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
+
+            if token == valid_token:
+                return True
+
+        return False
+
+
+    def is_within_schedule(self):
+        now = timezone.now()
+        grace_period = timedelta(minutes = self.allow_late_minutes)
+        return self.scheduled_start <= now <= (self.scheduled_end + grace_period)
+
+    def can_mark_attendance(self):
+        return (
+            self.status == 'active' and
+            self.is_active and
+            self.is_within_schedule()
+        )
+
+    def get_attendance_status_for_time(self, attendance_time):
+        if attendance_time <= self.scheduled_start:
+            return 'present'
+
+        elif attendance_time <= (self.scheduled_start + timedelta(minutes=self.allow_late_minutes)):
+            return 'late'
+        else:
+            return 'absent'
+
+
+
+    @property
+    def total_students(self):
+        from .models import Enrollment
+        return Enrollment.objects.filter(
+            class_obj=self.class_obj,
+            is_active=True
+        ).count()
+
+    @property
+    def marked_count(self):
+        return self.session_attendances.count()
+
+    @property
+    def attendance_percentage(self):
+        total  =self.total_students
+        if total == 0:
+            return 0
+        return round ((self.marked_count / total) * 100, 2)
+
+    def start_session(self):
+
+        if self.status ==  'scheduled':
+            self.status = 'active'
+            self.actual_start = timezone.now()
+
+            if not self.qr_code_secret:
+                self.qr_code_secret = uuid.uuid4().hex
+
+            
+            self.save()
+            return True
+
+        return False
+
+
+    def end_session(self):
+        if self.status == 'active':
+            self.status = 'completed'
+            self.actual_end = timezone.now()
+            self.save()
+            return True
+        return False
         
-
-
