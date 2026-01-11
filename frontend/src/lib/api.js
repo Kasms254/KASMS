@@ -441,9 +441,11 @@ export async function deleteClassNotice(id) {
 
 export async function getClassNotices(params = '') {
   const qs = params ? `?${params}` : ''
-  const data = await request(`/api/class-notices/${qs}`)
-  if (data && Array.isArray(data.results)) return data.results
-  return data
+  // Return raw response so callers can access pagination metadata
+  // (count, next, previous, results). Components that only need the
+  // list can read `response.results` or use helper logic.
+  const qs2 = params ? `?${params}` : ''
+  return request(`/api/class-notices/${qs2}`)
 }
 
 // Get class notices scoped to the current user. The backend's get_queryset

@@ -3,6 +3,7 @@ import useAuth from '../../hooks/useAuth'
 import * as Icons from 'lucide-react'
 import * as api from '../../lib/api'
 
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''
 // Utility: Format date as relative time
 function formatRelativeTime(date) {
   const now = new Date()
@@ -600,19 +601,26 @@ export default function Notifications() {
                           Attachments
                         </div>
                         <ul className="space-y-2">
-                          {selected.meta.attachments.map(a => (
-                            <li key={a.id}>
-                              <a
-                                className="text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-2 text-sm"
-                                href={a.file || a.file_url || a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <Icons.Download className="w-4 h-4" />
-                                {a.file_name || a.file || 'Attachment'}
-                              </a>
-                            </li>
-                          ))}
+                          {selected.meta.attachments.map(a => {
+                            const fileUrl = a.file || a.file_url || a.url || ''
+                            const href = fileUrl.startsWith('http') || fileUrl.startsWith('data:')
+                              ? fileUrl
+                              : (API_BASE.replace(/\/$/, '') + (fileUrl.startsWith('/') ? fileUrl : ('/' + fileUrl)))
+
+                            return (
+                              <li key={a.id}>
+                                <a
+                                  className="text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-2 text-sm"
+                                  href={href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <Icons.Download className="w-4 h-4" />
+                                  {a.file_name || a.file || 'Attachment'}
+                                </a>
+                              </li>
+                            )
+                          })}
                         </ul>
                       </div>
                     )}
