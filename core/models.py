@@ -4,6 +4,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 import os
+import uuid
+import hashlib
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -574,4 +576,271 @@ class AttendanceSession(models.Model):
             self.save()
             return True
         return False
+        
+class SessionAttendance(models.Model):
+    
+    MARKING_METHOD_CHOICES = [
+        ('qr scan', 'QR Code Scan'),
+        ('manual', 'Manual Entry'),
+        ('biometric', 'Biometric'),
+        ('admin', 'Admin Override'),
+    ]
+
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('late', 'Late'),
+        ('absent', 'Absent'),
+        ('excused', 'Excused'),
+    ]
+
+    session = models.ForeignKey(
+        'User', 
+        on_delete=models.CASCADE,
+        related_name='session_attendance',
+        limit_choices_to={'role':'student'}
+    )
+
+    marked_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='attendances_marked_in_session'
+    )
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='present')
+    marking_method = models.CharField(max_length=20, choices=MARKING_METHOD_CHOICES)
+    marked_at = models.DateTimeField(auto_now_add=True)
+
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_verified = models.BooleanField(default=False)
+
+    remarks = models.TextField(blank=True, null=True)
+    ip_addresses = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'session_attendances'
+        verbose_name = 'Session Attendance'
+        verbose_name_plural = 'Session Attendances'
+        ordering = ['-marked_at']
+        unique_together = ['session', 'student']
+        indexes = [
+            models.Index(fields=['session', 'status']),
+            models.Index(fields=['student', 'marked_at']),
+        ]
+
+    def __str__(self):
+        
+        return f"{self.student.get_full_name()} - {self.session.title} ({self.get_status_display()})"
+
+    @property
+    def minutes_late(self):
+
+        if self.status == 'late':
+            delta = self.marked_at = self.session.scheduled_start
+            return (delta.total_seconds() / 60)
+        return 0
+
+
+    def verify_location(self):
+        if not self.session.require_location:
+            self.location_verified = True
+            return True
+
+        
+        if not (self.latitude and self.longitude):
+            return False
+
+
+        from math import radians, sin, cos, sqrt, atan2
+
+        lat1 = radians(float(self.session.allowed_latitude))
+        lon1 =radians(float(self.session.allowed_longitude))
+        lat2 = radians(float(self.latitude))
+        lon2 = radians(float(self.longitude))
+
+        dflat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = sin(dflat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+
+        c = 2* atan2(sqrt(a), sqrt(1-a))
+
+        distance = 6371000 * c
+
+        self.location_verified = distance <= self.session.location_radius_meters
+        return self.location_verified
+
+
+class BiometricRecord(models.Model):
+
+    DEVICE_TYPE_CHOICES = [
+        ('zkteco', 'ZKTeco Device'),
+        ('fingerprint', 'Fingerprint Scanner'),
+        ('other', 'Other'),
+    ]
+
+    device_id = models.CharField(max_length=100)
+    device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES, default='zkteco')
+    device_name = models.CharField(max_length=200, blank=True)
+
+    student = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='biometric_records',
+        limit_choices_to={'role': 'student'}
+    )
+    session = models.ForeignKey(
+        AttendanceSession, 
+        on_delete=models.CASCADE,
+        related_name='biometric_records',
+        null=True,
+        blank=True
+    )
+
+    biometric_id = models.CharField(max_length=100, help_text='Student ID in biometric device')
+    scan_time = models.DateTimeField()
+    verification_type = models.CharField(max_length=50, blank=True)
+    verification_score = models.IntegerField(null=True, blank=True)
+
+    processed = models.BooleanField(default=False)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    session_attendance = models.ForeignKey(
+        SessionAttendance,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='biometric_records'
+    )
+
+    raw_data = models.JSONField(blank=True, nulL=True, help_text = "Raw data from device")
+    error_message = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+
+        db_table = 'biometric_records'
+        verbose_name = 'Biometric Record'
+        verbose_name_plural = 'Biometric Records'
+        ordering = ['-scan_time']
+        indexes = [
+            models.Index(fields=['device_id', 'scan_time']),
+            models.Index(fields=['student', 'scan_time']),
+            models.Index(fields=['processed', 'scan_time']),
+        ]
+
+        def __str__(self):
+            return f"{self.student.get_full_name()} - {self.device_type} ({self.scan_time})"
+
+        
+        def find_matching_session(self):
+            
+            time_window = timedelta(hours=2)
+
+            sessions = AttendanceSession.objects.filter(
+                class_obj__enrollments__student = self.student,
+                class_obj__enrollments__is_active = True,
+                scheduled_start__gte = self.scan_time - time_window,
+                scheduled_start__lte = self.scan_time + time_window,
+                status__in = ['scheduled', 'active'],
+                enable_biometric= True,
+                is_active=True
+            ).order_by('scheduled_start')
+
+            return sessions.first()
+
+
+        def process_to_attendance(self):
+
+            if self.processed:
+                return self.session_attendance
+
+
+            if not self.session:
+                self.session = self.find_matching_session()
+                if not self.session:
+                    self.error_message = "No matching session found"
+                    self.save()
+                    return None
+
+            existing = SessionAttendance.objects.filter(
+                session= self.session,
+                student = self.student
+            ).first()
+
+            if existing:
+                self.session_attendance = existing
+                self.processed = True
+                self.processed_at = timezone.now()
+                self.save()
+                return existing
+
+            status = self.session.get_attendance_status_for_time(self.scan_time)
+
+            attendance = SessionAttendance.objects.create(
+                session=self.session,
+                student = self.student,
+                status=status,
+                marking_method='biometric',
+                marked_at=self.scan_time,
+                remarks=f"Biometric scan via {self.device_type}"
+            )
+
+            self.session_attendance = attendance
+            self.processed = True
+            self.processed_at = timezone.now()
+            self.save()
+
+            return attendance
+
+class AttendanceSessionLog(models.Model):
+
+    ACTION_CHOICES =[
+        ('session_created', 'Session Created'),
+        ('session_started', 'Session Started'),
+        ('session_ended', 'Session Ended'),
+        ('session_cancelled', 'Session Cancelled'),
+        ('qr_generated', 'QR Code Generated'),
+        ('attendance_marked', 'Attendance Marked'),
+        ('attendance_updated', 'Attendance Updated'),
+        ('attendance_deleted', 'Attendance Deleted'),
+        ('bulk_import', 'Bulk Import'),
+        ('biometric_sync', 'Biometric Sync'),
+    ]
+
+    session = models.ForeignKey(
+        AttendanceSession,
+        on_delete=models.CASCADE,
+        related_name='logs'
+    )
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name = 'session_logs'
+    )
+    description = models.TextField(blank=True)
+    metadata = models.JSONField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'attendance_session_logs'
+        verbose_name = 'Session Log'
+        verbose_name_plural = 'Session Logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['session', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+        ]
+
+        def __str__(self):
+            return f"{self.get_action_display()}- {self.session.title} ({self.timestamp})"
+            
         
