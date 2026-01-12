@@ -1,6 +1,10 @@
 from rest_framework import serializers
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus
+from .models import (
+    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, 
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance)
 from django.contrib.auth.password_validation import validate_password
+import uuid
+from django.utils import timezone
 
 class UserSerializer(serializers.ModelSerializer):
 
@@ -556,5 +560,277 @@ class ExamReportSerializer(serializers.ModelSerializer):
         
         return value
     
+
+class AttendanceSessionSerializer(serializers.ModelSerializer):
+
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    class_code = serializers.CharField(source='class_obj.class_code', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    subject_code = serializers.CharField(source='subject.subject_code', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+
+    total_students = serializers.IntegerField(read_only=True)
+    marked_count = serializers.IntegerField(read_only=True)
+    attendance_percentage = serializers.FloatField(read_only=True)
+
+    current_qr_token = serializers.SerializerMethodField(read_only=True)
+    qr_expires_in = serializers.SerializerMethodField(read_only=True)
+
+    can_mark = serializers.SerializerMethodField(read_only=True)
+    is_within_schedule = serializers.SerializerMethodField(read_only=True)
+
+    class Meta :
+        model = AttendanceSession
+        fields = '__all__'
+        read_only_fields = (
+            'session_id', 'qr_code_secret', 'qr_last_generated', 'qr_generation_count',
+            'actual_start', 'actual_end', 'created_at', 'updated_at', 'created_by'
+        )
+
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_current_qr_token(self, obj):
+
+        if obj.status == 'active' and obj.enable_qr_scan:
+            return obj.generate_qr_token()
+        return None
+
+
+    def get_can_mark(self, obj):
+        return obj.can_mark_attendance()
+
+    def get_is_within_schedule(self, obj):
+        return obj.is_within_schedule()
+
+    def validate(self, attrs):
+        scheduled_start = attrs.get('scheduled_start')
+        scheduled_end = attrs.get('scheduled_end')
+        class_obj = attrs.get('class_obj')
+        subject = attrs.get('subject')
+
+
+        if scheduled_end and scheduled_start and scheduled_end <= scheduled_start:
+            raise serializers.ValidationError({
+                "scheduled_end": "End time must  be after the start time"
+            })
+
+        if subject and class_obj and subject.class_obj != class_obj:
+            raise serializers.ValidationError({
+                "subject": "Selected subject does not belong to the selected class"
+            })
+
+        if attrs.get('require_location'):
+            if not attrs.get('allowed_location') or not attrs.get('allowed_longitude'):
+                raise serializers.ValidationError({
+                    "require_location":"Latitude and longitude are required when location verification is enabled."
+                })
+        return attrs
+
+
+    def create(self, validated_data):
+        validated_data['qr_code_secret'] = uuid.uuid4().hex
+        return super().create(validated_data)
+
     
+class AttendanceSessionListSerializer(serializers.ModelSerializer):
+
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    marked_count = serializers.IntegerField(read_only=True)
+    total_students = serializers.IntegerField(read_only=True)
+    attendance_percentage = serializers.FloatField(read_only=True)
+
+
+    class Meta:
+        model = AttendanceSession
+        fields = "__all__"
+
     
+class SessionAttendanceSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    student_email = serializers.CharField(source='student.email', read_only=True)
+    student_rank = serializers.CharField(source='student.rank', read_only=True)
+
+    session_title = serializers.CharField(source='session.title', read_only=True)
+    session_type = serializers.CharField(source="session.get_session_type_display", read_only=True)
+
+    marked_by_name = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    marking_method_display = serializers.CharField(source='get_marking_method_display', read_only=True)
+    minutes_late = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = SessionAttendance
+        fields = "__all__"
+        read_only_fields = ('marked_at', 'created_at', 'updated_at', 'marked_by')
+
+    def get_marked_by_name(self):
+        return obj.marked_by_get_full_name() if obj.marked_by else 'System'
+
+    def validate(self, attrs):
+        session = attrs.get('session')
+        student = attrs.get('student')
+
+        if not session.can_mark_attendance():
+            raise serializers.ValidationError(
+                {
+                    "session":"This session is not accepting attendance at this time"
+                }
+            )
+
+        if not Enrollment.objects.filter(
+            student=student,
+            class_obj=session.class_obj,
+            is_active=True
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "student": "Student is not enrolled in this class"
+                }
+            )
+
+        if not self.instance:
+            if SessionAttendance.objects.filter(
+                session=session,
+                student=student
+            ).exists():
+                raise serializers.ValidationError({
+                    "student":"Attendance already marked for this student in this session"
+                })
+
+        return attrs
+
+class QRAttendanceMarkSerializer(serializers.Serializer):
+
+    session_id = serializers.UUIDField()
+    qr_token = serializers.CharField(max_lenght=16)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+
+    def validate(self, attrs):
+        try:
+            session = AttendanceSession.objects.get(
+                session_id=attr['session_id'],
+                is_active=True
+            )
+
+        except AttendanceSession.DoesNotExist:
+            raise serializers.ValidationError({"session_id": "Invalid or inactive session"})
+
+        if not session.require_location:
+            if not attrs.get('latitude') or not attrs.get('longitude'):
+                raise serializers.ValidationError({
+                    "location": "Location is required for this session."
+                })
+        attrs ['session'] = session
+        return attrs
+
+
+class BulkSessionAttendanceSerializer(serializers.Serializer):
+    
+    session_id = serializers.IntegerField()
+    attendance_records = serializers.ListField(
+        child = serializers.DictField(),
+        allow_empty = False
+    )
+
+
+    def validate_session_id (self, value):
+        try:
+            session = AttendanceSession.objects.get(id=value, is_active=True)
+        except AttendanceSession.DoesNotExist:
+            raise serializers.ValidationError("Invalid or inactive session.")
+        return value
+
+
+    def validate_attendance_records(self, value):
+        required_fields = ['student_id', 'status']
+
+        for idx, record in enumerate(value):
+            for field in required_fields:
+                if field not in record:
+                    raise serializers.ValidationError(
+                        f"Record {idx + 1}: '{field}' is required"
+                    )
+
+            if record['status'] not in ['present', 'late', 'absent', 'excused']:
+                raise serializers.ValidationError(
+                    f"Record {idx + 1}: Invalid status '{record['status']}'"
+                )
+
+        return value
+
+
+    
+class BiometricRecordSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    session_title = serializers.CharField(source='session.title', read_only=True)
+    device_type_display = serializers.CharField(source='get_device_type_display', read_only=True)
+    attendance_status = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = BiometricRecord
+        fields = "__all__"
+        read_only_fields = ('processed', 'processed_at', 'session_attendance', 'created_at', 'updated_at')
+
+    def get_attendance_status(self, obj):
+        if obj.session_attendance:
+            return {
+                'status': obj.session_attendance.status,
+                'marked_at':obj.session_attendance.marked_at
+                            }
+
+        return None
+
+
+class BiometricSyncSerializer(serializers.Serializer):
+
+    device_id = serializers.CharField(max_length=100)
+    device_type = serializers.ChoiceField(choices=BiometricRecord.DEVICE_TYPE_CHOICES)
+    records = serializers.ListField(
+        child = serializers.DictField(),
+        allow_empty = False
+    )
+
+    def validate_records(self, value):
+
+        required_fields = ['biometric_id', 'scan_time']
+
+        for idx, record in enumerate(value):
+            for field in required_fields:
+                if field not in record:
+                    raise serializers.ValidationError(
+                        f"Record {idx + 1}: '{field}' is required."
+                    )
+
+            try:
+                from dateutil import parser
+                parser.parse(record['scan_time'])
+            except:
+                raise serializers.ValidationError(
+                    f"Record {idx + 1}: Invalid scan_time format"
+                )
+
+        return value
+
+
+class AttendanceSessionLogSerializer(serializers.ModelSerializer):
+
+    session_title = serializers.CharField(source='session.title', read_only=True)
+    performed_by_name = serializers.SerializerMethodField(read_only =True)
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+    
+    class Meta:
+        db_models = AttendanceSession
+        
