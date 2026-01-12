@@ -1163,7 +1163,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = reuslt_data.get('remarks', '')
+                    results.remarks = result_data.get('remarks', '')
                     results.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
@@ -1495,9 +1495,7 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
-
 
     queryset = ExamReport.objects.select_related('subject', 'class_obj', 'created_by').prefetch_related('exams').all()
     serializer_class = ExamReportSerializer
@@ -1889,6 +1887,30 @@ class StudentDashboardViewset(viewsets.ViewSet):
             Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
         ).select_related('created_by').order_by('-created_at')[:5]
 
+        read_result_ids = ExamResultNotificationReadStatus.objects.filter(
+            user=user
+        ).values_list('exam_result_id', flat=True)
+
+        unread_exam_results_count = ExamResult.objects.filter(
+            student=user,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).exclude(
+            id__in=read_result_ids
+        ).count()
+
+        read_notice_ids = ClassNoticeReadStatus.objects.filter(
+            user=user
+        ).values_list('class_notice_id', flat=True)
+        
+        unread_class_notices_count = ClassNotice.objects.filter(
+            class_obj_id__in=enrolled_class_ids,
+            is_active=True
+        ).exclude(
+            id__in=read_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).count()
 
         stats  = {
             'total_classes': enrollments.count(),
@@ -1904,6 +1926,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'absent_days':total_attendance.filter(status='absent').count(),
             'late_days':total_attendance.filter(status='late').count(),
 
+        }
+
+        stats['unread_notifications'] = {
+            'exam_results': unread_exam_results_count,
+            'class_notices': unread_class_notices_count,
+            'total': unread_exam_results_count + unread_class_notices_count
         }
 
         if active_class_id:
