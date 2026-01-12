@@ -59,7 +59,6 @@ export default function AddUser({ onSuccess } = {}) {
       // ignore toast errors
     }
     // developer fallback
-    console.error(msg)
   }
 
   function checkPasswordStrength(password) {

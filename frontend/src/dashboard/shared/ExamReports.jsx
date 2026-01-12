@@ -193,7 +193,7 @@ export default function ExamReports() {
         setSubjects(Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results || []))
       } catch (err) {
         toast?.showError?.('Failed to load exam data')
-        console.error(err)
+        // Error already shown via toast
       } finally {
         setLoading(false)
       }
@@ -256,7 +256,7 @@ export default function ExamReports() {
         setExamResults(Array.isArray(results) ? results : (results?.results || []))
       } catch (err) {
         toast?.showError?.('Failed to load exam results')
-        console.error(err)
+        // Error already shown via toast
       } finally {
         setLoadingResults(false)
       }

@@ -42,7 +42,7 @@ export default function Exams() {
       const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
       setAttachmentsMap(m => ({ ...m, [examId]: arr }))
     } catch (err) {
-      console.debug('failed to load attachments for', examId, err)
+      // Silently handle attachment load error
     }
   }
 
@@ -66,7 +66,7 @@ export default function Exams() {
           const ids = examsArr.map(x => x.id).filter(Boolean)
           ids.forEach(id => fetchAttachmentsForExam(id))
         } catch (err) {
-          console.debug('attachments prefetch failed', err)
+          // Silently handle prefetch failure
         }
       } catch (err) {
         toast.error(err.message || 'Failed to load exams')
@@ -134,7 +134,7 @@ export default function Exams() {
         return toast.error('An exam for this subject on the selected date already exists.')
       }
     } catch (err) {
-      console.debug('duplicate check failed', err)
+      // Silently handle duplicate check failure
     }
 
     // Prevent creating another active Final exam for the SAME subject client-side
@@ -151,7 +151,7 @@ export default function Exams() {
         }
       }
     } catch (err) {
-      console.debug('active final check failed', err)
+      // Silently handle active final check failure
     }
 
     // build payload including description and duration
@@ -190,7 +190,7 @@ export default function Exams() {
           await fetchAttachmentsForExam(res.id)
           toast.success(`${filesToUpload.length} resource(s) uploaded`)
         } catch (err) {
-          console.error('failed uploading edit-time files', err)
+          // Silently handle file upload failure
           toast.error('Failed to upload one or more files')
         } finally {
           setEditFiles([])
@@ -205,7 +205,7 @@ export default function Exams() {
         toast.success('Students notified')
       }
     } catch (err) {
-      console.warn('Failed to create class notice', err)
+      // Silently handle class notice creation failure
     }
       } catch (err) {
         toast.error(getErrorMessage(err) || 'Failed to update exam')
@@ -228,7 +228,7 @@ export default function Exams() {
       await fetchAttachmentsForExam(res.id)
       toast.success(`${filesToUpload.length} file(s) uploaded`)
     } catch (err) {
-      console.error('failed uploading create-time files', err)
+      // Silently handle file upload failure
       toast.error('Failed to upload one or more files')
     } finally {
       setCreateFiles([])
@@ -241,8 +241,8 @@ export default function Exams() {
       await api.createClassNotice({ title: `New exam: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || createForm.subject) })
       toast.success('Students notified')
     }
-  } catch (err) {
-    console.warn('Failed to create class notice', err)
+  } catch {
+    // Silently handle class notice creation failure
   }
   // close create modal after successful creation
   setCreateModalOpen(false)
@@ -276,7 +276,7 @@ export default function Exams() {
       document.querySelector('aside')?.scrollIntoView({ behavior: 'smooth' })
     } catch (err) {
       // ignore scrolling errors
-      console.warn('scrollIntoView failed', err)
+      // Silently handle scroll failure
     }
   }
 

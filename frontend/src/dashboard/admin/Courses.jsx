@@ -25,7 +25,6 @@ export default function Courses() {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    console.error(msg)
   }, [toast])
   const reportSuccess = useCallback((msg) => {
     if (!msg) return
