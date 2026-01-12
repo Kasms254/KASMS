@@ -191,9 +191,23 @@ export default function AddResults() {
 
   async function handleSave() {
     if (!selectedExam) return toast.error('Select exam')
-    // Validate inline errors first
+
+    // Determine which rows have changed: either marked dirty, or differ from saved snapshot
+    const snapshotById = Object.fromEntries(savedSnapshot.map(s => [s.id, s]))
+    const changedRows = results.filter(r => {
+      if (r.dirty) return true
+      const snap = snapshotById[r.id]
+      if (!snap) return true
+      // compare marks and remarks as the editable fields
+      return String(r.marks_obtained) !== String(snap.marks_obtained) || String(r.remarks || '') !== String(snap.remarks || '')
+    })
+
+    if (changedRows.length === 0) return toast.error('No changes to save')
+
+    // Validate only changed rows
     const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
     const validated = results.map(r => {
+      if (!changedRows.find(cr => cr.id === r.id)) return r
       const errors = { ...r.errors }
       if (r.marks_obtained === '' || r.marks_obtained == null) {
         errors.marks_obtained = 'Required'
@@ -206,33 +220,36 @@ export default function AddResults() {
       return { ...r, errors }
     })
 
-    // if any validation errors, update state and stop
-    if (validated.some(r => r.errors && Object.keys(r.errors).length > 0)) {
+    // if any validation errors on changed rows, update state and stop
+    if (validated.some(r => changedRows.find(cr => cr.id === r.id) && r.errors && Object.keys(r.errors).length > 0)) {
       setResults(validated)
       return toast.error('Fix validation errors before saving')
     }
 
-    // build payload
-    const payload = { results: results.map(r => ({ id: r.id, student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
+    // build payload only for changed rows
+    const payload = { results: changedRows.map(r => ({ id: r.id, student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
     setSaving(true)
     try {
       const res = await api.bulkGradeResults(payload)
 
       // backend returns { status, updated, errors }
       if (res.errors && Array.isArray(res.errors) && res.errors.length > 0) {
-        // attempt to attach errors to rows by extracting ids from messages
+        // attempt to attach errors to the changed rows by extracting ids from messages
         const errMap = {}
         res.errors.forEach(msg => {
           const m = msg && String(msg).match(/(\d+)/)
           if (m) errMap[Number(m[1])] = msg
         })
-        setResults(prev => prev.map(r => ({
-          ...r,
-          errors: {
-            ...r.errors,
-            save: errMap[r.id] || r.errors?.save
+        setResults(prev => prev.map(r => {
+          if (!changedRows.find(cr => cr.id === r.id)) return r
+          return {
+            ...r,
+            errors: {
+              ...r.errors,
+              save: errMap[r.id] || r.errors?.save
+            }
           }
-        })))
+        }))
         toast.error(`${res.errors.length} error(s) occurred while saving`) 
       }
 
