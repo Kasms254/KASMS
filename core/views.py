@@ -1890,6 +1890,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ).select_related('created_by').order_by('-created_at')[:5]
 
 
+        stats['unread_notifications'] = {
+            'exam_results': unread_exam_results_count,
+            'class_notices': unread_class_notices_count,
+            'total': unread_exam_results_count + unread_class_notices_count
+        }
+
         stats  = {
             'total_classes': enrollments.count(),
             'total_subjects': subjects.count(),
