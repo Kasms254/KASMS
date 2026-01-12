@@ -1581,9 +1581,7 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
 
-
 class ExamReportViewSet(viewsets.ModelViewSet):
-
 
     queryset = ExamReport.objects.select_related('subject', 'class_obj', 'created_by').prefetch_related('exams').all()
     serializer_class = ExamReportSerializer
