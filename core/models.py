@@ -258,6 +258,7 @@ class ExamResult(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
+    graded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'exam_results'
@@ -411,5 +412,20 @@ class ClassNoticeReadStatus(models.Model):
         return f"{self.user.username} read {self.class_notice.title}"
 
         
+class ExamResultNotificationReadStatus(models.Model):
+    user  = models.ForeignKey('User',on_delete=models.CASCADE, related_name='exam_result_notification_read_statuses')
+    exam_result = models.ForeignKey('ExamResult', on_delete=models.CASCADE, related_name='notification_read_statuses')
+    read_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        db_table = 'exam_result_notification_read_statuses'
+        unique_together = ['user', 'exam_result']
+        ordering = ['-read_at']
+        indexes= [
+            models.Index(fields =['user', 'exam_result']),
+            models.Index(fields=['read_at']),
 
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} read result for {self.exam_result.exam.title}"
