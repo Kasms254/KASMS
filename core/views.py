@@ -2020,12 +2020,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
             Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
         ).count()
 
-        stats['unread_notifications'] = {
-            'exam_results': unread_exam_results_count,
-            'class_notices': unread_class_notices_count,
-            'total': unread_exam_results_count + unread_class_notices_count
-        }
-
         stats  = {
             'total_classes': enrollments.count(),
             'total_subjects': subjects.count(),
@@ -2040,6 +2034,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'absent_days':total_attendance.filter(status='absent').count(),
             'late_days':total_attendance.filter(status='late').count(),
 
+        }
+
+        stats['unread_notifications'] = {
+            'exam_results': unread_exam_results_count,
+            'class_notices': unread_class_notices_count,
+            'total': unread_exam_results_count + unread_class_notices_count
         }
 
         if active_class_id:

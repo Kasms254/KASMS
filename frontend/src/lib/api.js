@@ -522,17 +522,6 @@ export async function markClassNoticeAsUnread(id) {
   return request(`/api/class-notices/${id}/mark_as_unread/`, { method: 'POST', body: {} })
 }
 
-// Mark an exam result notification as read/unread
-export async function markExamResultAsRead(id) {
-  if (!id) throw new Error('id is required')
-  return request(`/api/exam-results/${id}/mark_notification_as_read/`, { method: 'POST', body: {} })
-}
-
-export async function markExamResultAsUnread(id) {
-  if (!id) throw new Error('id is required')
-  return request(`/api/exam-results/${id}/mark_notification_as_unread/`, { method: 'POST', body: {} })
-}
-
 // =====================
 // Performance Analytics APIs
 // =====================
