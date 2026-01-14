@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, 
-    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance)
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog)
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
@@ -357,8 +357,6 @@ class ExamSerializer(serializers.ModelSerializer):
                 )
             return data
 
-    
-    
 class ExamResultSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -434,7 +432,6 @@ class BulkExamResultSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
     
-
 class AttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source = 'student.get_full_name', read_only=True)
@@ -469,7 +466,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
             
         return attrs
     
-
 class BulkAttendanceSerializer(serializers.Serializer):
     class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
     subject = serializers.PrimaryKeyRelatedField(
@@ -495,7 +491,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
 
         return value
     
-
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -526,7 +521,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
             ).exists()
         return False
     
-
 class ExamReportSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True
@@ -560,7 +554,6 @@ class ExamReportSerializer(serializers.ModelSerializer):
         
         return value
     
-
 class AttendanceSessionSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -635,8 +628,7 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['qr_code_secret'] = uuid.uuid4().hex
         return super().create(validated_data)
-
-    
+ 
 class AttendanceSessionListSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -652,7 +644,6 @@ class AttendanceSessionListSerializer(serializers.ModelSerializer):
         model = AttendanceSession
         fields = "__all__"
 
-    
 class SessionAttendanceSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -734,7 +725,6 @@ class QRAttendanceMarkSerializer(serializers.Serializer):
         attrs ['session'] = session
         return attrs
 
-
 class BulkSessionAttendanceSerializer(serializers.Serializer):
     
     session_id = serializers.IntegerField()
@@ -769,8 +759,6 @@ class BulkSessionAttendanceSerializer(serializers.Serializer):
 
         return value
 
-
-    
 class BiometricRecordSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -792,7 +780,6 @@ class BiometricRecordSerializer(serializers.ModelSerializer):
                             }
 
         return None
-
 
 class BiometricSyncSerializer(serializers.Serializer):
 
@@ -824,7 +811,6 @@ class BiometricSyncSerializer(serializers.Serializer):
 
         return value
 
-
 class AttendanceSessionLogSerializer(serializers.ModelSerializer):
 
     session_title = serializers.CharField(source='session.title', read_only=True)
@@ -832,5 +818,48 @@ class AttendanceSessionLogSerializer(serializers.ModelSerializer):
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     
     class Meta:
-        db_models = AttendanceSession
+        db_models = AttendanceSessionLog
+        fields = '__all__'
+        read_only_fields = ('timestamp')
+
+    def get_performed_by_name(self, obj):
+        return obj.performed_by.get_full_name() if obj.performed_by else 'System'
+
+class SessionStatisticsSerializer(serializers.Serializer):
+
+    total_students = serializers.IntegerField()
+    marked_count = serializers.IntegerField()
+    present_count = serializers.IntegerField()
+    late_count = serializers.IntegerField()
+    absent_count = serializers.IntegerField()
+    excused_count = serializers.IntegerField()
+    attendance_rate = serializers.FloatField()
+    on_time_rate = serializers.FloatField()
+
+    qr_scan_count = serializers.IntegerField()
+    manual_count = serializers.IntegerField()
+    biometric_count = serializers.IntegerField()
+    admin_count = serializers.IntegerField()
+
+
+class StudentAttendanceSummarySerializer(serializers.Serializer):
+    
+    student_id = serializers.IntegerField()
+    student_name = serializers.CharField()
+    student_svc_number = serializers.CharField()
+
+    total_sessions = serializers.IntegerField()
+    attended_sessions = serializers.IntegerField()
+    present_count = serializers.IntegerField()
+    late_count  = serializers.IntegerField()
+    absent_count = serializers.IntegerField()
+    excused_count  = serializers.IntegerField()
+
+
+    attendance_rate = serializers.FloatField()
+    punctuality_rate = serializers.FloatField()
+
+    recent_sessions = SessionAttendanceSerializer(many=True, read_only=True)
+    
+
         

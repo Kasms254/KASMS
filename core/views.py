@@ -1,7 +1,12 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus
-from .serializers import UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, BulkExamResultSerializer,ExamAttachmentSerializer
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
+ Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog)
+from .serializers import (
+    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
+    NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
+    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, 
+    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -2207,3 +2212,180 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'exams':ExamSerializer(upcoming_exams, many=True).data
         })
     
+# attendance
+
+class AttendanceSessionViewSet(viewsets.ModelViewSet):
+
+    queryset = AttendanceSession.objects.select_related(
+        'class_obj', 'subject', 'created_by'
+    ).all()
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filterset_fields = ['class_obj', 'subject', 'session_type', 'status', 'is_active']
+    search_fields = ['title', 'description']
+    ordering_fields = ['scheduled_start', 'created_at']
+    ordering  = ['-scheduled_start']
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return AttendanceSessionListSerializer
+        return AttendanceSessionSerializer
+
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'instructor':
+            queryset = queryset.filter(
+                Q(class_obj__instructor=user) |
+                Q(subject__instructor=user)
+            )
+
+        elif user.role == "student":
+            enrolled_class_ids = Enrollment.objects.filter(
+                student=user,
+                is_active=True
+            ).values_list('class_obj_id', flat=True)
+            queryset =queryset.filter(class_obj_id__in = enrolled_class_ids)
+
+        return queryset.annotate(
+            marked_count = Count(
+                'session-attendances', 
+                distinct=True
+            )
+        )
+
+    def perform_create(self, serializer):
+        session = serializer.save(created_by = self.request.user)
+
+        AttendanceSessionLog.objects.create(
+            session=session,
+            action = 'session_created',
+            performed_by = self.request.user,
+            description = f"Session '{session.title}' created",
+            ip_address = self.request.META.get('REMOTE_ADDR')
+        )
+
+
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+
+        session = self.get_object()
+
+        if session.start_session():
+            AttendanceSesssionLog.objects.create(
+                session= session,
+                action = 'session_started',
+                performed_by = request.user,
+                description = f"Session started",
+                ip_address = request.META.get('REMOTE_ADDR')
+            )
+
+        serializer = self.get_serializer(session)
+        return Response(
+            {
+                'status': 'success',
+                'message': 'Session started successfully',
+                'session': serializer.data
+            }
+        )
+
+        return Response(
+            {
+                'status':'error',
+                'message': 'Session cannot be started. Check session status.'
+            }, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=True, methods=['post'])
+    def end(self, request, pk=None):
+        session = self.get_object()
+
+        if session.end_session():
+
+            AttendanceSessionLog.objects.create(
+                session=session,
+                action = 'session_ended',
+                performed_by = request.user,
+                description = f"Session ended",
+                ip_address= request.META.get('REMOTE_ADDR')
+            )
+
+            serializer = self.get_serializer(session)
+            return Response({
+                'status': "success",
+                'message':'Session ended successuflly',
+                'session': serializer.data
+            })
+        return Response({
+            'status':'error',
+            'message':'Session cannot be ended. Check session status'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def qr_code(self, request, pk=None):
+        session = self.get_object()
+
+        if session.status != 'active':
+            return Response({
+                'error': 'QR Scanning is not enabled for this session'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+        token = session.generate_qr_token()
+
+        elapsed = (timezone.now() - session.qr_last_generated).total_seconds()\
+
+        expires_time = max(0, int(session.qr_refresh_interval - elapsed))
+
+        AttendanceSessionLog.objects.create(
+            session=session,
+            action='qr_generated',
+            performed_by=request.user,
+            description=f"QR code generated (count: {session.qr_generation_})",
+            metadata = {'token': token, 'expires_in': expires_in}
+
+        )
+        return Response({
+            'session_id':str(session.session_id),
+            'qr_token':token,
+            'expires_in':expires_in,
+            'refresh_interval':session.qr_refresh_interval,
+            'generated_at':session.qr_last_generated,
+            'generation_count':session.qr_generation_count
+        })
+
+    @action(detail=True, methods=['get'])
+    def statistics(self, request, pk=None):
+        session = self.get_object()
+
+        attendances = session.session_attendances.all()
+
+        status_counts = attendances.aggregrate(
+            present = Count(Case(When(status='present', then=1), output_field=IntergerField())),
+            late= Count(Case(When(status='late', then=1), output_field=IntergerField())),
+            absent = Count(Case(When(status='absent', then=1), output_field=IntergerField())),
+            excused = Count(Case(When(status='excused', then=1), output_field=IntergerField()))
+        )
+        
+        method_counts = attendances.aggregrate(
+            qr_scan=Count(Case(When(marking_method='qr_scan', then=1), output_field=IntergerField())),
+            manual = Count(Case(When(marking_method='manual', then=1), output_field=IntergerField())),
+            biometric = Count(Case(When(marking_method='biometric', then=1), output_field=IntergerField())),
+            admin = Count(Case(When(marking_method='admin', then=1), output_field=IntergerField()))
+        )
+
+        total_students = session.total_students
+        marked_count = attendances.count()
+
+        attendance_rate = (marked_count /total_students * 100) if total_students > 0 else 0
+        on_time_rate = (status_counts['present'] / marked_count * 100) if marked_count > 0 else 0
+
+        statistics = {
+            'total_students': total_students,
+            'marked_count':marked_count,
+            'present_count':present_count,
+            'late_count': late_count,
+            
+        }
+        
