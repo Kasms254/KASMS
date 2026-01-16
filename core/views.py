@@ -6,6 +6,7 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count, Avg
+from django.db import transaction
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -1145,48 +1146,45 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_grade(self, request):
         serializer = BulkExamResultSerializer(data=request.data)
-
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         results_data = serializer.validated_data['results']
         updated_count = 0
-        notified_count = 0 
+        notified_count = 0
         errors = []
 
         with transaction.atomic():
             for result_data in results_data:
                 try:
                     result = ExamResult.objects.get(
-                        id = result_data.get('id'),
-                        exam__subject__instructor = request.user
+                        id=result_data.get('id'),
+                        exam__subject__instructor=request.user
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = reuslt_data.get('remarks', '')
-                    results.is_submitted = True
+                    result.remarks = result_data.get('remarks', '')
+                    result.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
                     result.graded_at = timezone.now()
                     result.save()
 
-                    updated_count +=1
+                    updated_count += 1
 
                     if self._create_grade_notification(result):
-                        notified_count +=1
+                        notified_count += 1
 
                 except ExamResult.DoesNotExist:
                     errors.append(f"Result {result_data.get('id')} not found")
                 except Exception as e:
                     errors.append(f"Error processing result {result_data.get('id')}: {str(e)}")
 
-
-            
         return Response({
             'status': 'success',
             'updated': updated_count,
             'notified': notified_count,
-            'errors':errors
+            'errors': errors
         })
 
     @action(detail=True, methods=['post'])
@@ -1890,13 +1888,25 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ).select_related('created_by').order_by('-created_at')[:5]
 
 
-        stats['unread_notifications'] = {
-            'exam_results': unread_exam_results_count,
-            'class_notices': unread_class_notices_count,
-            'total': unread_exam_results_count + unread_class_notices_count
-        }
+        # compute unread class notices (including grade notifications)
+        read_class_notice_ids = ClassNoticeReadStatus.objects.filter(
+            user=request.user
+        ).values_list('class_notice_id', flat=True)
 
-        stats  = {
+        unread_class_notices_qs = ClassNotice.objects.filter(
+            class_obj_id__in=enrolled_class_ids,
+            is_active=True
+        ).exclude(
+            id__in=read_class_notice_ids
+        ).filter(
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        )
+
+        # grade-related class notices are treated as exam result notifications
+        unread_exam_results_count = unread_class_notices_qs.filter(title__icontains='Grade').count()
+        unread_class_notices_count = unread_class_notices_qs.exclude(title__icontains='Grade').count()
+
+        stats = {
             'total_classes': enrollments.count(),
             'total_subjects': subjects.count(),
             'total_exams_taken':ExamResult.objects.filter(
