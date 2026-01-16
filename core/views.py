@@ -2384,8 +2384,685 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         statistics = {
             'total_students': total_students,
             'marked_count':marked_count,
-            'present_count':present_count,
-            'late_count': late_count,
-            
+            'present_count':status_counts['present'],
+            'late_count': status_counts['late'],
+            'absent_count': status_counts['absent'],
+            'excused_count':status_counts['excused'],
+            'attendance_rate':round(attendance_rate, 2),
+            'on_time_rate':round(on_time_rate, 2),
+            'qr_scan_count':method_counts['qr_scan'],
+            'manual_count':method_counts['manual'],
+            'biometric_count':method_counts['biometric'],
+            'admin_count':method_counts['admin']
         }
         
+        return Response({
+            'session': AttendanceSessionSerializer(session).data,
+            'count':attendances.count(),
+            'attendances':serializer.data
+        })
+
+
+    @action(detail=True, methods=['get'])
+    def unmarked_students(self, request, pk=None):
+        session = self.get_object()
+
+        marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
+
+        enrolled_students = User.objects.filter(
+            enrollments__class_obj = session.class_obj,
+            enrollments__is_active = True,
+            role='student',
+            is_active=True
+        ).exclude(id__in=marked_student_ids).order_by('first_name', 'last_name')
+
+        from .serializers import UserListSerializer
+
+        serializer = UserListSerializer(enrolled_students, many=True)
+
+        return Response({
+            'session_id':session.id,
+            'session_title':session.title,
+            'count':enrolled_students.count(),
+            'unmarked_students':serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
+
+    def mark_absent(self, request, pk=None):
+        session = self.get_object()
+
+        if session.status != 'completed':
+            return Response({
+                'error': 'Session must be completed before marking absent students'
+            }, status= status.HTTP_400_BAD_REQUEST)
+
+
+        marked_student_ids = session.session_attendance.values_list('student_id', flat=True)
+        unmarked_students = User.objects.filter(
+            enrollments__class_obj = session.class_obj,
+            enrollments__is_active = True,
+            role='student',
+            is_active=True
+        ).exclude(id__in=marked_student_ids)
+
+        absent_records = []
+
+        for student in unmarked_students:
+            absent_records.append(SessionAttendance(
+                session=session,
+                student= student,
+                status = 'absent',
+                marking_method = 'admin',
+                marked_by = request.user,
+                remarks = 'Automatically marked absent after session ended'
+            ))
+
+        SessionAttendance.objects.bulk_create(absent_records)
+
+        AttendanceSessionLog.objects.create(
+            session=session,
+            action= 'bulk_import',
+            performed_by=request.user,
+            description = f"Marked {len(absent_records)} students as absent",
+            metadata = {'count': len(absent_records)}
+        )
+
+        return Response({
+            'status': 'success',
+            'message':f'{len(absent_records)} students marked as absent',
+            'count':len(absent_records)
+        })
+
+    @action(detail=True, methods=['get'])
+    def export_csv(self, request, pk=None):
+
+        session = self.get_object()
+
+        output = io.stringIO()
+        writer = csv.writer(output)
+
+        writer.writerow(
+            [
+                'student Name', 'SVC Number', 'Email', 'Status', 
+                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks'
+            ]
+        )
+
+        attendances = session.session_attendances.select_related('student').order_by('student__last_name')
+        for attendance in attendances:
+            writer.writerow([
+                attendance.student.get_full_name(),
+                attendance.student.svc_number,
+                attendance.student.email,
+                attendance.get_status_display(),
+                attendance.get_marking_method_display(),
+                attendance.marked_at.strftime('%Y-%m-%d %H:%M:%S'),
+                attendance.minutes_late if attendance.status == 'late' else '',
+                attendance.remarks or ''
+            ])
+
+        ouput.seek(0)
+        response = HttpResponse(output.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="attendance_{session.session_id}.csv"'
+
+        return response
+
+
+    @action(detail=False, methods=['get'])
+    def my_sessions(self, request):
+
+        if request.user.role != 'instructor':
+            return Response({
+                'error': 'only instructors can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        session = self.get_queryset().filter(
+            Q(class_obj__instructor=request.user)|
+            Q(subject__instructor=request.user).annotate(
+                marked_count=Count('session_attendances', distinct=True)
+            ))
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            sessions = sessions.filter(status=status_filter)
+
+        serializer = self.get_serializer(sessions, many=True)
+
+        return Response({
+            'count':sessions.count(),
+            'sessions':serializer.data
+        })
+
+        
+    @action(detail=False, methods=['get'])
+    def active_sessions(self, request):
+
+        active_sessions = self.get_queryset().filter(
+            status='active', is_active=True)
+
+        serializer = self.get_serializer(active_sessions, many=True)
+        return Response(
+            {
+                'count':acitve_sesssions.count(),
+                'sessions':serializer.data
+            }
+        )
+
+
+class SessionAttendanceViewset(viewsets.ModelViewSet):
+
+    queryset = SessionAttendance.objects.select_related(
+        'session', 'student', 'marked_by'
+    ).all()
+
+    serializer_class = SessionAttendanceSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['session', 'student', 'status', 'marking_method']
+    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
+    ordering = ['marked_at']
+
+    def get_querset(self):
+
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'instructor':
+
+            queryset = queryset.filter(
+                Q(session__class_obj__instructor=user) |
+                Q(session__subject__instructor=user)
+            )
+        elif user.role == 'student':
+
+            queryset =queryset.filter(student=user)
+
+
+        return queryset
+
+
+    def perform_create(self, serializer):
+        attendance = serializer.save(marked_by=self.request.user)
+
+        AttendanceSessionLog.objects.create(
+            session=attendance.session,
+            action='attendance_marked',
+            performed_by=self.request.user,
+            description=f"Attendance marked for {attendance.student.get_full_name()}",
+            metadata ={
+                'student_id':attendance.student.id,
+                'status':attendance.status,
+                'method':attendance.marking_method
+            }
+        )
+
+
+    @action(detail=False, methods=['post'])
+    def mark_qr(self, request):
+        
+        serializer = QRAttendanceMarkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        session = serializer.validated_data['session']
+        student = request.user
+
+
+        if not Enrollment.objects.filter(
+            student=student,
+            class_obj=session.class_obj,
+            is_active=True
+        ).exists():
+            return Response({
+                'error': 'You are not enrolled in this class'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if SessionAttendance.objects.filter(session=session, student=student).exists():
+            return Response({
+                'error': 'You have already marked attendance for this session.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+        attendance_time = timezone.now()
+        attendance_status = session.get_attendance_status_for_time(attendance_time)
+
+        attendance = SessionAttendance.objects.create(
+            session=session,
+            student=student,
+            status= attendance_status,
+            marking_method = 'qr_scan',
+            marked_by = student,
+            latitude = serializer.validated_data.get('latitude'),
+            longitude = serializer.validated_data.get('longitude'),
+            ip_address = request.META.get('REMOTE_ADDR'),
+            user_agent= request.META.get('HTTP_USER_AGENT', '')
+
+
+        )
+
+        return Response({
+            'status': 'success',
+            'message':f'Attendance marked as {attendance.get_status_display()}',
+            'attendance':SessionAttendanceSerializer(attendance).data
+        })
+
+    @action(detail=False, methods=['post'])
+    def bulk_mark(self, request):
+
+        serializer = BulkSessionAttendanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+
+        session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
+        records = serializer.validated_data['attendance_records']
+
+        created_count = 0
+        updated_count = 0
+        errors =[]
+
+        for record in records:
+            try:
+                student = User.objects.get(id=record['student_id'], role='student')
+
+                if not Enrollment.objects.filter(
+                    student=student,
+                    class_obj=session.class_obj,
+                    is_active=True
+                ).exists():
+                    errors.append(f"Student {student.get_full_name()} is not enrolled.")
+                    continue
+
+                attendance, created  =SessionAttendance.objects.update_or_create(
+                    session = session,
+                    student = student,
+                    defaults = {
+                        'status': record['status'],
+                        'marking_method': 'manual',
+                        'marked_by': request.user,
+                        'remarks':record.get('remarks', '')
+                    }
+                )
+
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+
+            except User.DoesNotExist:
+                errors.append(f"Student ID {record['student_id']} not found")
+            except Exception as e:
+                errors.append(f"Error processing student{record['student_id']}: {str(e)}")
+
+
+        AttendanceSessionLog.objects.create(
+            session=session,
+            action = 'bulk_import',
+            performed_by=f"Bulk attendance marking",
+            metadata = {
+                'created':created_count,
+                'updated':updated_count,
+                'errors':len(errors)
+            }
+        )    
+
+
+        return Response({
+            'status':'success',
+            'created':created_count,
+            'updated':updated_count,
+            'errors':errors
+        })
+
+    @action(detail=False, methods=['get'])
+    def my_attendance(self, request):
+
+        if request.user.role != 'student':
+            return Response({
+                'error':'Only students can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        attendances = self.get_queryset().filter(student=request.user).order_by('-marked_at')
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if start_date:
+            attendances = attendances.filter(marked_at__gte=start_date)
+        if end_date:
+            attendances = attendances.filter(marked_at__lte=end_date)
+
+
+        serializer = self.get_serializer(attendances, many=True)
+
+        total = attendances.count()
+        present= attendances.filter(status='present').count()
+        late = attendances.filter(status='late').count()
+
+        return Response({
+            'count':total,
+            'statistics':{
+                'total':total,
+                'present':present,
+                'late':late,
+                'absent':attendances.filter(status='absent').count(),
+                'excused':attendances.filter(status='excused').count(),
+                'attendance_rate':round((present + late) / total * 100, 2) if total > 0 else 0
+            },
+            'attendances': serializer.data
+        })
+
+
+class BiometricRecordViewset(viewsets.ModelViewSet):
+
+    queryset = BiometricRecord.objects.select_related(
+        'student', 'session', 'session_attendance'
+    ).all()
+
+    serializer_class = BiometricRecordSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filterset_fields =['device_id', 'device_type', 'student', 'session', 'processed']
+    search_fields = ['student__first_name', 'student__last_name', 'biometric_id']
+    ordering = ['-scan_time']
+
+    @action(detail=False, methods=['post'])
+    def sync(self, request):
+        serializer = BiometricSyncSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        device_id = serializer.validated_data['device_id']
+        device_type = serializer.validated_data['device_type']
+        records = serializer.validated_data['records']
+
+        created_count = 0
+        processed_count = 0
+        errors = []
+
+        for record in records:
+            try:
+
+                scan_time = parser.parse(record['scan_time'])
+
+                student = User.objects.filter(
+                    svc_number=record['biometric_id'],
+                    role='student',
+                    is_active=True
+                ).first()
+
+                if not student:
+                    errors.append(f"Student not found for biometric ID: {record['biometric_id']}")
+                    continue
+                biometric_record, created = BiometricRecord.objects.get_or_created(
+                    device_id = device_id,
+                    biometric_id = record['biometric_id'],
+                    scan_time = scan_time,
+                    defaults = {
+                        'device_type': device_type,
+                        'student': student,
+                        'verification_type': record.get('verification_type', ''),
+                        'verification_score':record.get('verification_score'),
+                        'raw_data': record
+                    }
+                )
+
+                if created:
+                    created_count +=1
+
+                    attendance = biometric_record.process_to_attendance()
+                    if attendance:
+                        processed_count +=1
+            except Exception as e:
+                errors.append(f"Error processing record for {record.get('biometric_id')}: {str(e)}")
+        
+        return Response({
+            'status': 'success',
+            'created': created_count,
+            'processed': processed_count,
+            'errros':errors
+        })
+
+    @action(detail=False, methods=['post'])
+    def process_pending(self, request):
+        pending_records = BiometricRecord.objects.filter(
+            processed = False
+        ).select_related('student')
+
+        processed_count =0 
+        faild_count = 0
+        errors = []
+
+        for record in pending_records:
+            try:
+                attendance  =record.process_to_attendance()
+                if attendance:
+                    processed_count +=1
+                else:
+                    faild_count +=1
+                    if record.error_message:
+                        errors.append(f"Record {record.id}: {record.error_message}")
+            except Exception as e:
+                faild_count += 1
+                errors.append(f"Record {record.id}: {str(e)}")
+
+        return Response({
+            'status':'success',
+            'processed':processed_count,
+            'failed': failed_count,
+            'errors':errors
+        })
+
+    @action(detail=False, methods=['get'])
+    def unprocessed(self, request):
+        unprocessed = self.get_queryset().filter(processed=False)
+        serializer = self.get_serializer(unprocessed, many=True)
+
+        return Response(
+            {
+                'count':unprocessed.count(),
+                'records':serializer.data
+            }
+        )
+
+class AttendanceReportViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    @action(detail=False, methods=['get'])
+    def class_summary(self, request):
+        class_id = request.query_params.get('class_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if not class_id:
+            return Response({
+                'error': 'class_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            class_obj = Class.objects.get(id=class_id)
+
+        except Class.DoesNotExist:
+            return Response({
+                'error': 'Class not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+        session_qs = AttendanceSession.objects.filter(class_obj=class_obj)
+
+        if start_date:
+            session_qs = session_qs.filter(scheduled_start__gte=start_date)
+        if end_date:
+            sesssion_qs = session_qs.filter(scheduled_start_lte=end_date)
+
+
+        sessions = session_qs.order_by('-scheduled_start')
+
+        enrolled_students = User.objects.filter(
+            enrollments__class_obj = class_obj,
+            enrollments__is_active = True,
+            role='student',
+            is_active=True
+        ).distinct()
+
+        student_stats =[]
+
+        for student in enrolled_students:
+            attendances = SessionAttendance.objects.filter(
+                session__in =sessions,
+                student = student
+            )
+
+            total_sessions = sessions.count()
+            attended = attendances.count()
+            present = attendances.filter(status='present').count()
+            late = attendances.filter(status='late').count()
+            absent = total_sessions - attended
+
+            attendance_rate = (attended / total_sessions * 100) if total_sessions > 0 else 0
+            punctuality_rate  =(present/attended * 100) if attended > 0 else 0
+
+            student_stats.append({
+                'student_id': student.id,
+                'student_name':student.get_full_name(),
+                'svc_number':student.svc_number,
+                'total_sessions':total_sessions,
+                'attended':attended,
+                'present':present,
+                'late':late,
+                'absent':absent,
+                'excused':attendances.filter(status='excused').count(),
+                'attendance_rate':round(attendance_rate, 2),
+                'punctuality_rate':round(punctuality_rate, 2)
+
+                            })
+
+        student_stats.sort(key=lambda x: x['attendance_rate'], reverse=True)
+
+        total_sessions_count = sessions.count()
+        total_attendances = SessionAttendance.objects.filter(
+            session__in = sessions
+        ).count()
+        expected_outcomes = total_sessions_count * enrolled_students_count()
+
+        class_attendance_rate = (total_attendances / expected_attendances * 100) if expected_attendances > 0 else 0
+
+        return Response({
+            'class':{
+                'id': class_obj.id,
+                'name': class_obj.name,
+                'course': class_obj.course.name if hasattr(class_obj, 'course') else None
+            },
+            'period':{
+                'start_date':start_date,
+                'end_date':end_date,
+                'total_sessions':total_sessions_count
+            },
+            'overall_statistics':{
+                'total_students':enrolled_students.count(),
+                'total_sessions':total_sessions.count(),
+                'expected_attendances':expected_attendances,
+                'actual_attendances':total_attendances,
+                'class_attendance_rate':round(class_attendance_rate, 2)
+            },
+            'student_statistics': student_stats
+        })
+
+    
+    @action(detail=False, methods=['get'])
+    def student_detail(self, request):
+        
+        student_id = request.query_params.get('student_id')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if not student_id:
+            return Response({
+                'error': 'student__id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student = User.objects.get(id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Student not found'
+            }, status = status.HTTP_404_NOT_FOUND)
+
+
+        enrolled_classes = Class.objects.filter(
+            enrollments__student = student,
+            enrollments__is_active = True
+        ).distinct()
+
+        attendances_qs = SessionAttendance.objects.filter(student=student)
+
+        if start_date:
+            attendances_qs = attendances_qs.filter(marked_at__gte=start_date)
+        if end_date:
+            attendances_qs = attendances_qs.filter(marked_at__lte=end_date)
+
+
+        attendances  =attendances_qs.select_related('session', 'session__class_obj', 'session__subject')
+
+        total_attendances = attendances.count()
+        status_breakdown ={
+            'present':attendances.filter(status='present').count(),
+            'late':attendances.filter(status='late').count(),
+            'absent':attendances.filter(status='absent').count(),
+            'excused':attendanes.filter(status='excused').count()
+        }
+
+        method_breakdown = {
+            'qr_scan': attendances.filter(marking_method='qr_scan').count(),
+            'manual': attendances.filter(marking_method='manual').count(),
+            'biometric':attendances.filter(marking_method='biometric').count(),
+            'admin':attendances.filter(marking_method='admin').count()
+                     }
+
+
+        class_breakdown = []
+        for class_obj in enrolled_classes:
+            class_attendances = attendances.filter(session__class_obj=class_obj)
+            class_sessions = AttendanceSession.objects.filter(
+                class_obj=class_obj
+            )
+
+            if start_date:
+                class_sessions = class_sessions.filter(scheduled__start_gte = start_date)
+            if end_date:
+                class_sessions = class_sessions.filter(scheduled_start_lte=end_date)
+
+            total_class_sessions = class_sessions.count()
+            attended = class_attendances.count()
+            attendance_rate = (attended / total_class_sessions * 100) if total_class_sessions > 0 else 0
+
+            class_breakdown.append({
+                'class_id':class_obj.id,
+                'class_name':class_obj.name,
+                'total_sessions':total_class_sessions,
+                'attended':attended,
+                'present':class_attendances.filter(status='present').count(),
+                'late':class_attendances.filter(status='late').count(),
+                'absent':total_class_sessions - attended,
+                'attendance_rate':round(attendance_rate, 2)
+            })
+
+            recent = attendances.order_by('-marked_at')[:20]
+
+            return Response({
+                'student':{
+                    'id':student.id,
+                    'name':student.get_full_name(),
+                    'svc_number':student.svc_number,
+                    'email':student.email
+                },
+                'period':{
+                    'start_date':start_date,
+                    'end_date':end_date
+                },
+                'overall_statistics':{
+                    'total_attendances':total_attendances,
+                    'status_breakdown':status_breakdown,
+                    'method_breakdown':method_breakdown
+                },
+                'class_breakdows':class_breakdown,
+                'recent_attendances': SessionAttendanceSerializer(recent, many=True).data
+            })
+            
+
