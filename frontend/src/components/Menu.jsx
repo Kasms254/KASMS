@@ -83,10 +83,22 @@ const menuItems = [
         visible: ['instructor', 'student',],
       },
       {
-        icon: 'CheckSquare',
-        label: 'Attendance',
-        href: '/list/attendance',
-        visible: ['admin', 'instructor', 'student',],
+        icon: 'QrCode',
+        label: 'Attendance Sessions',
+        href: '/list/attendance-sessions',
+        visible: ['instructor'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'My Attendance',
+        href: '/list/my-attendance',
+        visible: ['student'],
+      },
+      {
+        icon: 'BarChart',
+        label: 'Attendance Reports',
+        href: '/list/attendance-reports',
+        visible: ['admin', 'instructor'],
       },
       {
         icon: 'Bell',

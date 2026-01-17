@@ -1,0 +1,635 @@
+import React, { useEffect, useState, useCallback } from 'react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, PieChart, Pie, Cell, Legend
+} from 'recharts'
+import {
+  Search, Filter, Download, Calendar, Users, TrendingUp,
+  TrendingDown, AlertTriangle, ChevronDown, RefreshCw,
+  CheckCircle, XCircle, Clock, Award, Target, FileText
+} from 'lucide-react'
+import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
+import useAuth from '../../hooks/useAuth'
+
+const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6']
+const STATUS_COLORS = {
+  present: '#10b981',
+  late: '#f59e0b',
+  absent: '#ef4444',
+  excused: '#3b82f6'
+}
+
+export default function AttendanceReports() {
+  const { user } = useAuth()
+  const toast = useToast()
+
+  // State
+  const [loading, setLoading] = useState(false)
+  const [classes, setClasses] = useState([])
+  const [selectedClass, setSelectedClass] = useState('')
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10)
+  })
+
+  // Report data
+  const [classSummary, setClassSummary] = useState(null)
+  const [trendData, setTrendData] = useState([])
+  const [lowAttendanceStudents, setLowAttendanceStudents] = useState([])
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [studentDetail, setStudentDetail] = useState(null)
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'trends' | 'alerts' | 'student'
+
+  // Load classes
+  useEffect(() => {
+    async function loadClasses() {
+      try {
+        const data = user?.role === 'admin'
+          ? await api.getAllClasses('is_active=true')
+          : await api.getMyClasses()
+        const list = Array.isArray(data) ? data : (data?.results || [])
+        setClasses(list)
+        if (list.length > 0) {
+          setSelectedClass(list[0].id)
+        }
+      } catch (err) {
+        console.error('Failed to load classes:', err)
+      }
+    }
+    loadClasses()
+  }, [user])
+
+  // Load class summary
+  const loadClassSummary = useCallback(async () => {
+    if (!selectedClass) return
+    setLoading(true)
+    try {
+      const data = await api.getClassAttendanceSummary(selectedClass, dateRange.startDate, dateRange.endDate)
+      setClassSummary(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to load class summary')
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedClass, dateRange, toast])
+
+  // Load trend data
+  const loadTrendData = useCallback(async () => {
+    if (!selectedClass) return
+    try {
+      const data = await api.getAttendanceTrend(selectedClass, 30)
+      setTrendData(data?.trend || [])
+    } catch (err) {
+      console.error('Failed to load trend data:', err)
+    }
+  }, [selectedClass])
+
+  // Load low attendance alerts
+  const loadLowAttendanceAlerts = useCallback(async () => {
+    try {
+      const data = await api.getLowAttendanceAlerts(selectedClass || null, 75)
+      setLowAttendanceStudents(data?.students || data || [])
+    } catch (err) {
+      console.error('Failed to load alerts:', err)
+    }
+  }, [selectedClass])
+
+  // Load student detail
+  const loadStudentDetail = useCallback(async () => {
+    if (!selectedStudent) return
+    try {
+      const data = await api.getStudentAttendanceDetail(selectedStudent, dateRange.startDate, dateRange.endDate)
+      setStudentDetail(data)
+    } catch (err) {
+      toast.error(err.message || 'Failed to load student detail')
+    }
+  }, [selectedStudent, dateRange, toast])
+
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      loadClassSummary()
+    } else if (activeTab === 'trends') {
+      loadTrendData()
+    } else if (activeTab === 'alerts') {
+      loadLowAttendanceAlerts()
+    } else if (activeTab === 'student' && selectedStudent) {
+      loadStudentDetail()
+    }
+  }, [activeTab, loadClassSummary, loadTrendData, loadLowAttendanceAlerts, loadStudentDetail, selectedStudent])
+
+  // Format date
+  function formatDate(dt) {
+    if (!dt) return '—'
+    return new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // Prepare pie chart data
+  const getPieChartData = () => {
+    if (!classSummary?.by_status) return []
+    return Object.entries(classSummary.by_status).map(([status, count]) => ({
+      name: status.charAt(0).toUpperCase() + status.slice(1),
+      value: count,
+      fill: STATUS_COLORS[status] || '#9ca3af'
+    }))
+  }
+
+  // Export report
+  async function handleExport() {
+    if (!selectedClass) return
+    try {
+      // Generate PDF report using jspdf
+      const { jsPDF } = await import('jspdf')
+      await import('jspdf-autotable')
+
+      const doc = new jsPDF()
+      const className = classes.find(c => c.id === Number(selectedClass))?.name || 'Class'
+
+      doc.setFontSize(18)
+      doc.text(`Attendance Report - ${className}`, 14, 22)
+
+      doc.setFontSize(11)
+      doc.text(`Period: ${dateRange.startDate} to ${dateRange.endDate}`, 14, 32)
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 38)
+
+      if (classSummary) {
+        // Summary stats
+        doc.setFontSize(14)
+        doc.text('Summary', 14, 52)
+
+        doc.setFontSize(10)
+        const summaryData = [
+          ['Total Sessions', classSummary.total_sessions || 0],
+          ['Total Students', classSummary.total_students || 0],
+          ['Average Attendance Rate', `${(classSummary.attendance_rate || 0).toFixed(1)}%`],
+          ['Present', classSummary.by_status?.present || 0],
+          ['Late', classSummary.by_status?.late || 0],
+          ['Absent', classSummary.by_status?.absent || 0],
+        ]
+
+        doc.autoTable({
+          startY: 56,
+          head: [['Metric', 'Value']],
+          body: summaryData,
+          theme: 'grid',
+          headStyles: { fillColor: [99, 102, 241] }
+        })
+      }
+
+      doc.save(`attendance_report_${className}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`)
+      toast.success('Report exported successfully')
+    } catch (err) {
+      toast.error('Failed to export report')
+    }
+  }
+
+  return (
+    <div className="p-4 md:p-6 text-black">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-black">Attendance Reports</h1>
+          <p className="text-sm text-gray-600 mt-1">Analyze attendance patterns and identify students at risk</p>
+        </div>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+        >
+          <Download className="w-5 h-5" />
+          Export Report
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <label className="block text-sm text-gray-600 mb-1">Class</label>
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Classes</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name || c.class_code}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={dateRange.startDate}
+              onChange={(e) => setDateRange(d => ({ ...d, startDate: e.target.value }))}
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">End Date</label>
+            <input
+              type="date"
+              value={dateRange.endDate}
+              onChange={(e) => setDateRange(d => ({ ...d, endDate: e.target.value }))}
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => {
+                if (activeTab === 'overview') loadClassSummary()
+                else if (activeTab === 'trends') loadTrendData()
+                else if (activeTab === 'alerts') loadLowAttendanceAlerts()
+              }}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-sm mb-6">
+        <div className="flex border-b overflow-x-auto">
+          {[
+            { id: 'overview', label: 'Overview', icon: Target },
+            { id: 'trends', label: 'Trends', icon: TrendingUp },
+            { id: 'alerts', label: 'Low Attendance Alerts', icon: AlertTriangle },
+            { id: 'student', label: 'Student Detail', icon: Users }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap transition border-b-2 ${
+                activeTab === tab.id
+                  ? 'text-indigo-600 border-indigo-600'
+                  : 'text-gray-600 border-transparent hover:text-gray-900'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {loading ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading report data...</p>
+            </div>
+          ) : !classSummary ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto" />
+              <h3 className="mt-4 text-gray-700 font-medium">Select a Class</h3>
+              <p className="text-sm text-gray-500 mt-1">Choose a class to view attendance reports</p>
+            </div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Total Sessions</div>
+                      <div className="text-xl font-bold">{classSummary.total_sessions || 0}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Total Students</div>
+                      <div className="text-xl font-bold">{classSummary.total_students || 0}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      (classSummary.attendance_rate || 0) >= 75 ? 'bg-emerald-100' : 'bg-red-100'
+                    }`}>
+                      <Target className={`w-5 h-5 ${
+                        (classSummary.attendance_rate || 0) >= 75 ? 'text-emerald-600' : 'text-red-600'
+                      }`} />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Attendance Rate</div>
+                      <div className="text-xl font-bold">{(classSummary.attendance_rate || 0).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <Award className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Punctuality</div>
+                      <div className="text-xl font-bold">{(classSummary.punctuality_rate || 0).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Pie Chart - Status Distribution */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="font-semibold mb-4">Attendance Distribution</h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={getPieChartData()}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {getPieChartData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Bar Chart - By Method */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="font-semibold mb-4">Marking Method Breakdown</h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={Object.entries(classSummary.by_method || {}).map(([method, count]) => ({
+                          method: method.replace('_', ' '),
+                          count
+                        }))}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="method" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Breakdown */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h3 className="font-semibold mb-4">Status Breakdown</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(classSummary.by_status || {}).map(([status, count]) => (
+                    <div key={status} className={`p-4 rounded-lg ${
+                      status === 'present' ? 'bg-emerald-50' :
+                      status === 'late' ? 'bg-yellow-50' :
+                      status === 'absent' ? 'bg-red-50' : 'bg-blue-50'
+                    }`}>
+                      <div className={`text-sm ${
+                        status === 'present' ? 'text-emerald-700' :
+                        status === 'late' ? 'text-yellow-700' :
+                        status === 'absent' ? 'text-red-700' : 'text-blue-700'
+                      }`}>{status.charAt(0).toUpperCase() + status.slice(1)}</div>
+                      <div className="text-2xl font-bold mt-1">{count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Trends Tab */}
+      {activeTab === 'trends' && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="font-semibold mb-4">Attendance Trend (Last 30 Days)</h3>
+          {trendData.length === 0 ? (
+            <div className="text-center py-8">
+              <TrendingUp className="w-12 h-12 text-gray-400 mx-auto" />
+              <p className="mt-4 text-gray-600">No trend data available</p>
+            </div>
+          ) : (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tickFormatter={formatDate} />
+                  <YAxis domain={[0, 100]} unit="%" />
+                  <Tooltip
+                    formatter={(value) => [`${value.toFixed(1)}%`, 'Attendance Rate']}
+                    labelFormatter={formatDate}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="attendance_rate"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ fill: '#6366f1' }}
+                    name="Attendance Rate"
+                  />
+                  {trendData[0]?.moving_average !== undefined && (
+                    <Line
+                      type="monotone"
+                      dataKey="moving_average"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="3-Day Moving Avg"
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alerts Tab */}
+      {activeTab === 'alerts' && (
+        <div className="space-y-6">
+          <div className="bg-yellow-50 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-yellow-800">Low Attendance Alert</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Students with attendance below 75% may need intervention.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            {lowAttendanceStudents.length === 0 ? (
+              <div className="p-8 text-center">
+                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
+                <h3 className="mt-4 text-gray-700 font-medium">No Low Attendance Alerts</h3>
+                <p className="text-sm text-gray-500 mt-1">All students are maintaining acceptable attendance levels</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Student</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">SVC Number</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Class</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Attendance Rate</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Total Sessions</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lowAttendanceStudents.map((student, idx) => (
+                      <tr key={student.id || idx} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium">
+                          {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{student.svc_number || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{student.class_name || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            (student.attendance_rate || 0) < 50 ? 'bg-red-100 text-red-700' :
+                            (student.attendance_rate || 0) < 75 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {(student.attendance_rate || 0).toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{student.total_sessions || 0}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => { setSelectedStudent(student.id); setActiveTab('student') }}
+                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Student Detail Tab */}
+      {activeTab === 'student' && (
+        <div className="space-y-6">
+          {/* Student Selector */}
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <label className="block text-sm text-gray-600 mb-2">Select Student</label>
+            <select
+              value={selectedStudent || ''}
+              onChange={(e) => setSelectedStudent(e.target.value ? Number(e.target.value) : null)}
+              className="w-full md:w-auto px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Choose a student...</option>
+              {lowAttendanceStudents.map(student => (
+                <option key={student.id} value={student.id}>
+                  {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim()} ({student.svc_number})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!selectedStudent ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <Users className="w-12 h-12 text-gray-400 mx-auto" />
+              <h3 className="mt-4 text-gray-700 font-medium">Select a Student</h3>
+              <p className="text-sm text-gray-500 mt-1">Choose a student from the dropdown to view their attendance details</p>
+            </div>
+          ) : !studentDetail ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading student details...</p>
+            </div>
+          ) : (
+            <>
+              {/* Student Summary */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h3 className="font-semibold mb-4">
+                  {studentDetail.student_name || 'Student'} - Attendance Summary
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600">Attendance Rate</div>
+                    <div className="text-2xl font-bold">{(studentDetail.attendance_rate || 0).toFixed(1)}%</div>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg p-4">
+                    <div className="text-sm text-emerald-700">Present</div>
+                    <div className="text-2xl font-bold text-emerald-600">{studentDetail.present_count || 0}</div>
+                  </div>
+                  <div className="bg-yellow-50 rounded-lg p-4">
+                    <div className="text-sm text-yellow-700">Late</div>
+                    <div className="text-2xl font-bold text-yellow-600">{studentDetail.late_count || 0}</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-4">
+                    <div className="text-sm text-red-700">Absent</div>
+                    <div className="text-2xl font-bold text-red-600">{studentDetail.absent_count || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Attendance by Class */}
+              {studentDetail.by_class && Object.keys(studentDetail.by_class).length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="font-semibold mb-4">Attendance by Class</h3>
+                  <div className="space-y-4">
+                    {Object.entries(studentDetail.by_class).map(([className, data]) => (
+                      <div key={className} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{className}</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            (data.rate || 0) >= 75 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {(data.rate || 0).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${(data.rate || 0) >= 75 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                            style={{ width: `${data.rate || 0}%` }}
+                          />
+                        </div>
+                        <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                          <span>Present: {data.present || 0}</span>
+                          <span>Late: {data.late || 0}</span>
+                          <span>Absent: {data.absent || 0}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
