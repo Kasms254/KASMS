@@ -6,7 +6,8 @@ from .views import (
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
     ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset,
+AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
@@ -41,6 +42,13 @@ app_name = 'core'
 # performance summary
 router.register(r'subject-performance', SubjectPerformanceViewSet, basename='subject-performance')
 router.register(r'class-performance', ClassPerformanceViewSet, basename='class-performance')
+
+# attendance
+router.register(r'attendance-sessions', AttendanceSessionViewSet, basename='attendance-session')
+router.register(r'session-attendances', SessionAttendanceViewset, basename='session-attendance')
+router.register(r'biometric-records', BiometricRecordViewset, basename='biometric-record')
+router.register(r'attendance-reports', AttendanceReportViewSet, basename='attendance-report')
+
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

@@ -618,7 +618,7 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
             })
 
         if attrs.get('require_location'):
-            if not attrs.get('allowed_location') or not attrs.get('allowed_longitude'):
+            if not attrs.get('allowed_latitude') or not attrs.get('allowed_longitude'):
                 raise serializers.ValidationError({
                     "require_location":"Latitude and longitude are required when location verification is enabled."
                 })
@@ -628,6 +628,13 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['qr_code_secret'] = uuid.uuid4().hex
         return super().create(validated_data)
+    
+    def get_qr_expires_in(self, obj):
+        if obj.status == 'active' and obj.qr_last_generated:
+            elapsed = (timezone.now() - obj.qr_last_generated).total_seconds()
+            remaining = obj.qr_refresh_interval - elapsed
+            return max(0, int(remaining))
+        return 0
  
 class AttendanceSessionListSerializer(serializers.ModelSerializer):
 
@@ -635,6 +642,7 @@ class AttendanceSessionListSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+
     marked_count = serializers.IntegerField(read_only=True)
     total_students = serializers.IntegerField(read_only=True)
     attendance_percentage = serializers.FloatField(read_only=True)
@@ -664,8 +672,8 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ('marked_at', 'created_at', 'updated_at', 'marked_by')
 
-    def get_marked_by_name(self):
-        return obj.marked_by_get_full_name() if obj.marked_by else 'System'
+    def get_marked_by_name(self, obj):
+        return obj.marked_by.get_full_name() if obj.marked_by else 'System'
 
     def validate(self, attrs):
         session = attrs.get('session')
@@ -703,26 +711,41 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 class QRAttendanceMarkSerializer(serializers.Serializer):
 
     session_id = serializers.UUIDField()
-    qr_token = serializers.CharField(max_lenght=16)
+    qr_token = serializers.CharField(max_length=16)
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
     def validate(self, attrs):
         try:
             session = AttendanceSession.objects.get(
-                session_id=attr['session_id'],
+                session_id=attrs['session_id'],
                 is_active=True
             )
-
         except AttendanceSession.DoesNotExist:
             raise serializers.ValidationError({"session_id": "Invalid or inactive session"})
 
-        if not session.require_location:
+        if not session.verify_qr_token(attrs['qr_token']):
+            raise serializers.ValidationError({
+                "qr_token": "Invalid or expired QR code."
+            })
+
+        if not session.can_mark_attendance():
+            raise serializers.ValidationError({
+                "session_id": "Session is not accepting attendance at this time."
+            })
+
+        if not session.enable_qr_scan:
+            raise serializers.ValidationError({
+                "session_id": "QR code scanning is not enabled for this session."
+            })
+
+        if session.require_location:
             if not attrs.get('latitude') or not attrs.get('longitude'):
                 raise serializers.ValidationError({
                     "location": "Location is required for this session."
                 })
-        attrs ['session'] = session
+        
+        attrs['session'] = session
         return attrs
 
 class BulkSessionAttendanceSerializer(serializers.Serializer):
@@ -818,7 +841,7 @@ class AttendanceSessionLogSerializer(serializers.ModelSerializer):
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     
     class Meta:
-        db_models = AttendanceSessionLog
+        model = AttendanceSessionLog
         fields = '__all__'
         read_only_fields = ('timestamp')
 

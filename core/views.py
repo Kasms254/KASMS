@@ -1,12 +1,12 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
- Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog)
+ Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, 
-    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer)
+    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -21,6 +21,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from datetime import timedelta
+from dateutil import parser
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -2249,12 +2250,12 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             queryset =queryset.filter(class_obj_id__in = enrolled_class_ids)
 
         return queryset.annotate(
-            marked_count = Count(
-                'session-attendances', 
-                distinct=True
-            )
+            attendance_count=Count(
+            'session_attendances', 
+            distinct=True
         )
-
+    )
+    
     def perform_create(self, serializer):
         session = serializer.save(created_by = self.request.user)
 
@@ -2273,7 +2274,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         session = self.get_object()
 
         if session.start_session():
-            AttendanceSesssionLog.objects.create(
+            AttendanceSessionLog.objects.create(
                 session= session,
                 action = 'session_started',
                 performed_by = request.user,
@@ -2342,14 +2343,14 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             session=session,
             action='qr_generated',
             performed_by=request.user,
-            description=f"QR code generated (count: {session.qr_generation_})",
-            metadata = {'token': token, 'expires_in': expires_in}
+            description=f"QR code generated (count: {session.qr_generation_count})",
+            metadata = {'token': token, 'expires_in': expires_time}
 
         )
         return Response({
             'session_id':str(session.session_id),
             'qr_token':token,
-            'expires_in':expires_in,
+            'expires_time':expires_time,
             'refresh_interval':session.qr_refresh_interval,
             'generated_at':session.qr_last_generated,
             'generation_count':session.qr_generation_count
@@ -2361,18 +2362,18 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         attendances = session.session_attendances.all()
 
-        status_counts = attendances.aggregrate(
-            present = Count(Case(When(status='present', then=1), output_field=IntergerField())),
-            late= Count(Case(When(status='late', then=1), output_field=IntergerField())),
-            absent = Count(Case(When(status='absent', then=1), output_field=IntergerField())),
-            excused = Count(Case(When(status='excused', then=1), output_field=IntergerField()))
+        status_counts = attendances.aggregate(
+            present = Count(Case(When(status='present', then=1), output_field=IntegerField())),
+            late= Count(Case(When(status='late', then=1), output_field=IntegerField())),
+            absent = Count(Case(When(status='absent', then=1), output_field=IntegerField())),
+            excused = Count(Case(When(status='excused', then=1), output_field=IntegerField()))
         )
         
-        method_counts = attendances.aggregrate(
-            qr_scan=Count(Case(When(marking_method='qr_scan', then=1), output_field=IntergerField())),
-            manual = Count(Case(When(marking_method='manual', then=1), output_field=IntergerField())),
-            biometric = Count(Case(When(marking_method='biometric', then=1), output_field=IntergerField())),
-            admin = Count(Case(When(marking_method='admin', then=1), output_field=IntergerField()))
+        method_counts = attendances.aggregate(
+            qr_scan=Count(Case(When(marking_method='qr_scan', then=1), output_field=IntegerField())),
+            manual = Count(Case(When(marking_method='manual', then=1), output_field=IntegerField())),
+            biometric = Count(Case(When(marking_method='biometric', then=1), output_field=IntegerField())),
+            admin = Count(Case(When(marking_method='admin', then=1), output_field=IntegerField()))
         )
 
         total_students = session.total_students
@@ -2428,7 +2429,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'])
-
     def mark_absent(self, request, pk=None):
         session = self.get_object()
 
@@ -2438,7 +2438,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             }, status= status.HTTP_400_BAD_REQUEST)
 
 
-        marked_student_ids = session.session_attendance.values_list('student_id', flat=True)
+        marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
         unmarked_students = User.objects.filter(
             enrollments__class_obj = session.class_obj,
             enrollments__is_active = True,
@@ -2479,7 +2479,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         session = self.get_object()
 
-        output = io.stringIO()
+        output = io.StringIO()
         writer = csv.writer(output)
 
         writer.writerow(
@@ -2502,12 +2502,11 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
                 attendance.remarks or ''
             ])
 
-        ouput.seek(0)
+        output.seek(0)
         response = HttpResponse(output.getvalue(), content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="attendance_{session.session_id}.csv"'
 
         return response
-
 
     @action(detail=False, methods=['get'])
     def my_sessions(self, request):
@@ -2517,11 +2516,12 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
                 'error': 'only instructors can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        session = self.get_queryset().filter(
+        sessions = self.get_queryset().filter(
             Q(class_obj__instructor=request.user)|
-            Q(subject__instructor=request.user).annotate(
+            Q(subject__instructor=request.user)
+            ).annotate(
                 marked_count=Count('session_attendances', distinct=True)
-            ))
+            )
 
         status_filter = request.query_params.get('status')
         if status_filter:
@@ -2534,7 +2534,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'sessions':serializer.data
         })
 
-        
     @action(detail=False, methods=['get'])
     def active_sessions(self, request):
 
@@ -2544,11 +2543,10 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(active_sessions, many=True)
         return Response(
             {
-                'count':acitve_sesssions.count(),
+                'count':active_sesssions.count(),
                 'sessions':serializer.data
             }
         )
-
 
 class SessionAttendanceViewset(viewsets.ModelViewSet):
 
@@ -2562,7 +2560,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
     ordering = ['marked_at']
 
-    def get_querset(self):
+    def get_queryset(self):
 
         queryset = super().get_queryset()
         user = self.request.user
@@ -2750,7 +2748,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             'attendances': serializer.data
         })
 
-
 class BiometricRecordViewset(viewsets.ModelViewSet):
 
     queryset = BiometricRecord.objects.select_related(
@@ -2790,7 +2787,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 if not student:
                     errors.append(f"Student not found for biometric ID: {record['biometric_id']}")
                     continue
-                biometric_record, created = BiometricRecord.objects.get_or_created(
+                biometric_record, created = BiometricRecord.objects.get_or_create(
                     device_id = device_id,
                     biometric_id = record['biometric_id'],
                     scan_time = scan_time,
@@ -2816,7 +2813,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
             'status': 'success',
             'created': created_count,
             'processed': processed_count,
-            'errros':errors
+            'errors':errors
         })
 
     @action(detail=False, methods=['post'])
@@ -2826,7 +2823,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
         ).select_related('student')
 
         processed_count =0 
-        faild_count = 0
+        failed_count = 0
         errors = []
 
         for record in pending_records:
@@ -2835,11 +2832,11 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 if attendance:
                     processed_count +=1
                 else:
-                    faild_count +=1
+                    failed_count +=1
                     if record.error_message:
                         errors.append(f"Record {record.id}: {record.error_message}")
             except Exception as e:
-                faild_count += 1
+                failed_count += 1
                 errors.append(f"Record {record.id}: {str(e)}")
 
         return Response({
@@ -2889,7 +2886,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         if start_date:
             session_qs = session_qs.filter(scheduled_start__gte=start_date)
         if end_date:
-            sesssion_qs = session_qs.filter(scheduled_start_lte=end_date)
+            session_qs = session_qs.filter(scheduled_start_lte=end_date)
 
 
         sessions = session_qs.order_by('-scheduled_start')
@@ -2939,7 +2936,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         total_attendances = SessionAttendance.objects.filter(
             session__in = sessions
         ).count()
-        expected_outcomes = total_sessions_count * enrolled_students_count()
+        expected_attendances = total_sessions_count * enrolled_students_count()
 
         class_attendance_rate = (total_attendances / expected_attendances * 100) if expected_attendances > 0 else 0
 
@@ -2964,7 +2961,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'student_statistics': student_stats
         })
 
-    
     @action(detail=False, methods=['get'])
     def student_detail(self, request):
         
@@ -3005,7 +3001,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'present':attendances.filter(status='present').count(),
             'late':attendances.filter(status='late').count(),
             'absent':attendances.filter(status='absent').count(),
-            'excused':attendanes.filter(status='excused').count()
+            'excused':attendances.filter(status='excused').count()
         }
 
         method_breakdown = {
@@ -3024,9 +3020,9 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             )
 
             if start_date:
-                class_sessions = class_sessions.filter(scheduled__start_gte = start_date)
+                class_sessions = class_sessions.filter(scheduled_start__gte = start_date)
             if end_date:
-                class_sessions = class_sessions.filter(scheduled_start_lte=end_date)
+                class_sessions = class_sessions.filter(scheduled_start__lte=end_date)
 
             total_class_sessions = class_sessions.count()
             attended = class_attendances.count()
@@ -3061,8 +3057,182 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                     'status_breakdown':status_breakdown,
                     'method_breakdown':method_breakdown
                 },
-                'class_breakdows':class_breakdown,
+                'class_breakdown':class_breakdown,
                 'recent_attendances': SessionAttendanceSerializer(recent, many=True).data
             })
             
+    @action(detail=False, methods=['get'])
+    def session_comparison(self, request):
 
+        session_ids = request.query_params.getlist('session_ids')
+
+        if not session_ids:
+            return Response({
+                'error':'sesssion_ids parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+        sessions = AttendanceSession.objects.filter(
+            id__in=session_ids
+        ).prefetch_related('session_attendances')\
+
+        comparison = []
+
+        for session in sessions:
+            attendances = session.session_attendances.all()
+            total_students = session.total_students
+
+            comparison.append(
+                {
+                    'session_id':session.id,
+                    'title':session.title,
+                    'session_type':session.get_session_type_display(),
+                    'scheduled_start':session.scheduled_start,
+                    'total_students':total_students,
+                    'marked_count':attendances.count(),
+                    'present':attendances.filter(status='present').count(),
+                    'late':attendances.filter(status='late').count(),
+                    'absent':attendances.filter(status='absent').count(),
+                    'attendance_rate':round((attendances.count() / total_students * 100), 2) if total_students > 0 else 0
+
+                }
+            )
+
+        return Response({
+            'session_count':len(comparison),
+            'comparison': comparison
+        })
+
+
+    @action(detail=False, methods=['get'])
+    def trend_analysis(self, request):
+
+        class_id = request.query_params.get('class_id')
+        days = int(request.query_params.get('days', 30))
+
+        if not class_id:
+            return Response({
+                'error': 'class_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            class_obj = Class.objects.get(id=class_id)
+        except Class.DoesNotExist:
+            return Response({
+                'error': 'Class not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        end_date = timezone.now()
+        start_date = end_date -timedelta(days=days)
+
+        sessions = AttendanceSession.objects.filter(
+            class_obj = class_obj,
+            scheduled_start__gte = start_date,
+            scheduled_start__lte = end_date
+        ).order_by('scheduled_start')
+
+        trend_data = []
+
+        for session in sessions:
+            attendances = session.session_attendances.all()
+            total_students = session.total_students
+
+            trend_data.append({
+                'date':session.scheduled_start.date(),
+                'session_title':session.title,
+                'total_students':total_students,
+                'present':attendances.filter(status='present').count(),
+                'late':attendances.filter(status='late').count(),
+                'absent':total_students - attendances.count(),
+                'attendance_rate':round((attendances.count() / total_students * 100), 2) if total_students > 0  else 0
+                
+            })
+
+        if len(trend_data) >=3:
+            for i in range(2, len(trend_data)):
+                window = trend_data[i-2:i+1]
+                avg_rate = sum(d['attendance_rate'] for d in window) / 3
+                trend_data[i]['moving_average'] = round(avg_rate, 2)
+
+        return Response({
+            'class':{
+                'id':class_obj.id,
+                'name':class_obj.name
+            },
+            'period':{
+                'start_date':start_date.date(),
+                'end_date':end_date.date(),
+                'days':days
+            },
+            'trend_data': trend_data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def low_attendance_alert(self, request):
+        class_id = request.query_params.get('class_id')
+        threshold = float(request.query_params.get('threshold', 75.0))
+
+        if not class_id:
+            return Response({
+                'error':'class_id parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            class_obj = Class.objects.get(id=class_id)
+        except Class.DoesNotExist:
+            return Response({
+                'error': 'Class Not Found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        sessions = AttendanceSession.objects.filter(class_obj=class_obj)
+        total_sessions = sessions.count()
+
+        if total_sessions == 0:
+            return Response({
+                'message': 'No Sessions found for this class',
+                'students': []
+            })
+
+        enrolled_students = User.objects.filter(
+            enrollments__class_obj=class_obj,
+            enrollments__is_active=True,
+            role='student',
+            is_active = True
+        ).distinct()
+
+        low_attendance_students =[]
+
+        for student in enrolled_students:
+            attendances = SessionAttendance.objects.filter(
+                session__in = sessions,
+                student=student
+            )
+
+            attended = attendances.count()
+            attendance_rate = (attended / total_sessions * 100)
+
+            if attendance_rate < threshold:
+                low_attendance_students.append({
+                    'student_id':student.id,
+                    'student_name':student.get_full_name(),
+                    'svc_number':student.svc_number,
+                    'email':student.email,
+                    'total_sessions':total_sessions,
+                    'attended':attended,
+                    'missed':total_sessions - attended,
+                    'attendance_rate':round(attendance_rate, 2),
+                    'status':'critical' if attendance_rate < 50 else 'warning'
+
+                })
+
+            low_attendance_students.sort(key=lambda x: x['attendance_rate'])
+
+            return Response({
+                'class':{
+                    'id': class_obj.id,
+                    'name':class_obj.name
+                },
+                'threshold':threshold,
+                'total_sessions':total_sessions,
+                'count':len(low_attendance_students),
+                'students':low_attendance_students
+            })

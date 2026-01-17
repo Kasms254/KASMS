@@ -6,6 +6,7 @@ from django.core.validators import FileExtensionValidator
 import os
 import uuid
 import hashlib
+from datetime import timedelta
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -452,11 +453,11 @@ class AttendanceSession(models.Model):
     qr_generation_count  = models.IntegerField(default=0)
 
     enable_qr_scan = models.BooleanField(default=True)
-    enable_manual_marking =models.DateTimeField(null=True, blank=True)
+    enable_manual_marking = models.BooleanField(default=True)
     enable_biometric = models.BooleanField(default=False)
     require_location = models.BooleanField(default=False)
 
-    alllowed_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    allowed_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     allowed_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_radius_meters = models.IntegerField(default=100, null=True, blank=True)
 
@@ -465,7 +466,11 @@ class AttendanceSession(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now = True)
-    
+    allow_late_minutes = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        default=10,
+        help_text="Minutes after start time to still mark as present"
+)
     class Meta:
         db_table = 'attendance_sessions'
         verbose_name = 'Attendance Session'
@@ -487,7 +492,7 @@ class AttendanceSession(models.Model):
 
         hash_input = f"{self.session_id}:{time_window}:{self.qr_code_secret}"
 
-        token = hashlib.sha256(hash_input.encode().hexdigest()[:16])
+        token = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
         self.qr_last_generated = current_time
         self.qr_generation_count += 1
@@ -542,9 +547,9 @@ class AttendanceSession(models.Model):
             is_active=True
         ).count()
 
-    @property
-    def marked_count(self):
-        return self.session_attendances.count()
+    # @property
+    # def marked_count(self):
+    #     return self.session_attendances.count()
 
     @property
     def attendance_percentage(self):
@@ -594,10 +599,14 @@ class SessionAttendance(models.Model):
     ]
 
     session = models.ForeignKey(
-        'User', 
-        on_delete=models.CASCADE,
-        related_name='session_attendance',
+        'AttendanceSession', on_delete=models.CASCADE, related_name='session_attendances',
         limit_choices_to={'role':'student'}
+    )
+    student = models.ForeignKey(
+    'User',
+    on_delete=models.CASCADE,
+    related_name='session_attendances',
+    limit_choices_to={'role': 'student'}
     )
 
     marked_by = models.ForeignKey(
@@ -639,7 +648,7 @@ class SessionAttendance(models.Model):
     def minutes_late(self):
 
         if self.status == 'late':
-            delta = self.marked_at = self.session.scheduled_start
+            delta = self.marked_at - self.session.scheduled_start
             return (delta.total_seconds() / 60)
         return 0
 
@@ -661,7 +670,7 @@ class SessionAttendance(models.Model):
         lat2 = radians(float(self.latitude))
         lon2 = radians(float(self.longitude))
 
-        dflat = lat2 - lat1
+        dlat = lat2 - lat1
         dlon = lon2 - lon1
 
         a = sin(dflat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
@@ -715,7 +724,7 @@ class BiometricRecord(models.Model):
         related_name='biometric_records'
     )
 
-    raw_data = models.JSONField(blank=True, nulL=True, help_text = "Raw data from device")
+    raw_data = models.JSONField(blank=True, null=True, help_text = "Raw data from device")
     error_message = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -733,15 +742,15 @@ class BiometricRecord(models.Model):
             models.Index(fields=['processed', 'scan_time']),
         ]
 
-        def __str__(self):
-            return f"{self.student.get_full_name()} - {self.device_type} ({self.scan_time})"
+    def __str__(self):
+        return f"{self.student.get_full_name()} - {self.device_type} ({self.scan_time})"
 
         
-        def find_matching_session(self):
+    def find_matching_session(self):
             
-            time_window = timedelta(hours=2)
+        time_window = timedelta(hours=2)
 
-            sessions = AttendanceSession.objects.filter(
+        sessions = AttendanceSession.objects.filter(
                 class_obj__enrollments__student = self.student,
                 class_obj__enrollments__is_active = True,
                 scheduled_start__gte = self.scan_time - time_window,
@@ -751,10 +760,10 @@ class BiometricRecord(models.Model):
                 is_active=True
             ).order_by('scheduled_start')
 
-            return sessions.first()
+        return sessions.first()
 
 
-        def process_to_attendance(self):
+    def process_to_attendance(self):
 
             if self.processed:
                 return self.session_attendance
@@ -840,7 +849,7 @@ class AttendanceSessionLog(models.Model):
             models.Index(fields=['action', 'timestamp']),
         ]
 
-        def __str__(self):
-            return f"{self.get_action_display()}- {self.session.title} ({self.timestamp})"
+    def __str__(self):
+        return f"{self.get_action_display()}- {self.session.title} ({self.timestamp})"
             
         
