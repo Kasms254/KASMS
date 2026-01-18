@@ -23,7 +23,6 @@ from django.db.models import Q
 from datetime import timedelta
 from dateutil import parser
 
-
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
@@ -579,7 +578,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
@@ -713,7 +711,6 @@ class NoticeViewSet(viewsets.ModelViewSet):
             'count':unread_notices.count(),
             'results':serializer.data
         })
-
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
@@ -1418,6 +1415,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'count': students.count(),
             'results': serializer.data
         })
+
 class ClassNoticeViewSet(viewsets.ModelViewSet):
 
     queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
@@ -1500,7 +1498,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
         return Response({
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
-
 
 class ExamReportViewSet(viewsets.ModelViewSet):
 

@@ -174,7 +174,6 @@ class ClassSerializer(serializers.ModelSerializer):
 
         return attrs
     
-
 class SubjectSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
@@ -256,7 +255,6 @@ class NoticeSerializer(serializers.ModelSerializer):
             ).exists()
         return False
     
-
 class EnrollmentSerializer(serializers.ModelSerializer):
 
     student_name = serializers.SerializerMethodField(read_only=True)
@@ -307,7 +305,6 @@ class ExamAttachmentSerializer(serializers.ModelSerializer):
         model = ExamAttachment
         fields = "__all__"
         read_only_fields = ('created_at', 'updated_at', 'created_by', 'id','uploaded_by')
-
 
 class ExamSerializer(serializers.ModelSerializer):
 
@@ -415,7 +412,6 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 validated_data['submitted_at'] = timezone.now()
         return super().update(instance, validated_data)
     
-
 class BulkExamResultSerializer(serializers.Serializer):
 
     results = serializers.ListField(
