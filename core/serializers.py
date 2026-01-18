@@ -372,10 +372,15 @@ class ExamResultSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
     course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
 
+
+    is_notification_read = serializers.SerializerMethodField()
+    notification_read_at = serializers.SerializerMethodField()
+
     class Meta:
         model = ExamResult
         fields = '__all__'
-        read_only_fields = ('graded_at', 'percentage', 'grade')
+        read_only_fields = ('graded_at', 'percentage', 'grade','submitted_at', 'graded_by', 'updated_at', 'is_notification_read', 'notification_read_at')
+
     
     def get_graded_by_name(self, obj):
         return obj.graded_by.get_full_name() if obj.graded_by else None
@@ -387,19 +392,40 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Marks obtained cannot exceed total marks for the exam.")
         return value
     
+    def get_is_notification_read(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
 
-    def update(self, validated_data, instance):
+        if obj.student != request.user:
+            return True
 
-        if 'marks_obtained' in validated_data and validated_data['marks_obtained'] is not None:
-            validated_data['graded_by'] = self.context['request'].user
-            from django.utils import timezone
-            validated_data['graded_at'] = timezone.now()
-            validated_data['is_submitted'] = True
-            if not validated_data.get('submitted_at'):
-                validated_data['submitted_at'] = timezone.now()
-        return super().update(instance, validated_data)
-    
-    
+        if not obj.is_submitted or obj.marks_obtained is None:
+            return True
+
+        return ExamResultNotificationReadStatus.objects.filter(
+            user=request.user,
+            exam_result=obj
+        ).exists()
+
+    def get_notification_read_at(self, obj):
+
+        request = self.context.get('request')
+
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+
+        if obj.student != request.user:
+            return None
+        
+        try:
+            read_status = ExamResultNotificationReadStatus.objects.get(
+                user = request.user,
+                exam_result= obj
+            )
+            return read_status.read_at
+        except ExamResultNotificationReadStatus.DoesNotExist:
+            return None
 
     def update(self, validated_data, instance):
 
@@ -493,8 +519,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
-    is_read = serializers.SerializerMethodField()
 
+    is_read = serializers.SerializerMethodField()
+    read_at = serializers.SerializerMethodField()
 
     class Meta:
         model = ClassNotice
@@ -510,8 +537,22 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     
     def get_is_read(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return ClassNoticeReadStatus.objects.filter(
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+
+        return ClassNoticeReadStatus.objects.filter(
+            user=request.user,
+            class_notice = obj
+        ).exists()
+
+    
+    def get_read_at(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+
+        try:
+            read_status = ClassNoticeReadStatus.objects.get(
                 user=request.user,
                 class_notice=obj
             ).exists()

@@ -258,6 +258,7 @@ class ExamResult(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
+    graded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'exam_results'
