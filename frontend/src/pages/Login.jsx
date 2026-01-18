@@ -119,15 +119,15 @@ export default function Login() {
         {/* Graphic / branding */}
         <div className="hidden md:flex flex-col justify-center px-6">
           <div className="mb-6">
-            <h1 className="text-4xl font-extrabold text-black">Welcome back</h1>
+            <h1 className="text-4xl font-extrabold text-black">Welcome</h1>
             <p className="mt-2 text-sm text-gray-600">Sign in to manage classes, students and school data.</p>
           </div>
 
           <div className="rounded-2xl p-6 bg-gradient-to-tr from-indigo-50 to-pink-50 shadow-md">
             <div className="text-indigo-600 mb-4 flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">S</div>
+              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">SM</div>
               <div>
-                <div className="text-sm font-semibold">School Management System</div>
+                <div className="text-sm font-semibold">Kenya Army School Management System</div>
                 <div className="text-xs text-gray-500">Organize your academic life.</div>
               </div>
             </div>

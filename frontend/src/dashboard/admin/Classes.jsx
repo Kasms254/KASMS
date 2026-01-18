@@ -32,7 +32,6 @@ export default function ClassesList(){
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    console.error(msg)
   }, [toast])
   const modalRef = useRef(null)
 
@@ -350,7 +349,6 @@ export default function ClassesList(){
                   }
                   // helpful debug for developer: payload sent to API
                   // remove in production if verbose
-                  console.debug('updateClass payload', editingClass?.id, payload)
                   await updateClass(editingClass.id, payload)
                   setEditModalOpen(false)
                   await loadClasses()

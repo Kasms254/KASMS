@@ -20,7 +20,6 @@ export default function SubjectsPage() {
         const arr = Array.isArray(res) ? res : (res && Array.isArray(res.results) ? res.results : [])
         if (mounted) setSubjects(arr)
       } catch (err) {
-        console.error('Failed to load subjects', err)
         if (mounted) setError(err)
         toast.error(err?.message || 'Failed to load subjects')
       } finally {

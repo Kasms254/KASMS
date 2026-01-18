@@ -69,10 +69,9 @@ function NotificationSkeleton() {
 // Empty State Component
 function EmptyState({ filter }) {
   const messages = {
-    all: { icon: Icons.Inbox, title: 'No notifications yet', desc: 'When you receive notices, exams, or results, they will appear here' },
+    all: { icon: Icons.Inbox, title: 'No notifications yet', desc: 'When you receive notices or exams, they will appear here' },
     notice: { icon: Icons.Bell, title: 'No notices', desc: 'You have no active notices at the moment' },
     exam: { icon: Icons.Clipboard, title: 'No exams scheduled', desc: 'No upcoming exams to display' },
-    result: { icon: Icons.CheckSquare, title: 'No results', desc: 'No graded results available yet' },
     unread: { icon: Icons.CheckCheck, title: 'All caught up!', desc: 'You have no unread notifications' }
   }
   const { icon: Icon, title, desc } = messages[filter] || messages.all
@@ -109,7 +108,7 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
   const unread = !item.read
   const iconSize = 'w-6 h-6'
   const baseClasses = `flex items-start gap-3 p-3 rounded-md transition-all duration-200 hover:shadow-sm cursor-pointer` + (unread ? ' ring-1 ring-indigo-200 bg-indigo-50' : ' bg-white hover:bg-slate-50')
-  const iconColor = item.kind === 'notice' ? (unread ? 'text-amber-600' : 'text-amber-400') : item.kind === 'exam' ? (unread ? 'text-sky-600' : 'text-sky-400') : (unread ? 'text-emerald-600' : 'text-emerald-400')
+  const iconColor = item.kind === 'notice' ? (unread ? 'text-amber-600' : 'text-amber-400') : (unread ? 'text-sky-600' : 'text-sky-400')
 
   const handleClick = useCallback(() => {
     onDetails(item)
@@ -135,7 +134,6 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
       <div className="shrink-0 mt-1">
         {item.kind === 'notice' && <Icons.Bell className={`${iconSize} ${iconColor}`} />}
         {item.kind === 'exam' && <Icons.Clipboard className={`${iconSize} ${iconColor}`} />}
-        {item.kind === 'result' && <Icons.CheckSquare className={`${iconSize} ${iconColor}`} />}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -186,7 +184,6 @@ export default function Notifications() {
     let filtered = items
     if (filter === 'notice') filtered = items.filter(i => i.kind === 'notice')
     else if (filter === 'exam') filtered = items.filter(i => i.kind === 'exam')
-    else if (filter === 'result') filtered = items.filter(i => i.kind === 'result')
     else if (filter === 'unread') filtered = items.filter(i => !i.read)
     return filtered
   }, [items, filter])
@@ -208,8 +205,8 @@ export default function Notifications() {
     // Dispatch event to sync with NavBar
     try {
       window.dispatchEvent(new CustomEvent('notifications:marked_read', { detail: { ids } }))
-    } catch (err) {
-      console.debug('notify mark read dispatch failed', err)
+    } catch {
+      // Silently handle dispatch errors
     }
 
     // Call backend API to persist read status for each notification
@@ -220,14 +217,6 @@ export default function Notifications() {
       }
 
       try {
-        // For exam result notifications, call the exam-result endpoint
-        if (item.kind === 'result') {
-          const resultId = item.meta.id
-          if (!resultId) continue
-          await api.markExamResultAsRead(resultId)
-          continue
-        }
-
         const noticeId = item.meta.id
         if (!noticeId) continue
 
@@ -244,10 +233,7 @@ export default function Notifications() {
         if (err.message && err.message.includes('not found')) {
           continue
         }
-        // Log other errors only in development
-        if (import.meta.env.DEV) {
-          console.error(`Failed to mark notification ${id} as read:`, err)
-        }
+        // Silently handle other errors
       }
     }
   }, [items])
@@ -305,16 +291,8 @@ export default function Notifications() {
             if (Array.isArray(s.exams)) schedule = s.exams
             else if (Array.isArray(s.events)) schedule = s.events
           }
-          // also include any recently graded results for this student
-          try {
-            const r = await api.getMyResults().catch(() => null)
-            const results = Array.isArray(r) ? r : (r && Array.isArray(r.results) ? r.results : [])
-            // map results to simple items
-            const resultItems = results.map(res => ({ kind: 'result', id: res.id, title: `Result: ${res.subject_name || res.subject?.name || ''}`, date: res.updated_at || res.graded_at || res.created_at || null, meta: res }))
-            schedule = schedule.concat(resultItems)
-          } catch {
-            // ignore
-          }
+          // Removed old exam result notifications - now using ClassNotice only
+          // Results are displayed through ClassNotice grade notifications instead
         }
 
         // normalize notices
@@ -447,8 +425,7 @@ export default function Notifications() {
             { key: 'all', label: 'All', icon: Icons.Inbox, count: items.length },
             { key: 'unread', label: 'Unread', icon: Icons.Bell, count: unreadCount },
             { key: 'notice', label: 'Notices', icon: Icons.Bell, count: items.filter(i => i.kind === 'notice').length },
-            { key: 'exam', label: 'Exams', icon: Icons.Clipboard, count: items.filter(i => i.kind === 'exam').length },
-            { key: 'result', label: 'Results', icon: Icons.CheckSquare, count: items.filter(i => i.kind === 'result').length }
+            { key: 'exam', label: 'Exams', icon: Icons.Clipboard, count: items.filter(i => i.kind === 'exam').length }
           ].map((tab) => {
             const TabIcon = tab.icon
             return (
@@ -543,10 +520,9 @@ export default function Notifications() {
                     )}
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       selected.kind === 'notice' ? 'bg-amber-100 text-amber-800' :
-                      selected.kind === 'exam' ? 'bg-sky-100 text-sky-800' :
-                      'bg-emerald-100 text-emerald-800'
+                      'bg-sky-100 text-sky-800'
                     }`}>
-                      {selected.kind === 'notice' ? 'Notice' : selected.kind === 'exam' ? 'Exam' : 'Result'}
+                      {selected.kind === 'notice' ? 'Notice' : 'Exam'}
                     </span>
                   </div>
                 </div>
@@ -630,23 +606,6 @@ export default function Notifications() {
                         </ul>
                       </div>
                     )}
-                  </div>
-                )}
-                {selected.kind === 'result' && (
-                  <div className="space-y-3">
-                    {(selected.meta?.remarks || selected.meta?.comments) && (
-                      <div className="prose prose-sm max-w-none">
-                        <p className="text-neutral-600 whitespace-pre-wrap">{selected.meta?.remarks || selected.meta?.comments}</p>
-                      </div>
-                    )}
-                    <div className="pt-3 border-t border-neutral-100">
-                      <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                        <span className="text-sm text-neutral-600">Score</span>
-                        <span className="text-2xl font-bold text-neutral-900">
-                          {selected.meta?.marks_obtained ?? '—'} <span className="text-lg text-neutral-500">/ {selected.meta?.exam_total_marks ?? selected.meta?.total_marks ?? '—'}</span>
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 )}
 

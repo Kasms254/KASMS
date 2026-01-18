@@ -158,7 +158,6 @@ export default function InstructorsDashboard() {
           if (mounted) setCalendarEvents(ev)
         } catch (err) {
           // ignore calendar load errors; don't block dashboard
-          console.debug('Failed to load exams for calendar', err)
         }
       }
       loadEvents()

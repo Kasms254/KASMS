@@ -221,18 +221,18 @@ export default function Notices() {
         setCurrentPage(1)
         setNotices(s => s.map(x => (x.id === updated.id ? updated : x)))
           // notify other parts of the app (calendar) that notices changed
-        try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+        try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
         // Also dispatch a targeted edit event so creators see an immediate
         // notification in the bell (client-side). Include the updated notice
         // in the event detail so listeners can show a small notification.
-        try { window.dispatchEvent(new CustomEvent('notice:edited', { detail: updated })) } catch (err) { console.debug('dispatch error', err) }
+        try { window.dispatchEvent(new CustomEvent('notice:edited', { detail: updated })) } catch { /* Silently handle */ }
       } else {
         const created = await api.createNotice(payload)
         toast.success('Notice created')
         // Go back to first page to see the new notice
         setCurrentPage(1)
         setNotices(s => [created, ...s])
-    try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+    try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
       }
       setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true })
       setRecipient('all')
@@ -288,7 +288,7 @@ export default function Notices() {
       if (filteredNotices.length === 1 && currentPage > 1) {
         setCurrentPage(p => p - 1)
       }
-  try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+  try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
     } catch (err) {
       toast.error(err?.message || 'Failed to delete notice')
     } finally {

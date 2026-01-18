@@ -18,7 +18,7 @@ export default function AdminInstructors() {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    console.error(msg)
+    // Error already shown via toast
   }
   const [instructors, setInstructors] = useState([])
   const [classesList, setClassesList] = useState([])
@@ -54,8 +54,8 @@ export default function AdminInstructors() {
         const classes = Array.isArray(classesData) ? classesData : []
         setClassesList(classes)
       })
-      .catch((err) => {
-        console.error('Failed to load classes:', err)
+      .catch(() => {
+        // Silently handle class load error
       })
   }, [])
 
@@ -67,7 +67,7 @@ export default function AdminInstructors() {
         setSubjectsList(subjects)
       })
       .catch((err) => {
-        console.error('Failed to load subjects:', err)
+        // Silently handle subject load error
       })
   }, [])
 
