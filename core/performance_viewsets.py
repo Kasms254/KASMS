@@ -203,7 +203,7 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
                 'actual_attendances': actual_attendances,
                 'attendance_rate': round(overall_attendance_rate, 2),
                 
-                'combined_performance': round((overall_exam_average * 0.7) + (overall_attendance_rate * 0.3), 2)
+                'combined_performance': round((float(overall_exam_average) * 0.7) + (overall_attendance_rate * 0.3), 2)
             },
             'top_performers': top_performers,
             'all_students': student_performance,
@@ -394,6 +394,8 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             
             attendance_rate = (attended_count / total_sessions * 100) if total_sessions > 0 else 0
 
+            exam_percentage = float(exam_percentage or 0)
+            attendance_rate = float(attendance_rate or 0)
             combined_score = (exam_percentage * 0.7) + (attendance_rate * 0.3)
 
             subject_scores = []
@@ -413,8 +415,8 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                         'subject_code': getattr(subject, 'subject_code', subject.name),
                         'exam_percentage': round(subj_pct, 2),
                         'attendance_rate': round(subj_attendance_rate, 2),
-                        'combined_score': round((subj_pct * 0.7) + (subj_attendance_rate * 0.3), 2)
-                    })
+                        'combined_score': round((float(subj_pct or 0) * 0.7) + (float(subj_attendance_rate or 0) * 0.3), 2)
+                        })
 
             student_rankings.append({
                 'student_id': student.id,
@@ -475,7 +477,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'total_sessions': subj_sessions_count,
                 'attendance_rate': round(subj_att_rate, 2),
                 
-                'combined_performance': round((subj_exam_avg * 0.7) + (subj_att_rate * 0.3), 2)
+                'combined_performance': round((float(subj_exam_avg or 0)* 0.7) + (float(subj_att_rate or 0) * 0.3), 2)
             })
 
         subject_performance.sort(key=lambda x: x['combined_performance'], reverse=True)
@@ -501,7 +503,7 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'actual_attendances': actual_attendances,
                 'class_attendance_rate': round(class_attendance_rate, 2),
                 
-                'overall_performance': round((class_exam_average * 0.7) + (class_attendance_rate * 0.3), 2)
+                'overall_performance': round((float(class_exam_average or 0)* 0.7) + (float(class_attendance_rate or 0) * 0.3), 2)
             },
             'top_performers': top_performers,
             'all_students': student_rankings,

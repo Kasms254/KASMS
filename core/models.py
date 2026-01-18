@@ -445,7 +445,7 @@ class AttendanceSession(models.Model):
     duration_minutes = models.IntegerField(validators=[MinValueValidator(1)], default=60)
     qr_refresh_interval = models.IntegerField(
         validators=[MinValueValidator(10), MaxValueValidator(300)],
-        default=30,
+        default=300,
         help_text="Minutes after start time to still mark as present"
     )
 
@@ -508,7 +508,7 @@ class AttendanceSession(models.Model):
 
         for offset in range(-tolerance_windows, tolerance_windows + 1):
             time_window = current_window + offset
-            hash_input = f"{self.session_id}: {time_window} : {self.qr_code_secret}"
+            hash_input = f"{self.session_id}:{time_window}:{self.qr_code_secret}"
             valid_token = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
             if token == valid_token:
@@ -520,7 +520,16 @@ class AttendanceSession(models.Model):
     def is_within_schedule(self):
         now = timezone.now()
         grace_period = timedelta(minutes = self.allow_late_minutes)
-        return self.scheduled_start <= now <= (self.scheduled_end + grace_period)
+
+        start = self.scheduled_start
+        end = self.scheduled_end
+
+        print(f"Now (UTC): {now}")
+        print(f"Start: {start}")
+        print(f"End + Grace: {end}")
+        print(f"Within schedule: {start <= now <= end}")
+        
+        return start <= now <= end
 
     def can_mark_attendance(self):
         return (
@@ -586,7 +595,7 @@ class AttendanceSession(models.Model):
 class SessionAttendance(models.Model):
     
     MARKING_METHOD_CHOICES = [
-        ('qr scan', 'QR Code Scan'),
+        ('qr_scan', 'QR Code Scan'),
         ('manual', 'Manual Entry'),
         ('biometric', 'Biometric'),
         ('admin', 'Admin Override'),
@@ -600,8 +609,7 @@ class SessionAttendance(models.Model):
     ]
 
     session = models.ForeignKey(
-        'AttendanceSession', on_delete=models.CASCADE, related_name='session_attendances',
-        limit_choices_to={'role':'student'}
+        'AttendanceSession', on_delete=models.CASCADE, related_name='session_attendances'
     )
     student = models.ForeignKey(
     'User',
@@ -627,7 +635,7 @@ class SessionAttendance(models.Model):
     location_verified = models.BooleanField(default=False)
 
     remarks = models.TextField(blank=True, null=True)
-    ip_addresses = models.GenericIPAddressField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True, null=True)
 
     class Meta:

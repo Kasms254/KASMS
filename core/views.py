@@ -5,12 +5,12 @@ from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, Exa
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
-    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, 
+    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count, Avg
+from django.db.models import Q, Count, Avg, Case, When, IntegerField
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -22,6 +22,11 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from datetime import timedelta
 from dateutil import parser
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
+import io
+import csv
+from django.http import HttpResponse
+
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -2529,8 +2534,10 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'biometric_count':method_counts['biometric'],
             'admin_count':method_counts['admin']
         }
+        serializer = SessionAttendanceSerializer(attendances, many=True)
         
         return Response({
+            'statistics':statistics,
             'session': AttendanceSessionSerializer(session).data,
             'count':attendances.count(),
             'attendances':serializer.data
@@ -2676,8 +2683,25 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(active_sessions, many=True)
         return Response(
             {
-                'count':active_sesssions.count(),
+                'count':active_sessions.count(),
                 'sessions':serializer.data
+            }
+        )
+
+    @action(detail=True, methods=['get'])
+    def attendances(self, request, pk=None):
+        session = self.get_object()
+        attendances = session.session_attendances.select_related(
+            'student', 'marked_by'
+        ).all()
+
+        serializer = SessionAttendanceSerializer(attendances, many=True)
+        return Response(
+            {
+                'session_id':session.id,
+                'session_title':session.title,
+                'count':attendances.count(),
+                'attendances':serializer.data
             }
         )
 
@@ -2689,7 +2713,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
     serializer_class = SessionAttendanceSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['session', 'student', 'status', 'marking_method']
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
     ordering = ['marked_at']
 
@@ -3069,7 +3093,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         total_attendances = SessionAttendance.objects.filter(
             session__in = sessions
         ).count()
-        expected_attendances = total_sessions_count * enrolled_students_count()
+        expected_attendances = total_sessions_count * enrolled_students.count()
 
         class_attendance_rate = (total_attendances / expected_attendances * 100) if expected_attendances > 0 else 0
 
@@ -3086,7 +3110,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             },
             'overall_statistics':{
                 'total_students':enrolled_students.count(),
-                'total_sessions':total_sessions.count(),
+                'total_sessions':total_sessions_count,
                 'expected_attendances':expected_attendances,
                 'actual_attendances':total_attendances,
                 'class_attendance_rate':round(class_attendance_rate, 2)
