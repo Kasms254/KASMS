@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  QrCode, Clock, Calendar, CheckCircle, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, MapPin, Search, Filter, RefreshCw,
-  ChevronDown, ChevronUp, AlertTriangle, Award, Target
+  QrCode, Calendar, CheckCircle, XCircle, AlertCircle,
+  TrendingUp, TrendingDown, MapPin, RefreshCw,
+  AlertTriangle, Award, Target
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -16,17 +16,16 @@ const STATUS_COLORS = {
 }
 
 export default function StudentAttendance() {
-  const { user } = useAuth()
+  useAuth() // ensures user is authenticated
   const toast = useToast()
 
   // State
   const [activeTab, setActiveTab] = useState('mark') // 'mark' | 'history' | 'stats'
   const [loading, setLoading] = useState(false)
 
-  // Mark attendance state
-  const [activeSessions, setActiveSessions] = useState([])
+  // Mark attendance state - students enter session_id and qr_token from QR code
+  const [sessionId, setSessionId] = useState('') // UUID session_id from QR code
   const [qrToken, setQrToken] = useState('')
-  const [selectedSession, setSelectedSession] = useState(null)
   const [location, setLocation] = useState({ latitude: null, longitude: null })
   const [locationLoading, setLocationLoading] = useState(false)
   const [markingAttendance, setMarkingAttendance] = useState(false)
@@ -35,21 +34,9 @@ export default function StudentAttendance() {
   const [attendanceHistory, setAttendanceHistory] = useState([])
   const [historyFilter, setHistoryFilter] = useState({ status: '', startDate: '', endDate: '' })
 
-  // Stats state
-  const [attendanceStats, setAttendanceStats] = useState(null)
+  // Stats state (fetched but may be used for future features)
+  const [_attendanceStats, setAttendanceStats] = useState(null)
 
-  // Load active sessions
-  const loadActiveSessions = useCallback(async () => {
-    try {
-      const data = await api.getActiveAttendanceSessions()
-      // API returns { count, sessions: [...] } or { results: [...] } or array
-      const list = Array.isArray(data) ? data : (data?.sessions || data?.results || [])
-      // Filter sessions where student is enrolled
-      setActiveSessions(list)
-    } catch (err) {
-      console.error('Failed to load active sessions:', err)
-    }
-  }, [])
 
   // Load attendance history
   const loadAttendanceHistory = useCallback(async () => {
@@ -61,8 +48,12 @@ export default function StudentAttendance() {
       if (historyFilter.endDate) params.append('end_date', historyFilter.endDate)
 
       const data = await api.getMyAttendance(params.toString())
-      const list = Array.isArray(data) ? data : (data?.results || [])
+      const list = Array.isArray(data) ? data : (data?.attendances || data?.results || [])
       setAttendanceHistory(list)
+      // Also set stats from the same response
+      if (data?.statistics) {
+        setAttendanceStats(data.statistics)
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to load attendance history')
     } finally {
@@ -70,31 +61,13 @@ export default function StudentAttendance() {
     }
   }, [historyFilter, toast])
 
-  // Load stats
-  const loadStats = useCallback(async () => {
-    if (!user?.id) return
-    try {
-      const data = await api.getStudentAttendanceDetail(user.id)
-      setAttendanceStats(data)
-    } catch (err) {
-      console.error('Failed to load stats:', err)
-    }
-  }, [user])
 
   useEffect(() => {
-    loadActiveSessions()
-    // Refresh active sessions every 30 seconds
-    const interval = setInterval(loadActiveSessions, 30000)
-    return () => clearInterval(interval)
-  }, [loadActiveSessions])
-
-  useEffect(() => {
-    if (activeTab === 'history') {
+    // Load attendance data on mount and when tab changes
+    if (activeTab === 'history' || activeTab === 'stats') {
       loadAttendanceHistory()
-    } else if (activeTab === 'stats') {
-      loadStats()
     }
-  }, [activeTab, loadAttendanceHistory, loadStats])
+  }, [activeTab, loadAttendanceHistory])
 
   // Get current location
   async function getLocation() {
@@ -124,10 +97,10 @@ export default function StudentAttendance() {
     }
   }
 
-  // Mark attendance with QR token
+  // Mark attendance with QR token - students enter session_id directly
   async function handleMarkAttendance() {
-    if (!selectedSession) {
-      toast.error('Please select a session')
+    if (!sessionId.trim()) {
+      toast.error('Please enter the Session ID from the QR code')
       return
     }
     if (!qrToken.trim()) {
@@ -135,24 +108,17 @@ export default function StudentAttendance() {
       return
     }
 
-    // Check if location is required
-    if (selectedSession.require_location && !location.latitude) {
-      toast.error('Location is required for this session. Please enable location.')
-      return
-    }
-
     setMarkingAttendance(true)
     try {
       const payload = {
-        session_id: selectedSession.session_id,
+        session_id: sessionId.trim(),
         qr_token: qrToken.trim(),
         ...(location.latitude && { latitude: location.latitude, longitude: location.longitude })
       }
       const result = await api.markQRAttendance(payload)
       toast.success(`Attendance marked as ${result.status || 'present'}!`)
       setQrToken('')
-      setSelectedSession(null)
-      loadActiveSessions()
+      setSessionId('')
       loadAttendanceHistory()
     } catch (err) {
       toast.error(err.message || 'Failed to mark attendance')
@@ -234,134 +200,89 @@ export default function StudentAttendance() {
       {/* Mark Attendance Tab */}
       {activeTab === 'mark' && (
         <div className="space-y-6">
-          {/* Active Sessions */}
+          {/* Mark Attendance Form */}
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Active Sessions</h2>
-              <button
-                onClick={loadActiveSessions}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <RefreshCw className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+            <h2 className="text-lg font-semibold mb-2">Mark Your Attendance</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Scan the QR code displayed by your instructor. Enter the Session ID and Token from the QR code below.
+            </p>
 
-            {activeSessions.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="w-12 h-12 text-gray-400 mx-auto" />
-                <h3 className="mt-4 text-gray-700 font-medium">No Active Sessions</h3>
-                <p className="text-sm text-gray-500 mt-1">There are no attendance sessions active right now</p>
+            <div className="space-y-4">
+              {/* Session ID Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Session ID</label>
+                <input
+                  type="text"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  placeholder="Enter the Session ID (UUID format)"
+                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">The session ID is shown in the QR code data</p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {activeSessions.map(session => (
-                  <div
-                    key={session.id}
-                    onClick={() => setSelectedSession(session)}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition ${
-                      selectedSession?.id === session.id
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-900">{session.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {session.class_name} {session.subject_name && `- ${session.subject_name}`}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {formatDateTime(session.scheduled_start)}
-                          </span>
-                          {session.require_location && (
-                            <span className="flex items-center gap-1 text-orange-600">
-                              <MapPin className="w-4 h-4" />
-                              Location Required
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {selectedSession?.id === session.id && (
-                        <CheckCircle className="w-6 h-6 text-indigo-600" />
-                      )}
+
+              {/* QR Token Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">QR Token</label>
+                <input
+                  type="text"
+                  value={qrToken}
+                  onChange={(e) => setQrToken(e.target.value)}
+                  placeholder="Enter the 16-character token"
+                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
+                  maxLength={16}
+                />
+              </div>
+
+              {/* Location (optional) */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-800">Location</span>
+                      <p className="text-xs text-gray-500">Some sessions may require location</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* QR Token Input */}
-          {selectedSession && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Enter QR Code Token</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Scan the QR code displayed by your instructor and enter the token below
-              </p>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">QR Token</label>
-                  <input
-                    type="text"
-                    value={qrToken}
-                    onChange={(e) => setQrToken(e.target.value.toUpperCase())}
-                    placeholder="Enter the 16-character token"
-                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
-                    maxLength={16}
-                  />
-                </div>
-
-                {/* Location */}
-                {selectedSession.require_location && (
-                  <div className="bg-orange-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-5 h-5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-800">Location Required</span>
-                      </div>
-                      {location.latitude ? (
-                        <span className="text-sm text-green-600 flex items-center gap-1">
-                          <CheckCircle className="w-4 h-4" />
-                          Captured
-                        </span>
-                      ) : (
-                        <button
-                          onClick={getLocation}
-                          disabled={locationLoading}
-                          className="px-3 py-1 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50"
-                        >
-                          {locationLoading ? 'Getting...' : 'Get Location'}
-                        </button>
-                      )}
-                    </div>
-                    {location.latitude && (
-                      <p className="text-xs text-gray-600 mt-2">
-                        Lat: {location.latitude.toFixed(6)}, Long: {location.longitude.toFixed(6)}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <button
-                  onClick={handleMarkAttendance}
-                  disabled={markingAttendance || !qrToken.trim()}
-                  className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {markingAttendance ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      Marking Attendance...
+                  {location.latitude ? (
+                    <span className="text-sm text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" />
+                      Captured
                     </span>
                   ) : (
-                    'Mark Attendance'
+                    <button
+                      onClick={getLocation}
+                      disabled={locationLoading}
+                      className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {locationLoading ? 'Getting...' : 'Get Location'}
+                    </button>
                   )}
-                </button>
+                </div>
+                {location.latitude && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Lat: {location.latitude.toFixed(6)}, Long: {location.longitude.toFixed(6)}
+                  </p>
+                )}
               </div>
+
+              {/* Submit Button */}
+              <button
+                onClick={handleMarkAttendance}
+                disabled={markingAttendance || !qrToken.trim() || !sessionId.trim()}
+                className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {markingAttendance ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    Marking Attendance...
+                  </span>
+                ) : (
+                  'Mark Attendance'
+                )}
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 

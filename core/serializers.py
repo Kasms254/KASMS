@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, 
+    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamResultNotificationReadStatus,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog)
 from django.contrib.auth.password_validation import validate_password
 import uuid
