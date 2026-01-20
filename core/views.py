@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,ExamResultNotificationReadStatus,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
@@ -3043,7 +3043,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         if start_date:
             session_qs = session_qs.filter(scheduled_start__gte=start_date)
         if end_date:
-            session_qs = session_qs.filter(scheduled_start_lte=end_date)
+            session_qs = session_qs.filter(scheduled_start__lte=end_date)
 
 
         sessions = session_qs.order_by('-scheduled_start')

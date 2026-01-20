@@ -409,6 +409,24 @@ class ClassNoticeReadStatus(models.Model):
     def __str__(self):
         return f"{self.user.username} read {self.class_notice.title}"
 
+
+class ExamResultNotificationReadStatus(models.Model):
+    user  = models.ForeignKey('User',on_delete=models.CASCADE, related_name='exam_result_notification_read_statuses')
+    exam_result = models.ForeignKey('ExamResult', on_delete=models.CASCADE, related_name='notification_read_statuses')
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'exam_result_notification_read_statuses'
+        unique_together = ['user', 'exam_result']
+        ordering = ['-read_at']
+        indexes= [
+            models.Index(fields =['user', 'exam_result']),
+            models.Index(fields=['read_at']),
+
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} read result for {self.exam_result.exam.title}"
 # Attendance
 
 class AttendanceSession(models.Model):
@@ -520,16 +538,15 @@ class AttendanceSession(models.Model):
     def is_within_schedule(self):
         now = timezone.now()
         grace_period = timedelta(minutes = self.allow_late_minutes)
-
-        start = self.scheduled_start
-        end = self.scheduled_end
-
-        print(f"Now (UTC): {now}")
-        print(f"Start: {start}")
-        print(f"End + Grace: {end}")
-        print(f"Within schedule: {start <= now <= end}")
         
-        return start <= now <= end
+        start = self.scheduled_start
+        end= self.scheduled_end
+
+        end_with_grace = end + grace_period
+
+        return start <= now <= end_with_grace
+
+
 
     def can_mark_attendance(self):
         return (

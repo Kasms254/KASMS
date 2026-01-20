@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, 
-    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog)
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog,ExamResultNotificationReadStatus)
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
@@ -601,8 +601,6 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField(read_only=True)
     session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-
     total_students = serializers.IntegerField(read_only=True)
     marked_count = serializers.IntegerField(read_only=True)
     attendance_percentage = serializers.FloatField(read_only=True)
