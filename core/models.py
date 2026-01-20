@@ -409,7 +409,6 @@ class ClassNoticeReadStatus(models.Model):
     def __str__(self):
         return f"{self.user.username} read {self.class_notice.title}"
 
-
 class ExamResultNotificationReadStatus(models.Model):
     user  = models.ForeignKey('User',on_delete=models.CASCADE, related_name='exam_result_notification_read_statuses')
     exam_result = models.ForeignKey('ExamResult', on_delete=models.CASCADE, related_name='notification_read_statuses')
@@ -707,7 +706,6 @@ class SessionAttendance(models.Model):
 
         self.location_verified = distance <= self.session.location_radius_meters
         return self.location_verified
-
 
 class BiometricRecord(models.Model):
 

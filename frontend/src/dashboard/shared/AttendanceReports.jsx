@@ -175,11 +175,18 @@ export default function AttendanceReports() {
 
   // Export report
   async function handleExport() {
-    if (!selectedClass) return
+    if (!selectedClass) {
+      toast.error('Please select a class first')
+      return
+    }
+    if (!classSummary) {
+      toast.error('No report data available. Please wait for the data to load.')
+      return
+    }
     try {
-      // Generate PDF report using jspdf
+      // Generate PDF report using jspdf and jspdf-autotable
       const { jsPDF } = await import('jspdf')
-      await import('jspdf-autotable')
+      const autoTable = (await import('jspdf-autotable')).default
 
       const doc = new jsPDF()
       const className = classes.find(c => c.id === Number(selectedClass))?.name || 'Class'
@@ -191,34 +198,35 @@ export default function AttendanceReports() {
       doc.text(`Period: ${dateRange.startDate} to ${dateRange.endDate}`, 14, 32)
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 38)
 
-      if (classSummary) {
-        // Summary stats
-        doc.setFontSize(14)
-        doc.text('Summary', 14, 52)
+      // Summary stats
+      doc.setFontSize(14)
+      doc.text('Summary', 14, 52)
 
-        doc.setFontSize(10)
-        const summaryData = [
-          ['Total Sessions', classSummary.total_sessions || 0],
-          ['Total Students', classSummary.total_students || 0],
-          ['Average Attendance Rate', `${(classSummary.attendance_rate || 0).toFixed(1)}%`],
-          ['Present', classSummary.by_status?.present || 0],
-          ['Late', classSummary.by_status?.late || 0],
-          ['Absent', classSummary.by_status?.absent || 0],
-        ]
+      const summaryData = [
+        ['Total Sessions', String(classSummary.total_sessions || 0)],
+        ['Total Students', String(classSummary.total_students || 0)],
+        ['Average Attendance Rate', `${(classSummary.attendance_rate || 0).toFixed(1)}%`],
+        ['Present', String(classSummary.by_status?.present || 0)],
+        ['Late', String(classSummary.by_status?.late || 0)],
+        ['Absent', String(classSummary.by_status?.absent || 0)],
+      ]
 
-        doc.autoTable({
-          startY: 56,
-          head: [['Metric', 'Value']],
-          body: summaryData,
-          theme: 'grid',
-          headStyles: { fillColor: [99, 102, 241] }
-        })
-      }
+      // Use autoTable as a function, passing doc as first argument
+      autoTable(doc, {
+        startY: 56,
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: { fillColor: [99, 102, 241] }
+      })
 
-      doc.save(`attendance_report_${className}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`)
+      // Sanitize filename by removing special characters
+      const safeClassName = className.replace(/[^a-zA-Z0-9-_]/g, '_')
+      doc.save(`attendance_report_${safeClassName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`)
       toast.success('Report exported successfully')
     } catch (err) {
-      toast.error('Failed to export report')
+      console.error('Export error:', err)
+      toast.error(`Failed to export report: ${err.message || 'Unknown error'}`)
     }
   }
 
@@ -230,16 +238,18 @@ export default function AttendanceReports() {
           <h1 className="text-2xl font-bold text-black">Attendance Reports</h1>
           <p className="text-sm text-gray-600 mt-1">Analyze attendance patterns and identify students at risk</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-        >
-          <Download className="w-5 h-5" />
-          Export Report
-        </button>
+        {selectedClass && (
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          >
+            <Download className="w-5 h-5" />
+            Export Report
+          </button>
+        )}
       </div>
 
-      {/* Filters */}
+      {/* Class Selection */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -249,73 +259,88 @@ export default function AttendanceReports() {
               onChange={(e) => setSelectedClass(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">All Classes</option>
+              <option value="">Select a Class</option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>{c.name || c.class_code}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Start Date</label>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange(d => ({ ...d, startDate: e.target.value }))}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">End Date</label>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange(d => ({ ...d, endDate: e.target.value }))}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                if (activeTab === 'overview') loadClassSummary()
-                else if (activeTab === 'trends') loadTrendData()
-                else if (activeTab === 'alerts') loadLowAttendanceAlerts()
-              }}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
+          {selectedClass && (
+            <>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange(d => ({ ...d, startDate: e.target.value }))}
+                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange(d => ({ ...d, endDate: e.target.value }))}
+                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    if (activeTab === 'overview') loadClassSummary()
+                    else if (activeTab === 'trends') loadTrendData()
+                    else if (activeTab === 'alerts') loadLowAttendanceAlerts()
+                  }}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refresh
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-lg shadow-sm mb-6">
-        <div className="flex border-b overflow-x-auto">
-          {[
-            { id: 'overview', label: 'Overview', icon: Target },
-            { id: 'trends', label: 'Trends', icon: TrendingUp },
-            { id: 'alerts', label: 'Low Attendance Alerts', icon: AlertTriangle },
-            { id: 'student', label: 'Student Detail', icon: Users }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap transition border-b-2 ${
-                activeTab === tab.id
-                  ? 'text-indigo-600 border-indigo-600'
-                  : 'text-gray-600 border-transparent hover:text-gray-900'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Show prompt when no class selected */}
+      {!selectedClass && (
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
+          <p className="text-gray-500">Choose a class from the dropdown above to view attendance reports.</p>
         </div>
-      </div>
+      )}
+
+      {/* Tabs - only show when class is selected */}
+      {selectedClass && (
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          <div className="flex border-b overflow-x-auto">
+            {[
+              { id: 'overview', label: 'Overview', icon: Target },
+              { id: 'trends', label: 'Trends', icon: TrendingUp },
+              { id: 'alerts', label: 'Low Attendance Alerts', icon: AlertTriangle },
+              { id: 'student', label: 'Student Detail', icon: Users }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap transition border-b-2 ${
+                  activeTab === tab.id
+                    ? 'text-indigo-600 border-indigo-600'
+                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Overview Tab */}
-      {activeTab === 'overview' && (
+      {selectedClass && activeTab === 'overview' && (
         <div className="space-y-6">
           {loading ? (
             <div className="bg-white rounded-lg shadow-sm p-8 text-center">
@@ -434,14 +459,14 @@ export default function AttendanceReports() {
                             name: s.student_name?.split(' ')[0] || 'Student',
                             rate: s.attendance_rate || 0
                           }))}
-                          layout="vertical"
-                          margin={{ left: 20, right: 20 }}
+                          layout="horizontal"
+                          margin={{ top: 10, right: 20, left: 20 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                          <XAxis type="number" domain={[0, 100]} unit="%" />
-                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
+                          <YAxis type="number" domain={[0, 100]} unit="%" />
                           <Tooltip formatter={(value) => [`${value}%`, 'Attendance Rate']} />
-                          <Bar dataKey="rate" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                          <Bar dataKey="rate" fill="#6366f1" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -480,7 +505,7 @@ export default function AttendanceReports() {
       )}
 
       {/* Trends Tab */}
-      {activeTab === 'trends' && (
+      {selectedClass && activeTab === 'trends' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="font-semibold mb-4">Attendance Trend (Last 30 Days)</h3>
           {trendData.length === 0 ? (
@@ -527,7 +552,7 @@ export default function AttendanceReports() {
       )}
 
       {/* Alerts Tab */}
-      {activeTab === 'alerts' && (
+      {selectedClass && activeTab === 'alerts' && (
         <div className="space-y-6">
           <div className="bg-yellow-50 rounded-lg p-4 flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -596,7 +621,7 @@ export default function AttendanceReports() {
       )}
 
       {/* Student Detail Tab */}
-      {activeTab === 'student' && (
+      {selectedClass && activeTab === 'student' && (
         <div className="space-y-6">
           {/* Student Selector */}
           <div className="bg-white rounded-lg shadow-sm p-4">

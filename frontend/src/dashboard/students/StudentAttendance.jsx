@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   QrCode, Calendar, CheckCircle, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, MapPin, RefreshCw,
-  AlertTriangle, Award, Target
+  TrendingUp, MapPin, RefreshCw,
+  AlertTriangle, Award, Target, Camera, X, Keyboard
 } from 'lucide-react'
+import { Html5Qrcode } from 'html5-qrcode'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -23,12 +24,19 @@ export default function StudentAttendance() {
   const [activeTab, setActiveTab] = useState('mark') // 'mark' | 'history' | 'stats'
   const [loading, setLoading] = useState(false)
 
-  // Mark attendance state - students enter session_id and qr_token from QR code
-  const [sessionId, setSessionId] = useState('') // UUID session_id from QR code
+  // Mark attendance state
+  const [sessionId, setSessionId] = useState('')
   const [qrToken, setQrToken] = useState('')
   const [location, setLocation] = useState({ latitude: null, longitude: null })
   const [locationLoading, setLocationLoading] = useState(false)
   const [markingAttendance, setMarkingAttendance] = useState(false)
+
+  // QR Scanner state
+  const [showScanner, setShowScanner] = useState(false)
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [scannerError, setScannerError] = useState('')
+  const scannerRef = useRef(null)
+  const html5QrCodeRef = useRef(null)
 
   // History state
   const [attendanceHistory, setAttendanceHistory] = useState([])
@@ -97,28 +105,101 @@ export default function StudentAttendance() {
     }
   }
 
-  // Mark attendance with QR token - students enter session_id directly
-  async function handleMarkAttendance() {
-    if (!sessionId.trim()) {
-      toast.error('Please enter the Session ID from the QR code')
-      return
+  // Start QR scanner
+  async function startScanner() {
+    setScannerError('')
+    setShowScanner(true)
+
+    // Wait for DOM element to be ready
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode('qr-reader')
+        html5QrCodeRef.current = html5QrCode
+
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+          },
+          (decodedText) => {
+            handleQRCodeScanned(decodedText)
+          },
+          () => {
+            // QR code not found - ignore, keep scanning
+          }
+        )
+      } catch (err) {
+        console.error('Scanner error:', err)
+        setScannerError(err.message || 'Failed to start camera. Please check permissions.')
+        setShowScanner(false)
+      }
+    }, 100)
+  }
+
+  // Stop QR scanner
+  async function stopScanner() {
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop()
+        html5QrCodeRef.current = null
+      } catch (err) {
+        console.error('Error stopping scanner:', err)
+      }
     }
-    if (!qrToken.trim()) {
-      toast.error('Please enter the QR code token')
+    setShowScanner(false)
+  }
+
+  // Handle scanned QR code
+  function handleQRCodeScanned(decodedText) {
+    stopScanner()
+
+    try {
+      // Try parsing as JSON first (new format: { session_id, qr_token })
+      const data = JSON.parse(decodedText)
+      if (data.session_id && data.qr_token) {
+        setSessionId(String(data.session_id))
+        setQrToken(data.qr_token)
+        toast.success('QR code scanned successfully!')
+        // Auto-submit after a short delay
+        setTimeout(() => {
+          submitAttendance(String(data.session_id), data.qr_token)
+        }, 500)
+        return
+      }
+    } catch {
+      // Not JSON, might be just the token (legacy format)
+    }
+
+    // Legacy: If it's just a token string, we still need session ID
+    if (decodedText && decodedText.length === 16) {
+      setQrToken(decodedText)
+      setShowManualEntry(true)
+      toast.info('Token scanned. Please enter the Session ID displayed on screen.')
+    } else {
+      toast.error('Invalid QR code format')
+    }
+  }
+
+  // Submit attendance (used by both scanner and manual entry)
+  async function submitAttendance(sid, token) {
+    if (!sid || !token) {
+      toast.error('Session ID and token are required')
       return
     }
 
     setMarkingAttendance(true)
     try {
       const payload = {
-        session_id: sessionId.trim(),
-        qr_token: qrToken.trim(),
+        session_id: sid.trim(),
+        qr_token: token.trim(),
         ...(location.latitude && { latitude: location.latitude, longitude: location.longitude })
       }
       const result = await api.markQRAttendance(payload)
       toast.success(`Attendance marked as ${result.status || 'present'}!`)
       setQrToken('')
       setSessionId('')
+      setShowManualEntry(false)
       loadAttendanceHistory()
     } catch (err) {
       toast.error(err.message || 'Failed to mark attendance')
@@ -126,6 +207,20 @@ export default function StudentAttendance() {
       setMarkingAttendance(false)
     }
   }
+
+  // Mark attendance with manual entry
+  async function handleMarkAttendance() {
+    submitAttendance(sessionId, qrToken)
+  }
+
+  // Cleanup scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {})
+      }
+    }
+  }, [])
 
   // Format datetime
   function formatDateTime(dt) {
@@ -200,60 +295,228 @@ export default function StudentAttendance() {
       {/* Mark Attendance Tab */}
       {activeTab === 'mark' && (
         <div className="space-y-6">
-          {/* Mark Attendance Form */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-semibold mb-2">Mark Your Attendance</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Scan the QR code displayed by your instructor. Enter the Session ID and Token from the QR code below.
-            </p>
-
-            <div className="space-y-4">
-              {/* Session ID Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Session ID</label>
-                <input
-                  type="text"
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  placeholder="Enter the Session ID (UUID format)"
-                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">The session ID is shown in the QR code data</p>
+          {/* QR Scanner View */}
+          {showScanner ? (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Scan QR Code</h2>
+                <button
+                  onClick={stopScanner}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* QR Token Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">QR Token</label>
-                <input
-                  type="text"
-                  value={qrToken}
-                  onChange={(e) => setQrToken(e.target.value)}
-                  placeholder="Enter the 16-character token"
-                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
-                  maxLength={16}
+              <p className="text-sm text-gray-600 mb-4">
+                Point your camera at the QR code displayed by your instructor
+              </p>
+
+              {/* Scanner container */}
+              <div className="relative">
+                <div
+                  id="qr-reader"
+                  ref={scannerRef}
+                  className="w-full max-w-md mx-auto rounded-lg overflow-hidden"
                 />
+                {scannerError && (
+                  <div className="mt-4 p-4 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-2 text-red-700">
+                      <AlertCircle className="w-5 h-5" />
+                      <span className="text-sm">{scannerError}</span>
+                    </div>
+                    <button
+                      onClick={() => { stopScanner(); setShowManualEntry(true) }}
+                      className="mt-3 text-sm text-indigo-600 hover:text-indigo-700"
+                    >
+                      Use manual entry instead
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Location (optional) */}
-              <div className="bg-gray-50 rounded-lg p-4">
+              {/* Location capture while scanning */}
+              <div className="mt-4 bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-5 h-5 text-gray-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-800">Location</span>
-                      <p className="text-xs text-gray-500">Some sessions may require location</p>
-                    </div>
+                    <span className="text-sm text-gray-700">Location</span>
                   </div>
                   {location.latitude ? (
                     <span className="text-sm text-green-600 flex items-center gap-1">
                       <CheckCircle className="w-4 h-4" />
-                      Captured
+                      Ready
                     </span>
                   ) : (
                     <button
                       onClick={getLocation}
                       disabled={locationLoading}
                       className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {locationLoading ? 'Getting...' : 'Capture'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => { stopScanner(); setShowManualEntry(true) }}
+                className="mt-4 w-full py-2 text-gray-600 hover:text-gray-900 text-sm flex items-center justify-center gap-2"
+              >
+                <Keyboard className="w-4 h-4" />
+                Enter code manually instead
+              </button>
+            </div>
+          ) : showManualEntry ? (
+            /* Manual Entry Form */
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Manual Entry</h2>
+                <button
+                  onClick={() => { setShowManualEntry(false); setSessionId(''); setQrToken('') }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                Enter the session details shown on the instructor's screen
+              </p>
+
+              <div className="space-y-4">
+                {/* Session ID Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Session ID</label>
+                  <input
+                    type="text"
+                    value={sessionId}
+                    onChange={(e) => setSessionId(e.target.value)}
+                    placeholder="Enter the Session ID"
+                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                  />
+                </div>
+
+                {/* QR Token Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Token</label>
+                  <input
+                    type="text"
+                    value={qrToken}
+                    onChange={(e) => setQrToken(e.target.value)}
+                    placeholder="Enter the 16-character token"
+                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg tracking-wider"
+                    maxLength={16}
+                  />
+                </div>
+
+                {/* Location */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-gray-600" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">Location</span>
+                        <p className="text-xs text-gray-500">May be required</p>
+                      </div>
+                    </div>
+                    {location.latitude ? (
+                      <span className="text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" />
+                        Captured
+                      </span>
+                    ) : (
+                      <button
+                        onClick={getLocation}
+                        disabled={locationLoading}
+                        className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 disabled:opacity-50"
+                      >
+                        {locationLoading ? 'Getting...' : 'Get Location'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  onClick={handleMarkAttendance}
+                  disabled={markingAttendance || !qrToken.trim() || !sessionId.trim()}
+                  className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {markingAttendance ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Marking Attendance...
+                    </span>
+                  ) : (
+                    'Mark Attendance'
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { setShowManualEntry(false); startScanner() }}
+                  className="w-full py-2 text-gray-600 hover:text-gray-900 text-sm flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  Use camera to scan instead
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Default: Choose method */
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-lg font-semibold mb-2">Mark Your Attendance</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Scan the QR code displayed by your instructor to mark your attendance
+              </p>
+
+              {/* Primary: Scan QR Code Button */}
+              <button
+                onClick={startScanner}
+                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-3"
+              >
+                <Camera className="w-6 h-6" />
+                <span className="text-lg">Scan QR Code</span>
+              </button>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-500">or</span>
+                </div>
+              </div>
+
+              {/* Secondary: Manual Entry */}
+              <button
+                onClick={() => setShowManualEntry(true)}
+                className="w-full py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2"
+              >
+                <Keyboard className="w-5 h-5" />
+                Enter Code Manually
+              </button>
+
+              {/* Location pre-capture */}
+              <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-800">Capture Location First</span>
+                      <p className="text-xs text-gray-500">Some sessions require location verification</p>
+                    </div>
+                  </div>
+                  {location.latitude ? (
+                    <span className="text-sm text-green-600 flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" />
+                      Ready
+                    </span>
+                  ) : (
+                    <button
+                      onClick={getLocation}
+                      disabled={locationLoading}
+                      className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 disabled:opacity-50"
                     >
                       {locationLoading ? 'Getting...' : 'Get Location'}
                     </button>
@@ -266,23 +529,17 @@ export default function StudentAttendance() {
                 )}
               </div>
 
-              {/* Submit Button */}
-              <button
-                onClick={handleMarkAttendance}
-                disabled={markingAttendance || !qrToken.trim() || !sessionId.trim()}
-                className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {markingAttendance ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Marking Attendance...
-                  </span>
-                ) : (
-                  'Mark Attendance'
-                )}
-              </button>
+              {/* Instructions */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-medium text-blue-900 mb-2">How it works</h3>
+                <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                  <li>Your instructor will display a QR code on screen</li>
+                  <li>Tap "Scan QR Code" and point your camera at it</li>
+                  <li>Your attendance is marked automatically</li>
+                </ol>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

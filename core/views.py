@@ -3040,11 +3040,13 @@ class AttendanceReportViewSet(viewsets.ViewSet):
 
         session_qs = AttendanceSession.objects.filter(class_obj=class_obj)
 
+        # Interpret start_date/end_date as inclusive dates. Use the
+        # scheduled_start__date lookup so sessions scheduled anytime during
+        # the given day are included (avoids excluding sessions later in the day).
         if start_date:
-            session_qs = session_qs.filter(scheduled_start__gte=start_date)
+            session_qs = session_qs.filter(scheduled_start__date__gte=start_date)
         if end_date:
-            session_qs = session_qs.filter(scheduled_start__lte=end_date)
-            session_qs = session_qs.filter(scheduled_start__lte=end_date)
+            session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
 
 
         sessions = session_qs.order_by('-scheduled_start')
@@ -3196,28 +3198,55 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'absent':total_class_sessions - attended,
                 'attendance_rate':round(attendance_rate, 2)
             })
+        # recent attendances across all classes (most recent 20)
+        recent = attendances.order_by('-marked_at')[:20]
 
-            recent = attendances.order_by('-marked_at')[:20]
+        # Build by_class mapping expected by frontend: { class_name: { rate, present, late, absent } }
+        by_class = {}
+        total_sessions_all = 0
+        for cb in class_breakdown:
+            cname = cb.get('class_name') or str(cb.get('class_id'))
+            by_class[cname] = {
+                'rate': cb.get('attendance_rate', 0),
+                'present': cb.get('present', 0),
+                'late': cb.get('late', 0),
+                'absent': cb.get('absent', 0)
+            }
+            total_sessions_all += cb.get('total_sessions', 0)
 
-            return Response({
-                'student':{
-                    'id':student.id,
-                    'name':student.get_full_name(),
-                    'svc_number':student.svc_number,
-                    'email':student.email
-                },
-                'period':{
-                    'start_date':start_date,
-                    'end_date':end_date
-                },
-                'overall_statistics':{
-                    'total_attendances':total_attendances,
-                    'status_breakdown':status_breakdown,
-                    'method_breakdown':method_breakdown
-                },
-                'class_breakdown':class_breakdown,
-                'recent_attendances': SessionAttendanceSerializer(recent, many=True).data
-            })
+        # Derive top-level counts expected by frontend
+        present_count = status_breakdown.get('present', 0)
+        late_count = status_breakdown.get('late', 0)
+        absent_count = status_breakdown.get('absent', 0)
+
+        overall_attendance_rate = 0
+        if total_sessions_all > 0:
+            overall_attendance_rate = round((total_attendances / total_sessions_all) * 100, 2)
+
+        return Response({
+            'student_name': student.get_full_name(),
+            'student': {
+                'id': student.id,
+                'svc_number': student.svc_number,
+                'email': student.email
+            },
+            'period': {
+                'start_date': start_date,
+                'end_date': end_date
+            },
+            'attendance_rate': overall_attendance_rate,
+            'present_count': present_count,
+            'late_count': late_count,
+            'absent_count': absent_count,
+            'by_class': by_class,
+            'overall_statistics': {
+                'total_attendances': total_attendances,
+                'status_breakdown': status_breakdown,
+                'method_breakdown': method_breakdown
+            },
+            'class_breakdown': class_breakdown,
+            'recent_attendances': SessionAttendanceSerializer(recent, many=True).data
+        })
             
     @action(detail=False, methods=['get'])
     def session_comparison(self, request):
@@ -3370,27 +3399,32 @@ class AttendanceReportViewSet(viewsets.ViewSet):
 
             if attendance_rate < threshold:
                 low_attendance_students.append({
-                    'student_id':student.id,
-                    'student_name':student.get_full_name(),
-                    'svc_number':student.svc_number,
-                    'email':student.email,
-                    'total_sessions':total_sessions,
-                    'attended':attended,
-                    'missed':total_sessions - attended,
-                    'attendance_rate':round(attendance_rate, 2),
-                    'status':'critical' if attendance_rate < 50 else 'warning'
-
+                    'id': student.id,
+                    'student_id': student.id,
+                    'student_name': student.get_full_name(),
+                    'name': student.get_full_name(),
+                    'first_name': student.first_name,
+                    'last_name': student.last_name,
+                    'svc_number': student.svc_number,
+                    'email': student.email,
+                    'class_name': class_obj.name,
+                    'total_sessions': total_sessions,
+                    'attended': attended,
+                    'missed': total_sessions - attended,
+                    'attendance_rate': round(attendance_rate, 2),
+                    'status': 'critical' if attendance_rate < 50 else 'warning'
                 })
 
-            low_attendance_students.sort(key=lambda x: x['attendance_rate'])
+        # sort and return after processing all students
+        low_attendance_students.sort(key=lambda x: x['attendance_rate'])
 
-            return Response({
-                'class':{
-                    'id': class_obj.id,
-                    'name':class_obj.name
-                },
-                'threshold':threshold,
-                'total_sessions':total_sessions,
-                'count':len(low_attendance_students),
-                'students':low_attendance_students
-            })
+        return Response({
+            'class': {
+                'id': class_obj.id,
+                'name': class_obj.name
+            },
+            'threshold': threshold,
+            'total_sessions': total_sessions,
+            'count': len(low_attendance_students),
+            'students': low_attendance_students
+        })

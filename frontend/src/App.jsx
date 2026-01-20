@@ -34,6 +34,7 @@ const Notifications = lazy(() => import('./dashboard/shared/Notifications'))
 const PerformanceAnalytics = lazy(() => import('./dashboard/shared/PerformanceAnalytics'))
 const ExamReports = lazy(() => import('./dashboard/shared/ExamReports'))
 const AttendanceSessions = lazy(() => import('./dashboard/instructors/AttendanceSessions'))
+const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
 
@@ -127,6 +128,7 @@ const App = () => {
 			{/* Attendance Sessions (instructors only) */}
 			<Route path="/list/attendance-sessions" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<AttendanceSessions />} />
+				<Route path=":sessionId" element={<SessionAttendance />} />
 			</Route>
 
 			{/* Student Attendance (students only) */}

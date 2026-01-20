@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Play, Square, QrCode, Users, Clock, Calendar,
   ChevronDown, ChevronUp, Search, Filter, MoreVertical,
   CheckCircle, XCircle, AlertCircle, Download, Trash2, Edit,
-  Eye, RefreshCw, UserCheck, UserX, MapPin, ChevronLeft, ChevronRight
+  Eye, RefreshCw, UserCheck, UserX, MapPin, ChevronLeft, ChevronRight,
+  Fingerprint, Upload, Loader2
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -36,6 +38,7 @@ const ATTENDANCE_STATUS_COLORS = {
 export default function AttendanceSessions() {
   const { user } = useAuth()
   const toast = useToast()
+  const navigate = useNavigate()
 
   // Sessions state
   const [sessions, setSessions] = useState([])
@@ -54,16 +57,24 @@ export default function AttendanceSessions() {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false)
   const [showStatsModal, setShowStatsModal] = useState(false)
+  const [showBiometricModal, setShowBiometricModal] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ open: false, action: null, session: null })
+
+  // Biometric state
+  const [biometricRecords, setBiometricRecords] = useState([])
+  const [biometricLoading, setBiometricLoading] = useState(false)
+  const [biometricSyncForm, setBiometricSyncForm] = useState({
+    device_id: '',
+    device_type: 'zkteco',
+    biometric_id: '',
+    scan_time: ''
+  })
 
   // Selected session for modals
   const [selectedSession, setSelectedSession] = useState(null)
   const [qrData, setQrData] = useState(null)
   const [sessionStats, setSessionStats] = useState(null)
-  const [attendanceRecords, setAttendanceRecords] = useState([])
-  const [unmarkedStudents, setUnmarkedStudents] = useState([])
 
   // Create form state
   const [createForm, setCreateForm] = useState({
@@ -154,11 +165,34 @@ export default function AttendanceSessions() {
     }
   }, [qrRefreshTimer])
 
+  // Get minimum datetime (current time) for date inputs
+  const getMinDateTime = () => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  }
+
   // Create session
   async function handleCreateSession(e) {
     e.preventDefault()
     if (!createForm.title || !createForm.class_obj || !createForm.scheduled_start || !createForm.scheduled_end) {
       toast.error('Please fill in all required fields')
+      return
+    }
+
+    const now = new Date()
+    const startTime = new Date(createForm.scheduled_start)
+    const endTime = new Date(createForm.scheduled_end)
+
+    // Validate start time is not in the past
+    if (startTime < now) {
+      toast.error('Start time cannot be in the past')
+      return
+    }
+
+    // Validate end time is after start time
+    if (endTime <= startTime) {
+      toast.error('End time must be after start time')
       return
     }
 
@@ -264,20 +298,9 @@ export default function AttendanceSessions() {
     }
   }
 
-  // Show attendance records
-  async function handleShowAttendance(session) {
-    setSelectedSession(session)
-    setShowAttendanceModal(true)
-    try {
-      const [records, unmarked] = await Promise.all([
-        api.getSessionAttendances(`session=${session.id}`),
-        api.getUnmarkedStudents(session.id)
-      ])
-      setAttendanceRecords(Array.isArray(records) ? records : (records?.results || []))
-      setUnmarkedStudents(Array.isArray(unmarked) ? unmarked : (unmarked?.results || []))
-    } catch (err) {
-      toast.error(err.message || 'Failed to load attendance records')
-    }
+  // Navigate to attendance page
+  function handleShowAttendance(session) {
+    navigate(`/list/attendance-sessions/${session.id}`)
   }
 
   // Show statistics
@@ -293,31 +316,61 @@ export default function AttendanceSessions() {
     }
   }
 
-  // Mark absent
-  async function handleMarkAbsent(session) {
+  // Biometric functions
+  async function handleShowBiometric() {
+    setShowBiometricModal(true)
+    setBiometricLoading(true)
     try {
-      const result = await api.markAbsentStudents(session.id)
-      toast.success(`Marked ${result.marked_count || 0} students as absent`)
-      if (showAttendanceModal) {
-        handleShowAttendance(session)
-      }
+      const data = await api.getUnprocessedBiometrics()
+      setBiometricRecords(Array.isArray(data) ? data : (data?.records || []))
     } catch (err) {
-      toast.error(err.message || 'Failed to mark absent')
+      toast.error(err.message || 'Failed to load biometric records')
+    } finally {
+      setBiometricLoading(false)
     }
   }
 
-  // Manual mark attendance
-  async function handleManualMark(studentId, status) {
-    if (!selectedSession) return
+  async function handleSyncBiometric(e) {
+    e.preventDefault()
+    if (!biometricSyncForm.device_id || !biometricSyncForm.biometric_id || !biometricSyncForm.scan_time) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    setBiometricLoading(true)
     try {
-      await api.bulkMarkSessionAttendance({
-        session_id: selectedSession.id,
-        attendance_records: [{ student_id: studentId, status }]
+      const result = await api.syncBiometricRecords({
+        device_id: biometricSyncForm.device_id,
+        device_type: biometricSyncForm.device_type,
+        records: [{
+          biometric_id: biometricSyncForm.biometric_id,
+          scan_time: new Date(biometricSyncForm.scan_time).toISOString()
+        }]
       })
-      toast.success('Attendance marked')
-      handleShowAttendance(selectedSession)
+      toast.success(`Synced: ${result.created || 0} created, ${result.processed || 0} processed`)
+      setBiometricSyncForm({ device_id: '', device_type: 'zkteco', biometric_id: '', scan_time: '' })
+      // Refresh records
+      const data = await api.getUnprocessedBiometrics()
+      setBiometricRecords(Array.isArray(data) ? data : (data?.records || []))
     } catch (err) {
-      toast.error(err.message || 'Failed to mark attendance')
+      toast.error(err.message || 'Failed to sync biometric record')
+    } finally {
+      setBiometricLoading(false)
+    }
+  }
+
+  async function handleProcessPendingBiometrics() {
+    setBiometricLoading(true)
+    try {
+      const result = await api.processPendingBiometrics()
+      toast.success(`Processed: ${result.processed || 0} records`)
+      // Refresh records
+      const data = await api.getUnprocessedBiometrics()
+      setBiometricRecords(Array.isArray(data) ? data : (data?.records || []))
+    } catch (err) {
+      toast.error(err.message || 'Failed to process biometric records')
+    } finally {
+      setBiometricLoading(false)
     }
   }
 
@@ -352,9 +405,6 @@ export default function AttendanceSessions() {
       case 'delete':
         handleDeleteSession(confirmModal.session)
         break
-      case 'markAbsent':
-        handleMarkAbsent(confirmModal.session)
-        break
     }
     setConfirmModal({ open: false, action: null, session: null })
   }
@@ -375,13 +425,22 @@ export default function AttendanceSessions() {
           <h1 className="text-2xl font-bold text-black">Attendance Sessions</h1>
           <p className="text-sm text-gray-600 mt-1">Manage attendance sessions with QR codes, manual marking, and biometric integration</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-        >
-          <Plus className="w-5 h-5" />
-          Create Session
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleShowBiometric}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+          >
+            <Fingerprint className="w-5 h-5" />
+            Biometric
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          >
+            <Plus className="w-5 h-5" />
+            Create Session
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -593,6 +652,7 @@ export default function AttendanceSessions() {
                   <input
                     type="datetime-local"
                     value={createForm.scheduled_start}
+                    min={getMinDateTime()}
                     onChange={(e) => setCreateForm(f => ({ ...f, scheduled_start: e.target.value }))}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                     required
@@ -604,6 +664,7 @@ export default function AttendanceSessions() {
                   <input
                     type="datetime-local"
                     value={createForm.scheduled_end}
+                    min={createForm.scheduled_start || getMinDateTime()}
                     onChange={(e) => setCreateForm(f => ({ ...f, scheduled_end: e.target.value }))}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                     required
@@ -766,151 +827,6 @@ export default function AttendanceSessions() {
         </div>
       )}
 
-      {/* Attendance Records Modal */}
-      {showAttendanceModal && selectedSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAttendanceModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">{selectedSession.title}</h2>
-                <p className="text-sm text-gray-600">Attendance Records</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedSession.status === 'active' && unmarkedStudents.length > 0 && (
-                  <button
-                    onClick={() => setConfirmModal({ open: true, action: 'markAbsent', session: selectedSession })}
-                    className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-sm"
-                  >
-                    Mark All Absent ({unmarkedStudents.length})
-                  </button>
-                )}
-                <button onClick={() => setShowAttendanceModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              {/* Stats Summary */}
-              <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="bg-emerald-50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {attendanceRecords.filter(r => r.status === 'present').length}
-                  </div>
-                  <div className="text-xs text-emerald-700">Present</div>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {attendanceRecords.filter(r => r.status === 'late').length}
-                  </div>
-                  <div className="text-xs text-yellow-700">Late</div>
-                </div>
-                <div className="bg-red-50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-red-600">
-                    {attendanceRecords.filter(r => r.status === 'absent').length}
-                  </div>
-                  <div className="text-xs text-red-700">Absent</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-gray-600">{unmarkedStudents.length}</div>
-                  <div className="text-xs text-gray-700">Unmarked</div>
-                </div>
-              </div>
-
-              {/* Marked Students */}
-              {attendanceRecords.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-medium mb-3">Marked Attendance</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="px-4 py-2 text-left">Student</th>
-                          <th className="px-4 py-2 text-left">SVC Number</th>
-                          <th className="px-4 py-2 text-left">Status</th>
-                          <th className="px-4 py-2 text-left">Method</th>
-                          <th className="px-4 py-2 text-left">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attendanceRecords.map(record => (
-                          <tr key={record.id} className="border-t">
-                            <td className="px-4 py-2">{record.student_name || '—'}</td>
-                            <td className="px-4 py-2">{record.student_svc_number || '—'}</td>
-                            <td className="px-4 py-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${ATTENDANCE_STATUS_COLORS[record.status] || 'bg-gray-100'}`}>
-                                {record.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 capitalize">{record.marking_method?.replace('_', ' ') || '—'}</td>
-                            <td className="px-4 py-2">{formatDateTime(record.marked_at)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Unmarked Students */}
-              {unmarkedStudents.length > 0 && selectedSession.enable_manual_marking && (
-                <div>
-                  <h3 className="font-medium mb-3">Unmarked Students</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="px-4 py-2 text-left">Student</th>
-                          <th className="px-4 py-2 text-left">SVC Number</th>
-                          <th className="px-4 py-2 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unmarkedStudents.map(student => (
-                          <tr key={student.id} className="border-t">
-                            <td className="px-4 py-2">{student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || '—'}</td>
-                            <td className="px-4 py-2">{student.svc_number || '—'}</td>
-                            <td className="px-4 py-2">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleManualMark(student.id, 'present')}
-                                  className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs hover:bg-emerald-200"
-                                >
-                                  Present
-                                </button>
-                                <button
-                                  onClick={() => handleManualMark(student.id, 'late')}
-                                  className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
-                                >
-                                  Late
-                                </button>
-                                <button
-                                  onClick={() => handleManualMark(student.id, 'absent')}
-                                  className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
-                                >
-                                  Absent
-                                </button>
-                                <button
-                                  onClick={() => handleManualMark(student.id, 'excused')}
-                                  className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
-                                >
-                                  Excused
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Statistics Modal */}
       {showStatsModal && selectedSession && sessionStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -989,20 +905,178 @@ export default function AttendanceSessions() {
         </div>
       )}
 
+      {/* Biometric Modal */}
+      {showBiometricModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowBiometricModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Fingerprint className="w-6 h-6 text-purple-600" />
+                <div>
+                  <h2 className="text-xl font-semibold">Biometric Management</h2>
+                  <p className="text-sm text-gray-500">Sync and process biometric attendance records</p>
+                </div>
+              </div>
+              <button onClick={() => setShowBiometricModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)] space-y-6">
+              {/* Manual Sync Form */}
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                <h3 className="font-medium text-purple-900 mb-3 flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Manual Biometric Entry
+                </h3>
+                <form onSubmit={handleSyncBiometric} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Device ID *</label>
+                    <input
+                      type="text"
+                      value={biometricSyncForm.device_id}
+                      onChange={(e) => setBiometricSyncForm(f => ({ ...f, device_id: e.target.value }))}
+                      placeholder="e.g., device_001"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
+                    <select
+                      value={biometricSyncForm.device_type}
+                      onChange={(e) => setBiometricSyncForm(f => ({ ...f, device_type: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="zkteco">ZKTeco</option>
+                      <option value="fingerprint">Fingerprint Scanner</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Student SVC Number *</label>
+                    <input
+                      type="text"
+                      value={biometricSyncForm.biometric_id}
+                      onChange={(e) => setBiometricSyncForm(f => ({ ...f, biometric_id: e.target.value }))}
+                      placeholder="e.g., SVC12345"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Scan Time *</label>
+                    <input
+                      type="datetime-local"
+                      value={biometricSyncForm.scan_time}
+                      onChange={(e) => setBiometricSyncForm(f => ({ ...f, scan_time: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <button
+                      type="submit"
+                      disabled={biometricLoading}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {biometricLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      Sync Biometric Record
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Process Pending Button */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                <div>
+                  <h3 className="font-medium">Unprocessed Records</h3>
+                  <p className="text-sm text-gray-500">Process pending biometric scans to create attendance records</p>
+                </div>
+                <button
+                  onClick={handleProcessPendingBiometrics}
+                  disabled={biometricLoading}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  {biometricLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Process All
+                </button>
+              </div>
+
+              {/* Unprocessed Records Table */}
+              <div>
+                <h3 className="font-medium mb-3">Pending Biometric Records ({biometricRecords.length})</h3>
+                {biometricLoading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600" />
+                    <p className="mt-2 text-gray-500">Loading records...</p>
+                  </div>
+                ) : biometricRecords.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-4 py-2 text-left">Student</th>
+                          <th className="px-4 py-2 text-left">Biometric ID</th>
+                          <th className="px-4 py-2 text-left">Device</th>
+                          <th className="px-4 py-2 text-left">Scan Time</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {biometricRecords.map(record => (
+                          <tr key={record.id} className="border-t">
+                            <td className="px-4 py-2">{record.student_name || '—'}</td>
+                            <td className="px-4 py-2 font-mono text-xs">{record.biometric_id}</td>
+                            <td className="px-4 py-2 capitalize">{record.device_type || '—'}</td>
+                            <td className="px-4 py-2">{formatDateTime(record.scan_time)}</td>
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-1 rounded text-xs ${record.processed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {record.processed ? 'Processed' : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <Fingerprint className="w-12 h-12 text-gray-300 mx-auto" />
+                    <p className="mt-2 text-gray-500">No pending biometric records</p>
+                    <p className="text-sm text-gray-400">Records will appear here when synced from biometric devices</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Info Section */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <h3 className="font-medium text-blue-900 mb-2">How Biometric Attendance Works</h3>
+                <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                  <li>Students scan their fingerprint on the biometric device</li>
+                  <li>Device records are synced to the system (manually or via API)</li>
+                  <li>System matches the scan time with active attendance sessions</li>
+                  <li>Attendance is automatically marked based on the scan time</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirm Modal */}
       <ConfirmModal
         open={confirmModal.open}
         title={
           confirmModal.action === 'start' ? 'Start Session' :
           confirmModal.action === 'end' ? 'End Session' :
-          confirmModal.action === 'delete' ? 'Delete Session' :
-          confirmModal.action === 'markAbsent' ? 'Mark All Absent' : 'Confirm'
+          confirmModal.action === 'delete' ? 'Delete Session' : 'Confirm'
         }
         message={
           confirmModal.action === 'start' ? 'Are you sure you want to start this session? Students will be able to mark attendance.' :
           confirmModal.action === 'end' ? 'Are you sure you want to end this session? No more attendance can be marked.' :
-          confirmModal.action === 'delete' ? 'Are you sure you want to delete this session? This action cannot be undone.' :
-          confirmModal.action === 'markAbsent' ? 'Mark all unmarked students as absent?' : 'Are you sure?'
+          confirmModal.action === 'delete' ? 'Are you sure you want to delete this session? This action cannot be undone.' : 'Are you sure?'
         }
         confirmLabel={confirmModal.action === 'delete' ? 'Delete' : 'Confirm'}
         confirmVariant={confirmModal.action === 'delete' ? 'danger' : ''}
@@ -1082,6 +1156,15 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
 
           {session.status === 'active' && (
             <>
+              {session.enable_manual_marking && (
+                <button
+                  onClick={onShowAttendance}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Mark Attendance
+                </button>
+              )}
               <button
                 onClick={onShowQR}
                 className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
@@ -1111,13 +1194,6 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20">
-                  <button
-                    onClick={() => { onShowAttendance(); setShowMenu(false) }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Users className="w-4 h-4" />
-                    View Attendance
-                  </button>
                   <button
                     onClick={() => { onShowStats(); setShowMenu(false) }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
