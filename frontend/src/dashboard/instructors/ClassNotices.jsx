@@ -25,6 +25,29 @@ export default function ClassNotices() {
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
 
+  // Generate page numbers with ellipsis for large page counts
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+
+    if (totalPages <= maxVisible + 2) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (currentPage > 3) pages.push('...')
+
+      const start = Math.max(2, currentPage - 1)
+      const end = Math.min(totalPages - 1, currentPage + 1)
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) pages.push(i)
+      }
+
+      if (currentPage < totalPages - 2) pages.push('...')
+      if (!pages.includes(totalPages)) pages.push(totalPages)
+    }
+    return pages
+  }
+
   const PRIORITY_CLASSES = {
     low: 'bg-green-100 text-green-700',
     medium: 'bg-indigo-100 text-indigo-700',
@@ -305,9 +328,26 @@ export default function ClassNotices() {
                   >
                     Previous
                   </button>
-                  <div className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium">
-                    {currentPage}
-                  </div>
+                  {/* Page numbers */}
+                  {getPageNumbers().map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 py-2 text-neutral-400 text-sm">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[36px] px-3 py-2 rounded-md text-sm font-medium transition ${
+                          currentPage === page
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ))}
                   <button
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
