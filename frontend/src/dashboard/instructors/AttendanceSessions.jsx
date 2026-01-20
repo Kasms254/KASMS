@@ -783,7 +783,7 @@ export default function AttendanceSessions() {
                   {/* Scannable QR Code Display */}
                   <div className="bg-gray-100 p-6 rounded-lg">
                     <div className="bg-white p-4 rounded-lg shadow-inner flex flex-col items-center">
-                      <QRCodeDisplay value={qrData.qr_token} size={200} />
+                      <QRCodeDisplay sessionId={selectedSession.session_id} token={qrData.qr_token} size={200} />
                       <p className="mt-3 font-mono text-sm text-gray-500">Token: {qrData.qr_token}</p>
                     </div>
                   </div>
