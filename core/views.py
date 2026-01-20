@@ -1358,133 +1358,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'total_results': graded_results.count()
         })
 
-class AttendanceViewSet(viewsets.ModelViewSet):
 
-    queryset = Attendance.objects.select_related(
-        'student', 'class_obj', 'subject', 'marked_by'
-    ).all()
-
-    serializer_class = AttendanceSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'subject', 'status', 'date']
-    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
-    ordering_fields = ['date']
-    ordering =['-date']
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-
-        if user.role == 'instructor':
-            queryset = queryset.filter(
-                Q(class_obj__instructor=user) | Q(subject__instructor=user)
-            )
-
-        return queryset
-
-    def perform_create(self, serializer):
-        serializer.save(marked_by=self.request.user)
-
-    @action(detail=False, methods=['post'])
-    def bulk_mark(self, request):
-        serializer = BulkAttendanceSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-        validated_data = serializer.validated_data
-        class_obj = validated_data['class_obj']
-        subject = validated_data['subject']
-        date = validated_data['date']
-        records = validated_data['attendance_records']
-
-
-        created_count = 0   
-        updated_count = 0
-        errors = []
-
-        for record in records:
-            try:
-                student = User.objects.get(id=record['student_id'], role='student')
-
-                attendance, created = Attendance.objects.update_or_create(
-                    student=student,
-                    class_obj=class_obj,
-                    subject=subject,
-                    date=date,
-                    defaults={
-                        'status': record['status'],
-                        'remarks':record.get('remarks', ''),
-                        'marked_by': request.user
-                    }
-                )
-                if created:
-                    created_count += 1
-                else:
-                    updated_count += 1
-
-            except User.DoesNotExist:
-                errors.append(f"Student {record['student_id']} does not exist.")
-            except Exception as e:
-                errors.append(str(e))
-
-        return Response({
-            'status': 'success',
-            'created': created_count,
-            'updated': updated_count,
-            'errors': errors
-        })
-
-    @action(detail=False, methods=['get'])
-    def class_attendance(self, request):
-        class_id = request.query_params.get('class_id')
-        date = request.query_params.get('date')
-
-
-        if not class_id or not date:
-            return Response(
-                {'error': 'class_id and date parameters are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        attendance = self.get_queryset().filter(class_obj_id=class_id, date=date)
-        serializer = self.get_serializer(attendance, many=True)
-
-        return Response({
-            'count': attendance.count(),
-            'present': attendance.filter(status = 'present').count(),
-            'absent': attendance.filter(status='absent').count(),
-            'results': serializer.data,
-            'late':attendance.filter(status='late').count()
-
-        })
-    @action(detail=False, methods=['get'])
-    def student_attendance(self, request):
-        student_id = request.query_params.get('student_id')
-
-        if not student_id:
-            return Response({
-                'error': 'student_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        attendance = self.get_queryset().filter(student_id=student_id)
-
-        return Response({
-            'total':attendance.count(),
-            'present': attendance.filter(status='present').count(),
-            'absent': attendance.filter(status='absent').count(),
-            'late': attendance.filter(status='late').count(),
-            'excused': attendance.filter(status='excused').count(),
-            'attendance_rate':(
-                (attendance.filter(status='present').count() / attendance.count()) * 100
-            )
-            if attendance.count() > 0 else 0
-        })
-    
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminOrInstructor])
-    def all_students_for_attendance(self, request):
 
         students = User.objects.filter(
             role= 'student',
@@ -2369,7 +2243,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             return AttendanceSessionListSerializer
         return AttendanceSessionSerializer
 
-    
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -2392,8 +2265,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'session_attendances', 
             distinct=True
         )
-    )
-    
+    )    
     def perform_create(self, serializer):
         session = serializer.save(created_by = self.request.user)
 
@@ -2404,7 +2276,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             description = f"Session '{session.title}' created",
             ip_address = self.request.META.get('REMOTE_ADDR')
         )
-
 
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
@@ -3047,6 +2918,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             session_qs = session_qs.filter(scheduled_start__date__gte=start_date)
         if end_date:
             session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
+            session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
 
 
         sessions = session_qs.order_by('-scheduled_start')
@@ -3415,16 +3287,15 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                     'status': 'critical' if attendance_rate < 50 else 'warning'
                 })
 
-        # sort and return after processing all students
         low_attendance_students.sort(key=lambda x: x['attendance_rate'])
 
         return Response({
-            'class': {
-                'id': class_obj.id,
-                'name': class_obj.name
-            },
-            'threshold': threshold,
-            'total_sessions': total_sessions,
-            'count': len(low_attendance_students),
-            'students': low_attendance_students
-        })
+                'class':{
+                    'id': class_obj.id,
+                    'name':class_obj.name
+                },
+                'threshold':threshold,
+                'total_sessions':total_sessions,
+                'count':len(low_attendance_students),
+                'students':low_attendance_students
+            })

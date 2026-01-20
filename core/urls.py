@@ -5,7 +5,7 @@ from .views import (
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
-    ExamViewSet, AttendanceViewSet,ClassViewSet,ClassNoticeViewSet
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet
 , ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
@@ -28,7 +28,7 @@ router.register(r'notices', NoticeViewSet, basename='notice')
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
-router.register(r'attendance', AttendanceViewSet, basename='attendance')
+# router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')

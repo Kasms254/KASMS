@@ -436,52 +436,41 @@ class AttendanceSession(models.Model):
         ('lab', 'Lab Session'),
         ('other', 'Other'),
     ]
-
     STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
         ('active', 'Active'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
-
     session_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     title = models.CharField(max_length=200)
     session_type = models.CharField(max_length=20, choices=SESSION_TYPE_CHOICES, default='class')
     description = models.TextField(blank=True, null=True)
-
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendance_sessions')
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendance_sessions', null=True, blank=True)
     created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, related_name='sessions_created')
-
-
     scheduled_start = models.DateTimeField()
     scheduled_end = models.DateTimeField()
     actual_start = models.DateTimeField(null=True, blank=True)
     actual_end = models.DateTimeField(null=True, blank=True)
-
     duration_minutes = models.IntegerField(validators=[MinValueValidator(1)], default=60)
     qr_refresh_interval = models.IntegerField(
         validators=[MinValueValidator(10), MaxValueValidator(300)],
         default=300,
         help_text="Minutes after start time to still mark as present"
     )
-
     qr_code_secret = models.CharField(max_length=255, blank=True)
     qr_last_generated = models.DateTimeField(null=True, blank=True)
     qr_generation_count  = models.IntegerField(default=0)
-
     enable_qr_scan = models.BooleanField(default=True)
     enable_manual_marking = models.BooleanField(default=True)
     enable_biometric = models.BooleanField(default=False)
     require_location = models.BooleanField(default=False)
-
     allowed_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     allowed_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_radius_meters = models.IntegerField(default=100, null=True, blank=True)
-
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
     is_active = models.BooleanField(default=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now = True)
     allow_late_minutes = models.IntegerField(
@@ -555,10 +544,15 @@ class AttendanceSession(models.Model):
         )
 
     def get_attendance_status_for_time(self, attendance_time):
-        if attendance_time <= self.scheduled_start:
-            return 'present'
 
-        elif attendance_time <= (self.scheduled_start + timedelta(minutes=self.allow_late_minutes)):
+        present_grace  =5
+
+        present_cutoff = self.scheduled_start + timedelta(minutes=present_grace)
+        late_cutoff = self.scheduled_end + timedelta(minutes=self.allow_late_minutes)
+
+        if attendance_time <= present_cutoff:
+            return 'present'
+        elif attendance_time <= late_cutoff:
             return 'late'
         else:
             return 'absent'
