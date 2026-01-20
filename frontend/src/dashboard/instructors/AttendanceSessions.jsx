@@ -3,7 +3,7 @@ import {
   Plus, Play, Square, QrCode, Users, Clock, Calendar,
   ChevronDown, ChevronUp, Search, Filter, MoreVertical,
   CheckCircle, XCircle, AlertCircle, Download, Trash2, Edit,
-  Eye, RefreshCw, UserCheck, UserX, MapPin
+  Eye, RefreshCw, UserCheck, UserX, MapPin, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -41,6 +41,11 @@ export default function AttendanceSessions() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ status: '', session_type: '', search: '' })
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const pageSize = 10
 
   // Classes and subjects for creating sessions
   const [classes, setClasses] = useState([])
@@ -82,6 +87,9 @@ export default function AttendanceSessions() {
   const [qrRefreshTimer, setQrRefreshTimer] = useState(null)
   const [qrExpiresIn, setQrExpiresIn] = useState(0)
 
+  // All sessions (unfiltered for pagination)
+  const [allSessions, setAllSessions] = useState([])
+
   // Load sessions
   const loadSessions = useCallback(async () => {
     setLoading(true)
@@ -94,13 +102,29 @@ export default function AttendanceSessions() {
       const data = await api.getMyAttendanceSessions(params.toString())
       // API returns { count, sessions: [...] } or { results: [...] } or array
       const list = Array.isArray(data) ? data : (data?.sessions || data?.results || [])
-      setSessions(list)
+
+      // Sort sessions by created_at or scheduled_start descending (most recent first)
+      const sortedList = [...list].sort((a, b) => {
+        const dateA = new Date(a.created_at || a.scheduled_start)
+        const dateB = new Date(b.created_at || b.scheduled_start)
+        return dateB - dateA
+      })
+
+      setAllSessions(sortedList)
+      setTotalCount(sortedList.length)
     } catch (err) {
       toast.error(err.message || 'Failed to load sessions')
     } finally {
       setLoading(false)
     }
   }, [filter, toast])
+
+  // Paginate sessions on the frontend
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    setSessions(allSessions.slice(startIndex, endIndex))
+  }, [allSessions, currentPage, pageSize])
 
   // Load classes and subjects on mount
   useEffect(() => {
@@ -221,15 +245,15 @@ export default function AttendanceSessions() {
     try {
       const data = await api.getSessionQRCode(sessionId)
       setQrData(data)
-      setQrExpiresIn(data.expires_in || 30)
+      setQrExpiresIn(data.expires_time || data.expires_in || 30)
 
       // Start countdown timer
       if (qrRefreshTimer) clearInterval(qrRefreshTimer)
       const timer = setInterval(() => {
         setQrExpiresIn(prev => {
-          if (prev <= 1) {
+            if (prev <= 1) {
             refreshQRCode(sessionId)
-            return data.qr_refresh_interval || 30
+            return data.refresh_interval || data.qr_refresh_interval || 30
           }
           return prev - 1
         })
@@ -261,8 +285,9 @@ export default function AttendanceSessions() {
     setSelectedSession(session)
     setShowStatsModal(true)
     try {
-      const stats = await api.getSessionStatistics(session.id)
-      setSessionStats(stats)
+      const data = await api.getSessionStatistics(session.id)
+      // Backend returns { statistics: {...}, session: {...}, ... }
+      setSessionStats(data.statistics || data)
     } catch (err) {
       toast.error(err.message || 'Failed to load statistics')
     }
@@ -369,14 +394,14 @@ export default function AttendanceSessions() {
                 type="text"
                 placeholder="Search sessions..."
                 value={filter.search}
-                onChange={(e) => setFilter(f => ({ ...f, search: e.target.value }))}
+                onChange={(e) => { setFilter(f => ({ ...f, search: e.target.value })); setCurrentPage(1) }}
                 className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
           </div>
           <select
             value={filter.status}
-            onChange={(e) => setFilter(f => ({ ...f, status: e.target.value }))}
+            onChange={(e) => { setFilter(f => ({ ...f, status: e.target.value })); setCurrentPage(1) }}
             className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All Status</option>
@@ -387,7 +412,7 @@ export default function AttendanceSessions() {
           </select>
           <select
             value={filter.session_type}
-            onChange={(e) => setFilter(f => ({ ...f, session_type: e.target.value }))}
+            onChange={(e) => { setFilter(f => ({ ...f, session_type: e.target.value })); setCurrentPage(1) }}
             className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All Types</option>
@@ -425,20 +450,74 @@ export default function AttendanceSessions() {
             </button>
           </div>
         ) : (
-          sessions.map(session => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              onStart={() => setConfirmModal({ open: true, action: 'start', session })}
-              onEnd={() => setConfirmModal({ open: true, action: 'end', session })}
-              onShowQR={() => handleShowQR(session)}
-              onShowAttendance={() => handleShowAttendance(session)}
-              onShowStats={() => handleShowStats(session)}
-              onExport={() => handleExportCSV(session)}
-              onDelete={() => setConfirmModal({ open: true, action: 'delete', session })}
-              formatDateTime={formatDateTime}
-            />
-          ))
+          <>
+            {sessions.map(session => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                onStart={() => setConfirmModal({ open: true, action: 'start', session })}
+                onEnd={() => setConfirmModal({ open: true, action: 'end', session })}
+                onShowQR={() => handleShowQR(session)}
+                onShowAttendance={() => handleShowAttendance(session)}
+                onShowStats={() => handleShowStats(session)}
+                onExport={() => handleExportCSV(session)}
+                onDelete={() => setConfirmModal({ open: true, action: 'delete', session })}
+                formatDateTime={formatDateTime}
+              />
+            ))}
+
+            {/* Pagination */}
+            {totalCount > pageSize && (
+              <div className="flex items-center justify-between bg-white rounded-lg shadow-sm p-4 mt-4">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} sessions
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.ceil(totalCount / pageSize) }, (_, i) => i + 1)
+                      .filter(page => {
+                        const totalPages = Math.ceil(totalCount / pageSize)
+                        if (totalPages <= 5) return true
+                        if (page === 1 || page === totalPages) return true
+                        if (Math.abs(page - currentPage) <= 1) return true
+                        return false
+                      })
+                      .map((page, idx, arr) => (
+                        <React.Fragment key={page}>
+                          {idx > 0 && arr[idx - 1] !== page - 1 && (
+                            <span className="px-2 text-gray-400">...</span>
+                          )}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-8 h-8 rounded-lg text-sm font-medium transition ${
+                              currentPage === page
+                                ? 'bg-indigo-600 text-white'
+                                : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                    disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                    className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -853,30 +932,56 @@ export default function AttendanceSessions() {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="text-sm text-gray-600">Attendance Rate</div>
-                    <div className="text-2xl font-bold">{sessionStats.attendance_rate?.toFixed(1) || 0}%</div>
+                    <div className="text-2xl font-bold">{sessionStats.attendance_rate || 0}%</div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <h3 className="font-medium">By Status</h3>
-                  {Object.entries(sessionStats.by_status || {}).map(([status, count]) => (
-                    <div key={status} className="flex items-center justify-between">
-                      <span className="capitalize">{status}</span>
-                      <span className={`px-2 py-1 rounded text-sm ${ATTENDANCE_STATUS_COLORS[status] || 'bg-gray-100'}`}>
-                        {count}
-                      </span>
-                    </div>
-                  ))}
+                  <div className="flex items-center justify-between">
+                    <span>Present</span>
+                    <span className={`px-2 py-1 rounded text-sm ${ATTENDANCE_STATUS_COLORS.present}`}>
+                      {sessionStats.present_count || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Late</span>
+                    <span className={`px-2 py-1 rounded text-sm ${ATTENDANCE_STATUS_COLORS.late}`}>
+                      {sessionStats.late_count || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Absent</span>
+                    <span className={`px-2 py-1 rounded text-sm ${ATTENDANCE_STATUS_COLORS.absent}`}>
+                      {sessionStats.absent_count || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Excused</span>
+                    <span className={`px-2 py-1 rounded text-sm ${ATTENDANCE_STATUS_COLORS.excused}`}>
+                      {sessionStats.excused_count || 0}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <h3 className="font-medium">By Method</h3>
-                  {Object.entries(sessionStats.by_method || {}).map(([method, count]) => (
-                    <div key={method} className="flex items-center justify-between">
-                      <span className="capitalize">{method.replace('_', ' ')}</span>
-                      <span className="text-gray-600">{count}</span>
-                    </div>
-                  ))}
+                  <div className="flex items-center justify-between">
+                    <span>QR Scan</span>
+                    <span className="text-gray-600">{sessionStats.qr_scan_count || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Manual</span>
+                    <span className="text-gray-600">{sessionStats.manual_count || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Biometric</span>
+                    <span className="text-gray-600">{sessionStats.biometric_count || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Admin</span>
+                    <span className="text-gray-600">{sessionStats.admin_count || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>

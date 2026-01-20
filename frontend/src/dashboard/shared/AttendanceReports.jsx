@@ -68,7 +68,43 @@ export default function AttendanceReports() {
     setLoading(true)
     try {
       const data = await api.getClassAttendanceSummary(selectedClass, dateRange.startDate, dateRange.endDate)
-      setClassSummary(data)
+      // Transform backend response to match expected frontend structure
+      // Backend returns: { class, period, overall_statistics, student_statistics }
+      // Frontend expects: { total_sessions, total_students, attendance_rate, punctuality_rate, by_status, by_method }
+      const stats = data.overall_statistics || {}
+      const studentStats = data.student_statistics || []
+
+      // Calculate by_status from student statistics
+      let totalPresent = 0, totalLate = 0, totalAbsent = 0, totalExcused = 0
+      studentStats.forEach(s => {
+        totalPresent += s.present || 0
+        totalLate += s.late || 0
+        totalAbsent += s.absent || 0
+        totalExcused += s.excused || 0
+      })
+
+      // Calculate punctuality rate (present / (present + late) * 100)
+      const totalAttended = totalPresent + totalLate
+      const punctualityRate = totalAttended > 0 ? (totalPresent / totalAttended * 100) : 0
+
+      const transformedData = {
+        total_sessions: stats.total_sessions || data.period?.total_sessions || 0,
+        total_students: stats.total_students || 0,
+        attendance_rate: stats.class_attendance_rate || 0,
+        punctuality_rate: punctualityRate,
+        by_status: {
+          present: totalPresent,
+          late: totalLate,
+          absent: totalAbsent,
+          excused: totalExcused
+        },
+        by_method: data.by_method || {},
+        // Keep original data for reference
+        student_statistics: studentStats,
+        class: data.class,
+        period: data.period
+      }
+      setClassSummary(transformedData)
     } catch (err) {
       toast.error(err.message || 'Failed to load class summary')
     } finally {
@@ -81,7 +117,8 @@ export default function AttendanceReports() {
     if (!selectedClass) return
     try {
       const data = await api.getAttendanceTrend(selectedClass, 30)
-      setTrendData(data?.trend || [])
+      // Backend returns { class, period, trend_data: [...] }
+      setTrendData(data?.trend_data || data?.trend || [])
     } catch (err) {
       console.error('Failed to load trend data:', err)
     }
@@ -351,47 +388,68 @@ export default function AttendanceReports() {
                 <div className="bg-white rounded-lg shadow-sm p-6">
                   <h3 className="font-semibold mb-4">Attendance Distribution</h3>
                   <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={getPieChartData()}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {getPieChartData().map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {getPieChartData().some(d => d.value > 0) ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={getPieChartData().filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={80}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                            labelLine={{ stroke: '#666', strokeWidth: 1 }}
+                          >
+                            {getPieChartData().filter(d => d.value > 0).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value, name) => [value, name]} />
+                          <Legend
+                            verticalAlign="bottom"
+                            height={36}
+                            formatter={(value) => <span className="text-sm text-gray-700">{value}</span>}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                        <Target className="w-12 h-12 mb-2 text-gray-300" />
+                        <p className="text-sm">No attendance data available</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Bar Chart - By Method */}
+                {/* Bar Chart - Student Performance */}
                 <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="font-semibold mb-4">Marking Method Breakdown</h3>
+                  <h3 className="font-semibold mb-4">Top Students by Attendance</h3>
                   <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={Object.entries(classSummary.by_method || {}).map(([method, count]) => ({
-                          method: method.replace('_', ' '),
-                          count
-                        }))}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="method" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {(classSummary.student_statistics || []).length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={(classSummary.student_statistics || []).slice(0, 5).map(s => ({
+                            name: s.student_name?.split(' ')[0] || 'Student',
+                            rate: s.attendance_rate || 0
+                          }))}
+                          layout="vertical"
+                          margin={{ left: 20, right: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                          <XAxis type="number" domain={[0, 100]} unit="%" />
+                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                          <Tooltip formatter={(value) => [`${value}%`, 'Attendance Rate']} />
+                          <Bar dataKey="rate" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                        <Users className="w-12 h-12 mb-2 text-gray-300" />
+                        <p className="text-sm">No student data available</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

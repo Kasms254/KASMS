@@ -3044,6 +3044,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             session_qs = session_qs.filter(scheduled_start__gte=start_date)
         if end_date:
             session_qs = session_qs.filter(scheduled_start__lte=end_date)
+            session_qs = session_qs.filter(scheduled_start__lte=end_date)
 
 
         sessions = session_qs.order_by('-scheduled_start')
