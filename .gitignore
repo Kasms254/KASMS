@@ -11,7 +11,8 @@ core/management/
 .venv/
 env/
 venv/
-
+frontend/.env/
+frontend/.gitignore
 db.sqlite3
 
 media/
