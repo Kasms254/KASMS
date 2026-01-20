@@ -2414,7 +2414,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'attendances':serializer.data
         })
 
-
     @action(detail=True, methods=['get'])
     def unmarked_students(self, request, pk=None):
         session = self.get_object()
@@ -2575,6 +2574,55 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
                 'attendances':serializer.data
             }
         )
+
+    @action(detail=True, methods=['get'])
+    def detailed_view(self, request, pk=None):
+        session = self.get_object()
+        
+        attendances = session.session_attendances.select_related('student', 'marked_by').all()
+        
+        total_students = session.total_students
+        marked_count = attendances.count()
+        
+        status_counts = {
+            'present': attendances.filter(status='present').count(),
+            'late': attendances.filter(status='late').count(),
+            'absent': attendances.filter(status='absent').count(),
+            'excused': attendances.filter(status='excused').count()
+        }
+        
+        method_counts = {
+            'qr_scan': attendances.filter(marking_method='qr_scan').count(),
+            'manual': attendances.filter(marking_method='manual').count(),
+            'biometric': attendances.filter(marking_method='biometric').count(),
+            'admin': attendances.filter(marking_method='admin').count()
+        }
+        
+        marked_student_ids = attendances.values_list('student_id', flat=True)
+        unmarked_students = User.objects.filter(
+            enrollments__class_obj=session.class_obj,
+            enrollments__is_active=True,
+            role='student',
+            is_active=True
+        ).exclude(id__in=marked_student_ids)
+        
+        from .serializers import UserListSerializer
+        
+        return Response({
+            'session': AttendanceSessionSerializer(session).data,
+            'statistics': {
+                'total_students': total_students,
+                'marked_count': marked_count,
+                'unmarked_count': total_students - marked_count,
+                'attendance_rate': round((marked_count / total_students * 100), 2) if total_students > 0 else 0,
+                'on_time_rate': round((status_counts['present'] / marked_count * 100), 2) if marked_count > 0 else 0,
+                'status_breakdown': status_counts,
+                'method_breakdown': method_counts
+            },
+            'attendances': SessionAttendanceSerializer(attendances, many=True).data,
+            'unmarked_students': UserListSerializer(unmarked_students, many=True).data
+        })
+
 
 class SessionAttendanceViewset(viewsets.ModelViewSet):
 
