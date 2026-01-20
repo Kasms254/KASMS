@@ -125,7 +125,7 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
             attendance_rate = (attended_count / total_sessions * 100) if total_sessions > 0 else 0
             punctuality_rate = (present_count /attended_count * 100) if attended_count > 0 else 0
 
-            combined_score = (exam_percentage * 0.7) + (attendance_rate * 0.3)
+            combined_score = (float(exam_percentage) * 0.7) + (float(attendance_rate)* 0.3)
 
             student_performance.append({
                 'student_id': student.id,
