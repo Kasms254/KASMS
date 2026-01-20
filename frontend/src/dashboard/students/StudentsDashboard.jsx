@@ -100,7 +100,6 @@ export default function StudentsDashboard() {
           }
         } catch {
           // if all else fails use previous heuristics
-          console.debug('Failed to load consolidated student dashboard')
         }
       } finally {
         if (mounted) setLoadingMetrics(false)
@@ -214,7 +213,6 @@ export default function StudentsDashboard() {
             })
           } catch (err) {
             // ignore subject lookup errors; continue with whatever we have
-            console.debug('Failed to load class subjects for enrollments', err)
           }
         }
 
@@ -281,7 +279,6 @@ export default function StudentsDashboard() {
 
         if (mounted) setCalendarEvents(ev)
       } catch (err) {
-        console.debug('Failed to load student calendar events', err)
       }
     }
 

@@ -21,7 +21,6 @@ export default function AdminStudents() {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    console.error(msg)
   }
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +108,6 @@ export default function AdminStudents() {
         setAvailableClasses(classList)
       })
       .catch((err) => {
-        console.error('Failed to load classes:', err)
       })
   }, [])
 
@@ -300,7 +298,6 @@ export default function AdminStudents() {
               setEnrollmentsList((lst) => lst.map((x) => x.id === a.id ? { ...x, is_active: false } : x))
             } catch (err) {
               // non-fatal: continue but inform user
-              console.warn('Failed to withdraw previous enrollment', err)
             }
           }
 

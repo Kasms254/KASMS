@@ -45,8 +45,8 @@ export default function StudentResults() {
             ? res.results
             : []
         setEnrollments(enrollmentList)
-      } catch (err) {
-        console.error('Failed to load enrollments:', err)
+      } catch {
+        // Silently handle enrollment load error
       } finally {
         if (mounted) setLoadingEnrollments(false)
       }
@@ -630,8 +630,7 @@ export default function StudentResults() {
       if (toast && toast.success) {
         toast.success('Transcript downloaded successfully!')
       }
-    } catch (err) {
-      console.error('PDF generation failed', err)
+    } catch {
       if (toast && toast.error) toast.error('Failed to generate PDF transcript. Please try again later.')
       else alert('Failed to generate PDF transcript. Please try again later.')
       return

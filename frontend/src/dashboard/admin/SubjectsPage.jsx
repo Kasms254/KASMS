@@ -40,7 +40,6 @@ export default function SubjectsPage() {
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
     // developer fallback
-    console.error(msg)
   }
 
   useEffect(() => {

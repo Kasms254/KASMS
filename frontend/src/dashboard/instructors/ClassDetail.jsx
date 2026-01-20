@@ -71,7 +71,6 @@ export default function ClassDetail() {
         })
         if (mounted) setStudents(mapped)
       } catch (err) {
-        console.error('Failed to load class students', err)
         if (mounted) setError(err)
       } finally {
         if (mounted) setLoading(false)
@@ -93,10 +92,8 @@ export default function ClassDetail() {
       setMarksLoading(true)
       try {
         // fetch exams for ONLY this subject
-        console.log('[ClassDetail] Loading marks for subject ID:', subjectId)
         const exams = await api.getExams(`subject=${encodeURIComponent(subjectId)}`)
         const examsList = Array.isArray(exams) ? exams : (exams && Array.isArray(exams.results) ? exams.results : [])
-        console.log('[ClassDetail] Found', examsList.length, 'exams for subject', subjectId, ':', examsList.map(e => ({ id: e.id, title: e.title, subject: e.subject, subject_name: e.subject_name })))
         if (!examsList.length) {
           // no exams for this subject, just clear this subject's marks
           setSubjectMarks(prev => {
@@ -163,13 +160,11 @@ export default function ClassDetail() {
 
         if (!mounted) return
         // store marks in subjectMarks indexed by subjectId, NOT in students array
-        console.log('[ClassDetail] Storing marks for subject', subjectId, 'with', Object.keys(studentStats).length, 'students from exam:', targetExam?.id, targetExam?.title)
         setSubjectMarks(prev => ({
           ...prev,
           [subjectId]: studentStats
         }))
       } catch (err) {
-        console.error('Failed to load marks for subject', err)
       } finally {
         if (mounted) setMarksLoading(false)
       }

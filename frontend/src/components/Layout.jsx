@@ -39,7 +39,7 @@ export default function Layout() {
         >
           <Link to="/dashboard" className="flex items-center gap-2 mb-6" onClick={() => setMobileMenuOpen(false)}>
             <div className="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center text-white font-bold">S</div>
-            <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>School Management System</span>
+            <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>KASMS</span>
           </Link>
           <Menu role={role} collapsed={collapsed} onMobileMenuClick={() => setMobileMenuOpen(false)} />
         </aside>

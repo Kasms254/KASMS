@@ -40,7 +40,6 @@ export default function InstructorStudents() {
         }))
         setAvailableClasses(mapped)
       } catch (err) {
-        console.error('Failed to load classes:', err)
       }
     }
     loadClasses()
@@ -125,7 +124,6 @@ export default function InstructorStudents() {
 
               allStudents.push(...mapped)
             } catch (err) {
-              console.error(`Failed to load students for class ${cls.id}:`, err)
             }
           }
 

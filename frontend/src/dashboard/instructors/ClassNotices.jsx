@@ -69,8 +69,8 @@ export default function ClassNotices() {
         const res = await api.getMyClasses()
         const list = Array.isArray(res) ? res : (res && Array.isArray(res.results) ? res.results : [])
         if (mounted) setClasses(list)
-      } catch (err) {
-        console.debug('failed to load classes', err)
+      } catch {
+        // Silently handle load error
       }
     }
     loadClasses()
@@ -104,8 +104,7 @@ export default function ClassNotices() {
           }
         })
         if (mounted) setSubjects(filtered)
-      } catch (err) {
-        console.debug('failed to load subjects for class', err)
+      } catch {
         if (mounted) setSubjects([])
       }
     }
@@ -176,7 +175,7 @@ export default function ClassNotices() {
       }
       setModalOpen(false)
   setForm({ class_obj: '', subject: '', title: '', content: '', priority: 'medium', expiry_date: '', is_active: true })
-      try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+      try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
     } catch (err) {
       if (err && err.data && typeof err.data === 'object') {
         const serverErrors = {}
@@ -223,7 +222,7 @@ export default function ClassNotices() {
       if (notices.length === 1 && currentPage > 1) {
         setCurrentPage(p => p - 1)
       }
-      try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('dispatch error', err) }
+      try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
     } catch (err) {
       toast.error(err?.message || 'Failed to delete notice')
     } finally {

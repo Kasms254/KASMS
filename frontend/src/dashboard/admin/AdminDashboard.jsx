@@ -76,7 +76,6 @@ export default function AdminDashboard() {
         normalized.sort((a, b) => b._date - a._date)
         if (mounted) setRecentItems(normalized.slice(0, 8))
       } catch (err) {
-        console.debug('failed to load recent activity', err)
       } finally {
         if (mounted) setRecentLoading(false)
       }
@@ -118,7 +117,6 @@ export default function AdminDashboard() {
         })
         if (mounted) setCalendarEvents(ev)
       } catch (err) {
-        console.debug('Failed to load admin notices for calendar', err)
       }
     }
 

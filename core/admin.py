@@ -90,7 +90,7 @@ class NoticeAdmin(admin.ModelAdmin):
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
-    list_display = ('id','title', 'subject', 'exam_date', 'created_at', 'exam_type')
+    list_display = ('id', 'title', 'subject', 'exam_date', 'created_at', 'exam_type')
     list_filter = ('subject', 'exam_date', 'created_at')
     search_fields = ('name', 'subject__name')
     ordering = ['-created_at']

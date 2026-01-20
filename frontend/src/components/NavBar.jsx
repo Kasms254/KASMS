@@ -81,16 +81,12 @@ export default function NavBar({
         api.getActiveNotices(),
       ]
 
-      // If student, also fetch their submitted results to show graded notifications
-      if (user && user.role === 'student') {
-        promises.push(api.getMyResults())
-      }
+      // Removed old exam results fetching - now using ClassNotice only for grade notifications
 
       const settled = await Promise.allSettled(promises)
   const classNoticesResp = settled[0]
   const urgentResp = settled[1]
   const activeResp = settled[2]
-  const studentResultsResp = settled[3]
 
   const classNotices = classNoticesResp.status === 'fulfilled' ? (Array.isArray(classNoticesResp.value) ? classNoticesResp.value : (classNoticesResp.value && Array.isArray(classNoticesResp.value.results) ? classNoticesResp.value.results : [])) : []
   const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
@@ -137,39 +133,9 @@ export default function NavBar({
           noticeId: n.id,
         }
       })
-      // If student results were fetched, convert graded results into notifications
-      if (studentResultsResp && studentResultsResp.status === 'fulfilled') {
-        const sr = studentResultsResp.value
-        const results = Array.isArray(sr.results) ? sr.results : (Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : []))
-        // For each result that is graded (graded_by present), create a notification object
-        results.forEach(r => {
-          try {
-            if (!r) return
-            // some serializers may include graded_by or graded_by_name
-            const gradedBy = r.graded_by || r.graded_by_name || null
-            if (!gradedBy) return
-            const id = `examresult-${r.id}`
-            // avoid duplicates
-            if (normalized.find(n => String(n.id) === String(id))) return
-            const title = r.exam_title ? `${r.exam_title} graded` : 'Result graded'
-            const content = (r.marks_obtained != null && r.exam_total_marks != null)
-              ? `You scored ${r.marks_obtained}/${r.exam_total_marks}`
-              : (r.marks_obtained != null ? `You scored ${r.marks_obtained}` : 'Result available')
-            normalized.unshift({
-              id,
-              title,
-              content,
-              kind: 'result',
-              resultId: r.id,
-              examId: r.exam || r.exam_id || null,
-              created_at: r.graded_at || r.updated_at || new Date().toISOString(),
-              read: false,
-            })
-          } catch {
-            // ignore single result conversion errors
-          }
-        })
-      }
+
+      // Removed old exam result notification conversion - now using ClassNotice only
+
       // Filter out expired notifications
       const now = new Date()
       const sevenDaysAgo = new Date()
@@ -200,9 +166,6 @@ export default function NavBar({
       setNotifs(filtered)
       setUnreadCount(filtered.filter(x => !x.read).length)
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error('Failed to load notifications:', err)
-      }
       // Set empty notifications on error so UI doesn't break
       setNotifs([])
       setUnreadCount(0)
@@ -250,8 +213,6 @@ export default function NavBar({
         const ids = e && e.detail && Array.isArray(e.detail.ids) ? e.detail.ids : []
         if (!ids.length) return
 
-        
-
         setNotifs(prev => {
           // Match by both the prefixed ID and the originalId (raw backend ID)
           const next = prev.map(n => {
@@ -266,9 +227,6 @@ export default function NavBar({
           return next
         })
       } catch (err) {
-        if (import.meta.env.DEV) {
-          console.error('Failed to mark notifications read:', err)
-        }
       }
     }
     window.addEventListener('notifications:marked_read', onNotificationsMarkedRead)
@@ -284,62 +242,12 @@ export default function NavBar({
     // Don't refetch if we already have notifications loaded
     if (notifs.length === 0) {
       fetchNotifications().catch(err => {
-        if (import.meta.env.DEV) console.error('Initial notification fetch failed:', err)
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
-  // Poll for new graded results for students so they receive bell notifications
-  useEffect(() => {
-    if (!user || user.role !== 'student') return
-    let mounted = true
-
-    async function pollStudentResults() {
-      try {
-        const sr = await api.getMyResults().catch(() => null)
-        if (!sr) return
-        const results = Array.isArray(sr.results) ? sr.results : (Array.isArray(sr) ? sr : (sr && Array.isArray(sr.results) ? sr.results : []))
-        results.forEach(r => {
-          try {
-            if (!r) return
-            const gradedBy = r.graded_by || r.graded_by_name || null
-            if (!gradedBy) return
-            const id = `examresult-${r.id}`
-            // If we already have this notification, skip
-            setNotifs(prev => {
-              if (prev.find(x => String(x.id) === String(id))) return prev
-              const title = r.exam_title ? `${r.exam_title} graded` : 'Result graded'
-              const content = (r.marks_obtained != null && r.exam_total_marks != null)
-                ? `You scored ${r.marks_obtained}/${r.exam_total_marks}`
-                : (r.marks_obtained != null ? `You scored ${r.marks_obtained}` : 'Result available')
-              const item = {
-                id,
-                title,
-                content,
-                kind: 'result',
-                resultId: r.id,
-                examId: r.exam || r.exam_id || null,
-                created_at: r.graded_at || r.updated_at || new Date().toISOString(),
-                read: false,
-              }
-              setUnreadCount(n => n + 1)
-              return [item, ...prev]
-            })
-          } catch {
-            // ignore
-          }
-        })
-      } catch {
-        // ignore polling errors
-      }
-    }
-
-    // initial check + interval
-    pollStudentResults()
-    const t = setInterval(() => { if (mounted) pollStudentResults() }, 30 * 1000)
-    return () => { mounted = false; clearInterval(t) }
-  }, [user])
+  // Removed old exam result polling - grade notifications now come through ClassNotice only
 
   const navigate = useNavigate()
 
@@ -437,40 +345,32 @@ export default function NavBar({
                             setUnreadCount(updated.filter(x => !x.read).length)
                             return updated
                           })
-                          // Persist read status to backend.
-                          // For class/global notices use their endpoints, for result notifications
-                          // call the exam-result mark endpoint we added in api.js.
-                          try {
-                            if (n.kind === 'result' && n.resultId) {
-                              await api.markExamResultAsRead(n.resultId)
-                            } else {
-                              const noticeId = n.originalId || n.noticeId || n.id
-                              if (noticeId) {
-                                if (n.noticeType === 'class_notice') {
-                                  await api.markClassNoticeAsRead(noticeId)
-                                } else {
-                                  await api.markNoticeAsRead(noticeId)
-                                }
+                          // Call backend to persist read status using originalId
+                          const noticeId = n.originalId || n.noticeId || n.id
+                          if (noticeId) {
+                            try {
+                              if (n.noticeType === 'class_notice') {
+                                await api.markClassNoticeAsRead(noticeId)
+                              } else {
+                                await api.markNoticeAsRead(noticeId)
                               }
-                            }
 
-                            // Dispatch event to sync with Notifications page
-                            try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch (err) { console.debug('Failed to dispatch notices:changed event:', err) }
-                          } catch (err) {
-                            // If 404, the notice was deleted - silently continue
-                            if (err.message && !err.message.includes('not found')) {
-                              console.error('Failed to mark as read:', err)
+                              // Dispatch event to sync with Notifications page
+                              try {
+                                window.dispatchEvent(new CustomEvent('notices:changed'))
+                              } catch (err) {
+                              }
+                            } catch (err) {
+                              // If 404, the notice was deleted - silently continue
+                              if (err.message && !err.message.includes('not found')) {
+                              }
                             }
                           }
                         }
-                        // Navigate to appropriate page
+                        // Navigate to notifications page
                         try {
-                          if (n.kind === 'result') {
-                            navigate('/list/results')
-                          } else {
-                            navigate('/list/notifications')
-                          }
-                        } catch (err) { console.debug('nav error', err) }
+                          navigate('/list/notifications')
+                        } catch (err) { }
                       }}
                     >
                       <div className="flex items-start gap-2">
@@ -495,9 +395,7 @@ export default function NavBar({
                     setUnreadCount(0)
 
                     // Mark all as read on backend
-                    const unreadNotifs = notifs.filter(n => !n.read && n.kind !== 'result')
-
-                    
+                    const unreadNotifs = notifs.filter(n => !n.read)
 
                     for (const n of unreadNotifs) {
                       const noticeId = n.originalId || n.noticeId
@@ -511,18 +409,14 @@ export default function NavBar({
                       } catch (err) {
                         // If 404, the notice was deleted - silently continue
                         if (err.message && !err.message.includes('not found')) {
-                          console.error(`Failed to mark notification ${noticeId} as read:`, err)
                         }
                       }
                     }
-
-                    
 
                     // Dispatch event to sync with Notifications page
                     try {
                       window.dispatchEvent(new CustomEvent('notices:changed'))
                     } catch (err) {
-                      console.debug('Failed to dispatch notices:changed event:', err)
                     }
                   }}
                   className="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1"

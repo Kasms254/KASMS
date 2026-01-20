@@ -434,7 +434,7 @@ export default function PerformanceAnalytics() {
         setClasses(classList)
         setSubjects(subjectList)
       } catch (err) {
-        console.error('Failed to load data:', err)
+        // Silently handle data load error
         setError(err.message)
       } finally {
         setLoading(false)
@@ -496,7 +496,7 @@ export default function PerformanceAnalytics() {
         }
 
       } catch (err) {
-        console.error('Failed to load analytics:', err)
+        // Silently handle analytics load error
         setError(err.message)
       } finally {
         setAnalyticsLoading(false)
