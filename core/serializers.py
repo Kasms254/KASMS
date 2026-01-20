@@ -555,9 +555,11 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
             read_status = ClassNoticeReadStatus.objects.get(
                 user=request.user,
                 class_notice=obj
-            ).exists()
+            )
+            return read_status.read_at
         except ClassNoticeReadStatus.DoesNotExist:
-            return False
+            return None
+            
     
 class ExamReportSerializer(serializers.ModelSerializer):
 

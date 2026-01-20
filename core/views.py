@@ -6,7 +6,7 @@ from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,
-    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer)
+    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -2722,7 +2722,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         AttendanceSessionLog.objects.create(
             session=session,
             action = 'bulk_import',
-            performed_by=f"Bulk attendance marking",
+            performed_by=request.user,
             metadata = {
                 'created':created_count,
                 'updated':updated_count,
