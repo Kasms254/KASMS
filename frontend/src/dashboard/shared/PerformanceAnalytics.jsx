@@ -279,6 +279,92 @@ function TopPerformersList({ performers }) {
   )
 }
 
+// Attendance-Performance Correlation Display
+function AttendanceCorrelation({ data }) {
+  if (!data || data.message) {
+    return <p className="text-sm text-gray-500">{data?.message || 'No correlation data available'}</p>
+  }
+
+  const coefficient = data.correlation_coefficient || 0
+  const absCoefficient = Math.abs(coefficient)
+  const isPositive = coefficient >= 0
+
+  const getCorrelationColor = () => {
+    if (absCoefficient >= 0.7) return isPositive ? 'text-emerald-600' : 'text-red-600'
+    if (absCoefficient >= 0.4) return isPositive ? 'text-amber-600' : 'text-orange-600'
+    return 'text-gray-600'
+  }
+
+  const getCorrelationBg = () => {
+    if (absCoefficient >= 0.7) return isPositive ? 'bg-emerald-100' : 'bg-red-100'
+    if (absCoefficient >= 0.4) return isPositive ? 'bg-amber-100' : 'bg-orange-100'
+    return 'bg-gray-100'
+  }
+
+  const correlationPoints = data.correlation_data || []
+  const maxAttendance = Math.max(...correlationPoints.map(p => p.attendance_rate), 100)
+  const maxExam = Math.max(...correlationPoints.map(p => p.exam_percentage), 100)
+
+  return (
+    <div className="space-y-4">
+      {/* Correlation Coefficient Display */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className={`text-3xl font-bold ${getCorrelationColor()}`}>
+            {coefficient.toFixed(3)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">Correlation Coefficient</div>
+        </div>
+        <div className={`${getCorrelationBg()} px-3 py-2 rounded-lg`}>
+          <div className="text-xs font-medium text-gray-700">
+            {absCoefficient >= 0.7 ? 'Strong' : absCoefficient >= 0.4 ? 'Moderate' : absCoefficient >= 0.2 ? 'Weak' : 'Very Weak'}
+            {' '}{isPositive ? 'Positive' : 'Negative'}
+          </div>
+        </div>
+      </div>
+
+      {/* Interpretation */}
+      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+        {data.interpretation}
+      </p>
+
+      {/* Scatter Plot Visualization */}
+      {correlationPoints.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-medium text-gray-500 mb-2">
+            Attendance vs Exam Performance ({data.data_points} students)
+          </div>
+          <div className="relative h-48 bg-gray-50 rounded-lg p-4">
+            {/* Y-axis label */}
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 -rotate-90 text-xs text-gray-500 origin-center whitespace-nowrap">
+              Exam %
+            </div>
+            {/* X-axis label */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-xs text-gray-500">
+              Attendance %
+            </div>
+            {/* Plot area */}
+            <div className="ml-4 mb-4 h-full relative border-l border-b border-gray-300">
+              {correlationPoints.slice(0, 50).map((point, idx) => {
+                const x = (point.attendance_rate / maxAttendance) * 100
+                const y = 100 - (point.exam_percentage / maxExam) * 100
+                return (
+                  <div
+                    key={idx}
+                    className="absolute w-2 h-2 bg-indigo-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 hover:bg-indigo-700 hover:w-3 hover:h-3 transition-all cursor-pointer"
+                    style={{ left: `${x}%`, top: `${y}%` }}
+                    title={`${point.student_name}: Attendance ${point.attendance_rate}%, Exam ${point.exam_percentage}%`}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Enhanced Subject Comparison with better visuals
 function SubjectComparison({ subjects }) {
   const [showAll, setShowAll] = useState(false)
@@ -415,6 +501,7 @@ export default function PerformanceAnalytics() {
   const [subjectComparison, setSubjectComparison] = useState(null)
   const [classComparison, setClassComparison] = useState(null)
   const [trendData, setTrendData] = useState(null)
+  const [correlationData, setCorrelationData] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
   // Load classes and subjects on mount
@@ -475,12 +562,14 @@ export default function PerformanceAnalytics() {
 
       try {
         if (viewMode === 'class' && selectedClass) {
-          const [perf, comparison] = await Promise.all([
+          const [perf, comparison, correlation] = await Promise.all([
             api.getClassPerformanceSummary(selectedClass).catch(() => null),
             api.compareSubjects(selectedClass).catch(() => null),
+            api.getAttendanceCorrelation(selectedClass).catch(() => null),
           ])
           setClassPerformance(perf)
           setSubjectComparison(comparison)
+          setCorrelationData(correlation)
         } else if (viewMode === 'subject' && selectedSubject) {
           const perf = await api.getSubjectPerformanceSummary(selectedSubject).catch(() => null)
           setSubjectPerformance(perf)
@@ -697,14 +786,14 @@ export default function PerformanceAnalytics() {
             />
             <Card
               title="Class Average"
-              value={`${classPerformance.overall_statistics?.class_average_percentage?.toFixed(1) || 0}%`}
+              value={`${classPerformance.overall_statistics?.class_exam_average?.toFixed(1) || 0}%`}
               icon="TrendingUp"
               accent="bg-emerald-500"
               colored
             />
             <Card
               title="Pass Rate"
-              value={`${classPerformance.overall_statistics?.class_pass_rate?.toFixed(1) || 0}%`}
+              value={`${classPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
               icon="Award"
               accent="bg-amber-500"
               colored
@@ -745,6 +834,17 @@ export default function PerformanceAnalytics() {
                 Subject Performance Comparison
               </h3>
               <SubjectComparison subjects={subjectComparison.subjects} />
+            </section>
+          )}
+
+          {/* Attendance-Performance Correlation */}
+          {correlationData && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Icons.GitBranch className="w-5 h-5 text-purple-500" />
+                Attendance-Performance Correlation
+              </h3>
+              <AttendanceCorrelation data={correlationData} />
             </section>
           )}
 
@@ -789,14 +889,14 @@ export default function PerformanceAnalytics() {
             />
             <Card
               title="Average Score"
-              value={`${subjectPerformance.overall_statistics?.overall_average_percentage?.toFixed(1) || 0}%`}
+              value={`${subjectPerformance.overall_statistics?.exam_average_percentage?.toFixed(1) || 0}%`}
               icon="TrendingUp"
               accent="bg-emerald-500"
               colored
             />
             <Card
               title="Pass Rate"
-              value={`${subjectPerformance.overall_statistics?.pass_rate?.toFixed(1) || 0}%`}
+              value={`${subjectPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
               icon="Award"
               accent="bg-amber-500"
               colored
@@ -902,32 +1002,45 @@ export default function PerformanceAnalytics() {
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
                 <Icons.Activity className="w-5 h-5 text-purple-500" />
-                Exam Performance Over Time
+                Performance Over Time
               </h3>
               <LineChart
-                data={trendData.trend.map(t => ({
-                  label: new Date(t.exam_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  value: t.average_percentage
-                }))}
+                data={trendData.trend
+                  .filter(t => t.type === 'exam' && t.average_percentage != null)
+                  .map(t => ({
+                    label: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    value: t.average_percentage
+                  }))}
                 height={250}
               />
               <div className="mt-8">
-                <h4 className="font-medium text-gray-800 mb-3">Exam Details</h4>
+                <h4 className="font-medium text-gray-800 mb-3">Details</h4>
                 <div className="space-y-2">
-                  {trendData.trend.map((exam, idx) => (
+                  {trendData.trend.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <div className="font-medium text-gray-800">{exam.exam_title}</div>
+                        <div className="font-medium text-gray-800">
+                          {item.type === 'exam' ? item.exam_title : item.session_title}
+                        </div>
                         <div className="text-sm text-gray-500">
-                          {new Date(exam.exam_date).toLocaleDateString()} • {exam.students_attempted} students
+                          {new Date(item.date).toLocaleDateString()} • {item.type === 'exam'
+                            ? `${item.students_attempted || 0} students attempted`
+                            : `${item.students_marked || 0} students marked`}
                         </div>
                       </div>
-                      <div className={`text-lg font-bold ${
-                        exam.average_percentage >= 70 ? 'text-emerald-600' :
-                        exam.average_percentage >= 50 ? 'text-amber-600' :
-                        'text-red-600'
-                      }`}>
-                        {exam.average_percentage.toFixed(1)}%
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          item.type === 'exam' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {item.type === 'exam' ? 'Exam' : 'Attendance'}
+                        </span>
+                        <div className={`text-lg font-bold ${
+                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 70 ? 'text-emerald-600' :
+                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 50 ? 'text-amber-600' :
+                          'text-red-600'
+                        }`}>
+                          {(item.average_percentage ?? item.attendance_rate ?? 0).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
                   ))}

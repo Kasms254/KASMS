@@ -242,7 +242,7 @@ export default function SessionAttendance() {
       </header>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-white rounded-xl border border-neutral-200 p-3 sm:p-4 text-center shadow-sm">
           <div className="text-2xl sm:text-3xl font-bold text-black">
             {attendanceRecords.length + unmarkedStudents.length}
@@ -267,7 +267,13 @@ export default function SessionAttendance() {
           </div>
           <div className="text-xs sm:text-sm text-red-700 font-medium">Absent</div>
         </div>
-        <div className="bg-white rounded-xl border border-orange-200 p-3 sm:p-4 text-center shadow-sm col-span-2 sm:col-span-1">
+        <div className="bg-white rounded-xl border border-blue-200 p-3 sm:p-4 text-center shadow-sm">
+          <div className="text-2xl sm:text-3xl font-bold text-blue-600">
+            {attendanceRecords.filter(r => r.status === 'excused').length}
+          </div>
+          <div className="text-xs sm:text-sm text-blue-700 font-medium">Excused</div>
+        </div>
+        <div className="bg-white rounded-xl border border-orange-200 p-3 sm:p-4 text-center shadow-sm">
           <div className="text-2xl sm:text-3xl font-bold text-orange-600">{unmarkedStudents.length}</div>
           <div className="text-xs sm:text-sm text-orange-700 font-medium">Pending</div>
         </div>

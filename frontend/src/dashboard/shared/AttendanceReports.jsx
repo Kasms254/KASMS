@@ -29,7 +29,7 @@ export default function AttendanceReports() {
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10)
   })
 
@@ -203,12 +203,13 @@ export default function AttendanceReports() {
       doc.text('Summary', 14, 52)
 
       const summaryData = [
-        ['Total Sessions', String(classSummary.total_sessions || 0)],
         ['Total Students', String(classSummary.total_students || 0)],
+        ['Total Sessions', String(classSummary.total_sessions || 0)],
         ['Average Attendance Rate', `${(classSummary.attendance_rate || 0).toFixed(1)}%`],
         ['Present', String(classSummary.by_status?.present || 0)],
         ['Late', String(classSummary.by_status?.late || 0)],
         ['Absent', String(classSummary.by_status?.absent || 0)],
+        ['Excused', String(classSummary.by_status?.excused || 0)],
       ]
 
       // Use autoTable as a function, passing doc as first argument
@@ -521,8 +522,29 @@ export default function AttendanceReports() {
                   <XAxis dataKey="date" tickFormatter={formatDate} />
                   <YAxis domain={[0, 100]} unit="%" />
                   <Tooltip
-                    formatter={(value) => [`${value.toFixed(1)}%`, 'Attendance Rate']}
-                    labelFormatter={formatDate}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null
+                      const data = payload[0]?.payload
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
+                          <p className="font-medium text-gray-900">{formatDate(label)}</p>
+                          {data?.session_title && (
+                            <p className="text-gray-600 text-xs">{data.session_title}</p>
+                          )}
+                          <p className="text-indigo-600 font-semibold mt-1">
+                            Attendance: {(data?.attendance_rate || 0).toFixed(1)}%
+                          </p>
+                          {data?.moving_average !== undefined && (
+                            <p className="text-emerald-600">
+                              Moving Avg: {data.moving_average.toFixed(1)}%
+                            </p>
+                          )}
+                          <p className="text-gray-500 text-xs mt-1">
+                            Present: {data?.present || 0} | Late: {data?.late || 0} | Absent: {data?.absent || 0}
+                          </p>
+                        </div>
+                      )
+                    }}
                   />
                   <Legend />
                   <Line

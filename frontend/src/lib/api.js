@@ -736,6 +736,11 @@ export async function getSubjectTrendAnalysis(subjectId, days = 90) {
   return request(`/api/subject-performance/trend_analysis/?subject_id=${encodeURIComponent(subjectId)}&days=${encodeURIComponent(days)}`)
 }
 
+export async function getAttendanceCorrelation(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/attendance_correlation/?class_id=${encodeURIComponent(classId)}`)
+}
+
 // Class Performance
 export async function getClassPerformanceSummary(classId) {
   if (!classId) throw new Error('classId is required')
