@@ -165,7 +165,7 @@ export default function NavBar({
 
       setNotifs(filtered)
       setUnreadCount(filtered.filter(x => !x.read).length)
-    } catch (err) {
+    } catch {
       // Set empty notifications on error so UI doesn't break
       setNotifs([])
       setUnreadCount(0)
@@ -226,7 +226,8 @@ export default function NavBar({
           setUnreadCount(next.filter(x => !x.read).length)
           return next
         })
-      } catch (err) {
+      } catch {
+        // Ignore errors when updating notification state
       }
     }
     window.addEventListener('notifications:marked_read', onNotificationsMarkedRead)
@@ -241,7 +242,8 @@ export default function NavBar({
     if (user.role === 'admin') return
     // Don't refetch if we already have notifications loaded
     if (notifs.length === 0) {
-      fetchNotifications().catch(err => {
+      fetchNotifications().catch(() => {
+        // Silently ignore fetch errors
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,19 +360,16 @@ export default function NavBar({
                               // Dispatch event to sync with Notifications page
                               try {
                                 window.dispatchEvent(new CustomEvent('notices:changed'))
-                              } catch (err) {
+                              } catch {
+                                // Ignore dispatch errors
                               }
-                            } catch (err) {
-                              // If 404, the notice was deleted - silently continue
-                              if (err.message && !err.message.includes('not found')) {
-                              }
+                            } catch {
+                              // Silently ignore 'not found' errors for deleted notices
                             }
                           }
                         }
                         // Navigate to notifications page
-                        try {
-                          navigate('/list/notifications')
-                        } catch (err) { }
+                        navigate('/list/notifications')
                       }}
                     >
                       <div className="flex items-start gap-2">
@@ -406,17 +405,16 @@ export default function NavBar({
                         } else {
                           await api.markNoticeAsRead(noticeId)
                         }
-                      } catch (err) {
-                        // If 404, the notice was deleted - silently continue
-                        if (err.message && !err.message.includes('not found')) {
-                        }
+                      } catch {
+                        // Silently ignore 'not found' errors for deleted notices
                       }
                     }
 
                     // Dispatch event to sync with Notifications page
                     try {
                       window.dispatchEvent(new CustomEvent('notices:changed'))
-                    } catch (err) {
+                    } catch {
+                      // Ignore dispatch errors
                     }
                   }}
                   className="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1"
