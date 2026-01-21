@@ -1,7 +1,7 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
 
-//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 
 
 // Sanitize string input to prevent injection attacks
@@ -14,7 +14,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-const API_BASE = import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -309,6 +309,189 @@ export async function getClassAttendance(classId, date) {
   return request(`/api/attendance/class_attendance/${qs}`)
 }
 
+// =====================
+// Attendance Sessions API
+// =====================
+
+// Get all attendance sessions (paginated)
+export async function getAttendanceSessions(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/attendance-sessions/${qs}`)
+}
+
+// Get a single attendance session
+export async function getAttendanceSession(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/`)
+}
+
+// Create a new attendance session
+export async function createAttendanceSession(payload) {
+  return request('/api/attendance-sessions/', { method: 'POST', body: payload })
+}
+
+// Update an attendance session
+export async function updateAttendanceSession(sessionId, payload) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/`, { method: 'PATCH', body: payload })
+}
+
+// Delete an attendance session
+export async function deleteAttendanceSession(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/`, { method: 'DELETE' })
+}
+
+// Start an attendance session (generates QR code)
+export async function startAttendanceSession(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/start/`, { method: 'POST' })
+}
+
+// End an attendance session
+export async function endAttendanceSession(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/end/`, { method: 'POST' })
+}
+
+// Get QR code data for a session
+export async function getSessionQRCode(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/qr_code/`)
+}
+
+// Get session statistics
+export async function getSessionStatistics(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/statistics/`)
+}
+
+// Get unmarked students for a session
+export async function getUnmarkedStudents(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/unmarked_students/`)
+}
+
+// Mark all unmarked students as absent
+export async function markAbsentStudents(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/mark_absent/`, { method: 'POST' })
+}
+
+// Export session attendance to CSV
+export async function exportSessionAttendance(sessionId) {
+  if (!sessionId) throw new Error('sessionId is required')
+  return request(`/api/attendance-sessions/${sessionId}/export_csv/`)
+}
+
+// Get instructor's sessions
+export async function getMyAttendanceSessions(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/attendance-sessions/my_sessions/${qs}`)
+}
+
+// Get active sessions
+export async function getActiveAttendanceSessions() {
+  return request('/api/attendance-sessions/active_sessions/')
+}
+
+// =====================
+// Session Attendance API (individual attendance records)
+// =====================
+
+// Get session attendance records
+export async function getSessionAttendances(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/session-attendances/${qs}`)
+}
+
+// Mark attendance via QR code (for students)
+export async function markQRAttendance(payload) {
+  // payload: { session_id, qr_token, latitude?, longitude? }
+  return request('/api/session-attendances/mark_qr/', { method: 'POST', body: payload })
+}
+
+// Bulk mark attendance (for instructors)
+export async function bulkMarkSessionAttendance(payload) {
+  // payload: { session_id, attendance_records: [{ student_id, status, remarks? }] }
+  return request('/api/session-attendances/bulk_mark/', { method: 'POST', body: payload })
+}
+
+// Get student's own attendance history
+export async function getMyAttendance(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/session-attendances/my_attendance/${qs}`)
+}
+
+// =====================
+// Biometric Records API
+// =====================
+
+// Get biometric records
+export async function getBiometricRecords(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/biometric-records/${qs}`)
+}
+
+// Sync biometric data from device
+export async function syncBiometricRecords(payload) {
+  // payload: { device_id, device_type, records: [{ biometric_id, scan_time, verification_type?, verification_score? }] }
+  return request('/api/biometric-records/sync/', { method: 'POST', body: payload })
+}
+
+// Process pending biometric records
+export async function processPendingBiometrics() {
+  return request('/api/biometric-records/process_pending/', { method: 'POST' })
+}
+
+// Get unprocessed biometric records
+export async function getUnprocessedBiometrics() {
+  return request('/api/biometric-records/unprocessed/')
+}
+
+// =====================
+// Attendance Reports API
+// =====================
+
+// Get class attendance summary
+export async function getClassAttendanceSummary(classId, startDate, endDate) {
+  if (!classId) throw new Error('classId is required')
+  let qs = `?class_id=${encodeURIComponent(classId)}`
+  if (startDate) qs += `&start_date=${encodeURIComponent(startDate)}`
+  if (endDate) qs += `&end_date=${encodeURIComponent(endDate)}`
+  return request(`/api/attendance-reports/class_summary/${qs}`)
+}
+
+// Get individual student attendance detail
+export async function getStudentAttendanceDetail(studentId, startDate, endDate) {
+  if (!studentId) throw new Error('studentId is required')
+  let qs = `?student_id=${encodeURIComponent(studentId)}`
+  if (startDate) qs += `&start_date=${encodeURIComponent(startDate)}`
+  if (endDate) qs += `&end_date=${encodeURIComponent(endDate)}`
+  return request(`/api/attendance-reports/student_detail/${qs}`)
+}
+
+// Compare multiple sessions
+export async function compareSessionAttendance(sessionIds) {
+  if (!sessionIds || !sessionIds.length) throw new Error('sessionIds array is required')
+  const qs = `?session_ids=${sessionIds.join(',')}`
+  return request(`/api/attendance-reports/session_comparison/${qs}`)
+}
+
+// Get attendance trend analysis
+export async function getAttendanceTrend(classId, days = 30) {
+  if (!classId) throw new Error('classId is required')
+  const qs = `?class_id=${encodeURIComponent(classId)}&days=${encodeURIComponent(days)}`
+  return request(`/api/attendance-reports/trend_analysis/${qs}`)
+}
+
+// Get low attendance alerts
+export async function getLowAttendanceAlerts(classId, threshold = 75) {
+  let qs = `?threshold=${encodeURIComponent(threshold)}`
+  if (classId) qs += `&class_id=${encodeURIComponent(classId)}`
+  return request(`/api/attendance-reports/low_attendance_alert/${qs}`)
+}
+
 export async function getSubjects(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/subjects/${qs}`)
@@ -551,6 +734,11 @@ export async function compareSubjects(classId) {
 export async function getSubjectTrendAnalysis(subjectId, days = 90) {
   if (!subjectId) throw new Error('subjectId is required')
   return request(`/api/subject-performance/trend_analysis/?subject_id=${encodeURIComponent(subjectId)}&days=${encodeURIComponent(days)}`)
+}
+
+export async function getAttendanceCorrelation(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/class-performance/attendance_correlation/?class_id=${encodeURIComponent(classId)}`)
 }
 
 // Class Performance
@@ -816,4 +1004,35 @@ export default {
   getClassTopPerformers,
   compareClasses,
   exportClassReport,
+  // Attendance Sessions
+  getAttendanceSessions,
+  getAttendanceSession,
+  createAttendanceSession,
+  updateAttendanceSession,
+  deleteAttendanceSession,
+  startAttendanceSession,
+  endAttendanceSession,
+  getSessionQRCode,
+  getSessionStatistics,
+  getUnmarkedStudents,
+  markAbsentStudents,
+  exportSessionAttendance,
+  getMyAttendanceSessions,
+  getActiveAttendanceSessions,
+  // Session Attendance
+  getSessionAttendances,
+  markQRAttendance,
+  bulkMarkSessionAttendance,
+  getMyAttendance,
+  // Biometric Records
+  getBiometricRecords,
+  syncBiometricRecords,
+  processPendingBiometrics,
+  getUnprocessedBiometrics,
+  // Attendance Reports
+  getClassAttendanceSummary,
+  getStudentAttendanceDetail,
+  compareSessionAttendance,
+  getAttendanceTrend,
+  getLowAttendanceAlerts,
 }

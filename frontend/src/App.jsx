@@ -15,7 +15,6 @@ const AdminDashboard = lazy(() => import('./dashboard/admin/AdminDashboard'))
 const InstructorsDashboard = lazy(() => import('./dashboard/instructors/InstructorsDashboard'))
 const StudentsDashboard = lazy(() => import('./dashboard/students/StudentsDashboard'))
 const InstructorsSubjectsPage = lazy(() => import('./dashboard/instructors/SubjectsPage'))
-const Attendance = lazy(() => import('./dashboard/instructors/Attendance'))
 const Exams = lazy(() => import('./dashboard/instructors/Exams'))
 const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
 const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
@@ -34,6 +33,10 @@ const ClassNotices = lazy(() => import('./dashboard/instructors/ClassNotices'))
 const Notifications = lazy(() => import('./dashboard/shared/Notifications'))
 const PerformanceAnalytics = lazy(() => import('./dashboard/shared/PerformanceAnalytics'))
 const ExamReports = lazy(() => import('./dashboard/shared/ExamReports'))
+const AttendanceSessions = lazy(() => import('./dashboard/instructors/AttendanceSessions'))
+const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
+const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
+const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
 
 // Loading component for code-split routes
 const LoadingFallback = () => (
@@ -122,9 +125,20 @@ const App = () => {
 				<Route path=":id" element={<ClassDetail />} />
 			</Route>
 
-			{/* Attendance (instructors only) */}
-			<Route path="/list/attendance" element={<RoleProtectedLayout role="instructor" />}>
-				<Route index element={<Attendance />} />
+			{/* Attendance Sessions (instructors only) */}
+			<Route path="/list/attendance-sessions" element={<RoleProtectedLayout role="instructor" />}>
+				<Route index element={<AttendanceSessions />} />
+				<Route path=":sessionId" element={<SessionAttendance />} />
+			</Route>
+
+			{/* Student Attendance (students only) */}
+			<Route path="/list/my-attendance" element={<RoleProtectedLayout role="student" />}>
+				<Route index element={<StudentAttendance />} />
+			</Route>
+
+			{/* Attendance Reports (admins & instructors) */}
+			<Route path="/list/attendance-reports" element={<AdminOrInstructorLayout />}>
+				<Route index element={<AttendanceReports />} />
 			</Route>
 
 			{/* Exams listing (instructors only) */}
