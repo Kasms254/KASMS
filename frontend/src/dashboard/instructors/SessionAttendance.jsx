@@ -102,7 +102,9 @@ export default function SessionAttendance() {
   async function handleExportCSV() {
     try {
       const data = await api.exportSessionAttendance(sessionId)
-      const blob = new Blob([data.csv || JSON.stringify(data)], { type: 'text/csv' })
+      // Handle both raw CSV string and object with csv property
+      const csvContent = typeof data === 'string' ? data : (data.csv || JSON.stringify(data))
+      const blob = new Blob([csvContent], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -197,6 +199,11 @@ export default function SessionAttendance() {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
+            <p className="text-xs sm:text-sm text-neutral-500 mb-1">
+              {session.status === 'completed' ? 'Attendance Report' :
+               session.status === 'active' ? 'Mark Attendance' :
+               'Session Preview'}
+            </p>
             <h2 className="text-xl sm:text-2xl font-semibold text-black">{session.title}</h2>
             <div className="flex flex-wrap items-center gap-3 mt-1 text-xs sm:text-sm text-neutral-500">
               <div className="flex items-center gap-1">
@@ -333,8 +340,8 @@ export default function SessionAttendance() {
         </div>
       </div>
 
-      {/* Unmarked Students Section */}
-      {session.enable_manual_marking && (
+      {/* Unmarked Students Section - only show when session is active and manual marking is enabled */}
+      {session.enable_manual_marking && session.status === 'active' && (
         <section className="mb-4 sm:mb-6">
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -543,7 +550,9 @@ export default function SessionAttendance() {
       <section>
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-200 flex items-center gap-2">
-            <h3 className="font-semibold text-black">Marked Students</h3>
+            <h3 className="font-semibold text-black">
+              {session.status === 'completed' ? 'Attendance Records' : 'Marked Students'}
+            </h3>
             <span className="px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full text-xs font-medium">
               {filteredMarked.length}
             </span>
