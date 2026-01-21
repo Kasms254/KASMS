@@ -178,22 +178,25 @@ export default function AddResults() {
 
     // Validate only changed rows
     const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
+    const validationErrors = []
     const validated = results.map(r => {
       if (!changedRows.find(cr => cr.id === r.id)) return r
-      const errors = { ...r.errors }
+      const errors = {}
       if (r.marks_obtained === '' || r.marks_obtained == null) {
         errors.marks_obtained = 'Required'
       } else {
         const n = Number(r.marks_obtained)
         if (!Number.isFinite(n) || n < 0) errors.marks_obtained = 'Invalid number'
         else if (max != null && n > max) errors.marks_obtained = `Cannot exceed ${max}`
-        else delete errors.marks_obtained
+      }
+      if (Object.keys(errors).length > 0) {
+        validationErrors.push(r.id)
       }
       return { ...r, errors }
     })
 
     // if any validation errors on changed rows, update state and stop
-    if (validated.some(r => changedRows.find(cr => cr.id === r.id) && r.errors && Object.keys(r.errors).length > 0)) {
+    if (validationErrors.length > 0) {
       setResults(validated)
       return toast.error('Fix validation errors before saving')
     }
