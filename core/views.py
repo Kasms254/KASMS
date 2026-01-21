@@ -3250,7 +3250,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'present':attendances.filter(status='present').count(),
                 'late':attendances.filter(status='late').count(),
                 'absent':total_students - attendances.count(),
-                'attendance_rate':round((attendances.count() / total_students * 100), 2) if total_students > 0  else 0
+                'attendance_rate':round(float((attendances.count() / total_students) * 100), 2) if total_students > 0  else 0
                 
             })
 
@@ -3347,3 +3347,4 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'count':len(low_attendance_students),
                 'students':low_attendance_students
             })
+# add start and end dates to low
