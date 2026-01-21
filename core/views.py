@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,ExamResultNotificationReadStatus,
- Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord)
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
+ Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
@@ -26,7 +26,7 @@ from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
 from django.http import HttpResponse
-
+from django.db import transaction
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -37,6 +37,11 @@ class UserViewSet(viewsets.ModelViewSet):
     search_fields = ['username', 'email', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'username', 'email', 'role']
     ordering = ['-created_at']
+
+    def get_permissions(self):
+        if self.action == "enrollments":
+            return [IsAuthenticated()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -217,11 +222,16 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user = self.get_object()
 
+        if user.role != 'student' and user.id != request.user.id:
+            return Response({
+                'error': 'You can only view your own enrollments'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         if user.role != 'student':
             return Response({
                 'error': 'User is not a student'
-            },
-            status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
         enrollments = Enrollment.objects.filter(student=user).select_related('class_obj', 'enrolled_by')
         serializer = EnrollmentSerializer(enrollments, many=True)
@@ -255,6 +265,7 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
+    
         user = self.get_object()
 
         if user == request.user:
@@ -268,6 +279,7 @@ class UserViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'User {user.username} has been deactivated'
         })
+
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
         user = self.get_object()
@@ -1980,8 +1992,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'general_notices':NoticeSerializer(general_notices, many=True).data
         })
 
-        
-
     @action(detail=False, methods=['get'])
     def my_attendance(self, request):
 
@@ -1989,12 +1999,10 @@ class StudentDashboardViewset(viewsets.ViewSet):
             return Response({
                 'error': 'Only students can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
 
-        attendance = Attendance.objects.filter(
-            student = request.user,
-        ).select_related('class_obj', 'subject', 'marked_by')
-
+        attendance = SessionAttendance.objects.filter(
+            student=request.user,
+        ).select_related('session', 'session__class_obj', 'session__subject', 'marked_by')
 
         class_id = request.query_params.get('class_id')
         subject_id = request.query_params.get('subject_id')
@@ -2003,17 +2011,17 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
 
         if class_id:
-            attendance = attendance.filter(class_obj_id = class_id)
+            attendance = attendance.filter(session__class_obj_id = class_id)
         if subject_id:
-            attendance = attendance.filter(subject_id = subject_id)
+            attendance = attendance.filter(session__subject_id = subject_id)
         if start_date:
-            attendance = attendance.filter(date__gte=start_date)
+            attendance = attendance.filter(marked_at__date__gte=start_date)
         if end_date:
-            attendance = attendance.filter(date__lte=end_date)
+            attendance = attendance.filter(marked_at__date__lte=end_date)
 
-        attendance = attendance.order_by('-date')
+        attendance = attendance.order_by('-marked_at')
 
-        serializer = AttendanceSerializer(attendance, many=True)
+        serializer = SessionAttendanceSerializer(attendance, many=True)
 
         total = attendance.count()
         present = attendance.filter(status='present').count()
@@ -2021,22 +2029,22 @@ class StudentDashboardViewset(viewsets.ViewSet):
         late = attendance.filter(status='late').count()
         excused = attendance.filter(status='excused').count()
 
-
-        stats = {
+        stats ={
             'total_records': total,
             'present': present,
             'absent': absent,
             'late': late,
             'excused': excused,
-            'attendance_rate': round((present / total) * 100, 2) if total > 0 else 0
+            'attendance_rate': round(((present + late) / total) * 100,2) if total > 0 else 0
+
         }
 
         return Response({
-            'count': total,
-            'stats': stats,
+            'count':total,
+            'stats':stats,
             'results': serializer.data
-        })
-                
+        })    
+
     @action(detail=False, methods=['get'])
     def my_notices(self, request):
 
