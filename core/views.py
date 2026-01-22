@@ -1155,8 +1155,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = result_data.get('remarks', '')
-                    results.is_submitted = True
+                    result.remarks = result_data.get('remarks', '')
+                    result.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
                     result.graded_at = timezone.now()
@@ -1862,14 +1862,18 @@ class StudentDashboardViewset(viewsets.ViewSet):
             '-exam__exam_date'
         )[:10]
 
-        total_attendance = Attendance.objects.filter(
+        total_attendance = SessionAttendance.objects.filter(
             student=user
         )
         present_count  = total_attendance.filter(
             status='present'
         ).count()
+        late_count = total_attendance.filter(
+            status='late'
+        ).count()
+
         total_count = total_attendance.count()
-        attendance_rate = (present_count/total_count * 100) if total_count > 0 else 0
+        attendance_rate = ((present_count + late_count)/total_count * 100) if total_count > 0 else 0
 
         recent_notices = ClassNotice.objects.filter(
             class_obj_id__in = enrolled_class_ids,
@@ -2503,20 +2507,27 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         writer.writerow(
             [
                 'student Name', 'SVC Number', 'Email', 'Status', 
-                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks'
+                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks','Time'
             ]
         )
 
         attendances = session.session_attendances.select_related('student').order_by('student__last_name')
         for attendance in attendances:
+
+            minutes_late = ''
+            if attendance.status == 'late':
+                delta = attendance.marked_at - session.scheduled_start
+                minutes_late = round(delta.total_seconds() / 60,1)
+
             writer.writerow([
                 attendance.student.get_full_name(),
+                attendance.student.get_rank_display() if attendance.student.rank else '',
                 attendance.student.svc_number,
                 attendance.student.email,
                 attendance.get_status_display(),
                 attendance.get_marking_method_display(),
                 attendance.marked_at.strftime('%Y-%m-%d %H:%M:%S'),
-                attendance.minutes_late if attendance.status == 'late' else '',
+                minutes_late,
                 attendance.remarks or ''
             ])
 
