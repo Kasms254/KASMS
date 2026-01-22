@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
@@ -638,7 +638,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(urgent_notices, many=True)
         return Response({
             'count': urgent_notices.count(),
-            'results': urgent_notices.data
+            'results': serializer.data
         })
 
     @action(detail=False, methods=['get'])
@@ -1102,13 +1102,14 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
             """
 
-            ClassNotice.objects.create(
-                class_obj=exam_result.exam.subject.class_obj,
-                subject = exam_result.exam.subject,
-                title=title,
-                content=content,
-                priority='medium',
-                created_by = exam_result.graded_by,
+            PersonalNotification.objects.create(
+                user=exam_result.student,
+                notification_type='exam_result',
+                priority = 'medium',
+                title = title,
+                content = content,
+                exam_result= exam_result,
+                created_by= exam_result.graded_by,
                 is_active=True
             )
 

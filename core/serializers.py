@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, 
+    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog,ExamResultNotificationReadStatus)
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -920,5 +920,34 @@ class StudentAttendanceSummarySerializer(serializers.Serializer):
 
     recent_sessions = SessionAttendanceSerializer(many=True, read_only=True)
     
+# personal notification
+
+class PersonalNotificationSerializer(serializers.ModelSerializer):
+    notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+
+    exam_details = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = PersonalNotification
+        fields = '__all__'
+        read_only_fields = ('created_at', 'read_at', 'created_by')
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else 'System'
+
+    def get_exam_details(self, obj):
+        if obj.exam_result:
+            return {
+                'exam_id': obj.exam_result.exam.id,
+                'exam_title':obj.exam_result.exam_title,
+                'subject_name':obj.exam_result.exam.subject.name,
+                'marks_obtained':float(obj.exam_result.marks_obtained) if obj.exam_result.marks_obtained else None,
+                'total_marks':obj.exam_result.exam.total_marks,
+                'percentage':obj.exam_result.percentage,
+                'grade':obj.exam_result.grade
+                            }
+        return None
 
         
