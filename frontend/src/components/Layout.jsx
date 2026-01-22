@@ -61,7 +61,7 @@ export default function Layout() {
           </header>
           <main className="p-4 sm:p-6 flex-1 overflow-auto">
             {/* Clean content area — no rounded panel or shadow */}
-            <div className="max-w-7xl mx-auto w-full">
+            <div className="w-full">
               <Outlet />
             </div>
           </main>
