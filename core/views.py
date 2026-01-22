@@ -2661,17 +2661,28 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.role == 'instructor':
-
             queryset = queryset.filter(
                 Q(session__class_obj__instructor=user) |
                 Q(session__subject__instructor=user)
             )
         elif user.role == 'student':
+            queryset = queryset.filter(student=user)
 
-            queryset =queryset.filter(student=user)
+        # Allow narrowing to a single session via query params.
+        # Accept either `session` (AttendanceSession PK) or `session_id` (AttendanceSession.session_id UUID).
+        session_pk = self.request.query_params.get('session')
+        session_uuid = self.request.query_params.get('session_id')
 
+        if session_pk:
+            try:
+                queryset = queryset.filter(session_id=int(session_pk))
+            except (ValueError, TypeError):
+                pass
+        elif session_uuid:
+            queryset = queryset.filter(session__session_id=session_uuid)
 
         return queryset
+
 
 
     def perform_create(self, serializer):

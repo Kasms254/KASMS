@@ -378,8 +378,9 @@ export default function AttendanceSessions() {
   async function handleExportCSV(session) {
     try {
       const data = await api.exportSessionAttendance(session.id)
-      // Create and download CSV
-      const blob = new Blob([data.csv || JSON.stringify(data)], { type: 'text/csv' })
+      // Handle both raw CSV string and object with csv property
+      const csvContent = typeof data === 'string' ? data : (data.csv || JSON.stringify(data))
+      const blob = new Blob([csvContent], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -1194,20 +1195,33 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20">
-                  <button
-                    onClick={() => { onShowStats(); setShowMenu(false) }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Statistics
-                  </button>
-                  <button
-                    onClick={() => { onExport(); setShowMenu(false) }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Export CSV
-                  </button>
+                  {session.status !== 'scheduled' && (
+                    <button
+                      onClick={() => { onShowAttendance(); setShowMenu(false) }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Users className="w-4 h-4" />
+                      Attendance Report
+                    </button>
+                  )}
+                  {session.status !== 'scheduled' && (
+                    <button
+                      onClick={() => { onShowStats(); setShowMenu(false) }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Statistics
+                    </button>
+                  )}
+                  {session.status !== 'scheduled' && (
+                    <button
+                      onClick={() => { onExport(); setShowMenu(false) }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export CSV
+                    </button>
+                  )}
                   {session.status !== 'completed' && (
                     <button
                       onClick={() => { onDelete(); setShowMenu(false) }}
