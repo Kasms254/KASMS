@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
@@ -612,10 +612,8 @@ class NoticeViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
     
-
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
 
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -636,7 +634,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
             Q(expiry_date__isnull=True) |
             Q(expiry_date__gte=timezone.now())
 
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(urgent_notices, many=True)
         return Response({
             'count': urgent_notices.count(),
@@ -667,7 +665,6 @@ class NoticeViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def expired(self, request):
-        """Get all expired notices (Admin only)"""
         if request.user.role != 'admin':
             return Response(
                 {'error': 'Admin access required'},
@@ -676,25 +673,23 @@ class NoticeViewSet(viewsets.ModelViewSet):
         
         expired_notices = self.get_queryset().filter(
             expiry_date__lt=timezone.now()
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(expired_notices, many=True)
         return Response({
             'count': expired_notices.count(),
             'results': serializer.data
         })
 
-
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
         notice = self.get_object()
-
         read_status, created = NoticeReadStatus.objects.get_or_create(
             user=request.user,
             notice=notice
         )
 
         return Response({
-            'message': 'Notice marked as read' if created else 'ALready Marked as read',
+            'message': 'Notice marked as read' if created else 'Already Marked as read',
             'read_at': read_status.read_at
         })
 
@@ -709,6 +704,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         return Response({
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
+
     @action(detail=False, methods=['get'])
     def unread(self, request):
         read_notice_ids = NoticeReadStatus.objects.filter(
@@ -720,7 +716,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         ).exclude(
             id__in=read_notice_ids
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now()).order_by('-created_at')
         )
 
         serializer = self.get_serializer(unread_notices, many=True)
@@ -1106,13 +1102,14 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
             """
 
-            ClassNotice.objects.create(
-                class_obj=exam_result.exam.subject.class_obj,
-                subject = exam_result.exam.subject,
-                title=title,
-                content=content,
-                priority='medium',
-                created_by = exam_result.graded_by,
+            PersonalNotification.objects.create(
+                user=exam_result.student,
+                notification_type='exam_result',
+                priority = 'medium',
+                title = title,
+                content = content,
+                exam_result= exam_result,
+                created_by= exam_result.graded_by,
                 is_active=True
             )
 
@@ -1155,8 +1152,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = result_data.get('remarks', '')
-                    results.is_submitted = True
+                    result.remarks = result_data.get('remarks', '')
+                    result.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
                     result.graded_at = timezone.now()
@@ -1862,14 +1859,18 @@ class StudentDashboardViewset(viewsets.ViewSet):
             '-exam__exam_date'
         )[:10]
 
-        total_attendance = Attendance.objects.filter(
+        total_attendance = SessionAttendance.objects.filter(
             student=user
         )
         present_count  = total_attendance.filter(
             status='present'
         ).count()
+        late_count = total_attendance.filter(
+            status='late'
+        ).count()
+
         total_count = total_attendance.count()
-        attendance_rate = (present_count/total_count * 100) if total_count > 0 else 0
+        attendance_rate = ((present_count + late_count)/total_count * 100) if total_count > 0 else 0
 
         recent_notices = ClassNotice.objects.filter(
             class_obj_id__in = enrolled_class_ids,
@@ -2321,18 +2322,42 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         if session.end_session():
 
+            marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
+            unmarked_students = User.objects.filter(
+                enrollments__class_obj = session.class_obj,
+                enrollments__is_active = True,
+                role='student',
+                is_active = True
+            ).exclude(id__in=marked_student_ids)
+
+            absent_records = []
+            for student in unmarked_students:
+                absent_records.append(SessionAttendance(
+                    session=session,
+                    student=student,
+                    status='absent',
+                    marking_method = 'admin',
+                    marked_by =request.user,
+                    remarks = 'Automatically marked absent when session ended'
+                ))
+
+            if absent_records:
+                SessionAttendance.objects.bulk_create(absent_records)
+
             AttendanceSessionLog.objects.create(
                 session=session,
                 action = 'session_ended',
                 performed_by = request.user,
-                description = f"Session ended",
-                ip_address= request.META.get('REMOTE_ADDR')
+                description = f"Session ended. {len(absent_records)} students marked absent automatically",
+                ip_address= request.META.get('REMOTE_ADDR'),
+                metadata = {'absent_count': len(absent_records)}
             )
 
             serializer = self.get_serializer(session)
             return Response({
                 'status': "success",
-                'message':'Session ended successuflly',
+                'message':'Session ended successuflly. {len(absent_records)} students marked absent.',
+                'absent_marked': len(absent_records),
                 'session': serializer.data
             })
         return Response({
@@ -2503,20 +2528,27 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         writer.writerow(
             [
                 'student Name', 'SVC Number', 'Email', 'Status', 
-                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks'
+                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks','Time'
             ]
         )
 
         attendances = session.session_attendances.select_related('student').order_by('student__last_name')
         for attendance in attendances:
+
+            minutes_late = ''
+            if attendance.status == 'late':
+                delta = attendance.marked_at - session.scheduled_start
+                minutes_late = round(delta.total_seconds() / 60,1)
+
             writer.writerow([
                 attendance.student.get_full_name(),
+                attendance.student.get_rank_display() if attendance.student.rank else '',
                 attendance.student.svc_number,
                 attendance.student.email,
                 attendance.get_status_display(),
                 attendance.get_marking_method_display(),
                 attendance.marked_at.strftime('%Y-%m-%d %H:%M:%S'),
-                attendance.minutes_late if attendance.status == 'late' else '',
+                minutes_late,
                 attendance.remarks or ''
             ])
 
@@ -2630,7 +2662,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'attendances': SessionAttendanceSerializer(attendances, many=True).data,
             'unmarked_students': UserListSerializer(unmarked_students, many=True).data
         })
-
 
 class SessionAttendanceViewset(viewsets.ModelViewSet):
 
