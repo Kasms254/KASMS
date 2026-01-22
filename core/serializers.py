@@ -559,8 +559,7 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
             return read_status.read_at
         except ClassNoticeReadStatus.DoesNotExist:
             return None
-            
-    
+               
 class ExamReportSerializer(serializers.ModelSerializer):
 
     subject_name = serializers.CharField(source='subject.name', read_only=True
@@ -901,7 +900,6 @@ class SessionStatisticsSerializer(serializers.Serializer):
     manual_count = serializers.IntegerField()
     biometric_count = serializers.IntegerField()
     admin_count = serializers.IntegerField()
-
 
 class StudentAttendanceSummarySerializer(serializers.Serializer):
     

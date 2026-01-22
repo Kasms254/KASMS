@@ -2325,18 +2325,42 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         if session.end_session():
 
+            marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
+            unmarked_students = User.objects.filter(
+                enrollments__class_obj = session.class_obj,
+                enrollments__is_active = True,
+                role='student',
+                is_active = True
+            ).exclude(id__in=marked_student_ids)
+
+            absent_records = []
+            for student in unmarked_students:
+                absent_records.append(SessionAttendance(
+                    session=session,
+                    student=student,
+                    status='absent',
+                    marking_method = 'admin',
+                    marked_by =request.user,
+                    remarks = 'Automatically marked absent when session ended'
+                ))
+
+            if absent_records:
+                SessionAttendance.objects.bulk_create(absent_records)
+
             AttendanceSessionLog.objects.create(
                 session=session,
                 action = 'session_ended',
                 performed_by = request.user,
-                description = f"Session ended",
-                ip_address= request.META.get('REMOTE_ADDR')
+                description = f"Session ended. {len(absent_records)} students marked absent automatically",
+                ip_address= request.META.get('REMOTE_ADDR'),
+                metadata = {'absent_count': len(absent_records)}
             )
 
             serializer = self.get_serializer(session)
             return Response({
                 'status': "success",
-                'message':'Session ended successuflly',
+                'message':'Session ended successuflly. {len(absent_records)} students marked absent.',
+                'absent_marked': len(absent_records),
                 'session': serializer.data
             })
         return Response({
@@ -2641,7 +2665,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'attendances': SessionAttendanceSerializer(attendances, many=True).data,
             'unmarked_students': UserListSerializer(unmarked_students, many=True).data
         })
-
 
 class SessionAttendanceViewset(viewsets.ModelViewSet):
 
