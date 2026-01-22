@@ -792,7 +792,7 @@ export default function SubjectsPage() {
 
       {editingSubject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeEdit} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
             <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4">
@@ -832,7 +832,7 @@ export default function SubjectsPage() {
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <h4 className="text-lg font-medium text-black">Confirm delete</h4>

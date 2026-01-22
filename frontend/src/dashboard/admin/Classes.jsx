@@ -324,12 +324,13 @@ export default function ClassesList(){
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Edit class</h4>
+                  <p className="text-sm text-neutral-500">Update class details</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={async (e) => {
@@ -347,24 +348,19 @@ export default function ClassesList(){
                     capacity: classForm.capacity ? Number(classForm.capacity) : undefined,
                     is_active: !!classForm.is_active,
                   }
-                  // helpful debug for developer: payload sent to API
-                  // remove in production if verbose
                   await updateClass(editingClass.id, payload)
                   setEditModalOpen(false)
                   await loadClasses()
                 } catch (err) {
-                  // If backend returned structured errors, show them inline
                   const d = err?.data
                   if (d && typeof d === 'object') {
                     setClassErrors(d)
-                    // show non-field or detail messages as toast
                     const nonField = d.non_field_errors || d.detail || d.message || d.error
                     if (nonField) {
                       const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
                       if (toast?.error) toast.error(msg)
                       else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
                     } else {
-                      // if there are field errors but no non-field error, also show a generic toast
                       if (toast?.error) toast.error('Please check the highlighted fields')
                       else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
                     }
@@ -376,29 +372,58 @@ export default function ClassesList(){
                 } finally {
                   setIsSaving(false)
                 }
-              }} className="mt-4 grid grid-cols-1 gap-3">
-                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="Class name" />
-                {classErrors.name && <div className="text-sm text-red-600">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
-                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="Class code" />
-                {classErrors.class_code && <div className="text-sm text-red-600">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
-                <div className="flex gap-2">
-                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
-                  {classErrors.start_date && <div className="text-sm text-red-600">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
-                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
-                  {classErrors.end_date && <div className="text-sm text-red-600">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
-                </div>
-                <input type="number" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="Capacity" />
-                {classErrors.capacity && <div className="text-sm text-red-600">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
-                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
-                  <option value="">— Select instructor —</option>
-                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                </select>
-                {classErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
-                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
+              }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="e.g. Class A" />
+                    {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
+                  </div>
 
-                <div className="flex justify-end gap-2">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="e.g. CLS-001" />
+                    {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
+                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.start_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                    {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">End date</label>
+                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.end_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                    {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
+                    <input type="number" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="e.g. 30" />
+                    {classErrors.capacity && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Instructor</label>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
+                      <option value="">— Select instructor —</option>
+                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                    </select>
+                    {classErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
+                  </div>
+                </div>
+
+                <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
+                  <label className="inline-flex items-center gap-2">
+                    <input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} />
+                    <span className="text-sm text-neutral-600">Active</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save'}</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </form>
             </div>
@@ -410,19 +435,18 @@ export default function ClassesList(){
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Create class</h4>
                   <p className="text-sm text-neutral-500">Add a new class under a course</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={async (e) => {
                 e.preventDefault()
                 setClassErrors({})
-                // basic validation
                 const errs = {}
                 if (!classForm.name) errs.name = 'Class name required'
                 if (!classForm.course) errs.course = 'Please select a course'
@@ -461,38 +485,65 @@ export default function ClassesList(){
                     else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
                   }
                 } finally { setIsSaving(false) }
-              }} className="mt-4 grid grid-cols-1 gap-3">
-                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="Class name" />
-                {classErrors.name && <div className="text-sm text-red-600">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
+              }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="e.g. Class A" />
+                    {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
+                  </div>
 
-                <input className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="Class code" />
-                {classErrors.class_code && <div className="text-sm text-red-600">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="e.g. CLS-001" />
+                    {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  </div>
 
-                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.course} onChange={(e) => setClassForm({ ...classForm, course: e.target.value })}>
-                  <option value="">— Select course —</option>
-                  {coursesList.map(c => <option key={c.id} value={c.id}>{c.name || c.code}</option>)}
-                </select>
-                {classErrors.course && <div className="text-sm text-red-600">{Array.isArray(classErrors.course) ? classErrors.course.join(' ') : String(classErrors.course)}</div>}
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course *</label>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.course ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.course} onChange={(e) => setClassForm({ ...classForm, course: e.target.value })}>
+                      <option value="">— Select course —</option>
+                      {coursesList.map(c => <option key={c.id} value={c.id}>{c.name || c.code}</option>)}
+                    </select>
+                    {classErrors.course && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.course) ? classErrors.course.join(' ') : String(classErrors.course)}</div>}
+                  </div>
 
-                <div className="flex gap-2">
-                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
-                  <input type="date" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
+                      <option value="">— Select instructor —</option>
+                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                    </select>
+                    {classErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
+                    <input type="date" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">End date</label>
+                    <input type="date" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
+                    <input type="number" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="e.g. 30" />
+                    {classErrors.capacity && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
+                  </div>
                 </div>
 
-                <input type="number" className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="Capacity" />
-                {classErrors.capacity && <div className="text-sm text-red-600">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
+                <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
+                  <label className="inline-flex items-center gap-2">
+                    <input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} />
+                    <span className="text-sm text-neutral-600">Active</span>
+                  </label>
+                </div>
 
-                <select className="p-2 rounded-md border border-neutral-200 text-black" value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
-                  <option value="">— Select instructor —</option>
-                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                </select>
-                {classErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
-
-                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} /> <span className="text-black">Active</span></label>
-
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Create'}</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Create class'}</button>
                 </div>
               </form>
             </div>
@@ -503,48 +554,57 @@ export default function ClassesList(){
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Add subject to class</h4>
+                  <p className="text-sm text-neutral-500">Create a new subject and assign it to a class</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
-              <form onSubmit={handleAddSubject} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div>
-                  <input placeholder="Subject name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSubjectErrors(prev => ({ ...prev, name: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black" />
-                  {subjectErrors.name && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.name) ? subjectErrors.name.join(' ') : String(subjectErrors.name)}</div>}
+
+              <form onSubmit={handleAddSubject}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Subject name *</label>
+                    <input placeholder="e.g. Mathematics" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSubjectErrors(prev => ({ ...prev, name: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                    {subjectErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.name) ? subjectErrors.name.join(' ') : String(subjectErrors.name)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Subject code</label>
+                    <input placeholder="e.g. MATH101" value={form.subject_code} onChange={(e) => { setForm({ ...form, subject_code: e.target.value }); setSubjectErrors(prev => ({ ...prev, subject_code: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.subject_code ? 'border-rose-500' : 'border-neutral-200'}`} />
+                    {subjectErrors.subject_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.subject_code) ? subjectErrors.subject_code.join(' ') : String(subjectErrors.subject_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class *</label>
+                    <select value={form.class_obj} onChange={(e) => { setForm({ ...form, class_obj: e.target.value }); setSubjectErrors(prev => ({ ...prev, class_obj: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'}`}>
+                      <option value="">— Select class —</option>
+                      {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
+                    </select>
+                    {subjectErrors.class_obj && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.class_obj) ? subjectErrors.class_obj.join(' ') : String(subjectErrors.class_obj)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
+                    <select value={form.instructor} onChange={(e) => { setForm({ ...form, instructor: e.target.value }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`}>
+                      <option value="">— Select instructor —</option>
+                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                    </select>
+                    {subjectErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.instructor) ? subjectErrors.instructor.join(' ') : String(subjectErrors.instructor)}</div>}
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Description *</label>
+                    <textarea placeholder="Short description of the subject" value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); setSubjectErrors(prev => ({ ...prev, description: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.description ? 'border-rose-500' : 'border-neutral-200'}`} rows={3} />
+                    {subjectErrors.description && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.description) ? subjectErrors.description.join(' ') : String(subjectErrors.description)}</div>}
+                  </div>
                 </div>
 
-                <div>
-                  <input placeholder="Subject code" value={form.subject_code} onChange={(e) => { setForm({ ...form, subject_code: e.target.value }); setSubjectErrors(prev => ({ ...prev, subject_code: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black" />
-                  {subjectErrors.subject_code && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.subject_code) ? subjectErrors.subject_code.join(' ') : String(subjectErrors.subject_code)}</div>}
-                </div>
-
-                <div>
-                  <select value={form.class_obj} onChange={(e) => { setForm({ ...form, class_obj: e.target.value }); setSubjectErrors(prev => ({ ...prev, class_obj: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black">
-                    <option value="">— Select class —</option>
-                    {classes.map(cl => <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>)}
-                  </select>
-                  {subjectErrors.class_obj && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.class_obj) ? subjectErrors.class_obj.join(' ') : String(subjectErrors.class_obj)}</div>}
-                </div>
-
-                <div className="md:col-span-3">
-                  <textarea placeholder="Short description" value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); setSubjectErrors(prev => ({ ...prev, description: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black w-full" rows={3} />
-                  {subjectErrors.description && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.description) ? subjectErrors.description.join(' ') : String(subjectErrors.description)}</div>}
-                </div>
-
-                <div>
-                  <select value={form.instructor} onChange={(e) => { setForm({ ...form, instructor: e.target.value }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }} className="p-2 rounded-md border border-neutral-200 text-black">
-                    <option value="">— Select instructor —</option>
-                    {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                  </select>
-                  {subjectErrors.instructor && <div className="text-sm text-red-600">{Array.isArray(subjectErrors.instructor) ? subjectErrors.instructor.join(' ') : String(subjectErrors.instructor)}</div>}
-                </div>
-
-                <div className="md:col-span-3 flex justify-end gap-2 mt-2">
+                <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={subjectSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{subjectSaving ? 'Adding...' : 'Add subject'}</button>
+                  <button type="submit" disabled={subjectSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{subjectSaving ? 'Adding...' : 'Add subject'}</button>
                 </div>
               </form>
             </div>

@@ -729,7 +729,7 @@ export default function Exams() {
       </div>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
@@ -808,7 +808,7 @@ export default function Exams() {
         {/* Edit modal */}
         {editingId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50" onClick={cancelEdit} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelEdit} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">

@@ -33,6 +33,46 @@ export default function AdminStudents() {
   const [editingStudent, setEditingStudent] = useState(null)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, class_obj: '' })
   const [editLoading, setEditLoading] = useState(false)
+  const [editFieldErrors, setEditFieldErrors] = useState({})
+  const [editTouched, setEditTouched] = useState({})
+
+  // Validate a single field for edit form
+  function validateEditField(name, value) {
+    switch (name) {
+      case 'first_name':
+        if (!value) return 'First name is required'
+        if (value.length < 2) return 'First name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters'
+        return ''
+      case 'last_name':
+        if (!value) return 'Last name is required'
+        if (value.length < 2) return 'Last name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters'
+        return ''
+      case 'email':
+        if (!value) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address'
+        return ''
+      case 'svc_number':
+        if (!value) return 'Service number is required'
+        if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
+        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        return ''
+      case 'phone_number':
+        if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  // Handle field blur for edit form validation
+  function onEditBlur(e) {
+    const { name, value } = e.target
+    setEditTouched((t) => ({ ...t, [name]: true }))
+    const error = validateEditField(name, value)
+    setEditFieldErrors((prev) => ({ ...prev, [name]: error }))
+  }
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [classesList, setClassesList] = useState([])
@@ -237,15 +277,51 @@ export default function AdminStudents() {
   function closeEdit() {
     setEditingStudent(null)
     setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, rank: '' })
+    setEditFieldErrors({})
+    setEditTouched({})
   }
 
   function handleEditChange(key, value) {
-    setEditForm((f) => ({ ...f, [key]: value }))
+    let newValue = value
+
+    // Only allow numeric input for service number (max 7 digits)
+    if (key === 'svc_number') {
+      newValue = value.replace(/\D/g, '').slice(0, 7)
+    }
+
+    // Only allow numeric input for phone number
+    if (key === 'phone_number') {
+      newValue = value.replace(/\D/g, '')
+    }
+
+    setEditForm((f) => ({ ...f, [key]: newValue }))
+
+    // Clear error when user types (if field was touched)
+    if (editTouched[key]) {
+      const error = validateEditField(key, newValue)
+      setEditFieldErrors((prev) => ({ ...prev, [key]: error }))
+    }
   }
 
   async function submitEdit(e) {
     e.preventDefault()
     if (!editingStudent) return
+
+    // Validate all fields before submitting
+    const fieldsToValidate = ['first_name', 'last_name', 'email', 'svc_number', 'phone_number']
+    const errors = {}
+    for (const field of fieldsToValidate) {
+      const error = validateEditField(field, editForm[field])
+      if (error) errors[field] = error
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditFieldErrors(errors)
+      setEditTouched(fieldsToValidate.reduce((acc, f) => ({ ...acc, [f]: true }), {}))
+      reportError(`Please fix ${Object.keys(errors).length} error(s) before saving`)
+      return
+    }
+
     setEditLoading(true)
     try {
       const payload = {
@@ -672,49 +748,42 @@ export default function AdminStudents() {
 
       {editingStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={closeEdit} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeEdit} />
 
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
-            <form onSubmit={submitEdit} className="transform bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5 max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl animate-in zoom-in-95 duration-200">
+            <form onSubmit={submitEdit} className="transform bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Edit student</h4>
-                  <p className="text-sm text-neutral-500">Update student details (class assignment is handled via enrollments).</p>
+                  <p className="text-sm text-neutral-500">Update student details.</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 mb-4">
-                <button type="button" onClick={() => openResetPassword(editingStudent)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
-                  <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">First name</label>
+                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} onBlur={onEditBlur} name="first_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.first_name}</div>}
+                </div>
 
-                <button type="button" onClick={() => handleDelete(editingStudent)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                  Delete User
-                </button>
-              </div>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Last name</label>
+                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} onBlur={onEditBlur} name="last_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.last_name}</div>}
+                </div>
 
-              <div className="mt-4">
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">First name</div>
-                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={7} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
+                </div>
 
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Last name</div>
-                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
-
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Service No</div>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
-
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Rank</div>
-                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Rank</label>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
                     <option value="general">General</option>
                     <option value="lieutenant colonel">Lieutenant Colonel</option>
@@ -729,37 +798,51 @@ export default function AdminStudents() {
                     <option value="lance_corporal">Lance Corporal</option>
                     <option value="private">Private</option>
                   </select>
-                </label>
+                </div>
 
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Class</div>
-                  <select value={editForm.class_obj || ''} onChange={(e) => handleEditChange('class_obj', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Class</label>
+                  <select value={editForm.class_obj || ''} onChange={(e) => handleEditChange('class_obj', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
                     {classesList.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Email</div>
-                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Email</label>
+                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} onBlur={onEditBlur} name="email" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.email && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.email}</div>}
+                </div>
 
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Phone</div>
-                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Phone</label>
+                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} onBlur={onEditBlur} name="phone_number" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.phone_number}</div>}
+                </div>
+              </div>
 
+              <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
                 <label className="inline-flex items-center gap-2">
                   <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
                   <span className="text-sm text-neutral-600">Active</span>
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => openResetPassword(editingStudent)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                    <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
+                  </button>
+                  <button type="button" onClick={() => handleDelete(editingStudent)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
+                    Delete
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                </div>
               </div>
             </form>
           </div>
@@ -768,7 +851,7 @@ export default function AdminStudents() {
       {/* Confirm delete modal */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={() => setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between mb-4">
@@ -796,7 +879,7 @@ export default function AdminStudents() {
       {/* Password Reset Modal */}
       {resetPasswordUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={closeResetPassword} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeResetPassword} />
           <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
             <form onSubmit={submitResetPassword} className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between mb-4">

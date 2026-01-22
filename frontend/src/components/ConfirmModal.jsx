@@ -12,7 +12,7 @@ export default function ConfirmModal({ open, title = 'Confirm', message, confirm
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-black/50 animate-in fade-in duration-200" onClick={onCancel} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-md bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between mb-4">
           <div>

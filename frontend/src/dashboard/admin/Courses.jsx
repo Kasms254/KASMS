@@ -156,9 +156,9 @@ export default function Courses() {
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div ref={addModalRef} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
+            <div ref={addModalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Create course</h4>
                   <p className="text-sm text-neutral-500">Add a new course to the system</p>
@@ -166,33 +166,45 @@ export default function Courses() {
                 <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
-              <form onSubmit={handleAddCourse} className="mt-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input
-                    className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    placeholder="Course name"
-                    value={newCourse.name}
-                    onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })}
-                  />
-                  {courseErrors.name && <div className="text-sm text-rose-500 mt-1">{courseErrors.name}</div>}
-                  <input
-                    className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    placeholder="Course code"
-                    value={newCourse.code}
-                    onChange={(e) => setNewCourse({ ...newCourse, code: e.target.value })}
-                  />
-                  {courseErrors.code && <div className="text-sm text-rose-500 mt-1">{courseErrors.code}</div>}
-                  <input
-                    className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    placeholder="Short description"
-                    value={newCourse.description}
-                    onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
-                  />
-                  {courseErrors.description && <div className="text-sm text-rose-500 mt-1">{courseErrors.description}</div>}
+              <form onSubmit={handleAddCourse}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course name *</label>
+                    <input
+                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.name ? 'border-rose-500' : 'border-neutral-200'}`}
+                      placeholder="e.g. Computer Science"
+                      value={newCourse.name}
+                      onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })}
+                    />
+                    {courseErrors.name && <div className="text-xs text-rose-600 mt-1">{courseErrors.name}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course code</label>
+                    <input
+                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.code ? 'border-rose-500' : 'border-neutral-200'}`}
+                      placeholder="e.g. CS101"
+                      value={newCourse.code}
+                      onChange={(e) => setNewCourse({ ...newCourse, code: e.target.value })}
+                    />
+                    {courseErrors.code && <div className="text-xs text-rose-600 mt-1">{courseErrors.code}</div>}
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Description</label>
+                    <input
+                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.description ? 'border-rose-500' : 'border-neutral-200'}`}
+                      placeholder="Short description of the course"
+                      value={newCourse.description}
+                      onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
+                    />
+                    {courseErrors.description && <div className="text-xs text-rose-600 mt-1">{courseErrors.description}</div>}
+                  </div>
                 </div>
-                <div className="mt-3 flex justify-end gap-2">
+
+                <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition">Create course</button>
+                  <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Create course</button>
                 </div>
               </form>
             </div>
@@ -210,9 +222,9 @@ export default function Courses() {
       {editCourseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditCourseModalOpen(false)} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
+            <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Edit course</h4>
                   <p className="text-sm text-neutral-500">Update course information</p>
@@ -230,18 +242,29 @@ export default function Courses() {
                   setEditCourseModalOpen(false)
                   load()
                 } catch (err) {
-                  // prefer user-facing toast, keep console for debugging
                   reportError(err?.message || 'Failed to update course')
                 }
-              }} className="mt-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Course name" value={editCourseForm.name} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: e.target.value })} />
-                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Course code" value={editCourseForm.code} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: e.target.value })} />
-                  <input className="p-2 rounded-md bg-white/5 text-black border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
+              }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course name *</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Computer Science" value={editCourseForm.name} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: e.target.value })} />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course code</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. CS101" value={editCourseForm.code} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: e.target.value })} />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Description</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description of the course" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
+                  </div>
                 </div>
-                <div className="mt-3 flex justify-end gap-2">
+
+                <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button className="bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition">Save changes</button>
+                  <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Save changes</button>
                 </div>
               </form>
             </div>
