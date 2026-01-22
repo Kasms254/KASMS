@@ -612,10 +612,8 @@ class NoticeViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
     
-
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
 
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -636,11 +634,11 @@ class NoticeViewSet(viewsets.ModelViewSet):
             Q(expiry_date__isnull=True) |
             Q(expiry_date__gte=timezone.now())
 
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(urgent_notices, many=True)
         return Response({
             'count': urgent_notices.count(),
-            'results': serializer.data
+            'results': urgent_notices.data
         })
 
     @action(detail=False, methods=['get'])
@@ -667,7 +665,6 @@ class NoticeViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def expired(self, request):
-        """Get all expired notices (Admin only)"""
         if request.user.role != 'admin':
             return Response(
                 {'error': 'Admin access required'},
@@ -676,25 +673,23 @@ class NoticeViewSet(viewsets.ModelViewSet):
         
         expired_notices = self.get_queryset().filter(
             expiry_date__lt=timezone.now()
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(expired_notices, many=True)
         return Response({
             'count': expired_notices.count(),
             'results': serializer.data
         })
 
-
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
         notice = self.get_object()
-
         read_status, created = NoticeReadStatus.objects.get_or_create(
             user=request.user,
             notice=notice
         )
 
         return Response({
-            'message': 'Notice marked as read' if created else 'ALready Marked as read',
+            'message': 'Notice marked as read' if created else 'Already Marked as read',
             'read_at': read_status.read_at
         })
 
@@ -709,6 +704,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         return Response({
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
+
     @action(detail=False, methods=['get'])
     def unread(self, request):
         read_notice_ids = NoticeReadStatus.objects.filter(
@@ -720,7 +716,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         ).exclude(
             id__in=read_notice_ids
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now()).order_by('-created_at')
         )
 
         serializer = self.get_serializer(unread_notices, many=True)
