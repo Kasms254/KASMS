@@ -3272,7 +3272,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'comparison': comparison
         })
 
-
     @action(detail=False, methods=['get'])
     def trend_analysis(self, request):
 
@@ -3297,7 +3296,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             class_obj = class_obj,
             scheduled_start__gte = start_date,
             scheduled_start__lte = end_date
-        ).order_by('scheduled_start')
+        ).prefetch_related('session_attendances').order_by('scheduled_start')
 
         trend_data = []
 
@@ -3305,13 +3304,22 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             attendances = session.session_attendances.all()
             total_students = session.total_students
 
+            present_count = attendances.filter(status='present').count()
+            late_count = attendances.filter(status='late').count()
+            attended_count = present_count + late_count
+
+            absent_count = attendances.filter(status='absent').count()
+
+            not_recorded = total_students - attendances.count()
+            total_absent = absent_count + not_recorded
+
             trend_data.append({
                 'date':session.scheduled_start.date(),
                 'session_title':session.title,
                 'total_students':total_students,
-                'present':attendances.filter(status='present').count(),
-                'late':attendances.filter(status='late').count(),
-                'absent':total_students - attendances.count(),
+                'present':present_count,
+                'late':late_count,
+                'absent':total_absent,
                 'attendance_rate':round(float((attendances.count() / total_students) * 100), 2) if total_students > 0  else 0
                 
             })
@@ -3444,7 +3452,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'students':low_attendance_students
         })
         
-
 # personalnotification
 class PersonalNotificationViewSet(viewsets.ModelViewSet):
     serializer_class = PersonalNotificationSerializer
@@ -3528,3 +3535,4 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
         }
         return Response(stats)
+
