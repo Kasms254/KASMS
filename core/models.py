@@ -45,6 +45,7 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
+    unit = models.CharField(null=True, blank=True, max_length=100)
 
     class Meta:
         db_table = 'users'
@@ -870,4 +871,47 @@ class AttendanceSessionLog(models.Model):
     def __str__(self):
         return f"{self.get_action_display()}- {self.session.title} ({self.timestamp})"
             
-        
+
+        # personal notification 
+
+class PersonalNotification(models.Model):
+    NOTIFICATION_TYPE_CHOICES = [
+        ('exam_result', 'Exam Result'),
+        ('general', 'General'),
+        ('alert', 'Alert'),
+    ]
+    PRIORITY_CHOICES  =[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='personal_notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPE_CHOICES, default='general')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+
+    exam_result = models.ForeignKey(ExamResult, on_delete=models.CASCADE, null=True, blank=True, related_name='personal_notifications')
+
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'personal_notifications'
+        verbose_name = 'Personal Notification'
+        verbose_name_plural = 'Personal Notifications'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['notification_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"
+

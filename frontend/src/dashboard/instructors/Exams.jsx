@@ -603,7 +603,7 @@ export default function Exams() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider w-28">Resources</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-20">Type</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-20">Marks</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-32">Owner</th>
+                      
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider min-w-[280px]">Actions</th>
                     </tr>
                   </thead>
@@ -646,7 +646,7 @@ export default function Exams() {
                             </td>
                             <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.exam_type_display || x.exam_type}</td>
                             <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.total_marks ?? '—'}</td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.created_by_name || '—'}</td>
+                            
                             <td className="px-4 py-4 align-top text-sm text-gray-900">
                               <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
@@ -674,7 +674,7 @@ export default function Exams() {
 
                           {attachmentsOpenId === x.id && (
                             <tr className="bg-neutral-50 border-t-2 border-blue-200">
-                              <td colSpan={8} className="px-4 py-4">
+                              <td colSpan={7} className="px-4 py-4">
                                 <div className="grid gap-4 md:grid-cols-2">
                                   <div className="bg-white rounded-lg p-3 border border-neutral-200">
                                     <div className="flex items-center gap-2 mb-2">
@@ -729,7 +729,7 @@ export default function Exams() {
       </div>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
@@ -808,7 +808,7 @@ export default function Exams() {
         {/* Edit modal */}
         {editingId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50" onClick={cancelEdit} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelEdit} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">

@@ -44,12 +44,12 @@ const menuItems = [
         href: '/list/assignments',
         visible: ['admin'],
       },
-      {
-        icon: 'Book',
-        label: 'Lessons',
-        href: '/list/lessons',
-        visible: ['instructor'],
-      },
+      // {
+      //   icon: 'Book',
+      //   label: 'Lessons',
+      //   href: '/list/lessons',
+      //   visible: ['instructor'],
+      // },
       {
         icon: 'Award',
         label: 'Add Certificate',
@@ -57,11 +57,18 @@ const menuItems = [
         // Certificate creation should be admin-only; instructors no longer see this
         visible: ['admin'],
       },
+     
       {
-        icon: 'TrendingUp',
-        label: 'Analytics',
-        href: '/analytics',
-        visible: ['admin', 'instructor'],
+        icon: 'Clipboard',
+        label: 'Exams',
+        href: '/list/exams',
+        visible: ['instructor',],
+      },
+      {
+        icon: 'BarChart2',
+        label: 'Results',
+        href: '/list/results',
+        visible: ['instructor', 'student',],
       },
       {
         icon: 'FileBarChart',
@@ -69,18 +76,12 @@ const menuItems = [
         href: '/list/exam-reports',
         visible: ['admin', 'instructor'],
       },
-      {
-        icon: 'Clipboard',
-        label: 'Exams',
-        href: '/list/exams',
-        visible: ['instructor',],
-      },
       
-      {
-        icon: 'BarChart2',
-        label: 'Results',
-        href: '/list/results',
-        visible: ['instructor', 'student',],
+       {
+        icon: 'TrendingUp',
+        label: 'Analytics',
+        href: '/analytics',
+        visible: ['admin', 'instructor'],
       },
       {
         icon: 'QrCode',
@@ -100,12 +101,7 @@ const menuItems = [
         href: '/list/attendance-reports',
         visible: ['admin', 'instructor'],
       },
-      {
-        icon: 'Bell',
-        label: 'Notifications',
-        href: '/list/notifications',
-        visible: ['admin', 'instructor', 'student'],
-      },
+      
       {
         icon: 'Megaphone',
         label: 'Class notices',
@@ -123,6 +119,12 @@ const menuItems = [
         label: 'Notices',
         href: '/list/notices',
         visible: ['admin'],
+      },
+      {
+        icon: 'Bell',
+        label: 'Notifications',
+        href: '/list/notifications',
+        visible: ['admin', 'instructor', 'student'],
       },
       {
         icon: 'LogOut',

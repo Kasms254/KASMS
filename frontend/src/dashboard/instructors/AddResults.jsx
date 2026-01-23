@@ -17,9 +17,6 @@ export default function AddResults() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [savedSnapshot, setSavedSnapshot] = useState([])
-  const [showMarksModal, setShowMarksModal] = useState(false)
-  const [marksInput, setMarksInput] = useState('')
-  const [marksError, setMarksError] = useState('')
   const [showRemarksModal, setShowRemarksModal] = useState(false)
   const [remarksInput, setRemarksInput] = useState('')
 
@@ -133,31 +130,6 @@ export default function AddResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam])
 
-  function handleConfirmApplyMarks() {
-    // validate input then apply
-    if (marksInput === '') {
-      setMarksError('Enter marks to apply')
-      return
-    }
-    const num = Number(marksInput)
-    const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
-    if (!Number.isFinite(num)) {
-      setMarksError('Must be a number')
-      return
-    }
-    if (num < 0) {
-      setMarksError('Cannot be negative')
-      return
-    }
-    if (max != null && num > max) {
-      setMarksError(`Cannot exceed ${max}`)
-      return
-    }
-    applyMarksToAll(String(marksInput))
-    setShowMarksModal(false)
-    toast.success(`Applied ${marksInput} to all students`)
-  }
-
   function handleConfirmApplyRemarks() {
     applyRemarksToAll(remarksInput)
     setShowRemarksModal(false)
@@ -206,22 +178,25 @@ export default function AddResults() {
 
     // Validate only changed rows
     const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
+    const validationErrors = []
     const validated = results.map(r => {
       if (!changedRows.find(cr => cr.id === r.id)) return r
-      const errors = { ...r.errors }
+      const errors = {}
       if (r.marks_obtained === '' || r.marks_obtained == null) {
         errors.marks_obtained = 'Required'
       } else {
         const n = Number(r.marks_obtained)
         if (!Number.isFinite(n) || n < 0) errors.marks_obtained = 'Invalid number'
         else if (max != null && n > max) errors.marks_obtained = `Cannot exceed ${max}`
-        else delete errors.marks_obtained
+      }
+      if (Object.keys(errors).length > 0) {
+        validationErrors.push(r.id)
       }
       return { ...r, errors }
     })
 
     // if any validation errors on changed rows, update state and stop
-    if (validated.some(r => changedRows.find(cr => cr.id === r.id) && r.errors && Object.keys(r.errors).length > 0)) {
+    if (validationErrors.length > 0) {
       setResults(validated)
       return toast.error('Fix validation errors before saving')
     }
@@ -265,22 +240,6 @@ export default function AddResults() {
   }
 
   // Bulk actions
-  function applyMarksToAll(value) {
-    if (!value) return
-    setResults(prev => prev.map(r => {
-      const updated = { ...r, marks_obtained: value, dirty: true }
-      const errors = { ...r.errors }
-      const num = Number(value)
-      const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
-      if (isNaN(num)) errors.marks_obtained = 'Must be a number'
-      else if (num < 0) errors.marks_obtained = 'Cannot be negative'
-      else if (max != null && num > max) errors.marks_obtained = `Cannot exceed ${max}`
-      else delete errors.marks_obtained
-      updated.errors = errors
-      return updated
-    }))
-  }
-
   function applyRemarksToAll(value) {
     setResults(prev => prev.map(r => ({ ...r, remarks: value, dirty: true })))
   }
@@ -530,18 +489,6 @@ export default function AddResults() {
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => {
-                    // Open modal instead of native prompt (which shows "localhost says")
-                    setMarksInput('')
-                    setMarksError('')
-                    setShowMarksModal(true)
-                  }}
-                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
-                >
-                  Apply Marks
-                </button>
-                <button
-                  onClick={() => {
-                    // Open modal instead of native prompt
                     setRemarksInput('')
                     setShowRemarksModal(true)
                   }}
@@ -647,7 +594,7 @@ export default function AddResults() {
                               type="number"
                               min="0"
                               max={examInfo?.total_marks || undefined}
-                              step="0.5"
+                              step="any"
                               value={r.marks_obtained}
                               onChange={e => updateRow(actualIdx, 'marks_obtained', e.target.value)}
                               onKeyDown={e => handleKeyDown(e, actualIdx, 'marks_obtained')}
@@ -830,40 +777,9 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* Modal: Apply Marks to All */}
-      {showMarksModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Apply marks to all students</h3>
-                <p className="text-gray-700 mb-4">Enter the marks value to apply to all result rows for this exam.</p>
-                <div className="mb-3">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    max={examInfo?.total_marks || undefined}
-                    value={marksInput}
-                    onChange={e => { setMarksInput(e.target.value); setMarksError('') }}
-                    placeholder={`Marks (max: ${examInfo?.total_marks ?? 'N/A'})`}
-                    className={`w-full px-3 py-2 rounded-md border ${marksError ? 'border-red-500' : 'border-gray-300'} focus:ring-2 focus:ring-indigo-500`}
-                  />
-                  {marksError && <div className="text-xs text-red-600 mt-1">{marksError}</div>}
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button onClick={() => setShowMarksModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
-                  <button onClick={handleConfirmApplyMarks} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Apply</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal: Apply Remarks to All */}
       {showRemarksModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-start gap-3">
               <div className="flex-1">

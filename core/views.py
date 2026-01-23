@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,ExamResultNotificationReadStatus,
- Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord)
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification,
+ Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer, 
-    NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, 
+    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+    NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
@@ -26,7 +26,7 @@ from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
 from django.http import HttpResponse
-
+from django.db import transaction
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -37,6 +37,11 @@ class UserViewSet(viewsets.ModelViewSet):
     search_fields = ['username', 'email', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'username', 'email', 'role']
     ordering = ['-created_at']
+
+    def get_permissions(self):
+        if self.action == "enrollments":
+            return [IsAuthenticated()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -217,11 +222,16 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user = self.get_object()
 
+        if user.role != 'student' and user.id != request.user.id:
+            return Response({
+                'error': 'You can only view your own enrollments'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         if user.role != 'student':
             return Response({
                 'error': 'User is not a student'
-            },
-            status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
         enrollments = Enrollment.objects.filter(student=user).select_related('class_obj', 'enrolled_by')
         serializer = EnrollmentSerializer(enrollments, many=True)
@@ -255,6 +265,7 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
+    
         user = self.get_object()
 
         if user == request.user:
@@ -268,6 +279,7 @@ class UserViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'User {user.username} has been deactivated'
         })
+
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
         user = self.get_object()
@@ -600,10 +612,8 @@ class NoticeViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
     
-
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
 
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -624,7 +634,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
             Q(expiry_date__isnull=True) |
             Q(expiry_date__gte=timezone.now())
 
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(urgent_notices, many=True)
         return Response({
             'count': urgent_notices.count(),
@@ -655,7 +665,6 @@ class NoticeViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def expired(self, request):
-        """Get all expired notices (Admin only)"""
         if request.user.role != 'admin':
             return Response(
                 {'error': 'Admin access required'},
@@ -664,25 +673,23 @@ class NoticeViewSet(viewsets.ModelViewSet):
         
         expired_notices = self.get_queryset().filter(
             expiry_date__lt=timezone.now()
-        )
+        ).order_by('-created_at')
         serializer = self.get_serializer(expired_notices, many=True)
         return Response({
             'count': expired_notices.count(),
             'results': serializer.data
         })
 
-
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
         notice = self.get_object()
-
         read_status, created = NoticeReadStatus.objects.get_or_create(
             user=request.user,
             notice=notice
         )
 
         return Response({
-            'message': 'Notice marked as read' if created else 'ALready Marked as read',
+            'message': 'Notice marked as read' if created else 'Already Marked as read',
             'read_at': read_status.read_at
         })
 
@@ -697,6 +704,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         return Response({
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
         })
+
     @action(detail=False, methods=['get'])
     def unread(self, request):
         read_notice_ids = NoticeReadStatus.objects.filter(
@@ -708,7 +716,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         ).exclude(
             id__in=read_notice_ids
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now()).order_by('-created_at')
         )
 
         serializer = self.get_serializer(unread_notices, many=True)
@@ -1094,13 +1102,14 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
             """
 
-            ClassNotice.objects.create(
-                class_obj=exam_result.exam.subject.class_obj,
-                subject = exam_result.exam.subject,
-                title=title,
-                content=content,
-                priority='medium',
-                created_by = exam_result.graded_by,
+            PersonalNotification.objects.create(
+                user=exam_result.student,
+                notification_type='exam_result',
+                priority = 'medium',
+                title = title,
+                content = content,
+                exam_result= exam_result,
+                created_by= exam_result.graded_by,
                 is_active=True
             )
 
@@ -1143,8 +1152,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                     )
 
                     result.marks_obtained = result_data['marks_obtained']
-                    results.remarks = result_data.get('remarks', '')
-                    results.is_submitted = True
+                    result.remarks = result_data.get('remarks', '')
+                    result.is_submitted = True
                     result.submitted_at = timezone.now()
                     result.graded_by = request.user
                     result.graded_at = timezone.now()
@@ -1850,14 +1859,18 @@ class StudentDashboardViewset(viewsets.ViewSet):
             '-exam__exam_date'
         )[:10]
 
-        total_attendance = Attendance.objects.filter(
+        total_attendance = SessionAttendance.objects.filter(
             student=user
         )
         present_count  = total_attendance.filter(
             status='present'
         ).count()
+        late_count = total_attendance.filter(
+            status='late'
+        ).count()
+
         total_count = total_attendance.count()
-        attendance_rate = (present_count/total_count * 100) if total_count > 0 else 0
+        attendance_rate = ((present_count + late_count)/total_count * 100) if total_count > 0 else 0
 
         recent_notices = ClassNotice.objects.filter(
             class_obj_id__in = enrolled_class_ids,
@@ -1876,6 +1889,17 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ).filter(
             Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
         ).select_related('created_by').order_by('-created_at')[:5]
+
+        personal_notifications = PersonalNotification.objects.filter(
+            user=user,
+            is_active = True
+        ).select_related('created_by', 'exam_result', 'exam_result__exam').order_by('-created_at')[:10]
+
+        unread_personal_notifications_count = PersonalNotification.objects.filter(
+            user=user,
+            is_active=True,
+            is_read=False
+        ).count()
 
         read_result_ids = ExamResultNotificationReadStatus.objects.filter(
             user=user
@@ -1921,6 +1945,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
         stats['unread_notifications'] = {
             'exam_results': unread_exam_results_count,
             'class_notices': unread_class_notices_count,
+            'personal_notifications': unread_personal_notifications_count,
             'total': unread_exam_results_count + unread_class_notices_count
         }
 
@@ -1980,8 +2005,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'general_notices':NoticeSerializer(general_notices, many=True).data
         })
 
-        
-
     @action(detail=False, methods=['get'])
     def my_attendance(self, request):
 
@@ -1989,12 +2012,10 @@ class StudentDashboardViewset(viewsets.ViewSet):
             return Response({
                 'error': 'Only students can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
 
-        attendance = Attendance.objects.filter(
-            student = request.user,
-        ).select_related('class_obj', 'subject', 'marked_by')
-
+        attendance = SessionAttendance.objects.filter(
+            student=request.user,
+        ).select_related('session', 'session__class_obj', 'session__subject', 'marked_by')
 
         class_id = request.query_params.get('class_id')
         subject_id = request.query_params.get('subject_id')
@@ -2003,17 +2024,17 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
 
         if class_id:
-            attendance = attendance.filter(class_obj_id = class_id)
+            attendance = attendance.filter(session__class_obj_id = class_id)
         if subject_id:
-            attendance = attendance.filter(subject_id = subject_id)
+            attendance = attendance.filter(session__subject_id = subject_id)
         if start_date:
-            attendance = attendance.filter(date__gte=start_date)
+            attendance = attendance.filter(marked_at__date__gte=start_date)
         if end_date:
-            attendance = attendance.filter(date__lte=end_date)
+            attendance = attendance.filter(marked_at__date__lte=end_date)
 
-        attendance = attendance.order_by('-date')
+        attendance = attendance.order_by('-marked_at')
 
-        serializer = AttendanceSerializer(attendance, many=True)
+        serializer = SessionAttendanceSerializer(attendance, many=True)
 
         total = attendance.count()
         present = attendance.filter(status='present').count()
@@ -2021,22 +2042,22 @@ class StudentDashboardViewset(viewsets.ViewSet):
         late = attendance.filter(status='late').count()
         excused = attendance.filter(status='excused').count()
 
-
-        stats = {
+        stats ={
             'total_records': total,
             'present': present,
             'absent': absent,
             'late': late,
             'excused': excused,
-            'attendance_rate': round((present / total) * 100, 2) if total > 0 else 0
+            'attendance_rate': round(((present + late) / total) * 100,2) if total > 0 else 0
+
         }
 
         return Response({
-            'count': total,
-            'stats': stats,
+            'count':total,
+            'stats':stats,
             'results': serializer.data
-        })
-                
+        })    
+
     @action(detail=False, methods=['get'])
     def my_notices(self, request):
 
@@ -2313,18 +2334,42 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         if session.end_session():
 
+            marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
+            unmarked_students = User.objects.filter(
+                enrollments__class_obj = session.class_obj,
+                enrollments__is_active = True,
+                role='student',
+                is_active = True
+            ).exclude(id__in=marked_student_ids)
+
+            absent_records = []
+            for student in unmarked_students:
+                absent_records.append(SessionAttendance(
+                    session=session,
+                    student=student,
+                    status='absent',
+                    marking_method = 'admin',
+                    marked_by =request.user,
+                    remarks = 'Automatically marked absent when session ended'
+                ))
+
+            if absent_records:
+                SessionAttendance.objects.bulk_create(absent_records)
+
             AttendanceSessionLog.objects.create(
                 session=session,
                 action = 'session_ended',
                 performed_by = request.user,
-                description = f"Session ended",
-                ip_address= request.META.get('REMOTE_ADDR')
+                description = f"Session ended. {len(absent_records)} students marked absent automatically",
+                ip_address= request.META.get('REMOTE_ADDR'),
+                metadata = {'absent_count': len(absent_records)}
             )
 
             serializer = self.get_serializer(session)
             return Response({
                 'status': "success",
-                'message':'Session ended successuflly',
+                'message':'Session ended successuflly. {len(absent_records)} students marked absent.',
+                'absent_marked': len(absent_records),
                 'session': serializer.data
             })
         return Response({
@@ -2495,20 +2540,27 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         writer.writerow(
             [
                 'student Name', 'SVC Number', 'Email', 'Status', 
-                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks'
+                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks','Time'
             ]
         )
 
         attendances = session.session_attendances.select_related('student').order_by('student__last_name')
         for attendance in attendances:
+
+            minutes_late = ''
+            if attendance.status == 'late':
+                delta = attendance.marked_at - session.scheduled_start
+                minutes_late = round(delta.total_seconds() / 60,1)
+
             writer.writerow([
                 attendance.student.get_full_name(),
+                attendance.student.get_rank_display() if attendance.student.rank else '',
                 attendance.student.svc_number,
                 attendance.student.email,
                 attendance.get_status_display(),
                 attendance.get_marking_method_display(),
                 attendance.marked_at.strftime('%Y-%m-%d %H:%M:%S'),
-                attendance.minutes_late if attendance.status == 'late' else '',
+                minutes_late,
                 attendance.remarks or ''
             ])
 
@@ -2623,7 +2675,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             'unmarked_students': UserListSerializer(unmarked_students, many=True).data
         })
 
-
 class SessionAttendanceViewset(viewsets.ModelViewSet):
 
     queryset = SessionAttendance.objects.select_related(
@@ -2642,17 +2693,28 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.role == 'instructor':
-
             queryset = queryset.filter(
                 Q(session__class_obj__instructor=user) |
                 Q(session__subject__instructor=user)
             )
         elif user.role == 'student':
+            queryset = queryset.filter(student=user)
 
-            queryset =queryset.filter(student=user)
+        # Allow narrowing to a single session via query params.
+        # Accept either `session` (AttendanceSession PK) or `session_id` (AttendanceSession.session_id UUID).
+        session_pk = self.request.query_params.get('session')
+        session_uuid = self.request.query_params.get('session_id')
 
+        if session_pk:
+            try:
+                queryset = queryset.filter(session_id=int(session_pk))
+            except (ValueError, TypeError):
+                pass
+        elif session_uuid:
+            queryset = queryset.filter(session__session_id=session_uuid)
 
         return queryset
+
 
 
     def perform_create(self, serializer):
@@ -3210,7 +3272,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'comparison': comparison
         })
 
-
     @action(detail=False, methods=['get'])
     def trend_analysis(self, request):
 
@@ -3235,7 +3296,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             class_obj = class_obj,
             scheduled_start__gte = start_date,
             scheduled_start__lte = end_date
-        ).order_by('scheduled_start')
+        ).prefetch_related('session_attendances').order_by('scheduled_start')
 
         trend_data = []
 
@@ -3243,13 +3304,22 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             attendances = session.session_attendances.all()
             total_students = session.total_students
 
+            present_count = attendances.filter(status='present').count()
+            late_count = attendances.filter(status='late').count()
+            attended_count = present_count + late_count
+
+            absent_count = attendances.filter(status='absent').count()
+
+            not_recorded = total_students - attendances.count()
+            total_absent = absent_count + not_recorded
+
             trend_data.append({
                 'date':session.scheduled_start.date(),
                 'session_title':session.title,
                 'total_students':total_students,
-                'present':attendances.filter(status='present').count(),
-                'late':attendances.filter(status='late').count(),
-                'absent':total_students - attendances.count(),
+                'present':present_count,
+                'late':late_count,
+                'absent':total_absent,
                 'attendance_rate':round(float((attendances.count() / total_students) * 100), 2) if total_students > 0  else 0
                 
             })
@@ -3277,74 +3347,192 @@ class AttendanceReportViewSet(viewsets.ViewSet):
     def low_attendance_alert(self, request):
         class_id = request.query_params.get('class_id')
         threshold = float(request.query_params.get('threshold', 75.0))
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
 
         if not class_id:
             return Response({
                 'error':'class_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
+        date_filter = {}
+        if start_date:
+            try:
+                date_filter['date__gte'] = datetime.strptime(start_date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'error':'Invalid start_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if end_date:
+            try:
+                date_filter['date__lte'] = datetime.strptime(end_date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'error': 'Invalid end_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             class_obj = Class.objects.get(id=class_id)
         except Class.DoesNotExist:
             return Response({
-                'error': 'Class Not Found'
+                'error': "Class Not Found"
             }, status=status.HTTP_404_NOT_FOUND)
 
-        sessions = AttendanceSession.objects.filter(class_obj=class_obj)
+        sessions = AttendanceSession.objects.filter(
+            class_obj = class_obj,
+            **date_filter
+        )
         total_sessions = sessions.count()
 
         if total_sessions == 0:
             return Response({
-                'message': 'No Sessions found for this class',
+                'message': 'No Sessions Found for this class in the specified date range',
                 'students': []
             })
 
+        
         enrolled_students = User.objects.filter(
-            enrollments__class_obj=class_obj,
-            enrollments__is_active=True,
-            role='student',
-            is_active = True
+            enrollments__class_obj = class_obj,
+            enrollments__is_active = True,
+            role ='student',
+            is_active=True
         ).distinct()
 
+        attendance_data = SessionAttendance.objects.filter(
+            session__in=sessions
+        ).values('student').annotate(
+            attended_count = Count('id')
+        )
+
+        attendance_lookup = {
+            item['student']: item['attended_count']
+            for item in attendance_data
+        }
+
         low_attendance_students =[]
-
+        
         for student in enrolled_students:
-            attendances = SessionAttendance.objects.filter(
-                session__in = sessions,
-                student=student
-            )
-
-            attended = attendances.count()
-            attendance_rate = (attended / total_sessions * 100)
-
+            attended = attendance_lookup.get(student.id, 0)
+            attendance_rate = (attended / total_sessions * 100) if total_session > 0 else 0
+            
             if attendance_rate < threshold:
                 low_attendance_students.append({
-                    'id': student.id,
-                    'student_id': student.id,
+                    'id':student.id,
+                    'student_id':student.id,
                     'student_name': student.get_full_name(),
-                    'name': student.get_full_name(),
+                    'name':student.get_full_name(),
                     'first_name': student.first_name,
-                    'last_name': student.last_name,
-                    'svc_number': student.svc_number,
-                    'email': student.email,
-                    'class_name': class_obj.name,
-                    'total_sessions': total_sessions,
-                    'attended': attended,
-                    'missed': total_sessions - attended,
-                    'attendance_rate': round(attendance_rate, 2),
+                    'last_name':student.last_name,
+                    'svc_number':student.svc_number,
+                    'email':student.email,
+                    'class_name':class_obj.name,
+                    'total_sessions':total_sessions,
+                    'attended':attended,
+                    'missed':total_sessions - attended,
+                    'attendance_rate':round(attendance_rate, 2),
                     'status': 'critical' if attendance_rate < 50 else 'warning'
                 })
 
-        low_attendance_students.sort(key=lambda x: x['attendance_rate'])
+        low_attendance_students.sort(key=lambda x:x['attendance_rate'])
 
         return Response({
-                'class':{
-                    'id': class_obj.id,
-                    'name':class_obj.name
-                },
-                'threshold':threshold,
-                'total_sessions':total_sessions,
-                'count':len(low_attendance_students),
-                'students':low_attendance_students
-            })
-# add start and end dates to low
+            'class':{
+                'id':class_obj.id,
+                'name':class_obj.name
+            },
+            'date_range':{
+                'start_date': start_date,
+                'end_date': end_date
+            },
+            'threshold':threshold,
+            'total_sessions':total_sessions,
+            'count':len(low_attendance_students),
+            'students':low_attendance_students
+        })
+        
+# personalnotification
+class PersonalNotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = PersonalNotificationSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['notification_type', 'priority', 'is_read', 'is_active']
+    search_fields = ['title', 'content']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return PersonalNotification.objects.filter(
+            user=self.request.user,
+            is_active = True
+        ).select_related('created_by', 'exam_result', 'exam_result__exam')
+
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+
+        unread = self.get_queryset().filter(is_read=False)
+        serializer = self.get_serializer(unread, many=True)
+        return Response({
+            'count':unread.count(),
+            'results':serializer.data
+        })
+
+    @action(detail=False, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+
+        notification = self.get_object()
+        notification.is_read = True
+        notification.read_at = timezone.now()
+        notification.save()
+
+        return Response({
+            'status':'success',
+            'message':'Notification marked as read',
+            'notification': self.get_serializer(notification).data
+        })
+
+    @action(detail=False, methods=['post'])
+    def mark_all_as_read(self, request):
+
+        updated = self.get_queryset().filter(is_read=False).update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+
+        return Response({
+            'status':'success',
+            'message':f"{updated} notification marked as read",
+            'count':updated
+        })
+
+    @action(detail=False, methods=['get'])
+    def exam_results(self, request):
+
+        notifications = self.get_queryset().filter(notification_type='exam_result')
+        serializer = self.get_serializer(notifications, many=True)
+        return Response({
+            'count': notifications.count(),
+            'results':serializer.data
+        })
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+
+        queryset = self.get_queryset()
+        stats ={
+            'total':queryset.count(),
+            'unread':queryset.filter(is_read=False).count(),
+            'by_type':{
+                'exam_result':queryset.filter(notification_type='exam_result').count(),
+                'general': queryset.filter(notification_type='general').count(),
+                'alert': queryset.filter(notification_type='alert').count(),
+            },
+            'unread_by_priority':{
+                'high':queryset.filter(is_read=False, priority='high').count(),
+                'medium':queryset.filter(is_read=False, priority='medium').count(),
+                'low':queryset.filter(is_read=False, priority='low').count(),
+            }
+
+        }
+        return Response(stats)
+

@@ -36,6 +36,46 @@ export default function AdminInstructors() {
   const [editingInstructor, setEditingInstructor] = useState(null)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true })
   const [editLoading, setEditLoading] = useState(false)
+  const [editFieldErrors, setEditFieldErrors] = useState({})
+  const [editTouched, setEditTouched] = useState({})
+
+  // Validate a single field for edit form
+  function validateEditField(name, value) {
+    switch (name) {
+      case 'first_name':
+        if (!value) return 'First name is required'
+        if (value.length < 2) return 'First name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters'
+        return ''
+      case 'last_name':
+        if (!value) return 'Last name is required'
+        if (value.length < 2) return 'Last name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters'
+        return ''
+      case 'email':
+        if (!value) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address'
+        return ''
+      case 'svc_number':
+        if (!value) return 'Service number is required'
+        if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
+        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        return ''
+      case 'phone_number':
+        if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  // Handle field blur for edit form validation
+  function onEditBlur(e) {
+    const { name, value } = e.target
+    setEditTouched((t) => ({ ...t, [name]: true }))
+    const error = validateEditField(name, value)
+    setEditFieldErrors((prev) => ({ ...prev, [name]: error }))
+  }
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   // Password reset modal state
@@ -266,15 +306,51 @@ export default function AdminInstructors() {
   function closeEdit() {
     setEditingInstructor(null)
     setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
+    setEditFieldErrors({})
+    setEditTouched({})
   }
 
   function handleEditChange(k, v) {
-    setEditForm((f) => ({ ...f, [k]: v }))
+    let newValue = v
+
+    // Only allow numeric input for service number (max 7 digits)
+    if (k === 'svc_number') {
+      newValue = v.replace(/\D/g, '').slice(0, 7)
+    }
+
+    // Only allow numeric input for phone number
+    if (k === 'phone_number') {
+      newValue = v.replace(/\D/g, '')
+    }
+
+    setEditForm((f) => ({ ...f, [k]: newValue }))
+
+    // Clear error when user types (if field was touched)
+    if (editTouched[k]) {
+      const error = validateEditField(k, newValue)
+      setEditFieldErrors((prev) => ({ ...prev, [k]: error }))
+    }
   }
 
   async function submitEdit(e) {
     e.preventDefault()
     if (!editingInstructor) return
+
+    // Validate all fields before submitting
+    const fieldsToValidate = ['first_name', 'last_name', 'email', 'svc_number', 'phone_number']
+    const errors = {}
+    for (const field of fieldsToValidate) {
+      const error = validateEditField(field, editForm[field])
+      if (error) errors[field] = error
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditFieldErrors(errors)
+      setEditTouched(fieldsToValidate.reduce((acc, f) => ({ ...acc, [f]: true }), {}))
+      reportError(`Please fix ${Object.keys(errors).length} error(s) before saving`)
+      return
+    }
+
     setEditLoading(true)
     try {
       const payload = {
@@ -812,35 +888,40 @@ export default function AdminInstructors() {
       {/* Edit modal */}
       {editingInstructor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={closeEdit} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeEdit} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
             <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Edit instructor</h4>
                   <p className="text-sm text-neutral-500">Update instructor details.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition flex-shrink-0">✕</button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition flex-shrink-0">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div className="mt-4 space-y-3">
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">First name</div>
-                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">First name</label>
+                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} onBlur={onEditBlur} name="first_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.first_name}</div>}
+                </div>
 
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">Last name</div>
-                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Last name</label>
+                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} onBlur={onEditBlur} name="last_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.last_name}</div>}
+                </div>
 
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">Service No</div>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={7} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
+                </div>
 
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">Rank</div>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Rank</label>
                   <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
                     <option value="general">General</option>
@@ -856,37 +937,41 @@ export default function AdminInstructors() {
                     <option value="lance_corporal">Lance Corporal</option>
                     <option value="private">Private</option>
                   </select>
-                </label>
+                </div>
 
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">Email</div>
-                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Email</label>
+                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} onBlur={onEditBlur} name="email" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.email && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.email}</div>}
+                </div>
 
-                <label className="block">
-                  <div className="text-sm text-neutral-600 mb-1">Phone</div>
-                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
-                </label>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Phone</label>
+                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} onBlur={onEditBlur} name="phone_number" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  {editFieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.phone_number}</div>}
+                </div>
+              </div>
 
+              <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
                 <label className="inline-flex items-center gap-2">
                   <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
                   <span className="text-sm text-neutral-600">Active</span>
                 </label>
-              
-                <div className="flex items-center gap-2 mb-4">
-                  <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-1.5 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
-                    <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
-                  </button>
-
-                  <button type="button" onClick={() => handleDelete(editingInstructor)} className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                    Delete User
-                  </button>
-                </div>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="w-full sm:w-auto px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={editLoading} className="w-full sm:w-auto px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                    <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
+                  </button>
+                  <button type="button" onClick={() => handleDelete(editingInstructor)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
+                    Delete
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                </div>
               </div>
             </form>
           </div>
@@ -896,7 +981,7 @@ export default function AdminInstructors() {
       {/* Confirm delete modal */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md">
             <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <h4 className="text-lg font-medium text-black">Confirm delete</h4>
@@ -914,7 +999,7 @@ export default function AdminInstructors() {
       {/* Reset Password Modal */}
       {resetPasswordUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={closeResetPassword} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeResetPassword} />
           <div className="relative z-10 w-full max-w-md">
             <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <h4 className="text-lg font-medium text-black">Reset Password</h4>
