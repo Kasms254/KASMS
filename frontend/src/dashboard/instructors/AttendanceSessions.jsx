@@ -584,7 +584,7 @@ export default function AttendanceSessions() {
       {/* Create Session Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCreateModal(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold">Create Attendance Session</h2>
@@ -773,7 +773,7 @@ export default function AttendanceSessions() {
       {/* QR Code Modal */}
       {showQRModal && selectedSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowQRModal(false); if (qrRefreshTimer) clearInterval(qrRefreshTimer) }} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowQRModal(false); if (qrRefreshTimer) clearInterval(qrRefreshTimer) }} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6 text-center">
               <h2 className="text-xl font-semibold mb-2">{selectedSession.title}</h2>
@@ -831,7 +831,7 @@ export default function AttendanceSessions() {
       {/* Statistics Modal */}
       {showStatsModal && selectedSession && sessionStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowStatsModal(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowStatsModal(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -909,7 +909,7 @@ export default function AttendanceSessions() {
       {/* Biometric Modal */}
       {showBiometricModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowBiometricModal(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBiometricModal(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

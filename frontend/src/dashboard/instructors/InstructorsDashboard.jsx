@@ -29,7 +29,7 @@ export default function InstructorsDashboard() {
         if (!mounted) return
   setClasses(Array.isArray(data.classes) ? data.classes : (data.classes && Array.isArray(data.classes)) ? data.classes : [])
   setUniqueStudentsCount(data.total_students ?? data.students ?? data.total_students_count ?? 0)
-  setAttendanceToday(data.attendance_today ?? data.attendance_today_count ?? 0)
+  setAttendanceToday(data.attendance_today ?? data.attendance_today_count ?? data.today_attendance_records ?? 0)
   // populate subjects count if provided by the dashboard endpoint
   setSubjectsCount(
     data.subjects_count ?? data.total_subjects ?? (Array.isArray(data.subjects) ? data.subjects.length : 0)

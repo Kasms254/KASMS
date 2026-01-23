@@ -371,7 +371,7 @@ export default function ClassNotices() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div className="relative z-10 w-full max-w-2xl">
             <div className="bg-white rounded-xl p-6 shadow-2xl">
               <div className="flex items-start justify-between">
@@ -454,7 +454,7 @@ export default function ClassNotices() {
       {/* Delete confirmation modal */}
       {deleteConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }} />
           <div className="relative z-10 w-full max-w-lg">
             <div className="bg-white rounded-xl p-6 shadow-2xl">
               <h4 className="text-lg font-medium">Delete notice</h4>

@@ -157,21 +157,18 @@ export default function StudentResults() {
         return { id: fromResults.classId, name: fromResults.className, courseName: fromResults.courseName }
       }
     }
-    // Default to active class, but verify it exists in results
+    // Default to active class (the student's current enrollment)
+    // Always show the active class regardless of whether it has results
     if (activeClass?.id) {
-      // Check if we have results for this active class
-      const hasResults = results.some(r => String(r.class_id) === String(activeClass.id))
-      if (hasResults) {
-        return activeClass
-      }
+      return activeClass
     }
-    // If no active class or no results for active class, use the first class with results
+    // Only fallback to first class with results if there's no active class at all
     if (resultsByClass.length > 0) {
       const first = resultsByClass[0]
       return { id: first.classId, name: first.className, courseName: first.courseName }
     }
-    return activeClass
-  }, [selectedClassId, classOptions, activeClass, resultsByClass, results])
+    return null
+  }, [selectedClassId, classOptions, activeClass, resultsByClass])
 
   // Get results for the current class only (for summary stats)
   const currentClassResults = useMemo(() => {
@@ -676,10 +673,11 @@ export default function StudentResults() {
               onChange={(e) => setSelectedClassId(e.target.value)}
               className="flex-1 sm:flex-none sm:min-w-[280px] px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
               aria-label="Select a class to filter results"
+              style={{ color: '#000' }}
             >
-              <option value="all">All Classes</option>
+              <option value="all" style={{ color: '#000' }}>All Classes</option>
               {classOptions.map(opt => (
-                <option key={opt.id} value={opt.id}>
+                <option key={opt.id} value={opt.id} style={{ color: '#000' }}>
                   {opt.name}{opt.courseName ? ` (${opt.courseName})` : ''}
                 </option>
               ))}
@@ -828,7 +826,7 @@ export default function StudentResults() {
           </div>
         )}
 
-        {!loading && (!results || results.length === 0) && (
+        {!loading && currentClassResults.length === 0 && (
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -836,35 +834,20 @@ export default function StudentResults() {
               </svg>
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {selectedClassId !== 'all' ? 'No Results for This Class' : 'No Results Yet'}
+              No Results for This Class
             </h3>
             <p className="text-sm text-gray-500">
-              {selectedClassId !== 'all' 
-                ? 'No graded exams found for the selected class. Try selecting a different class or view all results.'
-                : 'Your graded results will appear here once your instructor grades your exams.'}
+              No graded exams found for {currentClass?.name || 'this class'}. Your results will appear here once your instructor grades your exams.
             </p>
-            {selectedClassId !== 'all' && (
-              <button
-                onClick={() => setSelectedClassId('all')}
-                className="mt-4 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                View all results
-              </button>
-            )}
           </div>
         )}
 
-        {!loading && results && results.length > 0 && (
+        {!loading && currentClassResults.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-lg font-semibold text-black">
-                Exam Results <span className="text-sm font-normal text-gray-500">({results.length} {results.length === 1 ? 'exam' : 'exams'})</span>
+                Exam Results <span className="text-sm font-normal text-gray-500">({currentClassResults.length} {currentClassResults.length === 1 ? 'exam' : 'exams'})</span>
               </h3>
-              {selectedClassId !== 'all' && resultsByClass.length > 0 && (
-                <span className="text-sm text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                  {resultsByClass[0]?.className}{resultsByClass[0]?.courseName ? ` — ${resultsByClass[0].courseName}` : ''}
-                </span>
-              )}
             </div>
 
             {/* Table View for Desktop */}
@@ -873,9 +856,6 @@ export default function StudentResults() {
                 <table className="min-w-full text-sm" role="table" aria-label="Student exam results">
                   <thead>
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                      {selectedClassId === 'all' && (
-                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Class</th>
-                      )}
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Subject</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Exam</th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Score</th>
@@ -885,7 +865,7 @@ export default function StudentResults() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
-                    {results.map(r => {
+                    {currentClassResults.map(r => {
                       const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
                       const indicator = getPerformanceIndicator(r.percentage)
                       return (
@@ -894,12 +874,6 @@ export default function StudentResults() {
                           className="hover:bg-gray-50 transition-colors duration-150"
                           role="row"
                         >
-                          {selectedClassId === 'all' && (
-                            <td className="px-4 py-4 text-sm text-gray-600">
-                              <div className="font-medium text-gray-900">{r.class_name || '—'}</div>
-                              {r.course_name && <div className="text-xs text-gray-500">{r.course_name}</div>}
-                            </td>
-                          )}
                           <td className="px-4 py-4 text-sm font-medium text-gray-900">
                             {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
                           </td>
@@ -941,7 +915,7 @@ export default function StudentResults() {
             {/* Card View for Mobile */}
             {viewMode === 'cards' && (
               <div className="space-y-3">
-                {results.map(r => {
+                {currentClassResults.map(r => {
                   const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
                   const indicator = getPerformanceIndicator(r.percentage)
                   const isExpanded = expandedRows.has(r.id)
@@ -960,11 +934,6 @@ export default function StudentResults() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            {selectedClassId === 'all' && r.class_name && (
-                              <div className="text-xs text-indigo-600 font-medium mb-1">
-                                {r.class_name}{r.course_name ? ` • ${r.course_name}` : ''}
-                              </div>
-                            )}
                             <div className="font-semibold text-gray-900 truncate">
                               {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
                             </div>
@@ -1001,12 +970,6 @@ export default function StudentResults() {
                           id={`result-details-${r.id}`}
                           className="px-4 pb-4 pt-2 bg-gray-50 border-t border-neutral-200 space-y-2"
                         >
-                          {selectedClassId === 'all' && r.class_name && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-600">Class:</span>
-                              <span className="font-medium text-gray-900">{r.class_name}</span>
-                            </div>
-                          )}
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Marks Obtained:</span>
                             <span className="font-medium text-gray-900">{formatNumber(r.marks_obtained)}</span>

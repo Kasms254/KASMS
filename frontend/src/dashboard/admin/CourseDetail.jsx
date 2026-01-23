@@ -129,7 +129,7 @@ export default function CourseDetail(){
       {/* Students modal */}
       {studentsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setStudentsModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setStudentsModalOpen(false)} />
           <div className="relative z-10 w-full max-w-3xl">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4">

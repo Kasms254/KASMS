@@ -96,19 +96,103 @@ export default function AddUser({ onSuccess } = {}) {
     return { score, feedback }
   }
 
+  // Validate a single field and return error message or empty string
+  function validateField(name, value, formData = form) {
+    switch (name) {
+      case 'username':
+        if (!value) return 'Username is required'
+        if (value.length < 3) return 'Username must be at least 3 characters'
+        if (!/^[a-zA-Z0-9_]+$/.test(value)) return 'Username can only contain letters, numbers, and underscores'
+        return ''
+      case 'first_name':
+        if (!value) return 'First name is required'
+        if (value.length < 2) return 'First name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters, spaces, hyphens, and apostrophes'
+        return ''
+      case 'last_name':
+        if (!value) return 'Last name is required'
+        if (value.length < 2) return 'Last name must be at least 2 characters'
+        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters, spaces, hyphens, and apostrophes'
+        return ''
+      case 'email':
+        if (!value) return 'Email address is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address (e.g., name@example.com)'
+        return ''
+      case 'svc_number':
+        if (!value) return 'Service number is required'
+        if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
+        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        return ''
+      case 'phone_number':
+        if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
+        return ''
+      case 'rank':
+        if (!value) return 'Please select a rank from the list'
+        return ''
+      case 'class_obj':
+        if (formData.role === 'student' && !value) return 'Students must be assigned to a class'
+        return ''
+      case 'password': {
+        if (!value) return 'Password is required'
+        if (value.length < 8) return 'Password must be at least 8 characters long'
+        const strength = checkPasswordStrength(value)
+        if (strength.score < 2) return 'Password is too weak. Include uppercase, lowercase, numbers, and special characters'
+        return ''
+      }
+      case 'password2':
+        if (!value) return 'Please confirm your password'
+        if (formData.password && value !== formData.password) return 'Passwords do not match'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  // Handle field blur for real-time validation
+  function onBlur(e) {
+    const { name, value } = e.target
+    setTouched((t) => ({ ...t, [name]: true }))
+    const error = validateField(name, value)
+    setFieldErrors((prev) => ({ ...prev, [name]: error }))
+  }
+
   function onChange(e) {
     const { name, value, type, checked } = e.target
+    let newValue = type === 'checkbox' ? checked : value
+
+    // Only allow numeric input for service number (max 7 digits)
+    if (name === 'svc_number') {
+      newValue = value.replace(/\D/g, '').slice(0, 7)
+    }
+
+    // Only allow numeric input for phone number
+    if (name === 'phone_number') {
+      newValue = value.replace(/\D/g, '')
+    }
+
     setForm((f) => {
       // if role changes away from student, clear class_obj
       if (name === 'role' && value !== 'student') {
-        return { ...f, [name]: type === 'checkbox' ? checked : value, class_obj: '' }
+        return { ...f, [name]: newValue, class_obj: '' }
       }
-      return { ...f, [name]: type === 'checkbox' ? checked : value }
+      return { ...f, [name]: newValue }
     })
 
     // Update password strength in real-time
     if (name === 'password') {
       setPasswordStrength(checkPasswordStrength(value))
+    }
+
+    // Clear error when user starts typing (if field was touched)
+    if (touched[name]) {
+      const error = validateField(name, newValue, { ...form, [name]: newValue })
+      setFieldErrors((prev) => ({ ...prev, [name]: error }))
+    }
+
+    // Re-validate password2 when password changes
+    if (name === 'password' && touched.password2 && form.password2) {
+      const pw2Error = value && form.password2 !== value ? 'Passwords do not match' : ''
+      setFieldErrors((prev) => ({ ...prev, password2: pw2Error }))
     }
   }
 
@@ -140,66 +224,13 @@ export default function AddUser({ onSuccess } = {}) {
 
     // Field-specific validation with descriptive messages
     const fErrs = {}
+    const fieldsToValidate = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'phone_number', 'rank', 'class_obj', 'password', 'password2']
 
-    // Username validation
-    if (!form.username) {
-      fErrs.username = 'Username is required'
-    } else if (form.username.length < 3) {
-      fErrs.username = 'Username must be at least 3 characters'
-    } else if (!/^[a-zA-Z0-9_]+$/.test(form.username)) {
-      fErrs.username = 'Username can only contain letters, numbers, and underscores'
-    }
-
-    // Name validation
-    if (!form.first_name) {
-      fErrs.first_name = 'First name is required'
-    } else if (form.first_name.length < 2) {
-      fErrs.first_name = 'First name must be at least 2 characters'
-    }
-
-    if (!form.last_name) {
-      fErrs.last_name = 'Last name is required'
-    } else if (form.last_name.length < 2) {
-      fErrs.last_name = 'Last name must be at least 2 characters'
-    }
-
-    // Email validation
-    if (!form.email) {
-      fErrs.email = 'Email address is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      fErrs.email = 'Please enter a valid email address (e.g., name@example.com)'
-    }
-
-    // Service number validation
-    if (!form.svc_number) {
-      fErrs.svc_number = 'Service number is required'
-    } else if (form.svc_number.length < 3) {
-      fErrs.svc_number = 'Please enter a valid service number'
-    }
-
-    // Rank validation
-    if (!form.rank) {
-      fErrs.rank = 'Please select a rank from the list'
-    }
-
-    // Class validation for students
-    if (form.role === 'student' && !form.class_obj) {
-      fErrs.class_obj = 'Students must be assigned to a class'
-    }
-
-    // Password validation
-    if (!form.password) {
-      fErrs.password = 'Password is required'
-    } else if (form.password.length < 8) {
-      fErrs.password = 'Password must be at least 8 characters long'
-    } else if (passwordStrength.score < 2) {
-      fErrs.password = 'Password is too weak. Include uppercase, lowercase, numbers, and special characters'
-    }
-
-    if (!form.password2) {
-      fErrs.password2 = 'Please confirm your password'
-    } else if (form.password && form.password2 && form.password !== form.password2) {
-      fErrs.password2 = 'Passwords do not match. Please re-enter to confirm'
+    for (const field of fieldsToValidate) {
+      const error = validateField(field, form[field], form)
+      if (error) {
+        fErrs[field] = error
+      }
     }
 
     if (Object.keys(fErrs).length) {
@@ -325,13 +356,13 @@ export default function AddUser({ onSuccess } = {}) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Username</label>
-                <input name="username" value={form.username} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.username ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="username" value={form.username} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.username ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.username && <div className="text-xs text-rose-600 mt-1">{fieldErrors.username}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Service number</label>
-                <input name="svc_number" value={form.svc_number} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={7} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.svc_number}</div>}
               </div>
 
@@ -341,6 +372,7 @@ export default function AddUser({ onSuccess } = {}) {
                   name="rank"
                   value={form.rank}
                   onChange={onChange}
+                  onBlur={onBlur}
                   required
                   className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
                     fieldErrors.rank ? 'border-rose-500' : 'border-neutral-200'
@@ -365,25 +397,25 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input name="first_name" value={form.first_name} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.first_name}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input name="last_name" value={form.last_name} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.last_name}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input name="email" type="email" value={form.email} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="email" type="email" value={form.email} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.email && <div className="text-xs text-rose-600 mt-1">{fieldErrors.email}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Phone number</label>
-                <input name="phone_number" value={form.phone_number} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.phone_number}</div>}
               </div>
 
@@ -399,7 +431,7 @@ export default function AddUser({ onSuccess } = {}) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Class</label>
                   <div className="relative">
-                    <select name="class_obj" value={form.class_obj} onChange={onChange} required={form.role === 'student'} disabled={loadingClasses} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${fieldErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'}`}>
+                    <select name="class_obj" value={form.class_obj} onChange={onChange} onBlur={onBlur} required={form.role === 'student'} disabled={loadingClasses} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${fieldErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'}`}>
                         <option value="" disabled>-- Select a class --</option>
                         {loadingClasses ? (
                           <option disabled>Loading classes...</option>
@@ -441,13 +473,13 @@ export default function AddUser({ onSuccess } = {}) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Password</label>
-                  <input name="password" type="password" value={form.password} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  <input name="password" type="password" value={form.password} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password ? 'border-rose-500' : 'border-neutral-200'}`} />
                   {fieldErrors.password && <div className="text-xs text-rose-600 mt-1">{fieldErrors.password}</div>}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Confirm password</label>
-                  <input name="password2" type="password" value={form.password2} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password2 ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  <input name="password2" type="password" value={form.password2} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password2 ? 'border-rose-500' : 'border-neutral-200'}`} />
                   {fieldErrors.password2 && <div className="text-xs text-rose-600 mt-1">{fieldErrors.password2}</div>}
                 </div>
               </div>
