@@ -941,7 +941,7 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
         if obj.exam_result:
             return {
                 'exam_id': obj.exam_result.exam.id,
-                'exam_title':obj.exam_result.exam_title,
+                'exam_title':obj.exam_result.exam.title,
                 'subject_name':obj.exam_result.exam.subject.name,
                 'marks_obtained':float(obj.exam_result.marks_obtained) if obj.exam_result.marks_obtained else None,
                 'total_marks':obj.exam_result.exam.total_marks,
