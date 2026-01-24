@@ -2,12 +2,13 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   QrCode, Calendar, CheckCircle, XCircle, AlertCircle,
   TrendingUp, MapPin, RefreshCw,
-  AlertTriangle, Award, Target, Camera, X, Keyboard
+  AlertTriangle, Award, Target, Camera, X, Keyboard, Filter, RotateCcw
 } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 const STATUS_COLORS = {
   present: { bg: 'bg-emerald-100', text: 'text-emerald-700', fill: 'bg-emerald-500' },
@@ -579,39 +580,67 @@ export default function StudentAttendance() {
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <select
-                value={historyFilter.status}
-                onChange={(e) => setHistoryFilter(f => ({ ...f, status: e.target.value }))}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">All Status</option>
-                <option value="present">Present</option>
-                <option value="late">Late</option>
-                <option value="absent">Absent</option>
-                <option value="excused">Excused</option>
-              </select>
-              <input
-                type="date"
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="w-5 h-5 text-indigo-600" />
+              <h3 className="font-semibold text-gray-900">Filter Your Records</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Use the filters below to find specific attendance records. Select a date range or filter by status.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={historyFilter.status}
+                  onChange={(e) => setHistoryFilter(f => ({ ...f, status: e.target.value }))}
+                  className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-indigo-300 transition-colors"
+                >
+                  <option value="">All Status</option>
+                  <option value="present">Present</option>
+                  <option value="late">Late</option>
+                  <option value="absent">Absent</option>
+                  <option value="excused">Excused</option>
+                </select>
+              </div>
+
+              {/* Start Date */}
+              <ModernDatePicker
+                label="From Date"
                 value={historyFilter.startDate}
-                onChange={(e) => setHistoryFilter(f => ({ ...f, startDate: e.target.value }))}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                placeholder="Start Date"
+                onChange={(value) => setHistoryFilter(f => ({ ...f, startDate: value }))}
+                placeholder="Select start date"
               />
-              <input
-                type="date"
+
+              {/* End Date */}
+              <ModernDatePicker
+                label="To Date"
                 value={historyFilter.endDate}
-                onChange={(e) => setHistoryFilter(f => ({ ...f, endDate: e.target.value }))}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                placeholder="End Date"
+                onChange={(value) => setHistoryFilter(f => ({ ...f, endDate: value }))}
+                placeholder="Select end date"
               />
-              <button
-                onClick={loadAttendanceHistory}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-              >
-                Apply
-              </button>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col justify-end gap-2">
+                <button
+                  onClick={loadAttendanceHistory}
+                  className="w-full px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                >
+                  <Filter className="w-4 h-4" />
+                  Apply Filters
+                </button>
+                {(historyFilter.status || historyFilter.startDate || historyFilter.endDate) && (
+                  <button
+                    onClick={() => setHistoryFilter({ status: '', startDate: '', endDate: '' })}
+                    className="w-full px-4 py-2 text-gray-600 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Clear Filters
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

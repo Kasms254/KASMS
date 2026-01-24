@@ -60,10 +60,20 @@ export default function Notices() {
            filterDateTo !== ''
   }, [searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo])
 
-  // Filtered notices - server handles search, priority, status filtering
-  // Client-side only handles date range filtering (not supported by backend)
+  // Filtered notices - server handles search, priority filtering
+  // Client-side handles date range and effective status (considering expiry)
   const filteredNotices = useMemo(() => {
     let filtered = [...notices]
+
+    // Filter by effective status (considering expiry) - client-side
+    // Backend filters by is_active, but we also need to consider expiry
+    if (filterStatus === 'true') {
+      // Show only effectively active notices (is_active=true AND not expired)
+      filtered = filtered.filter(n => n.is_active && !isExpired(n))
+    } else if (filterStatus === 'false') {
+      // Show inactive notices (is_active=false OR expired)
+      filtered = filtered.filter(n => !n.is_active || isExpired(n))
+    }
 
     // Filter by date range (created date) - client-side only
     if (filterDateFrom) {
@@ -87,7 +97,7 @@ export default function Notices() {
     }
 
     return filtered
-  }, [notices, filterDateFrom, filterDateTo])
+  }, [notices, filterStatus, filterDateFrom, filterDateTo])
 
   // Clear all filters
   function clearFilters() {
@@ -518,7 +528,9 @@ export default function Notices() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
+                      {effectivelyActive && (
+                        <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
+                      )}
                       <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
                     </div>
                   </div>

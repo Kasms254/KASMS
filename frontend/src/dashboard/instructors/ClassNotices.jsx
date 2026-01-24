@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -62,6 +62,30 @@ export default function ClassNotices() {
     medium: 'bg-indigo-100 text-indigo-700',
     high: 'bg-amber-100 text-amber-700',
   }
+
+  // Check if a notice has expired based on expiry_date
+  const isExpired = (notice) => {
+    if (!notice.expiry_date) return false
+    const now = new Date()
+    const expiryDate = new Date(notice.expiry_date)
+    expiryDate.setHours(23, 59, 59, 999)
+    return now > expiryDate
+  }
+
+  // Filter notices by effective status (considering expiry)
+  const filteredNotices = useMemo(() => {
+    let filtered = [...notices]
+
+    if (filterStatus === 'true') {
+      // Show only effectively active notices (is_active=true AND not expired)
+      filtered = filtered.filter(n => n.is_active && !isExpired(n))
+    } else if (filterStatus === 'false') {
+      // Show inactive notices (is_active=false OR expired)
+      filtered = filtered.filter(n => !n.is_active || isExpired(n))
+    }
+
+    return filtered
+  }, [notices, filterStatus])
 
   useEffect(() => {
     let mounted = true
@@ -369,38 +393,57 @@ export default function ClassNotices() {
           </div>
 
           <div className="space-y-3">
-            {!loading && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No class notices yet</div>}
+            {!loading && filteredNotices.length === 0 && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No class notices yet</div>}
+            {!loading && filteredNotices.length === 0 && notices.length > 0 && <div className="p-6 text-center text-neutral-500">No notices match your filters</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {notices.map(n => (
-                <article key={n.id || `${n.class_obj || 'c'}-${n.title}-${n.created_at || ''}`} className="p-4 border rounded-lg flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="font-semibold text-black">{n.title}</h4>
-                        <div className="text-xs text-neutral-500 mt-1">
-                          <span className={`inline-flex items-center text-xs px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-neutral-100 text-neutral-700'}`}>{n.priority || 'medium'}</span>
-                          <span className="mx-2">•</span>
-                          <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span>
+              {filteredNotices.map(n => {
+                const expired = isExpired(n)
+                const effectivelyActive = n.is_active && !expired
+
+                return (
+                  <article key={n.id || `${n.class_obj || 'c'}-${n.title}-${n.created_at || ''}`} className={`p-4 border rounded-lg flex flex-col justify-between ${expired ? 'bg-gray-50 opacity-75' : ''}`}>
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold text-black">{n.title}</h4>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            <span className={`inline-flex items-center text-xs px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-neutral-100 text-neutral-700'}`}>{n.priority || 'medium'}</span>
+                            <span className="mx-2">•</span>
+                            <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span>
+                          </div>
+                        </div>
+                        <div className="text-right flex flex-col gap-1">
+                          <div className={`inline-block text-xs px-2 py-1 rounded ${effectivelyActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {effectivelyActive ? 'Active' : 'Inactive'}
+                          </div>
+                          {expired && (
+                            <div className="inline-block text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                              Expired
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`inline-block text-xs px-2 py-1 rounded ${n.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-700'}`}>{n.is_active ? 'Active' : 'Inactive'}</div>
+
+                      <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-xs text-neutral-500">
+                        <span className={expired ? 'text-red-600 font-medium' : ''}>
+                          Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {effectivelyActive && (
+                          <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
+                        )}
+                        <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
                       </div>
                     </div>
-
-                    <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-xs text-neutral-500">Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}</div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
-                      <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
 
             {/* Pagination Controls */}
