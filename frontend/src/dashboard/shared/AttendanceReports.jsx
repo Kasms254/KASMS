@@ -29,7 +29,7 @@ export default function AttendanceReports() {
   const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10)
   })
 
@@ -116,13 +116,25 @@ export default function AttendanceReports() {
   const loadTrendData = useCallback(async () => {
     if (!selectedClass) return
     try {
-      const data = await api.getAttendanceTrend(selectedClass, 30)
+      // Calculate days from date range
+      const startDate = new Date(dateRange.startDate)
+      const endDate = new Date(dateRange.endDate)
+      const diffTime = Math.abs(endDate - startDate)
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1 // +1 to include both start and end dates
+
+      const data = await api.getAttendanceTrend(selectedClass, diffDays)
       // Backend returns { class, period, trend_data: [...] }
-      setTrendData(data?.trend_data || data?.trend || [])
+      // Filter data to only include entries within the selected date range
+      const trendResults = data?.trend_data || data?.trend || []
+      const filteredData = trendResults.filter(item => {
+        const itemDate = new Date(item.date)
+        return itemDate >= startDate && itemDate <= endDate
+      })
+      setTrendData(filteredData)
     } catch (err) {
       console.error('Failed to load trend data:', err)
     }
-  }, [selectedClass])
+  }, [selectedClass, dateRange])
 
   // Load low attendance alerts
   const loadLowAttendanceAlerts = useCallback(async () => {
@@ -508,7 +520,7 @@ export default function AttendanceReports() {
       {/* Trends Tab */}
       {selectedClass && activeTab === 'trends' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="font-semibold mb-4">Attendance Trend (Last 30 Days)</h3>
+          <h3 className="font-semibold mb-4">Attendance Trend ({dateRange.startDate} to {dateRange.endDate})</h3>
           {trendData.length === 0 ? (
             <div className="text-center py-8">
               <TrendingUp className="w-12 h-12 text-gray-400 mx-auto" />
