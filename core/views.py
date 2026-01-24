@@ -3477,7 +3477,7 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
             'results':serializer.data
         })
 
-    @action(detail=False, methods=['post'])
+    @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
 
         notification = self.get_object()
