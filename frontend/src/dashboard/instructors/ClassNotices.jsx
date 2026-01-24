@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -30,6 +30,9 @@ export default function ClassNotices() {
   const [filterClass, setFilterClass] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+
+  // Track previous filter values to detect changes
+  const prevFiltersRef = useRef({ searchQuery: '', filterClass: '', filterPriority: '', filterStatus: '' })
 
   // Generate page numbers with ellipsis for large page counts
   const getPageNumbers = () => {
@@ -65,8 +68,25 @@ export default function ClassNotices() {
     async function load() {
       setLoading(true)
       try {
+        // Check if filters changed - if so, always use page 1
+        const filtersChanged =
+          prevFiltersRef.current.searchQuery !== searchQuery ||
+          prevFiltersRef.current.filterClass !== filterClass ||
+          prevFiltersRef.current.filterPriority !== filterPriority ||
+          prevFiltersRef.current.filterStatus !== filterStatus
+
+        const effectivePage = filtersChanged ? 1 : currentPage
+
+        // Update previous filters ref
+        prevFiltersRef.current = { searchQuery, filterClass, filterPriority, filterStatus }
+
+        // If filters changed and we're not on page 1, update the state
+        if (filtersChanged && currentPage !== 1) {
+          setCurrentPage(1)
+        }
+
         // Use paginated API with page parameter and filters
-        const params = new URLSearchParams({ page: currentPage, page_size: itemsPerPage })
+        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage })
         if (searchQuery.trim()) params.append('search', searchQuery.trim())
         if (filterClass) params.append('class_obj', filterClass)
         if (filterPriority) params.append('priority', filterPriority)

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import ModernDatePicker from '../../components/ModernDatePicker'
@@ -20,10 +20,13 @@ export default function Notices() {
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterPriority, setFilterPriority] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterPriority, setFilterPriority] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+
+  // Track previous filter values to detect changes and reset to page 1
+  const prevFiltersRef = useRef({ searchTerm: '', filterPriority: '', filterStatus: '', filterDateFrom: '', filterDateTo: '' })
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -51,53 +54,18 @@ export default function Notices() {
   // Check if any filter is active (search or filter inputs are being used)
   const hasActiveFilters = useMemo(() => {
     return searchTerm.trim() !== '' ||
-           filterPriority !== 'all' ||
-           filterStatus !== 'all' ||
+           filterPriority !== '' ||
+           filterStatus !== '' ||
            filterDateFrom !== '' ||
            filterDateTo !== ''
   }, [searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo])
 
-  // Filtered notices based on search and filters
+  // Filtered notices - server handles search, priority, status filtering
+  // Client-side only handles date range filtering (not supported by backend)
   const filteredNotices = useMemo(() => {
     let filtered = [...notices]
 
-    // If no filters are active, hide inactive notices by default
-    if (!hasActiveFilters) {
-      filtered = filtered.filter(n => {
-        const expired = isExpired(n)
-        const effectivelyActive = n.is_active && !expired
-        return effectivelyActive
-      })
-    }
-
-    // Search by title or content
-    if (searchTerm.trim()) {
-      const query = searchTerm.toLowerCase()
-      filtered = filtered.filter(n =>
-        (n.title || '').toLowerCase().includes(query) ||
-        (n.content || '').toLowerCase().includes(query)
-      )
-    }
-
-    // Filter by priority
-    if (filterPriority !== 'all') {
-      filtered = filtered.filter(n => n.priority === filterPriority)
-    }
-
-    // Filter by status (active/inactive)
-    // A notice is considered inactive if either:
-    // 1. is_active is false, OR
-    // 2. The expiry date has passed
-    if (filterStatus !== 'all') {
-      const isActive = filterStatus === 'active'
-      filtered = filtered.filter(n => {
-        const expired = isExpired(n)
-        const effectivelyActive = n.is_active && !expired
-        return effectivelyActive === isActive
-      })
-    }
-
-    // Filter by date range (created date)
+    // Filter by date range (created date) - client-side only
     if (filterDateFrom) {
       const fromDate = new Date(filterDateFrom)
       fromDate.setHours(0, 0, 0, 0)
@@ -119,13 +87,13 @@ export default function Notices() {
     }
 
     return filtered
-  }, [notices, searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo, hasActiveFilters])
+  }, [notices, filterDateFrom, filterDateTo])
 
   // Clear all filters
   function clearFilters() {
     setSearchTerm('')
-    setFilterPriority('all')
-    setFilterStatus('all')
+    setFilterPriority('')
+    setFilterStatus('')
     setFilterDateFrom('')
     setFilterDateTo('')
     setCurrentPage(1)
@@ -136,8 +104,30 @@ export default function Notices() {
     async function load() {
       setLoading(true)
       try {
-        // Use paginated API with page parameter
-        const params = new URLSearchParams({ page: currentPage, page_size: itemsPerPage })
+        // Check if filters changed - if so, always use page 1
+        const filtersChanged =
+          prevFiltersRef.current.searchTerm !== searchTerm ||
+          prevFiltersRef.current.filterPriority !== filterPriority ||
+          prevFiltersRef.current.filterStatus !== filterStatus ||
+          prevFiltersRef.current.filterDateFrom !== filterDateFrom ||
+          prevFiltersRef.current.filterDateTo !== filterDateTo
+
+        const effectivePage = filtersChanged ? 1 : currentPage
+
+        // Update previous filters ref
+        prevFiltersRef.current = { searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo }
+
+        // If filters changed and we're not on page 1, update the state
+        if (filtersChanged && currentPage !== 1) {
+          setCurrentPage(1)
+        }
+
+        // Use paginated API with page parameter and server-side filters
+        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage })
+        if (searchTerm.trim()) params.append('search', searchTerm.trim())
+        if (filterPriority) params.append('priority', filterPriority)
+        if (filterStatus) params.append('is_active', filterStatus)
+        // Date filters are handled client-side since backend may not support them
         const res = await api.getNoticesPaginated(params.toString())
 
         if (!mounted) return
@@ -159,7 +149,7 @@ export default function Notices() {
     }
     load()
     return () => { mounted = false }
-  }, [toast, currentPage, itemsPerPage])
+  }, [toast, currentPage, itemsPerPage, searchTerm, filterPriority, filterStatus, filterDateFrom, filterDateTo])
 
   function update(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -334,7 +324,7 @@ export default function Notices() {
                 onChange={(e) => setFilterPriority(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-indigo-300 transition-colors"
               >
-                <option value="all">All Priorities</option>
+                <option value="">All Priorities</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -350,9 +340,9 @@ export default function Notices() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-indigo-300 transition-colors"
               >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="">All Status</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
               </select>
             </div>
 
@@ -376,14 +366,16 @@ export default function Notices() {
           {/* Filter Actions */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="text-xs sm:text-sm text-neutral-600">
-              Showing {filteredNotices.length} of {notices.length} notices
+              Showing {filteredNotices.length} of {totalCount} notices
             </div>
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
-            >
-              Clear Filters
-            </button>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
       </div>
