@@ -25,6 +25,12 @@ export default function ClassNotices() {
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
 
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterClass, setFilterClass] = useState('')
+  const [filterPriority, setFilterPriority] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
   // Generate page numbers with ellipsis for large page counts
   const getPageNumbers = () => {
     const pages = []
@@ -59,8 +65,12 @@ export default function ClassNotices() {
     async function load() {
       setLoading(true)
       try {
-        // Use paginated API with page parameter
+        // Use paginated API with page parameter and filters
         const params = new URLSearchParams({ page: currentPage, page_size: itemsPerPage })
+        if (searchQuery.trim()) params.append('search', searchQuery.trim())
+        if (filterClass) params.append('class_obj', filterClass)
+        if (filterPriority) params.append('priority', filterPriority)
+        if (filterStatus) params.append('is_active', filterStatus)
         const res = await api.getMyClassNotices(params.toString())
 
         if (!mounted) return
@@ -83,7 +93,7 @@ export default function ClassNotices() {
 
     load()
     return () => { mounted = false }
-  }, [toast, currentPage, itemsPerPage])
+  }, [toast, currentPage, itemsPerPage, searchQuery, filterClass, filterPriority, filterStatus])
 
   useEffect(() => {
     let mounted = true
@@ -264,6 +274,72 @@ export default function ClassNotices() {
           <button onClick={() => { setModalOpen(true); setForm({ class_obj: '', subject: '', title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setErrors({}); setEditTarget(null) }} className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition">Add class notice</button>
         </div>
       </header>
+
+      {/* Search and Filter Controls */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="flex flex-col lg:flex-row gap-3">
+          {/* Search Input */}
+          <div className="flex-1">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by title or content..."
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Filter Dropdowns */}
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={filterClass}
+              onChange={e => { setFilterClass(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Classes</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name || c.class_name || `Class ${c.id}`}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterPriority}
+              onChange={e => { setFilterPriority(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+
+            {/* Clear Filters Button */}
+            {(searchQuery || filterClass || filterPriority || filterStatus) && (
+              <button
+                onClick={() => { setSearchQuery(''); setFilterClass(''); setFilterPriority(''); setFilterStatus(''); setCurrentPage(1) }}
+                className="px-3 py-2 border rounded-lg bg-neutral-100 text-neutral-600 text-sm hover:bg-neutral-200 transition"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div>
         <div className="bg-white rounded-xl shadow p-5">
