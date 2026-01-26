@@ -260,13 +260,17 @@ function TopPerformersList({ performers }) {
               <td className="py-2 px-1 md:px-2 text-gray-600 text-xs md:text-sm">{p.svc_number || '-'}</td>
               <td className="py-2 px-1 md:px-2 font-medium text-gray-800 text-xs md:text-sm">{p.student_name}</td>
               <td className="py-2 px-1 md:px-2 text-right">
-                <span className={`font-semibold text-xs md:text-sm ${
-                  p.percentage >= 70 ? 'text-emerald-600' :
-                  p.percentage >= 50 ? 'text-amber-600' :
-                  'text-red-600'
-                }`}>
-                  {p.percentage?.toFixed(1) || p.overall_percentage?.toFixed(1) || 0}%
-                </span>
+                {(() => {
+                  const score = p.exam_percentage !== undefined ? p.exam_percentage : 0;
+                  let color = 'text-red-600';
+                  if (score >= 70) color = 'text-emerald-600';
+                  else if (score >= 50) color = 'text-amber-600';
+                  return (
+                    <span className={`font-semibold text-xs md:text-sm ${color}`}>
+                      {score?.toFixed ? score.toFixed(1) : score}%
+                    </span>
+                  );
+                })()}
               </td>
               <td className="py-2 px-1 md:px-2 text-right text-gray-600 text-xs md:text-sm hidden md:table-cell">
                 {p.attendance_rate?.toFixed(1) || 0}%
