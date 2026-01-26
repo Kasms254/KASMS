@@ -75,7 +75,7 @@ export default function Login() {
     const validationErrors = validateForm()
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors)
-      setError('Please fix the errors below.')
+      setError('Please fix the errors.')
       return
     }
 
@@ -93,7 +93,7 @@ export default function Login() {
         // Check if there are field-level errors
         if (result.fieldErrors) {
           setFieldErrors(result.fieldErrors)
-          setError('Please fix the errors below.')
+          setError('Please fix the errors.')
         } else {
           // show inline error
           setError(result.error || 'Login failed. Please check your credentials and try again.')

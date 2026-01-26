@@ -717,6 +717,42 @@ export async function markExamResultAsUnread(id) {
 }
 
 // =====================
+// Personal Notifications API (for grade results)
+// =====================
+
+// Get all personal notifications for the authenticated user
+export async function getPersonalNotifications(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/personal-notifications/${qs}`)
+}
+
+// Get unread personal notifications with count
+export async function getUnreadPersonalNotifications() {
+  return request('/api/personal-notifications/unread/')
+}
+
+// Mark a specific personal notification as read
+export async function markPersonalNotificationAsRead(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/personal-notifications/${id}/mark_as_read/`, { method: 'POST', body: {} })
+}
+
+// Mark all personal notifications as read
+export async function markAllPersonalNotificationsAsRead() {
+  return request('/api/personal-notifications/mark_all_as_read/', { method: 'POST', body: {} })
+}
+
+// Get exam result notifications only
+export async function getExamResultNotifications() {
+  return request('/api/personal-notifications/exam_results/')
+}
+
+// Get personal notification statistics
+export async function getPersonalNotificationStats() {
+  return request('/api/personal-notifications/stats/')
+}
+
+// =====================
 // Performance Analytics APIs
 // =====================
 
@@ -1035,4 +1071,11 @@ export default {
   compareSessionAttendance,
   getAttendanceTrend,
   getLowAttendanceAlerts,
+  // Personal Notifications
+  getPersonalNotifications,
+  getUnreadPersonalNotifications,
+  markPersonalNotificationAsRead,
+  markAllPersonalNotificationsAsRead,
+  getExamResultNotifications,
+  getPersonalNotificationStats,
 }

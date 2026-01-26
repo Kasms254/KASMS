@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 /**
  * Pagination Component
@@ -191,9 +193,8 @@ export default function ExamReports() {
         setExams(Array.isArray(examsData) ? examsData : (examsData?.results || []))
         setClasses(Array.isArray(classesData) ? classesData : (classesData?.results || []))
         setSubjects(Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results || []))
-      } catch (err) {
+      } catch {
         toast?.showError?.('Failed to load exam data')
-        // Error already shown via toast
       } finally {
         setLoading(false)
       }
@@ -254,9 +255,8 @@ export default function ExamReports() {
       try {
         const results = await api.getExamResults(selectedExam.id)
         setExamResults(Array.isArray(results) ? results : (results?.results || []))
-      } catch (err) {
+      } catch {
         toast?.showError?.('Failed to load exam results')
-        // Error already shown via toast
       } finally {
         setLoadingResults(false)
       }
@@ -317,19 +317,25 @@ export default function ExamReports() {
     return filtered.sort((a, b) => parseFloat(b.marks_obtained) - parseFloat(a.marks_obtained))
   }, [examResults, resultsSearchTerm])
 
-  // Paginated results for detail view
-  const paginatedResults = useMemo(() => {
-    const startIndex = (resultsPage - 1) * resultsPerPage
-    const endIndex = startIndex + resultsPerPage
-    return sortedResults.slice(startIndex, endIndex)
-  }, [sortedResults, resultsPage, resultsPerPage])
-
-  const totalResultsPages = Math.ceil(sortedResults.length / resultsPerPage)
-
-  // Pending results (not paginated, usually small)
+  // Pending results (ungraded students)
   const pendingResults = useMemo(() => {
     return examResults.filter(r => !r.is_submitted || r.marks_obtained == null)
   }, [examResults])
+
+  // Combined results: graded first (ranked), then pending
+  const allResults = useMemo(() => {
+    return [...sortedResults, ...pendingResults]
+  }, [sortedResults, pendingResults])
+
+  // Total pages based on ALL results (graded + pending)
+  const totalResultsPages = Math.ceil(allResults.length / resultsPerPage)
+
+  // Paginated results for detail view (from combined list)
+  const paginatedResults = useMemo(() => {
+    const startIndex = (resultsPage - 1) * resultsPerPage
+    const endIndex = startIndex + resultsPerPage
+    return allResults.slice(startIndex, endIndex)
+  }, [allResults, resultsPage, resultsPerPage])
 
   // Reset results page and search when exam changes
   useEffect(() => {
@@ -360,20 +366,126 @@ export default function ExamReports() {
   }
 
   // Calculate percentage
-  const calcPercentage = (marks, total) => {
+  const calcPercentage = useCallback((marks, total) => {
     if (!marks || !total) return 0
     return ((parseFloat(marks) / total) * 100).toFixed(1)
-  }
+  }, [])
 
   // Get grade from percentage
-  const getGrade = (pct) => {
+  const getGrade = useCallback((pct) => {
     const p = parseFloat(pct)
     if (p >= 80) return 'A'
     if (p >= 70) return 'B'
     if (p >= 60) return 'C'
     if (p >= 50) return 'D'
     return 'F'
-  }
+  }, [])
+
+  // Export PDF with ranked student results
+  const exportResultsPDF = useCallback(() => {
+    if (!selectedExam || !sortedResults.length) {
+      toast?.showError?.('No graded results to export')
+      return
+    }
+
+    try {
+      const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    // Title
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Student Results Report', pageWidth / 2, 20, { align: 'center' })
+
+    // Exam details
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Exam: ${selectedExam.title}`, 14, 35)
+    doc.text(`Subject: ${selectedExam.subject_name || 'N/A'}`, 14, 42)
+    doc.text(`Date: ${selectedExam.exam_date ? new Date(selectedExam.exam_date).toLocaleDateString() : 'N/A'}`, 14, 49)
+    doc.text(`Total Marks: ${selectedExam.total_marks || 100}`, 14, 56)
+
+    // Statistics
+    if (examStats) {
+      doc.setFont('helvetica', 'bold')
+      doc.text('Statistics:', 14, 68)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Total Students: ${examStats.total}  |  Graded: ${examStats.submitted}  |  Pending: ${examStats.pending}`, 14, 75)
+      doc.text(`Average: ${examStats.average}%  |  Highest: ${examStats.highest}%  |  Lowest: ${examStats.lowest}%  |  Pass Rate: ${examStats.passRate}%`, 14, 82)
+
+      // Grade distribution
+      const gradeText = Object.entries(examStats.grades)
+        .map(([grade, count]) => `${grade}: ${count}`)
+        .join('  |  ')
+      doc.text(`Grade Distribution: ${gradeText}`, 14, 89)
+    }
+
+    // Student results table
+    const tableData = sortedResults.map((result, idx) => {
+      const pct = calcPercentage(result.marks_obtained, selectedExam.total_marks)
+      const grade = getGrade(pct)
+      return [
+        idx + 1,
+        result.student_svc_number || 'N/A',
+        result.student_rank || 'N/A',
+        result.student_name || 'Unknown',
+        `${result.marks_obtained} / ${selectedExam.total_marks}`,
+        `${pct}%`,
+        grade,
+        result.remarks || '-'
+      ]
+    })
+
+    autoTable(doc, {
+      startY: examStats ? 98 : 68,
+      head: [['S/No', 'SVC Number', 'Student Rank', 'Student Name', 'Marks', 'Percentage', 'Grade', 'Remarks']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [79, 70, 229],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 10 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 35 },
+        4: { halign: 'center', cellWidth: 20 },
+        5: { halign: 'center', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 14 },
+        7: { cellWidth: 'auto' }
+      }
+    })
+
+    // Footer with generation date
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(128)
+      doc.text(
+        `Generated on ${new Date().toLocaleString()} - Page ${i} of ${pageCount}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      )
+    }
+
+    // Save the PDF
+      const fileName = `${selectedExam.title.replace(/[^a-z0-9]/gi, '_')}_Results_${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+
+      toast?.showSuccess?.('PDF exported successfully')
+    } catch (error) {
+      console.error('PDF export error:', error)
+      toast?.showError?.('Failed to export PDF: ' + (error.message || 'Unknown error'))
+    }
+  }, [selectedExam, sortedResults, examStats, calcPercentage, getGrade, toast])
 
   if (loading) {
     return (
@@ -395,13 +507,23 @@ export default function ExamReports() {
           <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
         {selectedExam && (
-          <button
-            onClick={() => setSelectedExam(null)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
-          >
-            <LucideIcons.ArrowLeft className="w-4 h-4" />
-            Back to List
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={exportResultsPDF}
+              disabled={!sortedResults.length}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              <LucideIcons.FileDown className="w-4 h-4" />
+              Export PDF
+            </button>
+            <button
+              onClick={() => setSelectedExam(null)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+            >
+              <LucideIcons.ArrowLeft className="w-4 h-4" />
+              Back to List
+            </button>
+          </div>
         )}
       </div>
 
@@ -784,86 +906,89 @@ export default function ExamReports() {
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
                       {paginatedResults.map((result, idx) => {
-                        const pct = calcPercentage(result.marks_obtained, selectedExam.total_marks)
-                        const grade = getGrade(pct)
+                        const isGraded = result.is_submitted && result.marks_obtained != null
+                        const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
+                        const grade = isGraded ? getGrade(pct) : null
                         // Calculate the serial number based on the page
                         const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
-                        return (
-                          <tr key={result.id} className="hover:bg-neutral-50 transition">
-                            <td className="px-2 md:px-4 py-3">
-                              <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm ${
-                                serialNumber === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                serialNumber === 2 ? 'bg-gray-100 text-gray-700' :
-                                serialNumber === 3 ? 'bg-orange-100 text-orange-700' :
-                                'bg-neutral-100 text-neutral-600'
-                              }`}>
-                                {serialNumber}
-                              </div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
-                              {result.student_svc_number || 'N/A'}
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
-                              {result.student_rank || 'N/A'}
-                            </td>
-                            <td className="px-2 md:px-4 py-3">
-                              <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-xs md:text-sm font-medium text-black">
-                              {result.marks_obtained} / {selectedExam.total_marks}
-                            </td>
-                            <td className="px-2 md:px-4 py-3 hidden sm:table-cell">
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 md:w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      parseFloat(pct) >= 80 ? 'bg-green-500' :
-                                      parseFloat(pct) >= 60 ? 'bg-blue-500' :
-                                      parseFloat(pct) >= 50 ? 'bg-yellow-500' :
-                                      'bg-red-500'
-                                    }`}
-                                    style={{ width: `${pct}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-xs md:text-sm font-medium text-black">{pct}%</span>
-                              </div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3">
-                              <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${getGradeColor(grade)}`}>
-                                {grade}
-                              </span>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-500 max-w-xs truncate hidden lg:table-cell">
-                              {result.remarks || '-'}
-                            </td>
-                          </tr>
-                        )
-                      })}
+                        // Determine rank position (only for graded students in top 3 overall)
+                        const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
 
-                      {/* Pending Results - only show on last page */}
-                      {resultsPage === totalResultsPages && pendingResults.map((result, idx) => {
-                        const serialNumber = sortedResults.length + idx + 1
-                        return (
-                          <tr key={result.id} className="bg-amber-50/50">
-                            <td className="px-2 md:px-4 py-3">
-                              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-xs md:text-sm">
-                                {serialNumber}
-                              </div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
-                              {result.student_svc_number || 'N/A'}
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
-                              {result.student_rank || 'N/A'}
-                            </td>
-                            <td className="px-2 md:px-4 py-3">
-                              <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
-                            </td>
-                            <td className="px-2 md:px-4 py-3 text-xs md:text-sm text-amber-600 font-medium" colSpan={4}>
-                              Pending Grading
-                            </td>
-                          </tr>
-                        )
+                        if (isGraded) {
+                          return (
+                            <tr key={result.id} className="hover:bg-neutral-50 transition">
+                              <td className="px-2 md:px-4 py-3">
+                                <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm ${
+                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                  overallRank === 2 ? 'bg-gray-100 text-gray-700' :
+                                  overallRank === 3 ? 'bg-orange-100 text-orange-700' :
+                                  'bg-neutral-100 text-neutral-600'
+                                }`}>
+                                  {serialNumber}
+                                </div>
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                                {result.student_svc_number || 'N/A'}
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                                {result.student_rank || 'N/A'}
+                              </td>
+                              <td className="px-2 md:px-4 py-3">
+                                <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-xs md:text-sm font-medium text-black">
+                                {result.marks_obtained} / {selectedExam.total_marks}
+                              </td>
+                              <td className="px-2 md:px-4 py-3 hidden sm:table-cell">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 md:w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        parseFloat(pct) >= 80 ? 'bg-green-500' :
+                                        parseFloat(pct) >= 60 ? 'bg-blue-500' :
+                                        parseFloat(pct) >= 50 ? 'bg-yellow-500' :
+                                        'bg-red-500'
+                                      }`}
+                                      style={{ width: `${pct}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs md:text-sm font-medium text-black">{pct}%</span>
+                                </div>
+                              </td>
+                              <td className="px-2 md:px-4 py-3">
+                                <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${getGradeColor(grade)}`}>
+                                  {grade}
+                                </span>
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-500 max-w-xs truncate hidden lg:table-cell">
+                                {result.remarks || '-'}
+                              </td>
+                            </tr>
+                          )
+                        } else {
+                          // Pending/ungraded student
+                          return (
+                            <tr key={result.id} className="bg-amber-50/50">
+                              <td className="px-2 md:px-4 py-3">
+                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-xs md:text-sm">
+                                  {serialNumber}
+                                </div>
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                                {result.student_svc_number || 'N/A'}
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                                {result.student_rank || 'N/A'}
+                              </td>
+                              <td className="px-2 md:px-4 py-3">
+                                <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
+                              </td>
+                              <td className="px-2 md:px-4 py-3 text-xs md:text-sm text-amber-600 font-medium" colSpan={4}>
+                                Pending Grading
+                              </td>
+                            </tr>
+                          )
+                        }
                       })}
                     </tbody>
                   </table>
@@ -874,8 +999,11 @@ export default function ExamReports() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
                     <div className="text-sm text-gray-600">
                       Showing <span className="font-semibold text-gray-900">{(resultsPage - 1) * resultsPerPage + 1}</span> to{' '}
-                      <span className="font-semibold text-gray-900">{Math.min(resultsPage * resultsPerPage, sortedResults.length)}</span> of{' '}
-                      <span className="font-semibold text-gray-900">{sortedResults.length}</span> results
+                      <span className="font-semibold text-gray-900">{Math.min(resultsPage * resultsPerPage, allResults.length)}</span> of{' '}
+                      <span className="font-semibold text-gray-900">{allResults.length}</span> students
+                      {pendingResults.length > 0 && (
+                        <span className="text-amber-600 ml-1">({pendingResults.length} pending)</span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">

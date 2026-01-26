@@ -72,7 +72,8 @@ function EmptyState({ filter }) {
     all: { icon: Icons.Inbox, title: 'No notifications yet', desc: 'When you receive notices or exams, they will appear here' },
     notice: { icon: Icons.Bell, title: 'No notices', desc: 'You have no active notices at the moment' },
     exam: { icon: Icons.Clipboard, title: 'No exams scheduled', desc: 'No upcoming exams to display' },
-    unread: { icon: Icons.CheckCheck, title: 'All caught up!', desc: 'You have no unread notifications' }
+    unread: { icon: Icons.CheckCheck, title: 'All caught up!', desc: 'You have no unread notifications' },
+    grade: { icon: Icons.Award, title: 'No grade results', desc: 'Your exam results will appear here when graded' }
   }
   const { icon: Icon, title, desc } = messages[filter] || messages.all
 
@@ -108,7 +109,9 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
   const unread = !item.read
   const iconSize = 'w-6 h-6'
   const baseClasses = `flex items-start gap-3 p-3 rounded-md transition-all duration-200 hover:shadow-sm cursor-pointer` + (unread ? ' ring-1 ring-indigo-200 bg-indigo-50' : ' bg-white hover:bg-slate-50')
-  const iconColor = item.kind === 'notice' ? (unread ? 'text-amber-600' : 'text-amber-400') : (unread ? 'text-sky-600' : 'text-sky-400')
+  const iconColor = item.kind === 'notice' ? (unread ? 'text-amber-600' : 'text-amber-400') :
+                    item.kind === 'grade' ? (unread ? 'text-emerald-600' : 'text-emerald-400') :
+                    (unread ? 'text-sky-600' : 'text-sky-400')
 
   const handleClick = useCallback(() => {
     onDetails(item)
@@ -134,6 +137,7 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
       <div className="shrink-0 mt-1">
         {item.kind === 'notice' && <Icons.Bell className={`${iconSize} ${iconColor}`} />}
         {item.kind === 'exam' && <Icons.Clipboard className={`${iconSize} ${iconColor}`} />}
+        {item.kind === 'grade' && <Icons.Award className={`${iconSize} ${iconColor}`} />}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -148,6 +152,22 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
         <div className="text-xs mt-1">
           <div className={unread ? 'text-neutral-600' : 'text-neutral-500'}>
             {item.kind === 'exam' ? `${item.subject || ''}${item.className ? ` — ${item.className}` : ''}` : ''}
+            {item.kind === 'grade' && item.meta?.exam_details && (
+              <span className="flex items-center gap-2">
+                <span>{item.meta.exam_details.subject_name}</span>
+                {item.meta.exam_details.grade && (
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                    item.meta.exam_details.grade === 'A' ? 'bg-emerald-100 text-emerald-700' :
+                    item.meta.exam_details.grade === 'B' ? 'bg-blue-100 text-blue-700' :
+                    item.meta.exam_details.grade === 'C' ? 'bg-amber-100 text-amber-700' :
+                    item.meta.exam_details.grade === 'D' ? 'bg-orange-100 text-orange-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    Grade: {item.meta.exam_details.grade}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         </div>
         {unread && <div className="mt-1"><span className="inline-block w-2 h-2 bg-indigo-600 rounded-full"></span></div>}
@@ -184,6 +204,7 @@ export default function Notifications() {
     let filtered = items
     if (filter === 'notice') filtered = items.filter(i => i.kind === 'notice')
     else if (filter === 'exam') filtered = items.filter(i => i.kind === 'exam')
+    else if (filter === 'grade') filtered = items.filter(i => i.kind === 'grade')
     else if (filter === 'unread') filtered = items.filter(i => !i.read)
     return filtered
   }, [items, filter])
@@ -217,13 +238,16 @@ export default function Notifications() {
       }
 
       try {
-        const noticeId = item.meta.id
+        const noticeId = item.meta.id || item.originalId
         if (!noticeId) continue
 
-        // Determine if it's a class notice or regular notice
+        // Determine the notification type
         const isClassNotice = !!item.meta.class_obj
+        const isPersonalNotification = item.noticeType === 'personal_notification' || item.kind === 'grade'
 
-        if (isClassNotice) {
+        if (isPersonalNotification) {
+          await api.markPersonalNotificationAsRead(noticeId)
+        } else if (isClassNotice) {
           await api.markClassNoticeAsRead(noticeId)
         } else {
           await api.markNoticeAsRead(noticeId)
@@ -275,6 +299,7 @@ export default function Notifications() {
         let notices = []
         let exams = []
         let schedule = []
+        let personalNotifications = []
         // load data depending on role
         if (role === 'instructor') {
           const n = await api.getMyClassNotices().catch(() => [])
@@ -291,8 +316,9 @@ export default function Notifications() {
             if (Array.isArray(s.exams)) schedule = s.exams
             else if (Array.isArray(s.events)) schedule = s.events
           }
-          // Removed old exam result notifications - now using ClassNotice only
-          // Results are displayed through ClassNotice grade notifications instead
+          // Fetch personal notifications (grade results) for students
+          const pn = await api.getPersonalNotifications().catch(() => ({ results: [] }))
+          personalNotifications = pn && Array.isArray(pn.results) ? pn.results : (Array.isArray(pn) ? pn : [])
         }
 
         // normalize notices
@@ -333,7 +359,28 @@ export default function Notifications() {
 
         const schedItems = (schedule || []).map(s => ({ kind: s.kind || 'exam', id: s.id || s.exam_id || null, title: s.title || s.name || 'Event', date: s.exam_date || s.date || s.event_date || s.updated_at || null, meta: s }))
 
-  const merged = [...noticeItems, ...examItems, ...schedItems]
+        // normalize personal notifications (grade results)
+        const gradeItems = (personalNotifications || []).map(pn => ({
+          kind: 'grade',
+          id: `personal-${pn.id}`,
+          originalId: pn.id,
+          title: pn.title,
+          date: pn.created_at,
+          read: pn.is_read === true,
+          noticeType: 'personal_notification',
+          meta: {
+            id: pn.id,
+            content: pn.content,
+            notification_type: pn.notification_type,
+            priority: pn.priority,
+            exam_details: pn.exam_details,
+            created_by_name: pn.created_by_name,
+            created_at: pn.created_at,
+            is_read: pn.is_read,
+          }
+        }))
+
+  const merged = [...noticeItems, ...examItems, ...schedItems, ...gradeItems]
         // filter items with a date, convert date to Date, sort desc by date
         const now = new Date()
         const sevenDaysAgo = new Date()
@@ -425,7 +472,8 @@ export default function Notifications() {
             { key: 'all', label: 'All', icon: Icons.Inbox, count: items.length },
             { key: 'unread', label: 'Unread', icon: Icons.Bell, count: unreadCount },
             { key: 'notice', label: 'Notices', icon: Icons.Bell, count: items.filter(i => i.kind === 'notice').length },
-            { key: 'exam', label: 'Exams', icon: Icons.Clipboard, count: items.filter(i => i.kind === 'exam').length }
+            { key: 'exam', label: 'Exams', icon: Icons.Clipboard, count: items.filter(i => i.kind === 'exam').length },
+            { key: 'grade', label: 'Grade Results', icon: Icons.Award, count: items.filter(i => i.kind === 'grade').length }
           ].map((tab) => {
             const TabIcon = tab.icon
             return (
@@ -520,9 +568,10 @@ export default function Notifications() {
                     )}
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       selected.kind === 'notice' ? 'bg-amber-100 text-amber-800' :
+                      selected.kind === 'grade' ? 'bg-emerald-100 text-emerald-800' :
                       'bg-sky-100 text-sky-800'
                     }`}>
-                      {selected.kind === 'notice' ? 'Notice' : 'Exam'}
+                      {selected.kind === 'notice' ? 'Notice' : selected.kind === 'grade' ? 'Grade Result' : 'Exam'}
                     </span>
                   </div>
                 </div>
@@ -606,6 +655,63 @@ export default function Notifications() {
                         </ul>
                       </div>
                     )}
+                  </div>
+                )}
+                {selected.kind === 'grade' && (
+                  <div className="space-y-4">
+                    <div className="prose prose-sm max-w-none">
+                      <p className="text-neutral-600 whitespace-pre-wrap">{selected.meta?.content || 'Your exam has been graded.'}</p>
+                    </div>
+                    {selected.meta?.exam_details && (
+                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-100">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Icons.Award className="w-5 h-5 text-emerald-600" />
+                          <span className="font-medium text-emerald-800">Grade Summary</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-xs text-neutral-500 mb-1">Exam</div>
+                            <div className="font-medium text-neutral-800">{selected.meta.exam_details.exam_title || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500 mb-1">Subject</div>
+                            <div className="font-medium text-neutral-800">{selected.meta.exam_details.subject_name || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500 mb-1">Score</div>
+                            <div className="font-medium text-neutral-800">
+                              {selected.meta.exam_details.marks_obtained !== null ? `${selected.meta.exam_details.marks_obtained} / ${selected.meta.exam_details.total_marks}` : '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500 mb-1">Percentage</div>
+                            <div className="font-medium text-neutral-800">
+                              {selected.meta.exam_details.percentage !== null ? `${Number(selected.meta.exam_details.percentage).toFixed(1)}%` : '—'}
+                            </div>
+                          </div>
+                        </div>
+                        {selected.meta.exam_details.grade && (
+                          <div className="mt-4 pt-3 border-t border-emerald-200 flex items-center gap-3">
+                            <span className="text-sm text-neutral-600">Final Grade:</span>
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                              selected.meta.exam_details.grade === 'A' ? 'bg-emerald-500 text-white' :
+                              selected.meta.exam_details.grade === 'B' ? 'bg-blue-500 text-white' :
+                              selected.meta.exam_details.grade === 'C' ? 'bg-amber-500 text-white' :
+                              selected.meta.exam_details.grade === 'D' ? 'bg-orange-500 text-white' :
+                              'bg-red-500 text-white'
+                            }`}>
+                              {selected.meta.exam_details.grade}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div className="pt-3 border-t border-neutral-100">
+                      <div className="text-xs text-neutral-500 flex items-center gap-2">
+                        <Icons.User className="w-3 h-3" />
+                        <span>Graded by: {selected.meta?.created_by_name || 'Instructor'}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 

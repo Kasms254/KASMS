@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -24,6 +24,15 @@ export default function ClassNotices() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterClass, setFilterClass] = useState('')
+  const [filterPriority, setFilterPriority] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
+  // Track previous filter values to detect changes
+  const prevFiltersRef = useRef({ searchQuery: '', filterClass: '', filterPriority: '', filterStatus: '' })
 
   // Generate page numbers with ellipsis for large page counts
   const getPageNumbers = () => {
@@ -54,13 +63,58 @@ export default function ClassNotices() {
     high: 'bg-amber-100 text-amber-700',
   }
 
+  // Check if a notice has expired based on expiry_date
+  const isExpired = (notice) => {
+    if (!notice.expiry_date) return false
+    const now = new Date()
+    const expiryDate = new Date(notice.expiry_date)
+    expiryDate.setHours(23, 59, 59, 999)
+    return now > expiryDate
+  }
+
+  // Filter notices by effective status (considering expiry)
+  const filteredNotices = useMemo(() => {
+    let filtered = [...notices]
+
+    if (filterStatus === 'true') {
+      // Show only effectively active notices (is_active=true AND not expired)
+      filtered = filtered.filter(n => n.is_active && !isExpired(n))
+    } else if (filterStatus === 'false') {
+      // Show inactive notices (is_active=false OR expired)
+      filtered = filtered.filter(n => !n.is_active || isExpired(n))
+    }
+
+    return filtered
+  }, [notices, filterStatus])
+
   useEffect(() => {
     let mounted = true
     async function load() {
       setLoading(true)
       try {
-        // Use paginated API with page parameter
-        const params = new URLSearchParams({ page: currentPage, page_size: itemsPerPage })
+        // Check if filters changed - if so, always use page 1
+        const filtersChanged =
+          prevFiltersRef.current.searchQuery !== searchQuery ||
+          prevFiltersRef.current.filterClass !== filterClass ||
+          prevFiltersRef.current.filterPriority !== filterPriority ||
+          prevFiltersRef.current.filterStatus !== filterStatus
+
+        const effectivePage = filtersChanged ? 1 : currentPage
+
+        // Update previous filters ref
+        prevFiltersRef.current = { searchQuery, filterClass, filterPriority, filterStatus }
+
+        // If filters changed and we're not on page 1, update the state
+        if (filtersChanged && currentPage !== 1) {
+          setCurrentPage(1)
+        }
+
+        // Use paginated API with page parameter and filters
+        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage })
+        if (searchQuery.trim()) params.append('search', searchQuery.trim())
+        if (filterClass) params.append('class_obj', filterClass)
+        if (filterPriority) params.append('priority', filterPriority)
+        if (filterStatus) params.append('is_active', filterStatus)
         const res = await api.getMyClassNotices(params.toString())
 
         if (!mounted) return
@@ -83,7 +137,7 @@ export default function ClassNotices() {
 
     load()
     return () => { mounted = false }
-  }, [toast, currentPage, itemsPerPage])
+  }, [toast, currentPage, itemsPerPage, searchQuery, filterClass, filterPriority, filterStatus])
 
   useEffect(() => {
     let mounted = true
@@ -265,6 +319,72 @@ export default function ClassNotices() {
         </div>
       </header>
 
+      {/* Search and Filter Controls */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="flex flex-col lg:flex-row gap-3">
+          {/* Search Input */}
+          <div className="flex-1">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by title or content..."
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Filter Dropdowns */}
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={filterClass}
+              onChange={e => { setFilterClass(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Classes</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name || c.class_name || `Class ${c.id}`}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterPriority}
+              onChange={e => { setFilterPriority(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1) }}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+
+            {/* Clear Filters Button */}
+            {(searchQuery || filterClass || filterPriority || filterStatus) && (
+              <button
+                onClick={() => { setSearchQuery(''); setFilterClass(''); setFilterPriority(''); setFilterStatus(''); setCurrentPage(1) }}
+                className="px-3 py-2 border rounded-lg bg-neutral-100 text-neutral-600 text-sm hover:bg-neutral-200 transition"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div>
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-center justify-between mb-4">
@@ -273,38 +393,57 @@ export default function ClassNotices() {
           </div>
 
           <div className="space-y-3">
-            {!loading && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No class notices yet</div>}
+            {!loading && filteredNotices.length === 0 && notices.length === 0 && <div className="p-6 text-center text-neutral-500">No class notices yet</div>}
+            {!loading && filteredNotices.length === 0 && notices.length > 0 && <div className="p-6 text-center text-neutral-500">No notices match your filters</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {notices.map(n => (
-                <article key={n.id || `${n.class_obj || 'c'}-${n.title}-${n.created_at || ''}`} className="p-4 border rounded-lg flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="font-semibold text-black">{n.title}</h4>
-                        <div className="text-xs text-neutral-500 mt-1">
-                          <span className={`inline-flex items-center text-xs px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-neutral-100 text-neutral-700'}`}>{n.priority || 'medium'}</span>
-                          <span className="mx-2">•</span>
-                          <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span>
+              {filteredNotices.map(n => {
+                const expired = isExpired(n)
+                const effectivelyActive = n.is_active && !expired
+
+                return (
+                  <article key={n.id || `${n.class_obj || 'c'}-${n.title}-${n.created_at || ''}`} className={`p-4 border rounded-lg flex flex-col justify-between ${expired ? 'bg-gray-50 opacity-75' : ''}`}>
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold text-black">{n.title}</h4>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            <span className={`inline-flex items-center text-xs px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-neutral-100 text-neutral-700'}`}>{n.priority || 'medium'}</span>
+                            <span className="mx-2">•</span>
+                            <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span>
+                          </div>
+                        </div>
+                        <div className="text-right flex flex-col gap-1">
+                          <div className={`inline-block text-xs px-2 py-1 rounded ${effectivelyActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {effectivelyActive ? 'Active' : 'Inactive'}
+                          </div>
+                          {expired && (
+                            <div className="inline-block text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                              Expired
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`inline-block text-xs px-2 py-1 rounded ${n.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-700'}`}>{n.is_active ? 'Active' : 'Inactive'}</div>
+
+                      <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-xs text-neutral-500">
+                        <span className={expired ? 'text-red-600 font-medium' : ''}>
+                          Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {effectivelyActive && (
+                          <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
+                        )}
+                        <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
                       </div>
                     </div>
-
-                    <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-xs text-neutral-500">Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}</div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(n)} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Edit</button>
-                      <button onClick={() => promptDelete(n)} className="px-2 py-1 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 transition">Delete</button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
 
             {/* Pagination Controls */}

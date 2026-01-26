@@ -79,18 +79,20 @@ export default function NavBar({
         api.getUrgentNotices(),
         // Also include active/global notices so admin-posted notices appear
         api.getActiveNotices(),
+        // Include personal notifications (grade results) for students
+        user && user.role === 'student' ? api.getUnreadPersonalNotifications() : Promise.resolve({ count: 0, results: [] }),
       ]
-
-      // Removed old exam results fetching - now using ClassNotice only for grade notifications
 
       const settled = await Promise.allSettled(promises)
   const classNoticesResp = settled[0]
   const urgentResp = settled[1]
   const activeResp = settled[2]
+  const personalNotifsResp = settled[3]
 
   const classNotices = classNoticesResp.status === 'fulfilled' ? (Array.isArray(classNoticesResp.value) ? classNoticesResp.value : (classNoticesResp.value && Array.isArray(classNoticesResp.value.results) ? classNoticesResp.value.results : [])) : []
   const urgentNotices = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
   const activeNotices = activeResp.status === 'fulfilled' ? (Array.isArray(activeResp.value) ? activeResp.value : (activeResp.value && Array.isArray(activeResp.value.results) ? activeResp.value.results : [])) : []
+  const personalNotifs = personalNotifsResp.status === 'fulfilled' ? (personalNotifsResp.value && Array.isArray(personalNotifsResp.value.results) ? personalNotifsResp.value.results : []) : []
 
   // Merge all notifications and remove duplicates by ID
   const allNotices = [...activeNotices, ...urgentNotices, ...classNotices]
@@ -102,6 +104,22 @@ export default function NavBar({
     seenIds.add(key)
     return true
   })
+
+  // Add personal notifications (grade results) to merged list
+  const personalNotifsMapped = personalNotifs.map(pn => ({
+    id: `personal-${pn.id}`,
+    originalId: pn.id,
+    title: pn.title,
+    content: pn.content,
+    created_at: pn.created_at,
+    read: pn.is_read === true,
+    noticeType: 'personal_notification',
+    noticeId: pn.id,
+    notification_type: pn.notification_type,
+    priority: pn.priority,
+    exam_details: pn.exam_details,
+  }))
+  merged = [...merged, ...personalNotifsMapped]
 
       // Filter out notifications created by the current user (so creators
       // don't receive their own notice in the bell). Account for serializers
@@ -351,7 +369,9 @@ export default function NavBar({
                           const noticeId = n.originalId || n.noticeId || n.id
                           if (noticeId) {
                             try {
-                              if (n.noticeType === 'class_notice') {
+                              if (n.noticeType === 'personal_notification') {
+                                await api.markPersonalNotificationAsRead(noticeId)
+                              } else if (n.noticeType === 'class_notice') {
                                 await api.markClassNoticeAsRead(noticeId)
                               } else {
                                 await api.markNoticeAsRead(noticeId)
@@ -396,9 +416,21 @@ export default function NavBar({
                     // Mark all as read on backend
                     const unreadNotifs = notifs.filter(n => !n.read)
 
+                    // Batch mark personal notifications as read
+                    const hasPersonalNotifs = unreadNotifs.some(n => n.noticeType === 'personal_notification')
+                    if (hasPersonalNotifs) {
+                      try {
+                        await api.markAllPersonalNotificationsAsRead()
+                      } catch {
+                        // Silently ignore errors
+                      }
+                    }
+
                     for (const n of unreadNotifs) {
                       const noticeId = n.originalId || n.noticeId
                       if (!noticeId) continue
+                      // Skip personal notifications since we already batch-marked them
+                      if (n.noticeType === 'personal_notification') continue
                       try {
                         if (n.noticeType === 'class_notice') {
                           await api.markClassNoticeAsRead(noticeId)
