@@ -1405,7 +1405,59 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminOrInstructor()]
         return [IsAuthenticated()]
 
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        
+        active_notices = self.get_queryset.filter(
+            is_active=True
+        ).filter(
+            Q(expiry_date__isnull=True) |
+            Q(expiry_date__gte=timezone.now())
+        )
+        serializer = self.get_serializer(active_notices, many=True)
+        return Response({
+            'count': active_notices.count(),
+            'results': serializer.data
+        })
 
+    @action(detail=False, methods=['get'])
+    def expired(self, request):
+
+        if request.user.role not in ['admin', 'instructor']:
+            return Response({
+                'error': 'Admin or instructor access required'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        expired_notices = self.get_queryset().filter(
+            expiry_date__lt = timezone.now()
+        ).order_by('-created_at')
+
+        serializer = self.get_serializer(expired_notices, many=True)
+        return Response({
+            'count': expired_notices.count(),
+            'results': serializer.data
+        })
+
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        read_notice_ids = ClassNoticeReadStatus.objects.filter(
+            user= request.user
+        ).values_list('class_notice_id', flat=True)
+
+        unread_notices = self.get_queryset().filter(
+            is_active=True
+        ).exclude (
+            id__in = read_notice_ids
+        ).filter(
+        Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        ).order_by('-created_at')
+
+        serializer = self.get_serializer(unread_notices, many=True)
+        return Response({
+            'count': unread_notices.count(),
+            'results': serializer.data
+        })
+    
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -1423,10 +1475,11 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
                 is_active=True
             ).values_list('class_obj_id', flat=True)
 
-            queryset = queryset.filter(class_obj_id__in=enrolled_classes, is_active=True)
+            queryset = queryset.filter(class_obj_id__in=enrolled_classes, is_active=True).filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+            )
 
         return queryset 
-
     
     def perform_create(self, serializer):
         class_obj = serializer.validated_data.get('class_obj')
@@ -1443,7 +1496,6 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("You cannot create notices for classes you dont teach!")
 
         serializer.save(created_by=self.request.user)
-
 
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
@@ -1470,6 +1522,47 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
 
         return Response({
             'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
+        })
+
+    @action(detail=False, methods=['get'])
+    def by_priority(self, request):
+
+        priority_param = request.query_params.get('priority')
+        if not priority_param:
+            return Response({
+                'error': 'priority parameter is required'
+            }, status = status.HTTP_400_BAD_REQUEST)
+
+        notices = self.get_queryset().filter(
+           priority = priority_param,
+           is_active = True).filter(
+            Q(expiry_date__isnull = True) |
+            Q(expiry_date__gte=timezone.now())
+           )
+
+        serializer = self.get_serializer(notices, many=True)
+        return Response(
+            {
+                'count':notices.count(),
+                'results':serializer.data
+            }
+        )
+
+    @action(detail=False, methods=['get'])
+    def urgent(self, request):
+
+        urgent_notices = self.get_queryset().filter(
+            priority = 'urgent',
+            is_active =True
+        ).filter(
+            Q(expiry_date__isnull=True) |
+            Q(expiry_date__gte=timezone.now())
+        ).order_by('-created_at')
+
+        serializer = self.get_serializer(urgent_notices, many=True)
+        return Response({
+            'count': urgent_notices.count(),
+            'results':serializer.data
         })
 
 class ExamReportViewSet(viewsets.ModelViewSet):
