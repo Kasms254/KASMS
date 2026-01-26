@@ -498,10 +498,8 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
             'correlation_data': correlation_data
         })
 
-
 class ClassPerformanceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrCommandant]
-
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
