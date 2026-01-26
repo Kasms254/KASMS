@@ -62,7 +62,7 @@ class EnrollmentAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+    list_display = ('id','name', 'created_at', 'updated_at')
     list_filter = ('created_at',)
     search_fields = ['name']
     readonly_fields = ('created_at', 'updated_at')
