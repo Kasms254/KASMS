@@ -2125,7 +2125,16 @@ class StudentDashboardViewset(viewsets.ViewSet):
         if end_date:
             attendance = attendance.filter(marked_at__date__lte=end_date)
 
-        attendance = attendance.order_by('-marked_at')
+        status_order = Case(
+            When(status='absent', then=Value(1)),
+            When(status='late', then=Value(2)),
+            When(status='present', then=Value(3)),
+            When(status='excused', then=Value(4)),
+            default=Value(5),
+            output_field=IntegerField()
+        )
+
+        attendance = attendance.annotate(status_priority=status_order).order_by('status_priority', '-marked_at')
 
         serializer = SessionAttendanceSerializer(attendance, many=True)
 
@@ -2808,8 +2817,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         return queryset
 
-
-
     def perform_create(self, serializer):
         attendance = serializer.save(marked_by=self.request.user)
 
@@ -2824,7 +2831,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
                 'method':attendance.marking_method
             }
         )
-
 
     @action(detail=False, methods=['post'])
     def mark_qr(self, request):
