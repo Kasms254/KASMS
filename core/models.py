@@ -8,6 +8,56 @@ import uuid
 import hashlib
 from datetime import timedelta
 
+
+class School(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        validators=[RegexValidator(
+            regex='^[A-Z0-9_]+$',
+            message = 'School code must be uppercase letters, numbers and underscores only'
+        )],
+        help_text  ="Unique school code (eg., 'KACEME')"
+    )
+    name = models.CharField(max_length=200, help_text="Full school name")
+    short_name = models.CharField(max_length=50, blank=True, help_text="Short/display name")
+
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20)
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, default="Kenya")
+    postal_code = models.CharField(max_length=20, blank=True)
+
+    logo = models.ImageField(upload_to="school_logos/", null=True, blank=True)
+    primary_color = models.CharField(
+        max_length=7,
+        default="#1976D2",
+        help_text  ="Hex color code (eg., #1976D2)"
+    )
+    secondary_color = models.CharField(
+        max_length=7,
+        default='#424242',
+        help_text="Hex color code"
+    )
+    accent_color = models.CharField(
+        max_length=7,
+        default='#FFC107',
+        help_text='hex color code'
+    )
+    theme_config = models.JSONField(
+        default = dict,
+        blank=True,
+        help_text = "Additional theme configuration (fonts, spacing etc)"
+    )
+
+    is_active = models.BooleanField(default=True)
+    subscription_start = models.DateField(null=True, blank=True)
+    subscription_end = models.DateField(null=True, blank=True)
+    max_students  = models.IntegerField
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('admin', 'admin'),
@@ -477,8 +527,7 @@ class AttendanceSession(models.Model):
     allow_late_minutes = models.IntegerField(
         validators=[MinValueValidator(0)],
         default=10,
-        help_text="Minutes after start time to still mark as present"
-)
+        help_text="Minutes after start time to still mark as present")
     class Meta:
         db_table = 'attendance_sessions'
         verbose_name = 'Attendance Session'
