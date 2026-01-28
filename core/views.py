@@ -1832,11 +1832,25 @@ class StudentDashboardViewset(viewsets.ViewSet):
             return Response({
                 'error': 'Only students can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        results = ExamResult.objects.filter(
+
+        show_all = request.query_params.get('show_all', 'false').lower() == 'true'
+
+        active_enrollments = Enrollment.objects.filter(
             student=request.user,
-            is_submitted=True
-        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by')
+            is_active=True
+        ).values_list('class_obj_id', flat=True)
+
+        if show_all:
+            results = ExamResult.objects.filter(
+                student=request.user,
+                is_submitted=True
+            ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by')
+        else:
+            results = ExamResult.objects.filter(
+                student=request.user,
+                is_submitted=True,
+                exam__subject__class_obj_id__in=active_enrollments
+            ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'graded_by')
 
         subject_id = request.query_params.get('subject_id')
         exam_id = request.query_params.get('exam_id')
@@ -1849,7 +1863,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             results = results.filter(exam_id=exam_id)
         if class_id:
             results = results.filter(exam__subject__class_obj_id=class_id)
-        
+            
         if show_unread_only:
             read_result_ids = ExamResultNotificationReadStatus.objects.filter(
                 user=request.user
@@ -1862,13 +1876,23 @@ class StudentDashboardViewset(viewsets.ViewSet):
             user=request.user
         ).values_list('exam_result_id', flat=True)
         
-        unread_count = ExamResult.objects.filter(
-            student=request.user,
-            is_submitted=True,
-            marks_obtained__isnull=False
-        ).exclude(
-            id__in=read_result_ids
-        ).count()
+        if show_all:
+            unread_count = ExamResult.objects.filter(
+                student=request.user,
+                is_submitted=True,
+                marks_obtained__isnull=False
+            ).exclude(
+                id__in=read_result_ids
+            ).count()
+        else:
+            unread_count = ExamResult.objects.filter(
+                student=request.user,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+                exam__subject__class_obj_id__in=active_enrollments
+            ).exclude(
+                id__in=read_result_ids
+            ).count()
 
         serializer = ExamResultSerializer(
             results, 
@@ -1896,13 +1920,13 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 'total_possible_marks': 0,
                 'unread_notifications': unread_count
             }
-        
+            
         return Response({
             'count': results.count(),
             'stats': stats,
             'results': serializer.data
         })
-    
+        
     def list(self, request):
         if request.user.role != 'student':
             return Response({
@@ -2125,7 +2149,16 @@ class StudentDashboardViewset(viewsets.ViewSet):
         if end_date:
             attendance = attendance.filter(marked_at__date__lte=end_date)
 
-        attendance = attendance.order_by('-marked_at')
+        status_order = Case(
+            When(status='absent', then=Value(1)),
+            When(status='late', then=Value(2)),
+            When(status='present', then=Value(3)),
+            When(status='excused', then=Value(4)),
+            default=Value(5),
+            output_field=IntegerField()
+        )
+
+        attendance = attendance.annotate(status_priority=status_order).order_by('status_priority', '-marked_at')
 
         serializer = SessionAttendanceSerializer(attendance, many=True)
 
@@ -2808,8 +2841,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         return queryset
 
-
-
     def perform_create(self, serializer):
         attendance = serializer.save(marked_by=self.request.user)
 
@@ -2824,7 +2855,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
                 'method':attendance.marking_method
             }
         )
-
 
     @action(detail=False, methods=['post'])
     def mark_qr(self, request):

@@ -691,6 +691,18 @@ class AttendanceSessionListSerializer(serializers.ModelSerializer):
 
 class SessionAttendanceSerializer(serializers.ModelSerializer):
 
+    session_name = serializers.CharField(source='session.name', read_only=True)
+    session_date = serializers.DateTimeField(source='session.session_date', read_only=True)
+
+    class_name = serializers.CharField(source='session.class_obj.name', read_only=True)
+    class_id = serializers.CharField(source='session.class_obj.id', read_only=True)
+
+    subject_name = serializers.CharField(source='session.subject.name', read_only=True, allow_null=True)
+    subject_code = serializers.CharField(source='session.subject.code', read_only=True, allow_null=True)
+
+    marked_by_name = serializers.CharField(source='marked_by.get_full_name', read_only=True)
+    marked_by_role = serializers.CharField(source='marked_by.role', read_only=True)
+
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
     student_email = serializers.CharField(source='student.email', read_only=True)
@@ -704,6 +716,9 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
     marking_method_display = serializers.CharField(source='get_marking_method_display', read_only=True)
     minutes_late = serializers.IntegerField(read_only=True)
 
+    marked_at_formatted = serializers.SerializerMethodField()
+    session_date_formatted = serializers.SerializerMethodField()
+
     class Meta:
         model = SessionAttendance
         fields = "__all__"
@@ -711,6 +726,16 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 
     def get_marked_by_name(self, obj):
         return obj.marked_by.get_full_name() if obj.marked_by else 'System'
+
+    def get_marked_at_formatted(self, obj):
+        if obj.marked_at:
+            return obj.marked_at.strftime('%b %d, %I:%M %p')
+        return None
+
+    def get_session_date_formatted(self, obj):
+        if obj.session and obj.session.scheduled_start:
+            return obj.session.scheduled_start.strftime('%a, %b %d')
+        return None
 
     def validate(self, attrs):
         session = attrs.get('session')
@@ -902,7 +927,7 @@ class SessionStatisticsSerializer(serializers.Serializer):
     admin_count = serializers.IntegerField()
 
 class StudentAttendanceSummarySerializer(serializers.Serializer):
-    
+        
     student_id = serializers.IntegerField()
     student_name = serializers.CharField()
     student_svc_number = serializers.CharField()
