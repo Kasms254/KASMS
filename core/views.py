@@ -3508,7 +3508,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         
         for student in enrolled_students:
             attended = attendance_lookup.get(student.id, 0)
-            attendance_rate = (attended / total_sessions * 100) if total_session > 0 else 0
+            attendance_rate = (attended / total_sessions * 100) if total_sessions > 0 else 0
             
             if attendance_rate < threshold:
                 low_attendance_students.append({
