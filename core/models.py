@@ -57,7 +57,57 @@ class School(models.Model):
     is_active = models.BooleanField(default=True)
     subscription_start = models.DateField(null=True, blank=True)
     subscription_end = models.DateField(null=True, blank=True)
-    max_students  = models.IntegerField
+    max_students  = models.IntegerField(default=500, help_text="Maximum allowed students")
+    max_instructors = models.IntegerField(default=50, help_text="Maximum allowed instructors")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    settings = models.JSONField(
+        default = dict,
+        blank = True,
+        help_text = "School-specific settings (timezone, academic calendar, etc.)"
+    )
+
+    class Meta:
+        db_table = 'schools'
+        verbose_name = 'School'
+        verbose_name_plural = 'Schools'
+        ordering = ['name']
+
+    
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+    @property
+    def current_student_count(self):
+        return self.users.filter(role="student", is_active=True).count()
+
+    @property
+    def current_instructor_count(self):
+        return self.users.filter(role="instructor", is_active=True).count()
+
+    @property
+    def is_within_limits(self):
+        return(
+            self.current_student_count <= self.max_students and
+            self.current_instructor_count <= self.max_instructors 
+        )
+
+    @property
+    def get_theme(self):
+        return{
+            'primary_color': self.primary_color,
+            'secondary_color':self.secondary_color,
+            'accent_color':self.accent_color,
+            'logo_url':self.logo.url if self.logo else None,
+            **self.theme_config
+        }
+
+class ScholAdmin(models.Model):
+    school = Models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admin')
+    
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('admin', 'admin'),
