@@ -4,6 +4,7 @@ import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function Exams() {
   const { user } = useAuth()
@@ -22,8 +23,9 @@ export default function Exams() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
   const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
-  
-  
+  const [createError, setCreateError] = useState('')
+  const [editError, setEditError] = useState('')
+
   const [createFiles, setCreateFiles] = useState([])
   const [editFiles, setEditFiles] = useState([])
   
@@ -111,16 +113,37 @@ export default function Exams() {
     return { total, active, finals, upcoming }
   }, [exams])
 
+  const isCreateFormValid = useMemo(() => {
+    return !!(createForm.subject && createForm.title?.trim() && createForm.exam_date && createForm.total_marks)
+  }, [createForm])
+
+  const isEditFormValid = useMemo(() => {
+    return !!(editForm.subject && editForm.title?.trim() && editForm.exam_date && editForm.total_marks)
+  }, [editForm])
+
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
   async function submit(e) {
     e && e.preventDefault()
+    setCreateError('')
     const currentForm = editingId ? editForm : createForm
-    if (!currentForm.subject) return toast.error('Select a subject')
-    if (!currentForm.title) return toast.error('Enter exam title')
-    if (!currentForm.exam_date) return toast.error('Select exam date')
-    if (!currentForm.total_marks) return toast.error('Enter total marks')
+    if (!currentForm.subject) {
+      setCreateError('Select a subject')
+      return
+    }
+    if (!currentForm.title) {
+      setCreateError('Enter exam title')
+      return
+    }
+    if (!currentForm.exam_date) {
+      setCreateError('Select exam date')
+      return
+    }
+    if (!currentForm.total_marks) {
+      setCreateError('Enter total marks')
+      return
+    }
 
     // Client-side unique constraint check: subject + exam_date must be unique
     try {
@@ -131,7 +154,8 @@ export default function Exams() {
         return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
       })
       if (same) {
-        return toast.error('An exam for this subject on the selected date already exists.')
+        setCreateError('An exam for this subject on the selected date already exists.')
+        return
       }
     } catch (err) {
       // Silently handle duplicate check failure
@@ -179,36 +203,36 @@ export default function Exams() {
       try {
         const res = await api.updateExam(editingId, payload)
         toast.success('Exam updated')
-    setExams(s => s.map(x => (x.id === res.id ? res : x)))
-    setEditingId(null)
-  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
-      // if files were selected while editing, upload them now
-      if (editFiles && editFiles.length) {
-        const filesToUpload = [...editFiles]
-        try {
-          await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
-          await fetchAttachmentsForExam(res.id)
-          toast.success(`${filesToUpload.length} resource(s) uploaded`)
-        } catch (err) {
-          // Silently handle file upload failure
-          toast.error('Failed to upload one or more files')
-        } finally {
-          setEditFiles([])
+        setExams(s => s.map(x => (x.id === res.id ? res : x)))
+        setEditingId(null)
+        setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+        // if files were selected while editing, upload them now
+        if (editFiles && editFiles.length) {
+          const filesToUpload = [...editFiles]
+          try {
+            await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
+            await fetchAttachmentsForExam(res.id)
+            toast.success(`${filesToUpload.length} resource(s) uploaded`)
+          } catch (err) {
+            // Silently handle file upload failure
+            toast.error('Failed to upload one or more files')
+          } finally {
+            setEditFiles([])
+          }
         }
-      }
-    // notify students via class notice immediately after edit
-    try {
-      const subj = subjects.find(s => String(s.id) === String(res.subject || currentForm.subject))
-      const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
-      if (classId) {
-        await api.createClassNotice({ title: `Exam scheduled: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || currentForm.subject) })
-        toast.success('Students notified')
-      }
-    } catch (err) {
-      // Silently handle class notice creation failure
-    }
+        // notify students via class notice immediately after edit
+        try {
+          const subj = subjects.find(s => String(s.id) === String(res.subject || currentForm.subject))
+          const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
+          if (classId) {
+            await api.createClassNotice({ title: `Exam scheduled: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || currentForm.subject) })
+            toast.success('Students notified')
+          }
+        } catch (err) {
+          // Silently handle class notice creation failure
+        }
       } catch (err) {
-        toast.error(getErrorMessage(err) || 'Failed to update exam')
+        setEditError(getErrorMessage(err) || 'Failed to update exam')
       } finally {
         setEditLoading(false)
       }
@@ -218,36 +242,36 @@ export default function Exams() {
         const res = await api.createExam(payload)
         toast.success('Exam created')
         // prepend to list
-  setExams(s => [res, ...s])
-  setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
-  // if files were selected on create, upload them now (create-time uploads only)
-  if (createFiles && createFiles.length) {
-    const filesToUpload = [...createFiles]
-    try {
-      await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
-      await fetchAttachmentsForExam(res.id)
-      toast.success(`${filesToUpload.length} file(s) uploaded`)
-    } catch (err) {
-      // Silently handle file upload failure
-      toast.error('Failed to upload one or more files')
-    } finally {
-      setCreateFiles([])
-    }
-  }
-  try {
-    const subj = subjects.find(s => String(s.id) === String(res.subject || createForm.subject))
-    const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
-    if (classId) {
-      await api.createClassNotice({ title: `New exam: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || createForm.subject) })
-      toast.success('Students notified')
-    }
-  } catch {
-    // Silently handle class notice creation failure
-  }
-  // close create modal after successful creation
-  setCreateModalOpen(false)
+        setExams(s => [res, ...s])
+        setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+        // if files were selected on create, upload them now (create-time uploads only)
+        if (createFiles && createFiles.length) {
+          const filesToUpload = [...createFiles]
+          try {
+            await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
+            await fetchAttachmentsForExam(res.id)
+            toast.success(`${filesToUpload.length} file(s) uploaded`)
+          } catch (err) {
+            // Silently handle file upload failure
+            toast.error('Failed to upload one or more files')
+          } finally {
+            setCreateFiles([])
+          }
+        }
+        try {
+          const subj = subjects.find(s => String(s.id) === String(res.subject || createForm.subject))
+          const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
+          if (classId) {
+            await api.createClassNotice({ title: `New exam: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || createForm.subject) })
+            toast.success('Students notified')
+          }
+        } catch {
+          // Silently handle class notice creation failure
+        }
+        // close create modal after successful creation
+        setCreateModalOpen(false)
       } catch (err) {
-        toast.error(getErrorMessage(err) || 'Failed to create exam')
+        setCreateError(getErrorMessage(err) || 'Failed to create exam')
       } finally {
         setLoading(false)
       }
@@ -300,6 +324,58 @@ export default function Exams() {
     }
   }
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+  const MAX_FILES = 5
+  const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx']
+  const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ]
+  const DANGEROUS_PATTERNS = /\.(exe|bat|cmd|sh|ps1|scr|msi|dll|js|vbs|jar|com|pif)$/i
+
+  function sanitizeFileName(name) {
+    // Remove invalid/dangerous characters and control chars
+    // eslint-disable-next-line no-control-regex
+    const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').replace(/[\x00-\x1F]/g, '')
+    return cleaned.replace(/\.{2,}/g, '.').trim()
+  }
+
+  function validateFile(file) {
+    const errors = []
+    const ext = file.name.split('.').pop()?.toLowerCase()
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      errors.push(`${file.name}: File too large (max 10MB)`)
+    }
+
+    // Check extension
+    if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
+      errors.push(`${file.name}: Invalid file type`)
+    }
+
+    // Check MIME type
+    if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+      errors.push(`${file.name}: Invalid file format`)
+    }
+
+    // Check for dangerous patterns
+    if (DANGEROUS_PATTERNS.test(file.name)) {
+      errors.push(`${file.name}: File type not allowed`)
+    }
+
+    // Check for empty files
+    if (file.size === 0) {
+      errors.push(`${file.name}: File is empty`)
+    }
+
+    return errors
+  }
+
   function handleCreateFilesChange(e) {
     const files = Array.from(e.target.files || [])
     if (!files.length) {
@@ -307,23 +383,31 @@ export default function Exams() {
       return
     }
 
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ]
-
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Allowed file types: PDF, DOC, DOCX, TXT, XLS, XLSX')
-        return
-      }
+    if (files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed`)
+      e.target.value = ''
+      return
     }
 
-    setCreateFiles(files)
+    const allErrors = []
+    for (const file of files) {
+      const errors = validateFile(file)
+      allErrors.push(...errors)
+    }
+
+    if (allErrors.length > 0) {
+      toast.error(allErrors[0]) // Show first error
+      e.target.value = ''
+      return
+    }
+
+    // Sanitize filenames for display (actual upload uses original file)
+    const sanitizedFiles = files.map(f => {
+      Object.defineProperty(f, 'sanitizedName', { value: sanitizeFileName(f.name), writable: false })
+      return f
+    })
+
+    setCreateFiles(sanitizedFiles)
   }
 
   function handleEditFilesChange(e) {
@@ -332,21 +416,31 @@ export default function Exams() {
       setEditFiles([])
       return
     }
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ]
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Allowed file types: PDF, DOC, DOCX, TXT, XLS, XLSX')
-        return
-      }
+
+    if (files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed`)
+      e.target.value = ''
+      return
     }
-    setEditFiles(files)
+
+    const allErrors = []
+    for (const file of files) {
+      const errors = validateFile(file)
+      allErrors.push(...errors)
+    }
+
+    if (allErrors.length > 0) {
+      toast.error(allErrors[0])
+      e.target.value = ''
+      return
+    }
+
+    const sanitizedFiles = files.map(f => {
+      Object.defineProperty(f, 'sanitizedName', { value: sanitizeFileName(f.name), writable: false })
+      return f
+    })
+
+    setEditFiles(sanitizedFiles)
   }
 
   function toggleAttachments(examId) {
@@ -737,56 +831,68 @@ export default function Exams() {
                     <h4 className="text-lg text-black font-medium">Create exam</h4>
                     <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
-
+                {createError && (
+                  <div className="mt-3 mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    {createError}
+                  </div>
+                )}
                 <div className="mt-4">
-                  <label className="block text-sm text-gray-700">Subject</label>
-                  <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="">-- select subject --</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
-                    ))}
-                  </select>
-
-                  <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
-
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <div>
-                      <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
+                    <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                      <option value="">Select a subject</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
+                    </select>
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Title</span>
+                      <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/25</span>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700">Total marks</label>
-                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <ModernDatePicker
+                      label="Date"
+                      value={createForm.exam_date}
+                      onChange={(val) => updateField('exam_date', val)}
+                      placeholder="Select date"
+                      minDate={new Date()}
+                    />
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input type="hidden" value={createForm.exam_type || 'final'} />
+                    </label>
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Description</span>
+                      <span className={`text-xs ${(createForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.description?.length || 0}/150</span>
                     </div>
-                  </div>
-
-                  <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
-                  <input type="hidden" value={createForm.exam_type || 'final'} />
-                
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Description</label>
-                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Duration (minutes)</label>
-                    <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Upload resources</label>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="mt-1" />
-                    {createFiles && createFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{createFiles.length} resource(s) selected</div>}
-                  </div>
+                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="w-full text-sm text-neutral-600" />
+                    {createFiles && createFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{createFiles.length} file(s) selected</div>}
+                  </label>
                 </div>
-
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={loading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{loading ? 'Saving...' : 'Create'}</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
                 </div>
               </form>
             </div>
@@ -809,65 +915,70 @@ export default function Exams() {
         {editingId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelEdit} />
-            <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h4 className="text-lg text-black font-medium">Edit exam</h4>
                     <p className="text-sm text-neutral-500">Update exam details.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
-
                 <div className="mt-4">
-                  <label className="block text-sm text-gray-700">Subject</label>
-                  <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="">-- select subject --</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
-                    ))}
-                  </select>
-
-                  <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
-
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <div>
-                      <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={editForm.exam_date} onChange={(e) => updateEditField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
+                    <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                      <option value="">Select a subject</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
+                    </select>
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Title</span>
+                      <span className={`text-xs ${(editForm.title?.length || 0) > 25 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.title?.length || 0}/25</span>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700">Total marks</label>
-                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <ModernDatePicker
+                      label="Date"
+                      value={editForm.exam_date}
+                      onChange={(val) => updateEditField('exam_date', val)}
+                      placeholder="Select date"
+                      minDate={new Date()}
+                    />
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input type="hidden" value={editForm.exam_type || 'final'} />
+                    </label>
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Description</span>
+                      <span className={`text-xs ${(editForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.description?.length || 0}/150</span>
                     </div>
-                  </div>
-
-                  <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
-                  <input type="hidden" value={editForm.exam_type || 'final'} />
-                
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Description</label>
-                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Duration (minutes)</label>
-                    <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-
-                  {/* Notifications are sent automatically on edit */}
-                  {/* Upload resources while editing */}
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Upload resources</label>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="mt-1" />
-                    {editFiles && editFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{editFiles.length} resource(s) selected</div>}
-                  </div>
+                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="w-full text-sm text-neutral-600" />
+                    {editFiles && editFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{editFiles.length} file(s) selected</div>}
+                  </label>
                 </div>
-
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading || !isEditFormValid} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </form>
             </div>

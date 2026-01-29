@@ -321,6 +321,27 @@ export default function StudentResults() {
       const { jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
 
+      // Load logo as base64 before PDF generation
+      const logoUrl = '/ka.png';
+      const getImageBase64 = url => new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+      let logoBase64 = null;
+      try {
+        logoBase64 = await getImageBase64(logoUrl);
+      } catch {}
+
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
@@ -339,43 +360,106 @@ export default function StudentResults() {
 
       // Helper function to draw header on each page
       function drawHeader(title, subtitle) {
-        doc.setFillColor(79, 70, 229) // indigo-600
-        doc.rect(0, 0, pageWidth, 60, 'F')
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(24)
-        doc.setFont(undefined, 'bold')
-        doc.text(title, margin, 35)
-        if (subtitle) {
-          doc.setFontSize(12)
-          doc.setFont(undefined, 'normal')
-          doc.text(subtitle, margin, 52)
+        // Maroon color: rgb(128, 0, 0)
+        const headerHeight = 140;
+        doc.setFillColor(128, 0, 0);
+        doc.rect(0, 0, pageWidth, headerHeight, 'F');
+        // Add ka.png logo centered if available and space the system name below it
+        const defaultSystemNameY = 80;
+        const defaultTitleOffset = 30;
+        if (logoBase64) {
+          const logoWidth = 60, logoHeight = 60;
+          const logoTop = 10;
+          doc.addImage(logoBase64, 'PNG', (pageWidth - logoWidth) / 2, logoTop, logoWidth, logoHeight);
+          // place system name a bit below the logo
+          const systemNameY = logoTop + logoHeight + 12; // 12pt gap
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.text('Kenya Army School Management System', pageWidth / 2, systemNameY, { align: 'center' });
+
+          // Add transcript title below system name
+          doc.setFontSize(22);
+          doc.setFont(undefined, 'bold');
+          doc.text(title, pageWidth / 2, systemNameY + 22, { align: 'center' });
+          if (subtitle) {
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            doc.text(subtitle, pageWidth / 2, systemNameY + 40, { align: 'center' });
+          }
+        } else {
+          // fallback positions when no logo
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.text('Kenya Army School Management System', pageWidth / 2, defaultSystemNameY, { align: 'center' });
+          doc.setFontSize(22);
+          doc.setFont(undefined, 'bold');
+          doc.text(title, pageWidth / 2, defaultSystemNameY + defaultTitleOffset, { align: 'center' });
+          if (subtitle) {
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            doc.text(subtitle, pageWidth / 2, defaultSystemNameY + defaultTitleOffset + 18, { align: 'center' });
+          }
         }
       }
 
       // Helper function to draw student info
       function drawStudentInfo(startY) {
-        let yPos = startY
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(12)
-        doc.setFont(undefined, 'bold')
-        doc.text('Student Information', margin, yPos)
+        // Distribute four fields evenly across the content width
+        let yPos = startY;
+        const labelFontSize = 11;
+        const valueFontSize = 11;
+        doc.setTextColor(0, 0, 0);
 
-        yPos += 20
-        doc.setFontSize(10)
-        doc.setFont(undefined, 'normal')
+        const contentWidth = pageWidth - (2 * margin);
+        const cols = 4;
+        const colWidth = contentWidth / cols;
 
-        if (studentSvc) {
-          doc.text(`Service Number: ${studentSvc}`, margin, yPos)
-          yPos += 15
+        const fields = [
+          { label: 'Service Number:', value: String(studentSvc || '-') },
+          { label: 'Rank:', value: String(studentRank || '-') },
+          { label: 'Name:', value: String(studentName) },
+          { label: 'Generated:', value: String(generatedDate) }
+        ];
+
+        const padding = 8;
+        for (let i = 0; i < cols; i++) {
+          const colX = margin + (i * colWidth);
+          // label on left of column
+          doc.setFontSize(labelFontSize);
+          doc.setFont(undefined, 'bold');
+          const labelX = colX + padding;
+          let label = fields[i].label || '';
+          // Add a small space after the colon for Service Number only
+          if (i === 0 && label && !label.endsWith(' ')) label = label + ' ';
+          doc.text(label, labelX, yPos);
+
+          // place value immediately after the colon when possible,
+          // otherwise right-align within the column to avoid overflow
+          doc.setFontSize(valueFontSize);
+          doc.setFont(undefined, 'normal');
+          const value = fields[i].value || '';
+          const labelWidth = doc.getTextWidth(label) || 0;
+          const valueWidth = doc.getTextWidth(value) || 0;
+          const gap = 4;
+
+          // preferred X for adjacent placement
+          let valueX = labelX + labelWidth + gap;
+          const maxValueRight = colX + colWidth - padding;
+
+          // If the value would overflow the column, right-align instead
+          if (valueX + valueWidth > maxValueRight) {
+            valueX = maxValueRight - valueWidth;
+            // ensure we don't overlap the label
+            const minValueX = labelX + labelWidth + gap;
+            if (valueX < minValueX) valueX = minValueX;
+          }
+
+          doc.text(value, valueX, yPos);
         }
-        if (studentRank) {
-          doc.text(`Rank: ${studentRank}`, margin, yPos)
-          yPos += 15
-        }
-        doc.text(`Name: ${studentName}`, margin, yPos)
-        doc.text(`Generated: ${generatedDate}`, pageWidth - margin - 150, yPos)
 
-        return yPos + 15
+        return yPos + 20;
       }
 
       // Helper function to draw summary box
@@ -449,8 +533,8 @@ export default function StudentResults() {
             lineWidth: 0.5
           },
           headStyles: {
-            fillColor: [79, 70, 229],
-            textColor: 255,
+            fillColor: [255, 255, 255], // no header color
+            textColor: 0,
             fontSize: 11,
             fontStyle: 'bold',
             halign: 'left'
@@ -509,7 +593,8 @@ export default function StudentResults() {
           const classLabel = `${classGroup.className}${classGroup.courseName ? ` — ${classGroup.courseName}` : ''}`
           
           drawHeader('Academic Transcript', classLabel)
-          let yPos = drawStudentInfo(80)
+          let yPos = 185;
+          yPos = drawStudentInfo(yPos)
           yPos = drawSummaryBox(yPos + 15, classGroup.results, null)
           drawResultsTable(yPos, classGroup.results)
 
@@ -519,8 +604,8 @@ export default function StudentResults() {
         // Add a summary page at the end with overall totals
         doc.addPage()
         drawHeader('Academic Transcript', 'Overall Summary - All Classes')
-        let yPos = drawStudentInfo(80)
-        
+        let yPos = 185;
+        yPos = drawStudentInfo(yPos)
         yPos += 15
         doc.setFontSize(12)
         doc.setFont(undefined, 'bold')
@@ -552,8 +637,8 @@ export default function StudentResults() {
             lineWidth: 0.5
           },
           headStyles: {
-            fillColor: [79, 70, 229],
-            textColor: 255,
+            fillColor: [255, 255, 255], // no header color
+            textColor: 0,
             fontSize: 11,
             fontStyle: 'bold'
           },
@@ -604,7 +689,8 @@ export default function StudentResults() {
           : null
 
         drawHeader('Academic Transcript', classInfo)
-        let yPos = drawStudentInfo(80)
+        let yPos = 185;
+        yPos = drawStudentInfo(yPos)
         yPos = drawSummaryBox(yPos + 15, rows, null)
         drawResultsTable(yPos, rows)
         drawFooter(classInfo)

@@ -116,36 +116,32 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-        {/* Graphic / branding */}
-        <div className="hidden md:flex flex-col justify-center px-6">
-          <div className="mb-6">
-            <h1 className="text-4xl font-extrabold text-black">Welcome</h1>
-            <p className="mt-2 text-sm text-gray-600">Sign in to manage classes, students and school data.</p>
-          </div>
-
-          <div className="rounded-2xl p-6 bg-gradient-to-tr from-indigo-50 to-pink-50 shadow-md">
-            <div className="text-indigo-600 mb-4 flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">SM</div>
-              <div>
-                <div className="text-sm font-semibold">Kenya Army School Management System</div>
-                <div className="text-xs text-gray-500">Organize your academic life.</div>
+        {/* Graphic / branding: modern maroon hero with logo */}
+        <div className="hidden md:flex items-center justify-center px-6">
+          <div className="w-full max-w-md p-8 rounded-3xl bg-gradient-to-br from-white to-white text-white shadow-2xl transform transition hover:scale-[1.01]">
+            <div className="flex flex-col items-center">
+              <div className="w-36 h-36 rounded-full bg-white/10 p-3 flex items-center justify-center mb-4 backdrop-blur-sm">
+                <img src="/ka.png" alt="Kenya Army School logo" className="w-full h-full object-contain" />
               </div>
-            </div>
-            <div className="text-sm text-gray-700">
-              <ul className="list-disc pl-5 space-y-2">
-                <li>Fast class & student management</li>
-                <li>Assignments, exams and results</li>
-                <li>Secure role-based access</li>
-              </ul>
+                <h1 className="text-m md:text-l font-extrabold text-gray-900 text-center whitespace-nowrap">Kenya Army School Management System</h1>
+              <p className="mt-2 text-sm text-gray-700 text-center">Manage classes, students, exams and results</p>
+              <div className="mt-4 flex gap-2 flex-wrap justify-center">
+                <span className=" text-gray-700 text-sm">Assignments</span>
+                <span className="text-gray-700 text-sm">Exams</span>
+                <span className="text-gray-700 text-sm">Results</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-10">
-          <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-black">Sign in to your account</h2>
-            <p className="text-sm text-gray-500">Use your school credentials to continue</p>
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-10">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <img src="/ka.png" alt="Kenya Army School logo" className="w-14 h-14 object-contain rounded-md mb-3" />
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">Sign in</h2>
+              <p className="text-sm text-gray-500">Use your school credentials to continue</p>
+            </div>
           </div>
 
           <form
@@ -156,7 +152,7 @@ export default function Login() {
           >
             <label className="block">
               <span className="text-sm text-gray-700">Service Number</span>
-              <div className="mt-1 relative">
+              <div className="mt-2 relative">
                 {renderIcon('Mail', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
                 <input
                   type="text"
@@ -185,7 +181,7 @@ export default function Login() {
 
             <label className="block">
               <span className="text-sm text-gray-700">Password</span>
-              <div className="mt-1 relative">
+              <div className="mt-2 relative">
                 {renderIcon('Lock', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
                 <input
                   type={show ? 'text' : 'password'}

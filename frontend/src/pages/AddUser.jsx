@@ -25,6 +25,18 @@ const ranks = [
   { value: 'private', label: 'Private' },
 ]
 
+// Sanitize text input by removing script tags, HTML tags, and control characters
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // eslint-disable-next-line no-control-regex
+  const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(controlChars, '')
+    .trim()
+}
+
 export default function AddUser({ onSuccess } = {}) {
   const [form, setForm] = useState({
     username: '',
@@ -107,11 +119,13 @@ export default function AddUser({ onSuccess } = {}) {
       case 'first_name':
         if (!value) return 'First name is required'
         if (value.length < 2) return 'First name must be at least 2 characters'
+        if (value.length > 10) return 'First name cannot exceed 10 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'last_name':
         if (!value) return 'Last name is required'
         if (value.length < 2) return 'Last name must be at least 2 characters'
+        if (value.length > 10) return 'Last name cannot exceed 10 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'email':
@@ -168,6 +182,11 @@ export default function AddUser({ onSuccess } = {}) {
     // Only allow numeric input for phone number
     if (name === 'phone_number') {
       newValue = value.replace(/\D/g, '')
+    }
+
+    // Sanitize and limit first_name and last_name to 10 characters
+    if (name === 'first_name' || name === 'last_name') {
+      newValue = sanitizeInput(value).slice(0, 10)
     }
 
     setForm((f) => {
@@ -397,13 +416,13 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.first_name}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.last_name}</div>}
               </div>
 

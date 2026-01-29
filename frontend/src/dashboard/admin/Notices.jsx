@@ -362,6 +362,7 @@ export default function Notices() {
               value={filterDateFrom}
               onChange={(value) => setFilterDateFrom(value)}
               placeholder="Select start date"
+              maxDate={new Date().toISOString().split('T')[0]}
             />
 
             {/* Date To */}
@@ -370,6 +371,7 @@ export default function Notices() {
               value={filterDateTo}
               onChange={(value) => setFilterDateTo(value)}
               placeholder="Select end date"
+              maxDate={new Date().toISOString().split('T')[0]}
             />
           </div>
 
