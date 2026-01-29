@@ -17,6 +17,8 @@ export default function StudentResults() {
   const [viewMode, setViewMode] = useState('table') // 'table' or 'cards'
   const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
   const transcriptMenuRef = useRef(null)
+  const [transcriptClasses, setTranscriptClasses] = useState([])
+
 
   // Close transcript menu when clicking outside
   useEffect(() => {
@@ -293,27 +295,35 @@ export default function StudentResults() {
   // Download transcript for a specific class or all classes
   async function downloadTranscript(transcriptClassId = null) {
     setShowTranscriptMenu(false)
-    
-    // Determine which results to use based on selection
-    let rows
-    let transcriptResultsByClass
-    
+    const sourceClasses =
+      transcriptClasses.length ? transcriptClasses : resultsByClass
+
+    let rows = []
+    let transcriptResultsByClass = []
+
     if (transcriptClassId === 'all') {
-      // All classes
-      rows = results || []
-      transcriptResultsByClass = resultsByClass
+      transcriptResultsByClass = sourceClasses
+      rows = sourceClasses.flatMap(c => c.results)
     } else if (transcriptClassId) {
-      // Specific class
-      rows = results.filter(r => String(r.class_id) === String(transcriptClassId))
-      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(transcriptClassId))
-    } else {
-      // Current class (default)
-      rows = currentClassResults
-      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(currentClass?.id))
+      const group = sourceClasses.find(
+        g => String(g.classId) === String(transcriptClassId)
+      )
+      if (group) {
+        transcriptResultsByClass = [group]
+        rows = group.results
+      }
+    } else if (currentClass?.id) {
+      const group = sourceClasses.find(
+        g => String(g.classId) === String(currentClass.id)
+      )
+      if (group) {
+        transcriptResultsByClass = [group]
+        rows = group.results
+      }
     }
-    
-    if (!rows || rows.length === 0) {
-      if (toast?.error) toast.error('No results to download for the selected class.')
+
+    if (!rows.length) {
+      toast?.error?.('No results to download for the selected class.')
       return
     }
 
@@ -824,7 +834,37 @@ export default function StudentResults() {
           )}
           <div className="flex items-center justify-end relative" ref={transcriptMenuRef}>
             <button
-              onClick={() => setShowTranscriptMenu(!showTranscriptMenu)}
+              onClick={async () =>{
+                if (!showTranscriptMenu) {
+                  try{
+                    const resAll = await api.getMyResults({ show_all: true })
+                    const all = Array.isArray(resAll)
+                     ? resAll : Array.isArray(resAll?.results)
+                      ? resAll.results : []
+
+                      const groups = {}
+                      for (const r of all) {
+                        const classId = r.class_id
+                        if (!groups[classId]) {
+                          groups[classId] = {
+                            classId,
+                            className: r.class_name || 'Unnamed Class',
+                            courseName: r.course_name || null,
+                            results: []
+                          }
+                        }
+                        groups[classId].results.push(r)
+                      
+                      }
+                      setTranscriptClasses(Object.values(groups))
+                  } catch {
+                    setTranscriptClasses(resultsByClass
+
+                    )
+                  }
+                }
+                setShowTranscriptMenu(v => !v)
+              }}
               disabled={!results || results.length === 0}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm hover:shadow"
               aria-label="Download transcript as PDF"
@@ -858,7 +898,7 @@ export default function StudentResults() {
                 )}
                 
                 {/* Other classes */}
-                {resultsByClass.filter(g => String(g.classId) !== String(currentClass?.id)).map(classGroup => (
+                {(transcriptClasses.length ? transcriptClasses : resultsByClass).filter(g => String(g.classId) !== String(currentClass?.id)).map(classGroup => (
                   <button
                     key={classGroup.classId}
                     onClick={() => downloadTranscript(classGroup.classId)}
@@ -873,7 +913,7 @@ export default function StudentResults() {
                 ))}
                 
                 {/* All classes option (only if multiple classes) */}
-                {resultsByClass.length > 1 && (
+                {(transcriptClasses.length || resultsByClass.length) > 1 && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
