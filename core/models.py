@@ -7,7 +7,16 @@ import os
 import uuid
 import hashlib
 from datetime import timedelta
+from .middleware import get_current_school
 
+class TenantAwareManager(models.Manager):
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        school = get_current_school()
+        if school:
+            return queryset.filter(school=school)
+        return queryset
 
 class School(models.Model):
 
@@ -23,15 +32,10 @@ class School(models.Model):
     )
     name = models.CharField(max_length=200, help_text="Full school name")
     short_name = models.CharField(max_length=50, blank=True, help_text="Short/display name")
-
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20)
     address = models.TextField()
     city = models.CharField(max_length=100)
-    state = models.CharField(max_length=100, blank=True)
-    country = models.CharField(max_length=100, default="Kenya")
-    postal_code = models.CharField(max_length=20, blank=True)
-
     logo = models.ImageField(upload_to="school_logos/", null=True, blank=True)
     primary_color = models.CharField(
         max_length=7,
@@ -57,8 +61,8 @@ class School(models.Model):
     is_active = models.BooleanField(default=True)
     subscription_start = models.DateField(null=True, blank=True)
     subscription_end = models.DateField(null=True, blank=True)
-    max_students  = models.IntegerField(default=500, help_text="Maximum allowed students")
-    max_instructors = models.IntegerField(default=50, help_text="Maximum allowed instructors")
+    max_students  = models.IntegerField(default=5000, help_text="Maximum allowed students")
+    max_instructors = models.IntegerField(default=500, help_text="Maximum allowed instructors")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -105,9 +109,26 @@ class School(models.Model):
             **self.theme_config
         }
 
-class ScholAdmin(models.Model):
-    school = Models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admin')
-    
+class SchoolAdmin(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admins')
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='managed_schools')
+    is_primary = models.BooleanField(default=False, help_text="Primary admin for this school")
+    permissions = models.JSONField(
+        default = dict,
+        blank=True,
+        help_text = "Granular permissions for this admin" 
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'school_admins'
+        unique_together = ['school', 'user']
+        verbose_name = 'School Admin'
+        verbose_name_plural = 'School Admins'
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.school.name}"
+
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('admin', 'admin'),
@@ -129,7 +150,7 @@ class User(AbstractUser):
         ('lieutenant colonel', 'Lieutenant Colonel'),
         ('general', 'General'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES)
@@ -147,6 +168,9 @@ class User(AbstractUser):
     is_active = models.BooleanField(default=True)
     unit = models.CharField(null=True, blank=True, max_length=100)
 
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'users'
         verbose_name = 'User'
@@ -156,14 +180,17 @@ class User(AbstractUser):
         return f"{self.username} ({self.get_role_display()})"
     
 class Course(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='courses')
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField()
-  
     level = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'courses'
@@ -174,6 +201,7 @@ class Course(models.Model):
         return f"{self.name} ({self.code})"
 
 class Class(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='classes')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='classes')
     name = models.CharField(max_length=100)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='instructed_classes')
@@ -183,6 +211,10 @@ class Class(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     capacity = models.IntegerField(validators=[MinValueValidator(1)], default=30)
     is_active = models.BooleanField(default=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'classes'
         verbose_name = 'Class'
@@ -202,6 +234,7 @@ class Class(models.Model):
         return f"{self.current_enrollment} / {self.capacity}" 
     
 class Subject(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
     name = models.CharField(max_length=100)
     subject_code = models.CharField(max_length=20, unique=True,null=True, blank=True)
@@ -210,6 +243,9 @@ class Subject(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='subjects')
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'subjects'
@@ -227,7 +263,7 @@ class Notice(models.Model):
         ('high', 'High'),   
         ('urgent', 'Urgent'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='notices')
     priority= models.CharField(
         max_length=10,
         choices=PRIORITY_CHOICES,
@@ -241,6 +277,9 @@ class Notice(models.Model):
     expiry_date = models.DateField(null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notices_created')
 
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'notices'
         verbose_name = 'Notice'
@@ -251,6 +290,7 @@ class Notice(models.Model):
         return f"{self.title} ({self.get_priority_display()})"
     
 class Enrollment(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments')
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='enrollments')
     enrolled_by= models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_processed')
@@ -258,6 +298,8 @@ class Enrollment(models.Model):
     is_active = models.BooleanField(default=True)
     completion_date = models.DateField(null=True, blank=True)
 
+    objects  = TenantAwareManager()
+    all_objects = models.Manager()
     class Meta:
         db_table = 'enrollments'
         verbose_name = 'Enrollment'
@@ -274,7 +316,7 @@ class Exam(models.Model):
         ('final', 'Final'),
         ('project', 'Project'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exams')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     title = models.CharField(max_length=200)
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
@@ -286,6 +328,9 @@ class Exam(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     exam_duration = models.DurationField(null=True, blank=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'exams'
@@ -307,6 +352,8 @@ class Exam(models.Model):
         return self.results.filter(is_submitted=True).count()
 
 class ExamAttachment(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='attachments')
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(
         upload_to='exams/', 
@@ -322,6 +369,8 @@ class ExamAttachment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     uploaded_at = models.DateTimeField(auto_now=True)
 
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'exam_attachments'
@@ -343,6 +392,7 @@ class ExamAttachment(models.Model):
         super().delete(*args, **kwargs)
 
 class ExamResult(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exam_results')
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='results')
 
@@ -360,6 +410,9 @@ class ExamResult(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
     graded_at = models.DateTimeField(null=True, blank=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'exam_results'
@@ -395,7 +448,7 @@ class Attendance(models.Model):
         ('absent', 'Absent'),
         ('late', 'Late'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='attendances')
     student = models.ForeignKey('User', on_delete=models.CASCADE, related_name='attendances')
     class_obj = models.ForeignKey('Class', on_delete=models.CASCADE, related_name='attendances')
     subject =models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='attendances')
@@ -405,6 +458,9 @@ class Attendance(models.Model):
     marked_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='attendances_marked')
     created_by = models.DateTimeField(auto_now_add=True)
     updated_at =models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'attendance'
@@ -437,6 +493,9 @@ class ClassNotice(models.Model):
     is_active = models.BooleanField(default=True)
     expiry_date = models.DateTimeField(null=True, blank=True)
 
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'class_notices'
         ordering = ['-created_at']
@@ -446,6 +505,7 @@ class ClassNotice(models.Model):
 
 class ExamReport(models.Model):
 
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exam_reports')
     title = models.CharField(max_length=50)
     description = models.TextField(blank=True, null=True)
     subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='exam_reports')
@@ -456,6 +516,9 @@ class ExamReport(models.Model):
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     report_date = models.DateField(default=timezone.now)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'exam_reports'
@@ -484,9 +547,14 @@ class ExamReport(models.Model):
         return total_percentage / count if count > 0 else 0
     
 class NoticeReadStatus(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='notice_read_statuses')
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='notice_read_statuses')
     notice = models.ForeignKey('Notice', on_delete=models.CASCADE, related_name='read_statuses')
     read_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'notice_read_statuses'
@@ -497,9 +565,14 @@ class NoticeReadStatus(models.Model):
             return f"{self.user.username} read {self.notice.title}"
 
 class ClassNoticeReadStatus(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='class_notice_read_statuses')
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='class_notice_read_statuses')
     class_notice = models.ForeignKey('ClassNotice', on_delete=models.CASCADE, related_name='read_statuses')
     read_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'class_notice_read_statuses'
@@ -511,9 +584,14 @@ class ClassNoticeReadStatus(models.Model):
         return f"{self.user.username} read {self.class_notice.title}"
 
 class ExamResultNotificationReadStatus(models.Model):
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exam_result_notification_read_statuses')
     user  = models.ForeignKey('User',on_delete=models.CASCADE, related_name='exam_result_notification_read_statuses')
     exam_result = models.ForeignKey('ExamResult', on_delete=models.CASCADE, related_name='notification_read_statuses')
     read_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'exam_result_notification_read_statuses'
@@ -543,6 +621,7 @@ class AttendanceSession(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='attendance_sessions')
     session_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     title = models.CharField(max_length=200)
     session_type = models.CharField(max_length=20, choices=SESSION_TYPE_CHOICES, default='class')
@@ -578,6 +657,10 @@ class AttendanceSession(models.Model):
         validators=[MinValueValidator(0)],
         default=10,
         help_text="Minutes after start time to still mark as present")
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'attendance_sessions'
         verbose_name = 'Attendance Session'
@@ -718,9 +801,10 @@ class SessionAttendance(models.Model):
         ('excused', 'Excused'),
     ]
 
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='session_attendances')
     session = models.ForeignKey(
-        'AttendanceSession', on_delete=models.CASCADE, related_name='session_attendances'
-    )
+        'AttendanceSession', on_delete=models.CASCADE, related_name='session_attendances')
+    
     student = models.ForeignKey(
     'User',
     on_delete=models.CASCADE,
@@ -748,6 +832,8 @@ class SessionAttendance(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True, null=True)
 
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
     class Meta:
         db_table = 'session_attendances'
         verbose_name = 'Session Attendance'
@@ -808,7 +894,7 @@ class BiometricRecord(models.Model):
         ('fingerprint', 'Fingerprint Scanner'),
         ('other', 'Other'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_record')
     device_id = models.CharField(max_length=100)
     device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES, default='zkteco')
     device_name = models.CharField(max_length=200, blank=True)
@@ -841,12 +927,13 @@ class BiometricRecord(models.Model):
         blank=True,
         related_name='biometric_records'
     )
-
     raw_data = models.JSONField(blank=True, null=True, help_text = "Raw data from device")
     error_message = models.TextField(blank=True, null=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
 
@@ -938,7 +1025,7 @@ class AttendanceSessionLog(models.Model):
         ('bulk_import', 'Bulk Import'),
         ('biometric_sync', 'Biometric Sync'),
     ]
-
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='logs')
     session = models.ForeignKey(
         AttendanceSession,
         on_delete=models.CASCADE,
@@ -957,6 +1044,8 @@ class AttendanceSessionLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    objects= TenantAwareManager()
+    all_objects = models.Manager()
     class Meta:
         db_table = 'attendance_session_logs'
         verbose_name = 'Session Log'
@@ -985,6 +1074,7 @@ class PersonalNotification(models.Model):
         ('high', 'High'),
     ]
 
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='personal_notifications')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='personal_notifications')
     notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPE_CHOICES, default='general')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
@@ -999,6 +1089,9 @@ class PersonalNotification(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications_created')
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'personal_notifications'

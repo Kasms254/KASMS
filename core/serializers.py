@@ -1,10 +1,200 @@
 from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
-    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog,ExamResultNotificationReadStatus)
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,ClassNoticeReadStatus,BiometricRecord, SessionAttendance,AttendanceSessionLog,ExamResultNotificationReadStatus, ScholAdmin, School)
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
+from django.db import transaction
+
+
+class SchoolThemeSerializer(serializers.ModelSerializer):
+
+    primary_color = serializers.CharField()
+    secondary_color = serializers.CharField()
+    accent_color = serializers.CharField()
+    logo_url = serializers.URLField(allow_null=True)
+
+class SchoolSerializer(serializers.ModelSerializer):
+
+    theme = serializers.SerializerMethodField(read_only=True)
+    current_student_count = serializers.IntegerField(read_only=True)
+    current_instructor_count = serializers.IntegerField(read_only=True)
+    is_within_limits = serializers.BooleanField(read_only=True)
+    admin_count = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = School
+        fields = ['__all__']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_theme(self, obj):
+        return obj.get_theme()
+
+    def get_admin_count(self, obj):
+        return obj.school_admins.count()
+
+    def validate_code(self, value):
+        if self.instance:
+            if School.objects.exclude(pk=self.instance.pk).filter(code=value).exists():
+                raise serializers.ValidationError("This school code is already in use")
+        else:
+            if School.objects.filter(code=value).exists():
+                raise serializers.ValidationError("This school code is already in use.")
+        return value.upper()
+
+    def validate_email(self, value):
+        if self.instance:
+            if School.objects.exclude(pk=self.instance.pk).filter(email=value).exists():
+                raise serializers.ValidationError("This email is alreay in use")
+            else:
+                if School.objects.filter(email=value).exists():
+                    raise serializers.ValidationError("This email is already in use."
+                    )
+            return value
+
+class SchoolListSerializer(serializers.ModelSerializer):
+
+    current_student_count = serializers.IntegerField(read_only=True)
+    current_instructor_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model= School
+        fields = [
+            "__all__"
+        ]
+
+class SchoolAdminSerializer(serializers.ModelSerializer):
+
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+
+    class Meta:
+        model = ScholAdmin
+        fields = [
+            "__all__"
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def validate(self, attrs):
+        school = attrs.get('school')
+        user = attrs.get('user')
+
+        if user.role != 'admin':
+            raise serializers.ValidationError({
+                'user': 'User must have admin role to be  a school admin'
+            })
+
+        if user.school != school:
+            raise serializers.ValidationError({
+                'user': 'User must belong to the same school'
+            })
+
+        return attrs
+
+class SchoolCreateWithAdminSerializer(serializers.Serializer):
+    
+    school_code = serializers.CharField(max_length = 20)
+    school_name = serializers.CharField(max_length = 200)
+    school_short_name = serializers.CharField(max_length = 50, required=False)
+    school_email = serializers.EmailField()
+    school_phone = serializers.CharField(max_length = 200)
+    school_address = serializers.CharField()
+    school_city = serializers.CharField(max_length=100)
+    
+    primary_color = serializers.CharField(max_length=7, default='#1976D2')
+    secondary_color = serializers.CharField(max_length = 7, default='#424242')
+    accent_color = serializers.CharField(max_length = 7, default = '#FFC107')
+
+    max_students = serializers.IntegerField(default=5000)
+    max_instructors = serializers.IntegerField(default=500)
+
+    admin_username = serializers.CharField(default=500)
+    admin_email = serializers.EmailField()
+    admin_first_name = serializers.CharField(max_length= 150)
+    admin_last_name = serializers.CharField(max_length = 150)
+    admin_phone = serializers.CharField(max_length= 20)
+    admin_svc_number = serializers.CharField(max_length=50)
+    admin_password = serializers.CharField(
+        write_only = True,
+        validators=[validate_password],
+        style={'input_type':'password'}
+    )
+    admin_password2 = serializers.CharField(
+        write_only=True,
+        style = {'input_type':'password'}
+    )
+    def validate(self, attrs):
+        if attrs['admin_password'] != attrs['admin_password2']:
+            raise serializers.ValidationError({
+                'admin_password': 'Password fields didnt match.'
+            })
+
+        if School.objects.filter(code=attrs['school_code'].upper()).exists():
+            raise serializers.ValidationError({
+                'school_code': "This school code is already in use"
+            })
+        
+        if School.objects.filter(email=attrs['school_email'].upper()).exists():
+            raise serializers.ValidationError({
+                'school_email': "This email is already in use"
+            })
+
+        if User.objects.filter(username=attrs['admin_username']).exists():
+            raise serializers.ValidationError({
+                'admin_username': 'This username is already in use'
+            })
+
+        return attrs
+
+
+    def create(self, validated_data):
+
+        with transaction.atomic():
+
+            school = School.objects.create(
+                code = validated_data['school_code'].upper(),
+                name = validated_data['school_name'],
+                short_name = validated_data.get('school_short_name', ''),
+                email = validated_data['school_email'],
+                phone = validated_data['school_phone'],
+                address = validated_data['school_address'],
+                city= validated_data['school_city'],
+                primary_color = validated_data['primary_color'],
+                secondary_color = validated_data['secondary_color'],
+                accent_color=validated_data['accent_color'],
+                max_students=validated_data['max_students'],
+                max_instructors= validated_data['max_instructors'],
+                is_active=True
+            )
+
+            admin_user = User.objects.create(
+                school=school,
+                username = validated_data['admin_username'],
+                email = validated_data['admin_email'],
+                first_name=validated_data['admin_first_name'],
+                last_name = validated_data['admin_last_name'],
+                phone_number=validated_data['admin_phone'],
+                svc_number=validated_data['admin_svc_number'],
+                role ='admin',
+                is_active=True
+            )
+            admin_user.set_password(validated_data['admin_password'])
+            admin_user.save()
+
+            ScholAdmin.objects.create(
+                school=school,
+                user=admin_user,
+                is_primary=True
+            )
+
+            return {
+                'school': school,
+                'admin_user':admin_user
+            }
+
 
 class UserSerializer(serializers.ModelSerializer):
 
@@ -94,14 +284,27 @@ class UserSerializer(serializers.ModelSerializer):
     
 class UserListSerializer(serializers.ModelSerializer):
 
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    school_theme = serializers.SerializerMethodField(read_only=True)
+    
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     full_name = serializers.SerializerMethodField()
     class_name = serializers.SerializerMethodField()
 
+    has_active_enrollment_elsewhere = serializers.SerializerMethodField(read_onl)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'role', 'role_display', 'svc_number', 'phone_number', 'is_active', 'created_at', 'updated_at', 'class_name', 'rank']
-        read_only_fields = ('created_at', 'updated_at')
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
+            'school', 'school_name', 'school_code', 'school_theme',
+            'role', 'role_display', 'rank', 'svc_number', 'phone_number',
+            'unit', 'is_active', 
+            'has_active_enrollment_elsewhere',
+            'created_at', 'updated_at'
+        ]     
+        read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
@@ -116,6 +319,21 @@ class UserListSerializer(serializers.ModelSerializer):
             if enrollment and enrollment.class_obj:
                 return enrollment.class_obj.name
         return None
+        
+    def get_school_theme(self, obj):
+        if obj.school:
+            return obj.school.get_theme()
+        return None
+
+    def get_has_active_enrollment_elsewhere(self, obj):
+        if obj.role != 'student':
+            return False
+        
+        return Enrollment.all_objects.filter(
+            student=obj,
+            is_active=True
+        ).exclude(school=obj.school).exists()
+
         
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
@@ -867,6 +1085,7 @@ class BiometricRecordSerializer(serializers.ModelSerializer):
         return None
 
 class BiometricSyncSerializer(serializers.Serializer):
+
 
     device_id = serializers.CharField(max_length=100)
     device_type = serializers.ChoiceField(choices=BiometricRecord.DEVICE_TYPE_CHOICES)

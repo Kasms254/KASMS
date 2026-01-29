@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification,
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer,
-    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,
+    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
@@ -28,6 +28,69 @@ import csv
 from django.http import HttpResponse
 from django.db import transaction
 
+class IsSuperAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'superadmin'
+
+class IsSchoolAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.role.is_authenticated and 
+            request.user.role in ['admin', 'superadmin']
+        )
+
+
+class SchoolViewSet(viewsets.ModelViewSet):
+
+    queryset =  School.objects.all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'country', 'city']
+    search_fields = ['name', 'code', 'email']
+    ordering_fields = ['created_at', 'name', 'code']
+    ordering = ['created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return SchoolListSerializer
+        elif self.action == 'create_with_admin':
+            return SchoolCreateWithAdminSerializer
+        return SchoolSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'create_with_admin', 'destroy']:
+            return [IsSuperAdmin()]
+        return [IsSchoolAdmin()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'superadmin':
+            return queryset.annotate(
+                student_count = Count('users', filter=Q(users__role='student', users_is_active=True)),
+                instructor_count = Count('users', filter=Q(users__role='instructor', users_is_active=True)),
+            )
+
+        return queryset.filter(id=user.school_id).annotate(
+            student_count = Count('users', filter=Q(users__role='student', users__is_active=True)),
+            instructor_count = Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+        )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsSuperAdmin])
+    def create_with_admin(self, request):
+
+        serializer = SchoolCreateWithAdminSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+
+        return Response({
+            'status': 'success',
+            'message':f'School {result["school"].name} created successfully',
+            'school':SchoolSerializer(result['school']).data,
+            'admin_user':UserSerializerWithSchool(result['admin_user']).data
+        }, status=status.HTTP_201_CREATED)
+
+        
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
