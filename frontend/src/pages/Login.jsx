@@ -110,9 +110,9 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+      <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         {/* Graphic / branding: modern maroon gradient hero with logo */}
-        <div className="hidden md:flex items-center justify-center px-6">
+        <div className="hidden lg:flex items-center justify-center px-6">
           <div className="w-full max-w-md p-8 rounded-3xl bg-gradient-to-br from-red-900 via-red-800 to-rose-900 text-white shadow-2xl transform transition hover:scale-[1.01] relative overflow-hidden">
             {/* Decorative background elements */}
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -122,7 +122,7 @@ export default function Login() {
               <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
-              <h1 className="text-sm md:text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
+              <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
               <p className="mt-3 text-sm text-red-100 text-center">Manage classes, students, exams and results</p>
               <div className="mt-6 flex gap-3 flex-wrap justify-center">
                 <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
@@ -143,7 +143,7 @@ export default function Login() {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-10 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100 w-full max-w-md mx-auto lg:max-w-none">
           <div className="mb-6 flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 p-0.5 mb-3 shadow-lg">
               <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
@@ -172,7 +172,7 @@ export default function Login() {
                   required
                   value={svc_number}
                   onChange={handleServiceNumberChange}
-                  className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  className={`w-full pl-10 pr-3 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
                     fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
                   }`}
                   placeholder="e.g., 123456"
@@ -200,7 +200,7 @@ export default function Login() {
                   required
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`w-full pl-10 pr-10 py-2.5 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
                     fieldErrors.password ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
                   }`}
                   placeholder="Enter your password"
@@ -239,7 +239,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' })

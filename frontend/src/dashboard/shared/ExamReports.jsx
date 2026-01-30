@@ -679,57 +679,164 @@ export default function ExamReports() {
             )
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile & Tablet Card View */}
+              <div className="lg:hidden">
+                {/* Tablet: 2-column grid */}
+                <div className="hidden sm:grid sm:grid-cols-2 gap-4 p-4">
+                  {paginatedExams.map(exam => (
+                    <div key={exam.id} className="bg-white rounded-xl p-4 border border-neutral-200 hover:shadow-md transition-shadow">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getExamTypeBadge(exam.exam_type)}`}>
+                              {exam.exam_type?.toUpperCase() || 'N/A'}
+                            </span>
+                            {exam.average_score != null && (
+                              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                Avg: {parseFloat(exam.average_score).toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-base leading-tight line-clamp-1">{exam.title}</h3>
+                          <p className="text-sm text-indigo-600 font-medium mt-0.5 line-clamp-1">
+                            {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-2.5 py-1.5">
+                          <div className="text-lg font-bold text-indigo-700">{exam.total_marks || 100}</div>
+                          <div className="text-[10px] text-indigo-500 font-medium">marks</div>
+                        </div>
+                      </div>
+
+                      {/* Info Row */}
+                      <div className="flex items-center gap-4 mb-3 text-sm text-neutral-600">
+                        <div className="flex items-center gap-1.5">
+                          <LucideIcons.Calendar className="w-4 h-4 text-neutral-400" />
+                          <span>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      {exam.description && (
+                        <p className="text-sm text-neutral-500 mb-3 line-clamp-2">{exam.description}</p>
+                      )}
+
+                      {/* Action Button */}
+                      <button
+                        onClick={() => setSelectedExam(exam)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                      >
+                        <LucideIcons.Eye className="w-4 h-4" />
+                        View Report
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mobile: Single column list */}
+                <div className="sm:hidden divide-y divide-neutral-200">
+                  {paginatedExams.map(exam => (
+                    <div key={exam.id} className="p-4 hover:bg-neutral-50 transition">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getExamTypeBadge(exam.exam_type)}`}>
+                              {exam.exam_type?.toUpperCase() || 'N/A'}
+                            </span>
+                            {exam.average_score != null && (
+                              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                Avg: {parseFloat(exam.average_score).toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-base leading-tight">{exam.title}</h3>
+                          <p className="text-sm text-indigo-600 font-medium mt-0.5">
+                            {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-2.5 py-1.5">
+                          <div className="text-lg font-bold text-indigo-700">{exam.total_marks || 100}</div>
+                          <div className="text-[10px] text-indigo-500 font-medium">marks</div>
+                        </div>
+                      </div>
+
+                      {/* Info Row */}
+                      <div className="flex items-center gap-4 mb-3 text-sm text-neutral-600">
+                        <div className="flex items-center gap-1.5">
+                          <LucideIcons.Calendar className="w-4 h-4 text-neutral-400" />
+                          <span>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      {exam.description && (
+                        <p className="text-sm text-neutral-500 mb-3 line-clamp-2">{exam.description}</p>
+                      )}
+
+                      {/* Action Button */}
+                      <button
+                        onClick={() => setSelectedExam(exam)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                      >
+                        <LucideIcons.Eye className="w-5 h-5" />
+                        View Report
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-neutral-200">
                   <thead className="bg-neutral-50">
                     <tr>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Exam</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden sm:table-cell">Subject</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden md:table-cell">Date</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Total Marks</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden sm:table-cell">Avg Score</th>
-                      <th className="px-2 md:px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Exam</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Subject</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Total Marks</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Avg Score</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200">
                     {paginatedExams.map(exam => (
                       <tr key={exam.id} className="hover:bg-neutral-50 transition">
-                        <td className="px-2 md:px-4 py-3 md:py-4">
-                          <div className="font-medium text-black text-sm md:text-base">{exam.title}</div>
+                        <td className="px-4 py-4">
+                          <div className="font-medium text-black text-base">{exam.title}</div>
                           {exam.description && (
-                            <div className="text-xs md:text-sm text-neutral-500 truncate max-w-xs">{exam.description}</div>
+                            <div className="text-sm text-neutral-500 truncate max-w-xs">{exam.description}</div>
                           )}
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-neutral-700 hidden sm:table-cell">
+                        <td className="px-4 py-4 text-sm text-neutral-700">
                           {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4">
+                        <td className="px-4 py-4">
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getExamTypeBadge(exam.exam_type)}`}>
                             {exam.exam_type?.toUpperCase() || 'N/A'}
                           </span>
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-neutral-700 hidden md:table-cell">
+                        <td className="px-4 py-4 text-sm text-neutral-700">
                           {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-neutral-700 font-medium hidden lg:table-cell">
+                        <td className="px-4 py-4 text-sm text-neutral-700 font-medium hidden lg:table-cell">
                           {exam.total_marks || 100}
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm hidden sm:table-cell">
+                        <td className="px-4 py-4 text-sm">
                           {exam.average_score != null ? (
                             <span className="font-medium text-indigo-600">{parseFloat(exam.average_score).toFixed(1)}%</span>
                           ) : (
                             <span className="text-neutral-400">--</span>
                           )}
                         </td>
-                        <td className="px-2 md:px-4 py-3 md:py-4 text-right">
+                        <td className="px-4 py-4 text-right">
                           <button
                             onClick={() => setSelectedExam(exam)}
-                            className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 bg-indigo-600 text-white text-xs md:text-sm rounded-lg hover:bg-indigo-700 transition"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
                           >
-                            <LucideIcons.Eye className="w-3 h-3 md:w-4 md:h-4" />
-                            <span className="hidden sm:inline">View Report</span>
-                            <span className="sm:hidden">View</span>
+                            <LucideIcons.Eye className="w-4 h-4" />
+                            View Report
                           </button>
                         </td>
                       </tr>
@@ -790,34 +897,86 @@ export default function ExamReports() {
             </div>
           ) : examStats ? (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Total Students</div>
-                  <div className="text-2xl font-bold text-black">{examStats.total}</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Graded</div>
-                  <div className="text-2xl font-bold text-green-600">{examStats.submitted}</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Pending</div>
-                  <div className="text-2xl font-bold text-amber-600">{examStats.pending}</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Average</div>
-                  <div className="text-2xl font-bold text-indigo-600">{examStats.average}%</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Highest</div>
-                  <div className="text-2xl font-bold text-green-600">{examStats.highest}%</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Lowest</div>
-                  <div className="text-2xl font-bold text-red-600">{examStats.lowest}%</div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
-                  <div className="text-sm text-neutral-500">Pass Rate</div>
-                  <div className="text-2xl font-bold text-blue-600">{examStats.passRate}%</div>
+              {/* Stats Cards - Scrollable on mobile */}
+              <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
+                <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
+                  <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
+                        <div className="text-xl md:text-2xl font-bold text-black">{examStats.total}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Graded</div>
+                        <div className="text-xl md:text-2xl font-bold text-green-600">{examStats.submitted}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.Clock className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Pending</div>
+                        <div className="text-xl md:text-2xl font-bold text-amber-600">{examStats.pending}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Average</div>
+                        <div className="text-xl md:text-2xl font-bold text-indigo-600">{examStats.average}%</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Highest</div>
+                        <div className="text-xl md:text-2xl font-bold text-green-600">{examStats.highest}%</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Lowest</div>
+                        <div className="text-xl md:text-2xl font-bold text-red-600">{examStats.lowest}%</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px] md:min-w-0">
+                    <div className="flex items-center gap-2 md:block">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
+                        <div className="text-xl md:text-2xl font-bold text-blue-600">{examStats.passRate}%</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -890,18 +1049,190 @@ export default function ExamReports() {
                     </div>
                   )}
                 </div>
-                <div className="overflow-x-auto">
+                {/* Mobile & Tablet Card View for Results */}
+                <div className="lg:hidden">
+                  {/* Tablet: 2-column grid */}
+                  <div className="hidden sm:grid sm:grid-cols-2 gap-4 p-4">
+                    {paginatedResults.map((result, idx) => {
+                      const isGraded = result.is_submitted && result.marks_obtained != null
+                      const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
+                      const grade = isGraded ? getGrade(pct) : null
+                      const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
+                      const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
+
+                      if (isGraded) {
+                        return (
+                          <div key={result.id} className="bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
+                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
+                                  overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
+                                  overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
+                                  'bg-neutral-100 text-neutral-600'
+                                }`}>
+                                  {serialNumber}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-gray-900 text-sm truncate">{result.student_name || 'Unknown'}</div>
+                                  <div className="text-xs text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                                </div>
+                              </div>
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${getGradeColor(grade)}`}>
+                                {grade}
+                              </span>
+                            </div>
+                            <div className="bg-neutral-50 rounded-lg p-2.5">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs text-neutral-600">Marks</span>
+                                <span className="text-sm font-bold text-gray-900">{result.marks_obtained} / {selectedExam.total_marks}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      parseFloat(pct) >= 80 ? 'bg-green-500' :
+                                      parseFloat(pct) >= 60 ? 'bg-blue-500' :
+                                      parseFloat(pct) >= 50 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  ></div>
+                                </div>
+                                <span className={`text-sm font-bold ${
+                                  parseFloat(pct) >= 80 ? 'text-green-600' :
+                                  parseFloat(pct) >= 60 ? 'text-blue-600' :
+                                  parseFloat(pct) >= 50 ? 'text-yellow-600' :
+                                  'text-red-600'
+                                }`}>{pct}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      } else {
+                        return (
+                          <div key={result.id} className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-sm">
+                                {serialNumber}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-900 text-sm truncate">{result.student_name || 'Unknown'}</div>
+                                <div className="text-xs text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                              </div>
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">
+                                Pending
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }
+                    })}
+                  </div>
+
+                  {/* Mobile: Single column list */}
+                  <div className="sm:hidden divide-y divide-neutral-200">
+                    {paginatedResults.map((result, idx) => {
+                      const isGraded = result.is_submitted && result.marks_obtained != null
+                      const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
+                      const grade = isGraded ? getGrade(pct) : null
+                      const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
+                      const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
+
+                      if (isGraded) {
+                        return (
+                          <div key={result.id} className="p-4 hover:bg-neutral-50 transition">
+                            {/* Header with rank and grade */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${
+                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
+                                  overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
+                                  overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
+                                  'bg-neutral-100 text-neutral-600'
+                                }`}>
+                                  {serialNumber}
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-900 text-base">{result.student_name || 'Unknown'}</div>
+                                  <div className="text-sm text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                                </div>
+                              </div>
+                              <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${getGradeColor(grade)}`}>
+                                {grade}
+                              </span>
+                            </div>
+
+                            {/* Score Info */}
+                            <div className="bg-neutral-50 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm text-neutral-600">Marks</span>
+                                <span className="text-base font-bold text-gray-900">{result.marks_obtained} / {selectedExam.total_marks}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 h-2.5 bg-neutral-200 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      parseFloat(pct) >= 80 ? 'bg-green-500' :
+                                      parseFloat(pct) >= 60 ? 'bg-blue-500' :
+                                      parseFloat(pct) >= 50 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  ></div>
+                                </div>
+                                <span className={`text-base font-bold ${
+                                  parseFloat(pct) >= 80 ? 'text-green-600' :
+                                  parseFloat(pct) >= 60 ? 'text-blue-600' :
+                                  parseFloat(pct) >= 50 ? 'text-yellow-600' :
+                                  'text-red-600'
+                                }`}>{pct}%</span>
+                              </div>
+                            </div>
+
+                            {result.remarks && (
+                              <div className="mt-2 text-sm text-neutral-500 italic">
+                                {result.remarks}
+                              </div>
+                            )}
+                          </div>
+                        )
+                    } else {
+                      return (
+                        <div key={result.id} className="p-4 bg-amber-50/50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-base">
+                              {serialNumber}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900 text-base">{result.student_name || 'Unknown'}</div>
+                              <div className="text-sm text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                            </div>
+                            <span className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-100 text-amber-700">
+                              Pending
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    }
+                  })}
+                </div>
+
+                </div>
+
+                {/* Desktop Table View for Results */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="min-w-full divide-y divide-neutral-200">
                     <thead className="bg-neutral-50">
                       <tr>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden md:table-cell">Rank</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Marks</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden sm:table-cell">Percentage</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
-                        <th className="px-2 md:px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Remarks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Marks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Percentage</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Remarks</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
@@ -909,16 +1240,14 @@ export default function ExamReports() {
                         const isGraded = result.is_submitted && result.marks_obtained != null
                         const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
                         const grade = isGraded ? getGrade(pct) : null
-                        // Calculate the serial number based on the page
                         const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
-                        // Determine rank position (only for graded students in top 3 overall)
                         const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
 
                         if (isGraded) {
                           return (
                             <tr key={result.id} className="hover:bg-neutral-50 transition">
-                              <td className="px-2 md:px-4 py-3">
-                                <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm ${
+                              <td className="px-4 py-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
                                   overallRank === 1 ? 'bg-yellow-100 text-yellow-700' :
                                   overallRank === 2 ? 'bg-gray-100 text-gray-700' :
                                   overallRank === 3 ? 'bg-orange-100 text-orange-700' :
@@ -927,21 +1256,21 @@ export default function ExamReports() {
                                   {serialNumber}
                                 </div>
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-neutral-600">
                                 {result.student_svc_number || 'N/A'}
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                              <td className="px-4 py-3 text-sm text-neutral-600">
                                 {result.student_rank || 'N/A'}
                               </td>
-                              <td className="px-2 md:px-4 py-3">
-                                <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-xs md:text-sm font-medium text-black">
+                              <td className="px-4 py-3 text-sm font-medium text-black">
                                 {result.marks_obtained} / {selectedExam.total_marks}
                               </td>
-                              <td className="px-2 md:px-4 py-3 hidden sm:table-cell">
+                              <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-16 md:w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                  <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full rounded-full ${
                                         parseFloat(pct) >= 80 ? 'bg-green-500' :
@@ -952,38 +1281,37 @@ export default function ExamReports() {
                                       style={{ width: `${pct}%` }}
                                     ></div>
                                   </div>
-                                  <span className="text-xs md:text-sm font-medium text-black">{pct}%</span>
+                                  <span className="text-sm font-medium text-black">{pct}%</span>
                                 </div>
                               </td>
-                              <td className="px-2 md:px-4 py-3">
+                              <td className="px-4 py-3">
                                 <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${getGradeColor(grade)}`}>
                                   {grade}
                                 </span>
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-500 max-w-xs truncate hidden lg:table-cell">
+                              <td className="px-4 py-3 text-sm text-neutral-500 max-w-xs truncate hidden lg:table-cell">
                                 {result.remarks || '-'}
                               </td>
                             </tr>
                           )
                         } else {
-                          // Pending/ungraded student
                           return (
                             <tr key={result.id} className="bg-amber-50/50">
-                              <td className="px-2 md:px-4 py-3">
-                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-xs md:text-sm">
+                              <td className="px-4 py-3">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-sm">
                                   {serialNumber}
                                 </div>
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-neutral-600">
                                 {result.student_svc_number || 'N/A'}
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-sm text-neutral-600 hidden md:table-cell">
+                              <td className="px-4 py-3 text-sm text-neutral-600">
                                 {result.student_rank || 'N/A'}
                               </td>
-                              <td className="px-2 md:px-4 py-3">
-                                <div className="font-medium text-black text-sm md:text-base">{result.student_name || 'Unknown'}</div>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
                               </td>
-                              <td className="px-2 md:px-4 py-3 text-xs md:text-sm text-amber-600 font-medium" colSpan={4}>
+                              <td className="px-4 py-3 text-sm text-amber-600 font-medium" colSpan={4}>
                                 Pending Grading
                               </td>
                             </tr>

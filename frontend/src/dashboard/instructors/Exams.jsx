@@ -567,121 +567,213 @@ export default function Exams() {
           {!loading && displayed.length > 0 && (
             <>
               {/* Mobile & Tablet: card list */}
-              <div className="lg:hidden space-y-3">
+              <div className="lg:hidden space-y-4">
                 {displayed.map((x) => {
                   const links = parseLinksFromDescription(x.description)
                   const files = attachmentsMap[x.id] || []
                   const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
                   return (
-                    <div key={x.id} className="bg-white rounded-lg p-4 md:p-5 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={x.id} className="bg-white rounded-xl p-4 shadow-md border border-neutral-200 hover:shadow-lg transition-shadow">
+                      {/* Header with status badge */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-black text-base md:text-lg break-words flex items-center gap-2 flex-wrap">
-                            <span className="truncate">{x.title}</span>
-                            {x.is_active ? <span className="text-[10px] md:text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap">Active</span> : <span className="text-[10px] md:text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full whitespace-nowrap">Inactive</span>}
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            {x.is_active ? (
+                              <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">Active</span>
+                            ) : (
+                              <span className="text-xs bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full font-medium">Inactive</span>
+                            )}
+                            <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium uppercase">
+                              {x.exam_type_display || x.exam_type}
+                            </span>
                           </div>
-                          <div className="text-sm md:text-base text-neutral-600 mt-1">{x.subject_name || x.subject?.name || '—'}</div>
-                          <div className="text-sm text-neutral-500 mt-1">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'} • {x.exam_duration ? `${x.exam_duration} min` : 'No duration'}</div>
+                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{x.title}</h3>
+                          <p className="text-base text-indigo-600 font-medium mt-1">{x.subject_name || x.subject?.name || '—'}</p>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm md:text-base text-neutral-600 font-medium">{x.total_marks ?? '—'} pts</div>
-                          <div className="text-xs md:text-sm mt-1 uppercase tracking-wide text-neutral-500">{x.exam_type_display || x.exam_type}</div>
+                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-3 py-2">
+                          <div className="text-xl font-bold text-indigo-700">{x.total_marks ?? '—'}</div>
+                          <div className="text-xs text-indigo-500 font-medium">marks</div>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-col gap-3">
-                        {/* Metadata section */}
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-3 bg-neutral-50 md:bg-transparent p-2 md:p-0 rounded-md">
-                          <div className="text-sm md:text-base text-neutral-700">
-                            <span className="font-medium">Resources:</span> {totalResources}
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-4 py-3 border-y border-neutral-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                           </div>
-                          <div className="text-sm md:text-base text-neutral-600">
-                            <span className="font-medium">Created by:</span> {x.created_by_name || '—'}
+                          <div>
+                            <div className="text-xs text-neutral-500">Date</div>
+                            <div className="text-sm font-semibold text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
                           </div>
                         </div>
-
-                        {/* Action buttons */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-                          <button
-                            onClick={() => navigate(`/list/results?exam=${x.id}`)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-emerald-600 text-sm md:text-base text-white font-medium hover:bg-emerald-700 transition shadow-sm"
-                          >
-                            Grade
-                          </button>
-                          <button
-                            onClick={() => startEdit(x)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-indigo-600 text-sm md:text-base text-white font-medium hover:bg-indigo-700 transition shadow-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            disabled={deletingId === x.id}
-                            onClick={() => handleDelete(x)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-red-600 text-sm md:text-base text-white font-medium hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
-                          >
-                            {deletingId === x.id ? 'Deleting...' : 'Remove'}
-                          </button>
-                          <button
-                            onClick={() => toggleAttachments(x.id)}
-                            className={`px-3 py-2 md:py-2.5 rounded-md text-sm md:text-base font-medium transition shadow-sm ${
-                              attachmentsOpenId === x.id
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                            aria-expanded={attachmentsOpenId === x.id}
-                            aria-label={attachmentsOpenId === x.id ? 'Hide resources' : 'View resources'}
-                          >
-                            {attachmentsOpenId === x.id ? 'Hide' : 'Resources'}
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Duration</div>
+                            <div className="text-sm font-semibold text-gray-900">{x.exam_duration ? `${x.exam_duration} min` : '—'}</div>
+                          </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Resources</div>
+                            <div className="text-sm font-semibold text-gray-900">{totalResources} file(s)</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Created by</div>
+                            <div className="text-sm font-semibold text-gray-900 truncate max-w-[100px]">{x.created_by_name || '—'}</div>
+                          </div>
+                        </div>
+                      </div>
 
-                        {attachmentsOpenId === x.id && (
-                          <div className="mt-3 bg-neutral-50 p-3 md:p-4 rounded-lg border border-neutral-200 shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-4">
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg className="w-4 h-4 md:w-5 md:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {/* Action buttons - larger touch targets */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => navigate(`/list/results?exam=${x.id}`)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-base text-white font-semibold hover:bg-emerald-700 active:bg-emerald-800 transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                          Grade
+                        </button>
+                        <button
+                          onClick={() => startEdit(x)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-base text-white font-semibold hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => toggleAttachments(x.id)}
+                          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-base font-semibold transition shadow-sm ${
+                            attachmentsOpenId === x.id
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                          }`}
+                          aria-expanded={attachmentsOpenId === x.id}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                          {attachmentsOpenId === x.id ? 'Hide' : 'Resources'}
+                        </button>
+                        <button
+                          disabled={deletingId === x.id}
+                          onClick={() => handleDelete(x)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-base text-white font-semibold hover:bg-red-700 active:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          {deletingId === x.id ? '...' : 'Delete'}
+                        </button>
+                      </div>
+
+                      {/* Resources Panel */}
+                      {attachmentsOpenId === x.id && (
+                        <div className="mt-4 bg-gradient-to-br from-neutral-50 to-blue-50 p-4 rounded-xl border border-neutral-200">
+                          <div className="space-y-4">
+                            {/* Uploaded Files */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                   </svg>
-                                  <div className="text-sm md:text-base font-semibold text-gray-900">Uploaded files</div>
                                 </div>
-                                {(files && files.length > 0) ? (
-                                  <div className="space-y-2">
-                                    {files.map(f => (
-                                      <div key={f.id} className="text-sm p-2 md:p-3 bg-white rounded border border-neutral-200 hover:border-blue-300 transition">
-                                        {((f.file || f.file_url) || '').toLowerCase().match(/\.(png|jpe?g|gif|webp)$/) ? (
-                                          <img src={f.file_url || f.file} alt={f.file ? f.file.split('/').pop() : 'image'} className="max-w-full h-auto rounded mb-2" />
-                                        ) : null}
-                                        <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block md:text-base">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
-                                        <div className="text-xs md:text-sm text-neutral-600 mt-1">📎 {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : <div className="text-sm md:text-base text-neutral-500 italic">No uploaded files</div>}
+                                <div className="text-base font-semibold text-gray-900">Uploaded Files</div>
                               </div>
+                              {(files && files.length > 0) ? (
+                                <div className="space-y-2">
+                                  {files.map(f => (
+                                    <a
+                                      key={f.id}
+                                      href={f.file_url || f.file}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-blue-400 hover:shadow-sm transition active:bg-blue-50"
+                                    >
+                                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-blue-700 truncate">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</div>
+                                        <div className="text-xs text-neutral-500">{f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
+                                      </div>
+                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-neutral-500 italic p-3 bg-white rounded-lg border border-dashed border-neutral-300 text-center">No uploaded files</div>
+                              )}
+                            </div>
 
-                              {(links && links.length > 0) ? (
-                                <div>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <svg className="w-4 h-4 md:w-5 md:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {/* Links */}
+                            {(links && links.length > 0) && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                     </svg>
-                                    <div className="text-sm md:text-base font-semibold text-gray-900">Links</div>
                                   </div>
-                                  <div className="space-y-2">
-                                    {links.map((lnk, idx) => (
-                                      <div key={idx} className="text-sm p-2 md:p-3 bg-white rounded border border-neutral-200 hover:border-blue-300 transition">
-                                        <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block md:text-base">{lnk}</a>
-                                        <span className="text-xs md:text-sm text-neutral-600 mt-1 block">🔗 External link</span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <div className="text-base font-semibold text-gray-900">Links</div>
                                 </div>
-                              ) : null}
-                            </div>
+                                <div className="space-y-2">
+                                  {links.map((lnk, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={lnk}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-purple-400 hover:shadow-sm transition active:bg-purple-50"
+                                    >
+                                      <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-purple-700 truncate">{lnk}</div>
+                                        <div className="text-xs text-neutral-500">External link</div>
+                                      </div>
+                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )})}
               </div>
