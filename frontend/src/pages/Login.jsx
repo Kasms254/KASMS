@@ -43,39 +43,34 @@ export default function Login() {
 
   // Client-side validation before submission
   const validateForm = () => {
-    const errors = {}
+    const fieldErrors = {}
+    let generalError = null
 
     // Validate service number (must be numeric)
     if (!svc_number.trim()) {
-      errors.svc_number = 'Service number is required'
-    } else if (!/^[0-9]+$/.test(svc_number)) {
-      errors.svc_number = 'Service number must contain only numbers'
-    } else if (svc_number.length < 3) {
-      errors.svc_number = 'Service number must be at least 3 digits'
-    } else if (svc_number.length > 15) {
-      errors.svc_number = 'Service number must not exceed 15 digits'
+      fieldErrors.svc_number = 'Service number is required'
+    } else if (!/^[0-9]+$/.test(svc_number) || svc_number.length < 3 || svc_number.length > 15) {
+      generalError = 'Invalid credentials'
     }
 
     // Validate password
     if (!password) {
-      errors.password = 'Password is required'
-    } else if (password.length < 4) {
-      errors.password = 'Password must be at least 4 characters'
-    } else if (password.length > 128) {
-      errors.password = 'Password must not exceed 128 characters'
+      fieldErrors.password = 'Password is required'
+    } else if (password.length < 4 || password.length > 128) {
+      generalError = 'Invalid credentials'
     }
 
-    return errors
+    return { fieldErrors, generalError }
   }
 
   const onSubmit = async (e) => {
     e.preventDefault()
 
     // Client-side validation
-    const validationErrors = validateForm()
-    if (Object.keys(validationErrors).length > 0) {
-      setFieldErrors(validationErrors)
-      setError('Please fix the errors.')
+    const { fieldErrors: validationFieldErrors, generalError } = validateForm()
+    if (Object.keys(validationFieldErrors).length > 0 || generalError) {
+      setFieldErrors(validationFieldErrors)
+      setError(generalError || 'Please fix the errors.')
       return
     }
 
@@ -125,7 +120,7 @@ export default function Login() {
 
             <div className="flex flex-col items-center relative z-10">
               <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
-                <img src="/ka.png" alt="Kenya Army School logo" className="w-full h-full object-contain" />
+                <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
               <h1 className="text-sm md:text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
               <p className="mt-3 text-sm text-red-100 text-center">Manage classes, students, exams and results</p>
@@ -152,7 +147,7 @@ export default function Login() {
           <div className="mb-6 flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 p-0.5 mb-3 shadow-lg">
               <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                <img src="/ka.png" alt="Kenya Army School logo" className="w-12 h-12 object-contain" />
+                <img src="/ka.png" alt="Kenya Army logo" className="w-12 h-12 object-contain" />
               </div>
             </div>
             <div>
@@ -232,13 +227,13 @@ export default function Login() {
               )}
             </label>
 
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-red-800 focus:ring-red-200 focus:ring-offset-0" />
                 <span className="text-sm text-gray-600">Remember me</span>
               </label>
               <a href="#" className="text-sm text-red-800 hover:text-red-900 font-medium transition-colors">Forgot password?</a>
-            </div>
+            </div> */}
 
             <div className="pt-2">
               <button
@@ -264,9 +259,10 @@ export default function Login() {
             ) : null}
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account? <a href="#" className="text-red-800 hover:text-red-900 font-medium transition-colors">Request access</a>
+          <p className="mt-8 text-center text-sm text-gray-500">
+                         © {new Date().getFullYear()} KASMS All rights reserved.
           </p>
+
         </div>
       </div>
     </div>

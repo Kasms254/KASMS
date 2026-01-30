@@ -1028,9 +1028,9 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h3 className="font-semibold text-gray-900">{session.title}</h3>
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[session.status]}`}>
               {session.status}
@@ -1078,7 +1078,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {session.status === 'scheduled' && (
             <button
               onClick={onStart}
@@ -1094,25 +1094,25 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               {session.enable_manual_marking && (
                 <button
                   onClick={onShowAttendance}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
                 >
                   <UserCheck className="w-4 h-4" />
-                  Mark Attendance
+                  <span className="hidden sm:inline">Mark</span>
                 </button>
               )}
               <button
                 onClick={onShowQR}
-                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
               >
                 <QrCode className="w-4 h-4" />
-                QR Code
+                <span className="hidden sm:inline">QR</span>
               </button>
               <button
                 onClick={onEnd}
-                className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
               >
                 <Square className="w-4 h-4" />
-                End
+                <span className="hidden sm:inline">End</span>
               </button>
             </>
           )}
