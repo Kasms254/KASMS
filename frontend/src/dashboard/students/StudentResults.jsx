@@ -17,6 +17,8 @@ export default function StudentResults() {
   const [viewMode, setViewMode] = useState('table') // 'table' or 'cards'
   const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
   const transcriptMenuRef = useRef(null)
+  const [transcriptClasses, setTranscriptClasses] = useState([])
+
 
   // Close transcript menu when clicking outside
   useEffect(() => {
@@ -293,33 +295,62 @@ export default function StudentResults() {
   // Download transcript for a specific class or all classes
   async function downloadTranscript(transcriptClassId = null) {
     setShowTranscriptMenu(false)
-    
-    // Determine which results to use based on selection
-    let rows
-    let transcriptResultsByClass
-    
+    const sourceClasses =
+      transcriptClasses.length ? transcriptClasses : resultsByClass
+
+    let rows = []
+    let transcriptResultsByClass = []
+
     if (transcriptClassId === 'all') {
-      // All classes
-      rows = results || []
-      transcriptResultsByClass = resultsByClass
+      transcriptResultsByClass = sourceClasses
+      rows = sourceClasses.flatMap(c => c.results)
     } else if (transcriptClassId) {
-      // Specific class
-      rows = results.filter(r => String(r.class_id) === String(transcriptClassId))
-      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(transcriptClassId))
-    } else {
-      // Current class (default)
-      rows = currentClassResults
-      transcriptResultsByClass = resultsByClass.filter(g => String(g.classId) === String(currentClass?.id))
+      const group = sourceClasses.find(
+        g => String(g.classId) === String(transcriptClassId)
+      )
+      if (group) {
+        transcriptResultsByClass = [group]
+        rows = group.results
+      }
+    } else if (currentClass?.id) {
+      const group = sourceClasses.find(
+        g => String(g.classId) === String(currentClass.id)
+      )
+      if (group) {
+        transcriptResultsByClass = [group]
+        rows = group.results
+      }
     }
-    
-    if (!rows || rows.length === 0) {
-      if (toast?.error) toast.error('No results to download for the selected class.')
+
+    if (!rows.length) {
+      toast?.error?.('No results to download for the selected class.')
       return
     }
 
     try {
       const { jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
+
+      // Load logo as base64 before PDF generation
+      const logoUrl = '/ka.png';
+      const getImageBase64 = url => new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+      let logoBase64 = null;
+      try {
+        logoBase64 = await getImageBase64(logoUrl);
+      } catch {}
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
@@ -339,43 +370,106 @@ export default function StudentResults() {
 
       // Helper function to draw header on each page
       function drawHeader(title, subtitle) {
-        doc.setFillColor(79, 70, 229) // indigo-600
-        doc.rect(0, 0, pageWidth, 60, 'F')
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(24)
-        doc.setFont(undefined, 'bold')
-        doc.text(title, margin, 35)
-        if (subtitle) {
-          doc.setFontSize(12)
-          doc.setFont(undefined, 'normal')
-          doc.text(subtitle, margin, 52)
+        // Maroon color: rgb(128, 0, 0)
+        const headerHeight = 140;
+        doc.setFillColor(128, 0, 0);
+        doc.rect(0, 0, pageWidth, headerHeight, 'F');
+        // Add ka.png logo centered if available and space the system name below it
+        const defaultSystemNameY = 80;
+        const defaultTitleOffset = 30;
+        if (logoBase64) {
+          const logoWidth = 60, logoHeight = 60;
+          const logoTop = 10;
+          doc.addImage(logoBase64, 'PNG', (pageWidth - logoWidth) / 2, logoTop, logoWidth, logoHeight);
+          // place system name a bit below the logo
+          const systemNameY = logoTop + logoHeight + 12; // 12pt gap
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.text('Kenya Army School Management System', pageWidth / 2, systemNameY, { align: 'center' });
+
+          // Add transcript title below system name
+          doc.setFontSize(22);
+          doc.setFont(undefined, 'bold');
+          doc.text(title, pageWidth / 2, systemNameY + 22, { align: 'center' });
+          if (subtitle) {
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            doc.text(subtitle, pageWidth / 2, systemNameY + 40, { align: 'center' });
+          }
+        } else {
+          // fallback positions when no logo
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.text('Kenya Army School Management System', pageWidth / 2, defaultSystemNameY, { align: 'center' });
+          doc.setFontSize(22);
+          doc.setFont(undefined, 'bold');
+          doc.text(title, pageWidth / 2, defaultSystemNameY + defaultTitleOffset, { align: 'center' });
+          if (subtitle) {
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            doc.text(subtitle, pageWidth / 2, defaultSystemNameY + defaultTitleOffset + 18, { align: 'center' });
+          }
         }
       }
 
       // Helper function to draw student info
       function drawStudentInfo(startY) {
-        let yPos = startY
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(12)
-        doc.setFont(undefined, 'bold')
-        doc.text('Student Information', margin, yPos)
+        // Distribute four fields evenly across the content width
+        let yPos = startY;
+        const labelFontSize = 11;
+        const valueFontSize = 11;
+        doc.setTextColor(0, 0, 0);
 
-        yPos += 20
-        doc.setFontSize(10)
-        doc.setFont(undefined, 'normal')
+        const contentWidth = pageWidth - (2 * margin);
+        const cols = 4;
+        const colWidth = contentWidth / cols;
 
-        if (studentSvc) {
-          doc.text(`Service Number: ${studentSvc}`, margin, yPos)
-          yPos += 15
+        const fields = [
+          { label: 'Service Number:', value: String(studentSvc || '-') },
+          { label: 'Rank:', value: String(studentRank || '-') },
+          { label: 'Name:', value: String(studentName) },
+          { label: 'Generated:', value: String(generatedDate) }
+        ];
+
+        const padding = 8;
+        for (let i = 0; i < cols; i++) {
+          const colX = margin + (i * colWidth);
+          // label on left of column
+          doc.setFontSize(labelFontSize);
+          doc.setFont(undefined, 'bold');
+          const labelX = colX + padding;
+          let label = fields[i].label || '';
+          // Add a small space after the colon for Service Number only
+          if (i === 0 && label && !label.endsWith(' ')) label = label + ' ';
+          doc.text(label, labelX, yPos);
+
+          // place value immediately after the colon when possible,
+          // otherwise right-align within the column to avoid overflow
+          doc.setFontSize(valueFontSize);
+          doc.setFont(undefined, 'normal');
+          const value = fields[i].value || '';
+          const labelWidth = doc.getTextWidth(label) || 0;
+          const valueWidth = doc.getTextWidth(value) || 0;
+          const gap = 4;
+
+          // preferred X for adjacent placement
+          let valueX = labelX + labelWidth + gap;
+          const maxValueRight = colX + colWidth - padding;
+
+          // If the value would overflow the column, right-align instead
+          if (valueX + valueWidth > maxValueRight) {
+            valueX = maxValueRight - valueWidth;
+            // ensure we don't overlap the label
+            const minValueX = labelX + labelWidth + gap;
+            if (valueX < minValueX) valueX = minValueX;
+          }
+
+          doc.text(value, valueX, yPos);
         }
-        if (studentRank) {
-          doc.text(`Rank: ${studentRank}`, margin, yPos)
-          yPos += 15
-        }
-        doc.text(`Name: ${studentName}`, margin, yPos)
-        doc.text(`Generated: ${generatedDate}`, pageWidth - margin - 150, yPos)
 
-        return yPos + 15
+        return yPos + 20;
       }
 
       // Helper function to draw summary box
@@ -449,8 +543,8 @@ export default function StudentResults() {
             lineWidth: 0.5
           },
           headStyles: {
-            fillColor: [79, 70, 229],
-            textColor: 255,
+            fillColor: [255, 255, 255], // no header color
+            textColor: 0,
             fontSize: 11,
             fontStyle: 'bold',
             halign: 'left'
@@ -509,7 +603,8 @@ export default function StudentResults() {
           const classLabel = `${classGroup.className}${classGroup.courseName ? ` — ${classGroup.courseName}` : ''}`
           
           drawHeader('Academic Transcript', classLabel)
-          let yPos = drawStudentInfo(80)
+          let yPos = 185;
+          yPos = drawStudentInfo(yPos)
           yPos = drawSummaryBox(yPos + 15, classGroup.results, null)
           drawResultsTable(yPos, classGroup.results)
 
@@ -519,8 +614,8 @@ export default function StudentResults() {
         // Add a summary page at the end with overall totals
         doc.addPage()
         drawHeader('Academic Transcript', 'Overall Summary - All Classes')
-        let yPos = drawStudentInfo(80)
-        
+        let yPos = 185;
+        yPos = drawStudentInfo(yPos)
         yPos += 15
         doc.setFontSize(12)
         doc.setFont(undefined, 'bold')
@@ -552,8 +647,8 @@ export default function StudentResults() {
             lineWidth: 0.5
           },
           headStyles: {
-            fillColor: [79, 70, 229],
-            textColor: 255,
+            fillColor: [255, 255, 255], // no header color
+            textColor: 0,
             fontSize: 11,
             fontStyle: 'bold'
           },
@@ -604,7 +699,8 @@ export default function StudentResults() {
           : null
 
         drawHeader('Academic Transcript', classInfo)
-        let yPos = drawStudentInfo(80)
+        let yPos = 185;
+        yPos = drawStudentInfo(yPos)
         yPos = drawSummaryBox(yPos + 15, rows, null)
         drawResultsTable(yPos, rows)
         drawFooter(classInfo)
@@ -738,7 +834,37 @@ export default function StudentResults() {
           )}
           <div className="flex items-center justify-end relative" ref={transcriptMenuRef}>
             <button
-              onClick={() => setShowTranscriptMenu(!showTranscriptMenu)}
+              onClick={async () =>{
+                if (!showTranscriptMenu) {
+                  try{
+                    const resAll = await api.getMyResults({ show_all: true })
+                    const all = Array.isArray(resAll)
+                     ? resAll : Array.isArray(resAll?.results)
+                      ? resAll.results : []
+
+                      const groups = {}
+                      for (const r of all) {
+                        const classId = r.class_id
+                        if (!groups[classId]) {
+                          groups[classId] = {
+                            classId,
+                            className: r.class_name || 'Unnamed Class',
+                            courseName: r.course_name || null,
+                            results: []
+                          }
+                        }
+                        groups[classId].results.push(r)
+                      
+                      }
+                      setTranscriptClasses(Object.values(groups))
+                  } catch {
+                    setTranscriptClasses(resultsByClass
+
+                    )
+                  }
+                }
+                setShowTranscriptMenu(v => !v)
+              }}
               disabled={!results || results.length === 0}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm hover:shadow"
               aria-label="Download transcript as PDF"
@@ -772,7 +898,7 @@ export default function StudentResults() {
                 )}
                 
                 {/* Other classes */}
-                {resultsByClass.filter(g => String(g.classId) !== String(currentClass?.id)).map(classGroup => (
+                {(transcriptClasses.length ? transcriptClasses : resultsByClass).filter(g => String(g.classId) !== String(currentClass?.id)).map(classGroup => (
                   <button
                     key={classGroup.classId}
                     onClick={() => downloadTranscript(classGroup.classId)}
@@ -787,7 +913,7 @@ export default function StudentResults() {
                 ))}
                 
                 {/* All classes option (only if multiple classes) */}
-                {resultsByClass.length > 1 && (
+                {(transcriptClasses.length || resultsByClass.length) > 1 && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Icons from 'lucide-react'
 
-export default function ModernDatePicker({ value, onChange, label, placeholder = "Select date" }) {
+export default function ModernDatePicker({ value, onChange, label, placeholder = "Select date", minDate = null, maxDate = null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const dropdownRef = useRef(null)
@@ -79,7 +79,10 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
   const goToToday = () => {
     const today = new Date()
     setCurrentMonth(today)
-    handleDateClick(today)
+    // Only select today if it's within the allowed range
+    if (!isDisabled(today)) {
+      handleDateClick(today)
+    }
   }
 
   const isToday = (date) => {
@@ -95,6 +98,28 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
     return date.getDate() === selectedDate.getDate() &&
            date.getMonth() === selectedDate.getMonth() &&
            date.getFullYear() === selectedDate.getFullYear()
+  }
+
+  const isDisabled = (date) => {
+    if (!date) return false
+    const check = new Date(date)
+    check.setHours(0, 0, 0, 0)
+
+    // Check if date is before minDate
+    if (minDate) {
+      const min = new Date(minDate)
+      min.setHours(0, 0, 0, 0)
+      if (check < min) return true
+    }
+
+    // Check if date is after maxDate
+    if (maxDate) {
+      const max = new Date(maxDate)
+      max.setHours(0, 0, 0, 0)
+      if (check > max) return true
+    }
+
+    return false
   }
 
   const clearDate = () => {
@@ -177,14 +202,18 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
 
               const today = isToday(date)
               const selected = isSelected(date)
+              const disabled = isDisabled(date)
 
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => handleDateClick(date)}
+                  onClick={() => !disabled && handleDateClick(date)}
+                  disabled={disabled}
                   className={`
                     aspect-square flex items-center justify-center rounded text-xs font-medium transition-all
-                    ${selected
+                    ${disabled
+                      ? 'text-gray-300 cursor-not-allowed bg-gray-50'
+                      : selected
                       ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
                       : today
                       ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'

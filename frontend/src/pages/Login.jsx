@@ -43,39 +43,34 @@ export default function Login() {
 
   // Client-side validation before submission
   const validateForm = () => {
-    const errors = {}
+    const fieldErrors = {}
+    let generalError = null
 
     // Validate service number (must be numeric)
     if (!svc_number.trim()) {
-      errors.svc_number = 'Service number is required'
-    } else if (!/^[0-9]+$/.test(svc_number)) {
-      errors.svc_number = 'Service number must contain only numbers'
-    } else if (svc_number.length < 3) {
-      errors.svc_number = 'Service number must be at least 3 digits'
-    } else if (svc_number.length > 15) {
-      errors.svc_number = 'Service number must not exceed 15 digits'
+      fieldErrors.svc_number = 'Service number is required'
+    } else if (!/^[0-9]+$/.test(svc_number) || svc_number.length < 3 || svc_number.length > 15) {
+      generalError = 'Invalid credentials'
     }
 
     // Validate password
     if (!password) {
-      errors.password = 'Password is required'
-    } else if (password.length < 4) {
-      errors.password = 'Password must be at least 4 characters'
-    } else if (password.length > 128) {
-      errors.password = 'Password must not exceed 128 characters'
+      fieldErrors.password = 'Password is required'
+    } else if (password.length < 4 || password.length > 128) {
+      generalError = 'Invalid credentials'
     }
 
-    return errors
+    return { fieldErrors, generalError }
   }
 
   const onSubmit = async (e) => {
     e.preventDefault()
 
     // Client-side validation
-    const validationErrors = validateForm()
-    if (Object.keys(validationErrors).length > 0) {
-      setFieldErrors(validationErrors)
-      setError('Please fix the errors.')
+    const { fieldErrors: validationFieldErrors, generalError } = validateForm()
+    if (Object.keys(validationFieldErrors).length > 0 || generalError) {
+      setFieldErrors(validationFieldErrors)
+      setError(generalError || 'Please fix the errors.')
       return
     }
 
@@ -115,37 +110,50 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-        {/* Graphic / branding */}
-        <div className="hidden md:flex flex-col justify-center px-6">
-          <div className="mb-6">
-            <h1 className="text-4xl font-extrabold text-black">Welcome</h1>
-            <p className="mt-2 text-sm text-gray-600">Sign in to manage classes, students and school data.</p>
-          </div>
+      <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        {/* Graphic / branding: modern maroon gradient hero with logo */}
+        <div className="hidden lg:flex items-center justify-center px-6">
+          <div className="w-full max-w-md p-8 rounded-3xl bg-gradient-to-br from-red-900 via-red-800 to-rose-900 text-white shadow-2xl transform transition hover:scale-[1.01] relative overflow-hidden">
+            {/* Decorative background elements */}
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
-          <div className="rounded-2xl p-6 bg-gradient-to-tr from-indigo-50 to-pink-50 shadow-md">
-            <div className="text-indigo-600 mb-4 flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">SM</div>
-              <div>
-                <div className="text-sm font-semibold">Kenya Army School Management System</div>
-                <div className="text-xs text-gray-500">Organize your academic life.</div>
+            <div className="flex flex-col items-center relative z-10">
+              <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
+                <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
-            </div>
-            <div className="text-sm text-gray-700">
-              <ul className="list-disc pl-5 space-y-2">
-                <li>Fast class & student management</li>
-                <li>Assignments, exams and results</li>
-                <li>Secure role-based access</li>
-              </ul>
+              <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
+              <p className="mt-3 text-sm text-red-100 text-center">Manage classes, students, exams and results</p>
+              <div className="mt-6 flex gap-3 flex-wrap justify-center">
+                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
+                  <LucideIcons.FileText className="w-3.5 h-3.5" />
+                  Assignments
+                </span>
+                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
+                  <LucideIcons.ClipboardList className="w-3.5 h-3.5" />
+                  Exams
+                </span>
+                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
+                  <LucideIcons.BarChart3 className="w-3.5 h-3.5" />
+                  Results
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-10">
-          <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-black">Sign in to your account</h2>
-            <p className="text-sm text-gray-500">Use your school credentials to continue</p>
+        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100 w-full max-w-md mx-auto lg:max-w-none">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 p-0.5 mb-3 shadow-lg">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                <img src="/ka.png" alt="Kenya Army logo" className="w-12 h-12 object-contain" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">Welcome back</h2>
+              <p className="text-sm text-gray-500 mt-1">Sign in with your school credentials</p>
+            </div>
           </div>
 
           <form
@@ -155,17 +163,17 @@ export default function Login() {
             autoComplete="on"
           >
             <label className="block">
-              <span className="text-sm text-gray-700">Service Number</span>
-              <div className="mt-1 relative">
-                {renderIcon('Mail', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
+              <span className="text-sm font-medium text-gray-700">Service Number</span>
+              <div className="mt-1.5 relative">
+                {renderIcon('User', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type="text"
                   inputMode="numeric"
                   required
                   value={svc_number}
                   onChange={handleServiceNumberChange}
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${
-                    fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'focus:ring-indigo-200'
+                  className={`w-full pl-10 pr-3 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
                   }`}
                   placeholder="e.g., 123456"
                   aria-invalid={!!fieldErrors.svc_number}
@@ -184,18 +192,18 @@ export default function Login() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-gray-700">Password</span>
-              <div className="mt-1 relative">
-                {renderIcon('Lock', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-3' })}
+              <span className="text-sm font-medium text-gray-700">Password</span>
+              <div className="mt-1.5 relative">
+                {renderIcon('Lock', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type={show ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`w-full pl-10 pr-10 py-2 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 ${
-                    fieldErrors.password ? 'border-red-300 focus:ring-red-200' : 'focus:ring-indigo-200'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.password ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
                   }`}
-                  placeholder="Your password"
+                  placeholder="Enter your password"
                   aria-invalid={!!fieldErrors.password}
                   aria-describedby={fieldErrors.password ? 'password-error' : undefined}
                   autoComplete="current-password"
@@ -205,7 +213,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShow((s) => !s)}
-                  className="absolute right-2 top-2 text-gray-500 p-1 rounded hover:bg-gray-100 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   aria-label={show ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                 >
@@ -219,19 +227,19 @@ export default function Login() {
               )}
             </label>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="form-checkbox h-4 w-4 text-indigo-600" />
+            {/* <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-red-800 focus:ring-red-200 focus:ring-offset-0" />
                 <span className="text-sm text-gray-600">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-indigo-600">Forgot password?</a>
-            </div>
+              <a href="#" className="text-sm text-red-800 hover:text-red-900 font-medium transition-colors">Forgot password?</a>
+            </div> */}
 
-            <div>
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full inline-flex items-center justify-center gap-2 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' })
@@ -249,28 +257,12 @@ export default function Login() {
                 </div>
               </div>
             ) : null}
-
-            <div className="flex items-center gap-3">
-              <div className="h-px bg-gray-200 flex-1" />
-              <div className="text-xs text-gray-400">or continue with</div>
-              <div className="h-px bg-gray-200 flex-1" />
-            </div>
-
-            {/* <div className="flex gap-3">
-              <button type="button" className="flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-lg border border-gray-200 hover:shadow-sm">
-                {renderIcon('Google', { className: 'w-4 h-4 text-rose-500' })}
-                <span className="text-sm">Google</span>
-              </button>
-              <button type="button" className="flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-lg border border-gray-200 hover:shadow-sm">
-                {renderIcon('Github', { className: 'w-4 h-4' })}
-                <span className="text-sm">GitHub</span>
-              </button>
-            </div> */}
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account? <a href="#" className="text-indigo-600">Request access</a>
+          <p className="mt-8 text-center text-sm text-gray-500">
+                         © {new Date().getFullYear()} KASMS All rights reserved.
           </p>
+
         </div>
       </div>
     </div>
