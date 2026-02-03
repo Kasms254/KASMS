@@ -4,6 +4,18 @@ import { getCoursesPaginated, addCourse, updateCourse, getClasses } from '../../
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
+// Sanitize text input by removing script tags, HTML tags, and control characters
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // eslint-disable-next-line no-control-regex
+  const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(controlChars, '')
+    .trim()
+}
+
 export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [courses, setCourses] = useState([])
@@ -174,7 +186,8 @@ export default function Courses() {
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.name ? 'border-rose-500' : 'border-neutral-200'}`}
                       placeholder="e.g. Computer Science"
                       value={newCourse.name}
-                      onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })}
+                      maxLength={50}
+                      onChange={(e) => setNewCourse({ ...newCourse, name: sanitizeInput(e.target.value).slice(0, 50) })}
                     />
                     {courseErrors.name && <div className="text-xs text-rose-600 mt-1">{courseErrors.name}</div>}
                   </div>
@@ -185,7 +198,8 @@ export default function Courses() {
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.code ? 'border-rose-500' : 'border-neutral-200'}`}
                       placeholder="e.g. CS101"
                       value={newCourse.code}
-                      onChange={(e) => setNewCourse({ ...newCourse, code: e.target.value })}
+                      maxLength={15}
+                      onChange={(e) => setNewCourse({ ...newCourse, code: sanitizeInput(e.target.value).slice(0, 15) })}
                     />
                     {courseErrors.code && <div className="text-xs text-rose-600 mt-1">{courseErrors.code}</div>}
                   </div>
@@ -196,7 +210,8 @@ export default function Courses() {
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.description ? 'border-rose-500' : 'border-neutral-200'}`}
                       placeholder="Short description of the course"
                       value={newCourse.description}
-                      onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
+                      maxLength={150}
+                      onChange={(e) => setNewCourse({ ...newCourse, description: sanitizeInput(e.target.value).slice(0, 150) })}
                     />
                     {courseErrors.description && <div className="text-xs text-rose-600 mt-1">{courseErrors.description}</div>}
                   </div>
@@ -248,17 +263,17 @@ export default function Courses() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Course name *</label>
-                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Computer Science" value={editCourseForm.name} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: e.target.value })} />
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Computer Science" value={editCourseForm.name} maxLength={50} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: sanitizeInput(e.target.value).slice(0, 50) })} />
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Course code</label>
-                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. CS101" value={editCourseForm.code} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: e.target.value })} />
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. CS101" value={editCourseForm.code} maxLength={15} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: sanitizeInput(e.target.value).slice(0, 15) })} />
                   </div>
 
                   <div className="sm:col-span-2">
                     <label className="text-sm text-neutral-600 mb-1 block">Description</label>
-                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description of the course" value={editCourseForm.description} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: e.target.value })} />
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description of the course" value={editCourseForm.description} maxLength={150} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: sanitizeInput(e.target.value).slice(0, 150) })} />
                   </div>
                 </div>
 

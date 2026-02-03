@@ -612,6 +612,7 @@ export default function StudentAttendance() {
                 value={historyFilter.startDate}
                 onChange={(value) => setHistoryFilter(f => ({ ...f, startDate: value }))}
                 placeholder="Select start date"
+                maxDate={new Date().toISOString().split('T')[0]}
               />
 
               {/* End Date */}
@@ -620,6 +621,7 @@ export default function StudentAttendance() {
                 value={historyFilter.endDate}
                 onChange={(value) => setHistoryFilter(f => ({ ...f, endDate: value }))}
                 placeholder="Select end date"
+                maxDate={new Date().toISOString().split('T')[0]}
               />
 
               {/* Action Buttons */}

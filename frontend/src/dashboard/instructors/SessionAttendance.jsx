@@ -46,6 +46,9 @@ export default function SessionAttendance() {
   const [markedPage, setMarkedPage] = useState(1)
   const [markedPageSize, setMarkedPageSize] = useState(10)
 
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null })
+
   // Load session and attendance data
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -87,15 +90,22 @@ export default function SessionAttendance() {
   }
 
   // Mark all absent
-  async function handleMarkAllAbsent() {
-    if (!window.confirm('Mark all unmarked students as absent?')) return
-    try {
-      const result = await api.markAbsentStudents(sessionId)
-      toast.success(`Marked ${result.marked_count || 0} students as absent`)
-      loadData()
-    } catch (err) {
-      toast.error(err.message || 'Failed to mark absent')
-    }
+  function handleMarkAllAbsent() {
+    setConfirmModal({
+      open: true,
+      title: 'Mark All Absent',
+      message: 'Are you sure you want to mark all unmarked students as absent? This action cannot be undone.',
+      onConfirm: async () => {
+        setConfirmModal({ open: false, title: '', message: '', onConfirm: null })
+        try {
+          const result = await api.markAbsentStudents(sessionId)
+          toast.success(`Marked ${result.marked_count || 0} students as absent`)
+          loadData()
+        } catch (err) {
+          toast.error(err.message || 'Failed to mark absent')
+        }
+      }
+    })
   }
 
   // Export CSV
@@ -543,6 +553,38 @@ export default function SessionAttendance() {
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
           <h3 className="font-semibold text-yellow-800 mb-1">Manual Marking Disabled</h3>
           <p className="text-sm text-yellow-700">Manual marking was not enabled for this session.</p>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmModal({ open: false, title: '', message: '', onConfirm: null })} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-black">{confirmModal.title}</h4>
+              </div>
+              <p className="text-sm text-neutral-600 mb-6">{confirmModal.message}</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setConfirmModal({ open: false, title: '', message: '', onConfirm: null })}
+                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

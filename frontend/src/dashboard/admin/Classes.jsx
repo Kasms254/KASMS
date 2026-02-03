@@ -4,6 +4,18 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 
+// Sanitize text input by removing script tags, HTML tags, and control characters
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // eslint-disable-next-line no-control-regex
+  const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(controlChars, '')
+    .trim()
+}
+
 export default function ClassesList(){
   const [classes, setClasses] = useState([])
   const { user } = useAuth()
@@ -354,7 +366,19 @@ export default function ClassesList(){
                 } catch (err) {
                   const d = err?.data
                   if (d && typeof d === 'object') {
-                    setClassErrors(d)
+                    // Transform backend error messages to user-friendly messages
+                    const friendlyErrors = { ...d }
+                    const dateFields = ['start_date', 'end_date']
+                    dateFields.forEach(field => {
+                      if (friendlyErrors[field]) {
+                        const errVal = friendlyErrors[field]
+                        const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
+                        if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
+                          friendlyErrors[field] = 'Please select the date'
+                        }
+                      }
+                    })
+                    setClassErrors(friendlyErrors)
                     const nonField = d.non_field_errors || d.detail || d.message || d.error
                     if (nonField) {
                       const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
@@ -376,13 +400,13 @@ export default function ClassesList(){
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
-                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="e.g. Class A" />
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} maxLength={50} onChange={(e) => setClassForm({ ...classForm, name: sanitizeInput(e.target.value).slice(0, 50) })} placeholder="e.g. Class A" />
                     {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
-                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="e.g. CLS-001" />
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} maxLength={20} onChange={(e) => setClassForm({ ...classForm, class_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. CLS-001" />
                     {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
                   </div>
 
@@ -451,7 +475,27 @@ export default function ClassesList(){
                 if (!classForm.name) errs.name = 'Class name required'
                 if (!classForm.course) errs.course = 'Please select a course'
                 if (!classForm.instructor) errs.instructor = 'Please select an instructor'
-                if (Object.keys(errs).length) { setClassErrors(errs); return }
+                // Date validation: end date should be after start date
+                if (classForm.start_date && classForm.end_date) {
+                  const start = new Date(classForm.start_date)
+                  const end = new Date(classForm.end_date)
+                  if (end < start) {
+                    errs.end_date = 'End date must be after start date'
+                  }
+                }
+                // Capacity validation: must be a positive number if provided
+                if (classForm.capacity) {
+                  const cap = Number(classForm.capacity)
+                  if (isNaN(cap) || cap < 1) {
+                    errs.capacity = 'Capacity must be a positive number'
+                  }
+                }
+                if (Object.keys(errs).length) {
+                  setClassErrors(errs)
+                  if (toast?.error) toast.error('Please check the highlighted fields')
+                  else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                  return
+                }
                 setIsSaving(true)
                 try {
                   const payload = {
@@ -472,7 +516,19 @@ export default function ClassesList(){
                 } catch (err) {
                   const d = err?.data
                   if (d && typeof d === 'object') {
-                    setClassErrors(d)
+                    // Transform backend error messages to user-friendly messages
+                    const friendlyErrors = { ...d }
+                    const dateFields = ['start_date', 'end_date']
+                    dateFields.forEach(field => {
+                      if (friendlyErrors[field]) {
+                        const errVal = friendlyErrors[field]
+                        const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
+                        if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
+                          friendlyErrors[field] = 'Please select the date'
+                        }
+                      }
+                    })
+                    setClassErrors(friendlyErrors)
                     const nonField = d.non_field_errors || d.detail || d.message || d.error
                     if (nonField) {
                       const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
@@ -489,19 +545,19 @@ export default function ClassesList(){
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
-                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} placeholder="e.g. Class A" />
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} maxLength={50} onChange={(e) => { setClassForm({ ...classForm, name: sanitizeInput(e.target.value).slice(0, 50) }); setClassErrors(prev => ({ ...prev, name: undefined })); }} placeholder="e.g. Class A" />
                     {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
-                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value })} placeholder="e.g. CLS-001" />
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} maxLength={20} onChange={(e) => { setClassForm({ ...classForm, class_code: sanitizeInput(e.target.value).slice(0, 20) }); setClassErrors(prev => ({ ...prev, class_code: undefined })); }} placeholder="e.g. CLS-001" />
                     {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Course *</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.course ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.course} onChange={(e) => setClassForm({ ...classForm, course: e.target.value })}>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.course ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.course} onChange={(e) => { setClassForm({ ...classForm, course: e.target.value }); setClassErrors(prev => ({ ...prev, course: undefined })); }}>
                       <option value="">— Select course —</option>
                       {coursesList.map(c => <option key={c.id} value={c.id}>{c.name || c.code}</option>)}
                     </select>
@@ -510,7 +566,7 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => { setClassForm({ ...classForm, instructor: e.target.value }); setClassErrors(prev => ({ ...prev, instructor: undefined })); }}>
                       <option value="">— Select instructor —</option>
                       {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
                     </select>
@@ -519,20 +575,29 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
-                    <input type="date" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.start_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.start_date} onChange={(e) => { setClassForm({ ...classForm, start_date: e.target.value }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })); }} />
+                    {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">End date</label>
-                    <input type="date" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.end_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.end_date} onChange={(e) => { setClassForm({ ...classForm, end_date: e.target.value }); setClassErrors(prev => ({ ...prev, end_date: undefined })); }} />
+                    {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
-                    <input type="number" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} placeholder="e.g. 30" />
+                    <input type="number" min="1" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })); }} placeholder="e.g. 30" />
                     {classErrors.capacity && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
                   </div>
                 </div>
+
+                {/* General error alert when there are validation errors */}
+                {Object.keys(classErrors).length > 0 && (
+                  <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                    <p className="text-sm text-rose-700">Please fix the highlighted errors before submitting.</p>
+                  </div>
+                )}
 
                 <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
                   <label className="inline-flex items-center gap-2">
@@ -567,13 +632,13 @@ export default function ClassesList(){
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Subject name *</label>
-                    <input placeholder="e.g. Mathematics" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSubjectErrors(prev => ({ ...prev, name: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                    <input placeholder="e.g. Mathematics" value={form.name} maxLength={50} onChange={(e) => { setForm({ ...form, name: sanitizeInput(e.target.value).slice(0, 50) }); setSubjectErrors(prev => ({ ...prev, name: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} />
                     {subjectErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.name) ? subjectErrors.name.join(' ') : String(subjectErrors.name)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Subject code</label>
-                    <input placeholder="e.g. MATH101" value={form.subject_code} onChange={(e) => { setForm({ ...form, subject_code: e.target.value }); setSubjectErrors(prev => ({ ...prev, subject_code: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.subject_code ? 'border-rose-500' : 'border-neutral-200'}`} />
+                    <input placeholder="e.g. MATH101" value={form.subject_code} maxLength={20} onChange={(e) => { setForm({ ...form, subject_code: sanitizeInput(e.target.value).slice(0, 20) }); setSubjectErrors(prev => ({ ...prev, subject_code: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.subject_code ? 'border-rose-500' : 'border-neutral-200'}`} />
                     {subjectErrors.subject_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.subject_code) ? subjectErrors.subject_code.join(' ') : String(subjectErrors.subject_code)}</div>}
                   </div>
 
@@ -597,7 +662,7 @@ export default function ClassesList(){
 
                   <div className="sm:col-span-2">
                     <label className="text-sm text-neutral-600 mb-1 block">Description *</label>
-                    <textarea placeholder="Short description of the subject" value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); setSubjectErrors(prev => ({ ...prev, description: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.description ? 'border-rose-500' : 'border-neutral-200'}`} rows={3} />
+                    <textarea placeholder="Short description of the subject" value={form.description} maxLength={150} onChange={(e) => { setForm({ ...form, description: sanitizeInput(e.target.value).slice(0, 150) }); setSubjectErrors(prev => ({ ...prev, description: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.description ? 'border-rose-500' : 'border-neutral-200'}`} rows={3} />
                     {subjectErrors.description && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.description) ? subjectErrors.description.join(' ') : String(subjectErrors.description)}</div>}
                   </div>
                 </div>
