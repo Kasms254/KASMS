@@ -13,8 +13,28 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['superadmin', 'admin', 'instructor', 'student'],
       },
+      // Superadmin-only items
+      {
+        icon: 'Building2',
+        label: 'Schools',
+        href: '/superadmin/schools',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'UserCog',
+        label: 'Admins',
+        href: '/superadmin/admins',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'BarChart3',
+        label: 'System Stats',
+        href: '/superadmin/stats',
+        visible: ['superadmin'],
+      },
+      // Admin items
       {
         icon: 'User',
         label: 'Add User',
@@ -131,7 +151,7 @@ const menuItems = [
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['superadmin', 'admin', 'instructor', 'student'],
       },
     ],
   },

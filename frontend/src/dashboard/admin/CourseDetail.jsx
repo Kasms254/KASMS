@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getCourses, getAllClasses, addClass, getAllInstructors, getClassEnrolledStudents } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function CourseDetail(){
   const { id } = useParams()
@@ -13,8 +14,9 @@ export default function CourseDetail(){
   const [showOnlyActive, setShowOnlyActive] = useState(true)
   const [instructors, setInstructors] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
-  const [classForm, setClassForm] = useState({ name: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
   const [classErrors, setClassErrors] = useState({})
+  const [isSaving, setIsSaving] = useState(false)
   const [studentsModalOpen, setStudentsModalOpen] = useState(false)
   const [selectedClass, setSelectedClass] = useState(null)
   const [enrolledStudents, setEnrolledStudents] = useState([])
@@ -85,23 +87,60 @@ export default function CourseDetail(){
   async function handleAddClass(e){
     e.preventDefault()
     setClassErrors({})
-    if (!classForm.name) return reportError('Class name required')
-    if (classForm.start_date && classForm.end_date && classForm.end_date <= classForm.start_date) return reportError('End must be after start')
-    const payload = { ...classForm, course: id, instructor: classForm.instructor || null, capacity: Number(classForm.capacity) || 30 }
+
+    // Client-side validation
+    const errors = {}
+    if (!classForm.name?.trim()) errors.name = 'Class name is required'
+    if (!classForm.instructor) errors.instructor = 'Please select an instructor'
+    if (classForm.start_date && classForm.end_date) {
+      const start = new Date(classForm.start_date)
+      const end = new Date(classForm.end_date)
+      if (end < start) errors.end_date = 'End date must be after start date'
+    }
+    if (classForm.capacity && (isNaN(Number(classForm.capacity)) || Number(classForm.capacity) < 1)) {
+      errors.capacity = 'Capacity must be a positive number'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setClassErrors(errors)
+      reportError('Please fix the highlighted errors')
+      return
+    }
+
+    setIsSaving(true)
+    const payload = {
+      name: classForm.name.trim(),
+      class_code: classForm.class_code?.trim() || undefined,
+      course: id,
+      instructor: classForm.instructor ? Number(classForm.instructor) : null,
+      start_date: classForm.start_date || null,
+      end_date: classForm.end_date || null,
+      capacity: Number(classForm.capacity) || 30,
+      is_active: classForm.is_active
+    }
     try{
       await addClass(payload)
-      reportSuccess('Class added')
-      setClassForm({ name: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
+      reportSuccess('Class added successfully')
+      setClassForm({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
       setModalOpen(false)
       await loadClasses()
     }catch(err){
       const d = err?.data
       if (d && typeof d === 'object'){
         const fieldErrors = {}
-        Object.keys(d).forEach(k => { if (Array.isArray(d[k])) fieldErrors[k] = d[k].join(' '); else fieldErrors[k] = String(d[k]) })
-        if (Object.keys(fieldErrors).length){ setClassErrors(fieldErrors); return }
+        Object.keys(d).forEach(k => {
+          if (Array.isArray(d[k])) fieldErrors[k] = d[k].join(' ')
+          else fieldErrors[k] = String(d[k])
+        })
+        if (Object.keys(fieldErrors).length) {
+          setClassErrors(fieldErrors)
+          reportError('Please check the highlighted fields')
+          return
+        }
       }
       reportError(err?.message || 'Failed to add class')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -227,32 +266,124 @@ export default function CourseDetail(){
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isSaving) setModalOpen(false) }} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Add class to {course?.name || ''}</h4>
+                  <h4 className="text-lg text-black font-medium">Add Class</h4>
+                  <p className="text-sm text-neutral-500">Create a new class under {course?.name || 'this course'}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => { if (!isSaving) setModalOpen(false) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
-              <form onSubmit={handleAddClass} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input placeholder="Class name" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <select value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black">
-                  <option value="">— Select instructor —</option>
-                  {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                </select>
-                <input type="number" min={1} value={classForm.capacity} onChange={(e) => setClassForm({ ...classForm, capacity: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" placeholder="Capacity" />
-                <input type="date" value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <input type="date" value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} className="p-2 rounded-md border border-neutral-200 text-black" />
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} />
-                  <span className="text-sm text-neutral-600">Active</span>
-                </label>
 
-                <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 transition">Add class</button>
+              <form onSubmit={handleAddClass}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class Name *</label>
+                    <input
+                      placeholder="e.g. Class A"
+                      value={classForm.name}
+                      onChange={(e) => { setClassForm({ ...classForm, name: e.target.value }); setClassErrors(prev => ({ ...prev, name: undefined })) }}
+                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-red-500' : 'border-neutral-200'}`}
+                    />
+                    {classErrors.name && <p className="text-red-500 text-xs mt-1">{classErrors.name}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class Code</label>
+                    <input
+                      placeholder="e.g. CLS-001"
+                      value={classForm.class_code}
+                      onChange={(e) => { setClassForm({ ...classForm, class_code: e.target.value }); setClassErrors(prev => ({ ...prev, class_code: undefined })) }}
+                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-red-500' : 'border-neutral-200'}`}
+                    />
+                    {classErrors.class_code && <p className="text-red-500 text-xs mt-1">{classErrors.class_code}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
+                    <select
+                      value={classForm.instructor}
+                      onChange={(e) => { setClassForm({ ...classForm, instructor: e.target.value }); setClassErrors(prev => ({ ...prev, instructor: undefined })) }}
+                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-red-500' : 'border-neutral-200'}`}
+                    >
+                      <option value="">— Select instructor —</option>
+                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
+                    </select>
+                    {classErrors.instructor && <p className="text-red-500 text-xs mt-1">{classErrors.instructor}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="e.g. 30"
+                      value={classForm.capacity}
+                      onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })) }}
+                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-red-500' : 'border-neutral-200'}`}
+                    />
+                    {classErrors.capacity && <p className="text-red-500 text-xs mt-1">{classErrors.capacity}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Start Date</label>
+                    <ModernDatePicker
+                      value={classForm.start_date}
+                      onChange={(date) => { setClassForm({ ...classForm, start_date: date }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })) }}
+                      placeholder="Select start date"
+                    />
+                    {classErrors.start_date && <p className="text-red-500 text-xs mt-1">{classErrors.start_date}</p>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">End Date</label>
+                    <ModernDatePicker
+                      value={classForm.end_date}
+                      onChange={(date) => { setClassForm({ ...classForm, end_date: date }); setClassErrors(prev => ({ ...prev, end_date: undefined })) }}
+                      placeholder="Select end date"
+                      minDate={classForm.start_date || null}
+                    />
+                    {classErrors.end_date && <p className="text-red-500 text-xs mt-1">{classErrors.end_date}</p>}
+                  </div>
+                </div>
+
+                <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
+                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={classForm.is_active}
+                      onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })}
+                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-neutral-600">Class is active</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { if (!isSaving) setModalOpen(false) }}
+                    disabled={isSaving}
+                    className="px-4 py-2 rounded-lg text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Adding...
+                      </>
+                    ) : (
+                      'Add Class'
+                    )}
+                  </button>
                 </div>
               </form>
             </div>

@@ -11,6 +11,7 @@ export default function DashboardIndex() {
   if (!user) return <Navigate to="/" replace />
 
   // Redirect based on role
+  if (user.role === 'superadmin') return <Navigate to="/superadmin" replace />
   if (user.role === 'admin') return <Navigate to="/dashboard/admin" replace />
   if (user.role === 'instructor') return <Navigate to="/dashboard/instructors" replace />
   if (user.role === 'student') return <Navigate to="/dashboard/students" replace />
