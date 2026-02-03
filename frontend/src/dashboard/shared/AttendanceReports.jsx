@@ -11,6 +11,7 @@ import {
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6']
 const STATUS_COLORS = {
@@ -198,9 +199,53 @@ export default function AttendanceReports() {
       doc.text(`Period: ${dateRange.startDate} to ${dateRange.endDate}`, 14, 32)
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 38)
 
-      // Summary stats
+      // Student Details Table (first)
+      const studentStats = classSummary.student_statistics || []
+      let currentY = 52
+
+      if (studentStats.length > 0) {
+        doc.setFontSize(14)
+        doc.text('Student Details', 14, currentY)
+
+        // Sort students by attendance rate (descending)
+        const sortedStudents = [...studentStats].sort((a, b) =>
+          (b.attendance_rate || 0) - (a.attendance_rate || 0)
+        )
+
+        const studentData = sortedStudents.map(student => [
+          student.student_name || '—',
+          student.svc_number || student.student_svc_number || '—',
+          String(student.present || 0),
+          String(student.late || 0),
+          String(student.absent || 0),
+          String(student.excused || 0),
+          `${(student.attendance_rate || 0).toFixed(1)}%`
+        ])
+
+        autoTable(doc, {
+          startY: currentY + 5,
+          head: [['Student Name', 'SVC Number', 'Present', 'Late', 'Absent', 'Excused', 'Rate']],
+          body: studentData,
+          theme: 'grid',
+          headStyles: { fillColor: [99, 102, 241] },
+          styles: { fontSize: 9 },
+          columnStyles: {
+            0: { cellWidth: 45 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 18, halign: 'center' },
+            3: { cellWidth: 18, halign: 'center' },
+            4: { cellWidth: 18, halign: 'center' },
+            5: { cellWidth: 18, halign: 'center' },
+            6: { cellWidth: 20, halign: 'center' }
+          }
+        })
+
+        currentY = doc.lastAutoTable?.finalY || currentY + 50
+      }
+
+      // Summary stats (after student details)
       doc.setFontSize(14)
-      doc.text('Summary', 14, 52)
+      doc.text('Summary', 14, currentY + 15)
 
       const summaryData = [
         ['Total Students', String(classSummary.total_students || 0)],
@@ -212,9 +257,8 @@ export default function AttendanceReports() {
         ['Excused', String(classSummary.by_status?.excused || 0)],
       ]
 
-      // Use autoTable as a function, passing doc as first argument
       autoTable(doc, {
-        startY: 56,
+        startY: currentY + 20,
         head: [['Metric', 'Value']],
         body: summaryData,
         theme: 'grid',
@@ -269,21 +313,22 @@ export default function AttendanceReports() {
           {selectedClass && (
             <>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Start Date</label>
-                <input
-                  type="date"
+                <ModernDatePicker
+                  label="Start Date"
                   value={dateRange.startDate}
-                  onChange={(e) => setDateRange(d => ({ ...d, startDate: e.target.value }))}
-                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  onChange={(value) => setDateRange(d => ({ ...d, startDate: value }))}
+                  maxDate={new Date().toISOString().slice(0, 10)}
+                  placeholder="Select start date"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">End Date</label>
-                <input
-                  type="date"
+                <ModernDatePicker
+                  label="End Date"
                   value={dateRange.endDate}
-                  onChange={(e) => setDateRange(d => ({ ...d, endDate: e.target.value }))}
-                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  onChange={(value) => setDateRange(d => ({ ...d, endDate: value }))}
+                  minDate={dateRange.startDate}
+                  maxDate={new Date().toISOString().slice(0, 10)}
+                  placeholder="Select end date"
                 />
               </div>
               <div className="flex items-end">
