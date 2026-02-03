@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification,
+from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer,
-    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,
+    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
@@ -27,9 +27,269 @@ import io
 import csv
 from django.http import HttpResponse
 from django.db import transaction
+from rest_framework.permissions import BasePermission
+from .managers import get_current_school
+
+class IsSuperAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'superadmin'
+
+class IsSchoolAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and 
+            request.user.role in ['admin', 'superadmin']
+        )
+
+class SchoolViewSet(viewsets.ModelViewSet):
+
+    queryset =  School.objects.all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'city']
+    search_fields = ['name', 'code', 'email']
+    ordering_fields = ['created_at', 'name', 'code']
+    ordering = ['created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return SchoolListSerializer
+        elif self.action == 'create_with_admin':
+            return SchoolCreateWithAdminSerializer
+        return SchoolSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'create_with_admin', 'destroy']:
+            return [IsSuperAdmin()]
+        return [IsSchoolAdmin()]
+
+    def get_queryset(self):
+            queryset = super().get_queryset()
+            user = self.request.user
+
+            if user.role == 'superadmin':
+                return queryset.annotate(
+                    student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
+                    instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+                )
+            
+            return queryset.filter(id=user.school_id).annotate(
+                student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
+                instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+            )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsSuperAdmin])
+    def create_with_admin(self, request):
+        serializer = SchoolCreateWithAdminSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+
+        return Response({
+            'status': 'success',
+            'message': f'School {result["school"].name} created successfully.',
+            'school' : SchoolSerializer(result['school']).data,
+            'admin_user': UserListSerializer(result['admin_user']).data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def theme(self, request, pk=None):
+
+        school = self.get_object()
+        return Response (school.get_theme)
+
+    @action(detail=True, methods=['patch'])
+    def update_theme(self, request, pk=None):
+        school = self.get_object()
+
+        allowed_fields = ['primary_color', 'secondary_color', 'accent_color', 'theme_config', 'logo']
+
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(school, field, request.data[field])
+
+        school.save()
+        return Response({
+            'status': 'success',
+            'theme': school.get_theme()
+        })
+
+    @action(detail=True, methods=['get'])
+    def statistics(self, request, pk=None):
+
+        school = self.get_object()
+
+        stats ={
+            'users':{
+                'total': school.users.filter(is_active=True).count(),
+                'students': school.users.filter(role='student',is_active=True).count(),
+                'instructors': school.users.filter(role='instructor', is_active=True).count(),
+                'admins': school.users.filter(role="admin", is_active=True).count(),
+                'commandants':school.users.filter(role='commandant', is_active=True).count(),
+            },
+            'academic':{
+                'courses':school.courses.filter(is_active=True).count(),
+                'classes': school.classes.filter(is_active= True).count(),
+                'subjects': school.subjects.filter(is_active=True).count(),
+                'active_enrollments': school.enrollments.filter(is_active=True).count(),
+            },
+            'limits':{
+                'max_students': school.max_students,
+                'current_students':school.current_student_count,
+                'student_capacity_used': round((school.current_student_count / school.max_students) * 100, 2),
+                'max_instructors': school.max_instructors,
+                'current_instructors':school.current_instructor_count,
+                'instructor_capacity_used':round((school.current_instructor_count /school.max_instructors) * 100, 2),
+                'within_limits':school.is_within_limits
+            },
+            'subscription':{
+                'start_date':school.subscription_start,
+                'end_date': school.subscription_end,
+                'is_active':school.is_active
+            }
+        }
+
+        return Response(stats)
+
+    @action(detail=True, methods=['get'])
+    def admins(self, request, pk=None):
+        school = self.get_object()
+        school_admins =school.school_admins.select_related('user').all()
+        serializer = SchoolAdminSerializer(school_admins, many=True)
+        return Response({
+            'count': school_admins.count(),
+            'results':serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
+    def add_admin(self, request, pk=None):
+        school = self.get_object()
+        user_id = request.data.get('user_id')
+        is_primary = request.data.get('is_primary', False)
+
+        try:
+            user = User.objects.get(id=user_id, school=school, role='admin')
+        except User.DoesNotExist:
+            return Response({
+                'error': 'User not found or not an admin in this school'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if SchoolAdmin.objects.filter(school=school, user=user).exists():
+            return Response({
+                'error': 'User is already an admin for this school'
+            }, status = status.HTTP_400_BAD_REQUEST)
+
+
+        school_admin = SchoolAdmin.objects.create(
+            school=school,
+            user=user,
+            is_primary=is_primary
+        )        
+        return Response({
+            'status': 'success',
+            'message':f'{user.get_full_name()} added as school admin',
+            'school_admin':SchoolAdminSerializer(school_admin).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        school = self.get_object()
+        school.is_active = True
+        school.save()
+        return Response({
+            'status': 'success',
+            'message':f'School {school.name} activated'
+        })
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        school = self.get_object()
+        school.is_active = False
+        school.save()
+        return Response({
+            'status': 'success',
+            'message': f'School {school.name} deactivated'
+        })
+
+class SchoolAdminViewSet(viewsets.ModelViewSet):
+
+    queryset = SchoolAdmin.objects.select_related('school', 'user').all()
+    serializer_class = SchoolAdminSerializer
+    permission_classes = [IsAuthenticated, IsSchoolAdmin]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['school', 'is_primary']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if user.role == 'superadmin':
+            return queryset
+
+        return queryset.filter(school=user.school)
+
+class UserViewSetWithSchool(viewsets.ModelViewSet):
+    @action(detail=False, methods=['get'])
+    def check_enrollment_eligibility(self, request):
+
+        student_id = request.query_params.get('student_id')
+
+        if not student_id:
+            return Response({
+                'error': 'student_id parameter required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student = User.objects.get(id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Student not found',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        all_enrollments = Enrollment.all_objects.filter(
+            student=student
+        ).select_related('school', 'class_obj')
+
+        active_enrollments = all_enrollments.filter(is_active=True)
+        past_enrollments = all_enrollments.filter(is_active=False)
+
+
+        current_school = request.school
+        can_enroll = not active_enrollments.exists()
+
+        blocking_enrollment = None
+        if active_enrollments.exists():
+            blocking_enrollment = active_enrollments.first()
+
+        return Response({
+            'student': UserSerializerWithSchool(student).data,
+            'can_enroll_in_current_school':can_enroll,
+            'current_school':{
+                'id':str(current_school.id),
+                'name':current_school.name,
+                'code':current_school.code
+            } if current_school else None,
+            'active_enrollments':{
+                'count': active_enrollments.count(),
+                'details':[{
+                    'school': e.school.name,
+                    'school_code':e.school.code,
+                    'class':e.class_obj.name,
+                    'enrollment_date':e.enrollment_date,
+                } for e in active_enrollments]
+            },
+            'past_enrollments':{
+                'count': past_enrollments.count(),
+                'details':[{
+                    'school': e.school.name,
+                    'school_code': e.school.code,
+                    'class':e.class_obj.name,
+                    'enrollment_date':e.enrollment.date,
+                    'completion_date':e.completion_date,
+                }   for e in past_enrollments]
+                },
+            'blocking_reason': f"student has aactive_enrollment in {blocking_enrollment.school.name}" if blocking_enrollment else None
+        })
 
 class UserViewSet(viewsets.ModelViewSet):
-
     queryset = User.objects.all()
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -311,15 +571,15 @@ class CourseViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        serializer.save(school=school)
+    
     def get_queryset(self):
-       
-        return Course.objects.annotate(
+        return super().get_queryset().annotate(
             classes_count=Count('classes', distinct=True)
         )
     
-    def perform_create(self, serializer):
-        serializer.save()
-
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
         course = self.get_object()
@@ -334,21 +594,20 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def stats(self, request):
+        queryset = self.get_queryset()
 
         has_is_active = any(f.name == 'is_active' for f in Course._meta.get_fields())
-        total_courses = Course.objects.count()
-        active_courses = Course.objects.filter(is_active=True).count() if has_is_active else total_courses
-        inactive_courses = Course.objects.filter(is_active=False).count() if has_is_active else 0
-        active_classes = Course.objects.filter(is_active=True).count()
-
-        stats ={
+        total_courses = queryset.count()
+        active_courses = queryset.filter(is_active=True).count() if has_is_active else total_courses
+        inactive_courses = queryset.filter(is_active=False).count() if has_is_active else 0
+        
+        stats = {
             'total_courses': total_courses,
             'active_courses': active_courses,  
             'inactive_courses': inactive_courses,
-            'total_classes': total_courses,
-            'active_classes': active_classes
+            'total_classes': Class.objects.count(), 
+            'active_classes': Class.objects.filter(is_active=True).count()
         }
-
         return Response(stats)
     
 class ClassViewSet(viewsets.ModelViewSet):
@@ -361,6 +620,10 @@ class ClassViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'name', 'start_date']
     ordering = ['-created_at']
 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        serializer.save(school=school)
+
     def get_serializer_class(self):
 
         if self.action == 'list':
@@ -372,8 +635,6 @@ class ClassViewSet(viewsets.ModelViewSet):
         return super().get_queryset().annotate(
             enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True)
         )
-    def perform_create(self, serializer):
-        serializer.save()
 
     @action(detail=True, methods=['get'])
     def subjects(self, request, pk=None):
@@ -509,13 +770,13 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        serializer.save()
+        school = get_current_school()
+        serializer.save(school=school)
 
     @action(detail=True, methods=['post'])
     def assign_instructor(self, request, pk=None):
         subject = self.get_object()
         instructor_id = request.data.get('instructor_id')
-
 
         if not instructor_id:
             return Response(
@@ -606,14 +867,15 @@ class NoticeViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'title', 'priority']
 
 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        serializer.save(school=school, created_by=self.request.user)
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
 
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
-    
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
 
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -737,8 +999,9 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     ordering = ['-enrollment_date']
     
     def perform_create(self, serializer):
-      
-        serializer.save(enrolled_by=self.request.user)
+        
+        school = get_current_school()
+        serializer.save(school=school, enrolled_by = self.request.user)
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -898,7 +1161,9 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         if exam_type == 'final' and is_active:
             self.check_final_exam_constraint(subject)
-            
+
+        
+        school = get_current_school()    
         serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
@@ -1015,7 +1280,7 @@ class ExamAttachmentViewSet(viewsets.ModelViewSet):
             if exam.subject.instructor != self.request.user:
                 raise PermissionDenied("You can only upload docs to your own exam")
         
-
+        school = get_current_school()
         serializer.save(
             exam=exam,
             uploaded_by=self.request.user
@@ -1495,6 +1760,7 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You cannot create notices for classes you dont teach!")
 
+        school = get_current_school()
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -1590,7 +1856,8 @@ class ExamReportViewSet(viewsets.ModelViewSet):
 
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        school = get_current_school()
+        serializer.save(school=school, created_by = self.request.user)
 
     
     @action(detail=True, methods=['get'])
@@ -2414,6 +2681,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         )
     )    
     def perform_create(self, serializer):
+        school = get_current_school()
         session = serializer.save(created_by = self.request.user)
 
         AttendanceSessionLog.objects.create(
@@ -2826,8 +3094,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
-        # Allow narrowing to a single session via query params.
-        # Accept either `session` (AttendanceSession PK) or `session_id` (AttendanceSession.session_id UUID).
         session_pk = self.request.query_params.get('session')
         session_uuid = self.request.query_params.get('session_id')
 
@@ -2842,6 +3108,8 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        
+        school = get_current_school()
         attendance = serializer.save(marked_by=self.request.user)
 
         AttendanceSessionLog.objects.create(

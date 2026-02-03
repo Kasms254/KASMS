@@ -49,6 +49,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.TenantMiddleware",
+    "core.middleware.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -84,20 +86,20 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
-    # "default": {
-    #     # "ENGINE": "django.db.backends.sqlite3",
-    #     # "NAME": BASE_DIR / "db.sqlite3",
-    #     "ENGINE":os.getenv('ENGINE'),
-    #     "NAME": os.getenv('DB_NAME', default='kasms_db'),
-    #     "USER": os.getenv('DB_USER', default='kasms_user'),
-    #     "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
-    #     "HOST": os.getenv('HOST', default='localhost'),
-    #     "PORT": os.getenv('PORT', default='5432'),
+    "default": {
+        # "ENGINE": "django.db.backends.sqlite3",
+        # "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE":os.getenv('ENGINE'),
+        "NAME": os.getenv('DB_NAME', default='kasms_db'),
+        "USER": os.getenv('DB_USER', default='kasms_user'),
+        "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
+        "HOST": os.getenv('HOST', default='localhost'),
+        "PORT": os.getenv('PORT', default='5432'),
         
-    # }
-     "default": dj_database_url.config(
-        default=os.environ.get("DATABASE_URL")
-    )
+    }
+    #  "default": dj_database_url.config(
+    #     default=os.environ.get("DATABASE_URL")
+    # )
 }
 
 # Password validation

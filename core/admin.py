@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice
+from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School, SchoolAdmin
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -114,3 +114,10 @@ class AttendanceAdmin(admin.ModelAdmin):
             obj.created_at = timezone.now()
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
+
+@admin.register(School)
+class School(admin.ModelAdmin):
+    list_display = ('id', 'name', 'short_name', 'short_name', 'max_students', 'max_instructors')
+    list_filter = ['is_active']
+    search_fields = ['name']
+    ordering = ['-name']

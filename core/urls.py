@@ -6,7 +6,7 @@ from .views import (
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
     ExamViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,
+, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
@@ -51,6 +51,10 @@ router.register(r'attendance-reports', AttendanceReportViewSet, basename='attend
 
 #PersonalNotification
 router.register(r'personal-notifications', PersonalNotificationViewSet, basename='personal-notification') 
+
+# schools
+router.register(r'schools', SchoolViewSet, basename='school')
+router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
