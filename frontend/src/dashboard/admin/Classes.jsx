@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getAllCourses } from '../../lib/api'
+import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, deleteClass, getAllCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -41,6 +41,9 @@ export default function ClassesList(){
   // errors and saving state for the "Add subject" modal
   const [subjectErrors, setSubjectErrors] = useState({})
   const [subjectSaving, setSubjectSaving] = useState(false)
+  // delete confirmation modal state
+  const [confirmDeleteClass, setConfirmDeleteClass] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const toast = useToast()
   const reportError = useCallback((msg) => {
     if (!msg) return
@@ -457,15 +460,64 @@ export default function ClassesList(){
                   </label>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save changes'}</button>
+                <div className="flex justify-between gap-2 mt-4">
+                  <button type="button" onClick={() => setConfirmDeleteClass(editingClass)} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save changes'}</button>
+                  </div>
                 </div>
               </form>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Class Modal */}
+      {confirmDeleteClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeleteClass(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                    <span className="text-red-600 text-lg">!</span>
+                  </div>
+                  <h4 className="text-lg font-medium text-black">Delete class</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDeleteClass(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4">Are you sure you want to delete <strong>{confirmDeleteClass.name || confirmDeleteClass.class_code}</strong>? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmDeleteClass(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button
+                  onClick={async () => {
+                    setIsDeleting(true)
+                    try {
+                      await deleteClass(confirmDeleteClass.id)
+                      if (toast?.success) toast.success('Class deleted')
+                      else if (toast?.showToast) toast.showToast('Class deleted', { type: 'success' })
+                      setConfirmDeleteClass(null)
+                      setEditModalOpen(false)
+                      loadClasses()
+                    } catch (err) {
+                      reportError(err?.message || 'Failed to delete class')
+                    } finally {
+                      setIsDeleting(false)
+                    }
+                  }}
+                  disabled={isDeleting}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Class Modal */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -488,6 +540,15 @@ export default function ClassesList(){
                 if (!classForm.name) errs.name = 'Class name required'
                 if (!classForm.course) errs.course = 'Please select a course'
                 if (!classForm.instructor) errs.instructor = 'Please select an instructor'
+                // Date validation: start date cannot be in the past
+                if (classForm.start_date) {
+                  const start = new Date(classForm.start_date)
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  if (start < today) {
+                    errs.start_date = 'Start date cannot be in the past'
+                  }
+                }
                 // Date validation: end date should be after start date
                 if (classForm.start_date && classForm.end_date) {
                   const start = new Date(classForm.start_date)
@@ -597,6 +658,7 @@ export default function ClassesList(){
                       value={classForm.start_date}
                       onChange={(date) => { setClassForm({ ...classForm, start_date: date }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })); }}
                       placeholder="Select start date"
+                      minDate={new Date().toISOString().split('T')[0]}
                     />
                     {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
                   </div>
@@ -607,7 +669,7 @@ export default function ClassesList(){
                       value={classForm.end_date}
                       onChange={(date) => { setClassForm({ ...classForm, end_date: date }); setClassErrors(prev => ({ ...prev, end_date: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, end_date: undefined }).length > 0); }}
                       placeholder="Select end date"
-                      minDate={classForm.start_date || null}
+                      minDate={classForm.start_date || new Date().toISOString().split('T')[0]}
                     />
                     {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
                   </div>

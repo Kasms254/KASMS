@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Card from '../../components/Card'
-import { getCoursesPaginated, addCourse, updateCourse, getClasses } from '../../lib/api'
+import { getCoursesPaginated, addCourse, updateCourse, deleteCourse, getClasses } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
@@ -44,6 +44,9 @@ export default function Courses() {
     if (toast?.showToast) return toast.showToast(msg, { type: 'success' })
   }, [toast])
     const [courseErrors, setCourseErrors] = useState({})
+  // delete confirmation modal state
+  const [confirmDeleteCourse, setConfirmDeleteCourse] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     // load courses on mount and fetch active class counts per course
@@ -277,11 +280,58 @@ export default function Courses() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Save changes</button>
+                <div className="flex justify-between gap-2 mt-4">
+                  <button type="button" onClick={() => setConfirmDeleteCourse(editingCourse)} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                    <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Save changes</button>
+                  </div>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Course Modal */}
+      {confirmDeleteCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeleteCourse(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                    <span className="text-red-600 text-lg">!</span>
+                  </div>
+                  <h4 className="text-lg font-medium text-black">Delete course</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDeleteCourse(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4">Are you sure you want to delete <strong>{confirmDeleteCourse.name || confirmDeleteCourse.code}</strong>? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmDeleteCourse(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button
+                  onClick={async () => {
+                    setIsDeleting(true)
+                    try {
+                      await deleteCourse(confirmDeleteCourse.id)
+                      reportSuccess('Course deleted')
+                      setConfirmDeleteCourse(null)
+                      setEditCourseModalOpen(false)
+                      load()
+                    } catch (err) {
+                      reportError(err?.message || 'Failed to delete course')
+                    } finally {
+                      setIsDeleting(false)
+                    }
+                  }}
+                  disabled={isDeleting}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

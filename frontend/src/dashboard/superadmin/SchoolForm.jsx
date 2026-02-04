@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Upload, Save, Building2, Palette, X, UserCog, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import * as api from '../../lib/api'
+import {
+  validateLogoFile,
+  sanitizeInput,
+  sanitizeName,
+  sanitizeSchoolCode,
+  sanitizePhone,
+  sanitizeHexColor,
+  sanitizeNumeric,
+  FIELD_LIMITS,
+} from '../../lib/validators'
 import useToast from '../../hooks/useToast'
 
 export default function SchoolForm() {
@@ -98,38 +108,120 @@ export default function SchoolForm() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
 
-    // Validate admin service number - only allow numbers
-    if (name === 'admin_svc_number') {
-      const numericValue = value.replace(/[^0-9]/g, '')
-      setForm((prev) => ({ ...prev, [name]: numericValue }))
+    // Handle checkbox separately
+    if (type === 'checkbox') {
+      setForm((prev) => ({ ...prev, [name]: checked }))
       if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }))
       return
     }
 
-    // Calculate password strength
-    if (name === 'admin_password') {
-      setPasswordStrength(calculatePasswordStrength(value))
+    // Sanitize based on field type
+    let sanitizedValue = value
+
+    switch (name) {
+      // Numeric-only fields
+      case 'admin_svc_number':
+        sanitizedValue = sanitizeNumeric(value, FIELD_LIMITS.SERVICE_NUMBER)
+        break
+
+      // Phone fields
+      case 'phone':
+      case 'admin_phone':
+        sanitizedValue = sanitizePhone(value, FIELD_LIMITS.PHONE)
+        break
+
+      // Name fields (letters, spaces, hyphens, apostrophes)
+      case 'admin_first_name':
+      case 'admin_last_name':
+        sanitizedValue = sanitizeName(value, FIELD_LIMITS.NAME)
+        break
+
+      // School code (uppercase alphanumeric + underscore)
+      case 'code':
+        sanitizedValue = sanitizeSchoolCode(value, FIELD_LIMITS.SCHOOL_CODE)
+        break
+
+      // Color fields (hex validation)
+      case 'primary_color':
+      case 'secondary_color':
+      case 'accent_color':
+        // Only sanitize if it looks like they're typing a hex code
+        if (value.startsWith('#') || /^[a-fA-F0-9]+$/.test(value)) {
+          sanitizedValue = sanitizeHexColor(value) || value
+        }
+        break
+
+      // School name
+      case 'name':
+        sanitizedValue = sanitizeInput(value, { maxLength: FIELD_LIMITS.SCHOOL_NAME })
+        break
+
+      // Short name
+      case 'short_name':
+        sanitizedValue = sanitizeInput(value, { maxLength: FIELD_LIMITS.SHORT_NAME })
+        break
+
+      // Address (allow newlines)
+      case 'address':
+        sanitizedValue = sanitizeInput(value, { maxLength: FIELD_LIMITS.ADDRESS, allowNewlines: true })
+        break
+
+      // City
+      case 'city':
+        sanitizedValue = sanitizeInput(value, { maxLength: FIELD_LIMITS.CITY })
+        break
+
+      // Email fields - trim only, let HTML5 validation handle format
+      case 'email':
+      case 'admin_email':
+        sanitizedValue = value.trim().slice(0, FIELD_LIMITS.EMAIL)
+        break
+
+      // Password fields - don't sanitize (allow special chars), just limit length
+      case 'admin_password':
+      case 'admin_password2':
+        sanitizedValue = value.slice(0, FIELD_LIMITS.PASSWORD_MAX)
+        if (name === 'admin_password') {
+          setPasswordStrength(calculatePasswordStrength(sanitizedValue))
+        }
+        break
+
+      // Number fields
+      case 'max_students':
+      case 'max_instructors':
+        // Keep as-is for number inputs
+        sanitizedValue = value
+        break
+
+      // Default: apply general sanitization
+      default:
+        sanitizedValue = sanitizeInput(value)
     }
 
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
+    setForm((prev) => ({ ...prev, [name]: sanitizedValue }))
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }))
     }
   }
 
-  const handleLogoChange = (e) => {
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setLogoFile(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setLogoPreview(reader.result)
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    // Validate the file
+    const validation = await validateLogoFile(file)
+    if (!validation.valid) {
+      toast.error(validation.error)
+      e.target.value = '' // Reset file input
+      return
     }
+
+    setLogoFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setLogoPreview(reader.result)
+    }
+    reader.readAsDataURL(file)
   }
 
   const removeLogo = () => {

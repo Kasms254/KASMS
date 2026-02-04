@@ -925,13 +925,13 @@ export default function AdminInstructors() {
                   <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
                     <option value="general">General</option>
-                    <option value="lieutenant colonel">Lieutenant Colonel</option>
+                    <option value="lieutenant_colonel">Lieutenant Colonel</option>
                     <option value="major">Major</option>
                     <option value="captain">Captain</option>
                     <option value="lieutenant">Lieutenant</option>
-                    <option value="warrant_officer">Warrant Officer I</option>
-                    <option value="warrant_officer">Warrant Officer II</option>
-                    <option value="seniorsergeant">Senior Sergeant</option>
+                    <option value="warrant_officer_i">Warrant Officer I</option>
+                    <option value="warrant_officer_ii">Warrant Officer II</option>
+                    <option value="senior_sergeant">Senior Sergeant</option>
                     <option value="sergeant">Sergeant</option>
                     <option value="corporal">Corporal</option>
                     <option value="lance_corporal">Lance Corporal</option>

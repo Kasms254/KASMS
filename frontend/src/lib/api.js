@@ -209,6 +209,10 @@ export async function updateCourse(id, payload) {
   return request(`/api/courses/${id}/`, { method: 'PATCH', body: payload })
 }
 
+export async function deleteCourse(id) {
+  return request(`/api/courses/${id}/`, { method: 'DELETE' })
+}
+
 export async function getClasses(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/classes/${qs}`)
@@ -285,6 +289,10 @@ export async function addClass(payload) {
 export async function updateClass(id, payload) {
   // Use PATCH for partial updates so callers can send only changed fields
   return request(`/api/classes/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteClass(id) {
+  return request(`/api/classes/${id}/`, { method: 'DELETE' })
 }
 
 export async function getClassSubjects(classId) {
@@ -1140,8 +1148,10 @@ export default {
   getAllCourses,
   addCourse,
   updateCourse,
+  deleteCourse,
   addClass,
   updateClass,
+  deleteClass,
   reactivateEnrollment,
   withdrawEnrollment,
   partialUpdateSubject,
