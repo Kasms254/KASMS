@@ -167,13 +167,13 @@ export default function InstructorsDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Instructors dashboard</h2>
-        <p className="text-sm text-gray-500">Your classes and recent activity</p>
+        <h2 className="text-2xl font-semibold text-black">Instructors Dashboard</h2>
+        <p className="text-sm text-gray-500">Your Classes and Recent Activity</p>
       </header>
 
       {/* Cards grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-  <Card title="My classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
+  <Card title="My Classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
   <div
     role="button"
     tabIndex={0}
@@ -184,7 +184,7 @@ export default function InstructorsDashboard() {
     <Card title="Subjects" value={loading ? '…' : String(subjectsCount ?? 0)} icon="Book" badge={null} accent="bg-sky-500" colored={true} />
   </div>
   <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-indigo-500" colored={true} />
-        <Card title="Attendance today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
+        <Card title="Attendance Today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
       <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -193,7 +193,7 @@ export default function InstructorsDashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-lg font-medium mb-3 text-black">Upcoming assignments & events</h3>
+          <h3 className="text-lg font-medium mb-3 text-black">Upcoming Assignments & Events</h3>
           {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
           {loading && <div className="p-2 text-sm text-neutral-500">Loading…</div>}
           {error && <div className="p-2 text-sm text-red-600">Failed to load: {error.message || String(error)}</div>}
@@ -235,7 +235,7 @@ export default function InstructorsDashboard() {
             return (
               <ul className="divide-y">
                 {list.length === 0 && (
-                  <li className="py-2 text-sm text-neutral-500">No upcoming events</li>
+                  <li className="py-2 text-sm text-neutral-500">No Upcoming Events</li>
                 )}
                 {list.map((it, idx) => (
                   <li key={`${it.date}-${idx}`} className="py-2">

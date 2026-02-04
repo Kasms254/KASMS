@@ -297,14 +297,14 @@ export default function StudentsDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Students dashboard</h2>
-        <p className="text-sm text-gray-500">Your classes, assignments and progress</p>
+        <h2 className="text-2xl font-semibold text-black">Students Dashboard</h2>
+        <p className="text-sm text-gray-500">Your Classes, Assignments and Progress</p>
       </header>
 
       {/* Top cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card
-          title="Course enrolled"
+          title="Course Enrolled"
           value={loadingMetrics ? '…' : `${dashboardStats?.total_classes ?? classesCount ?? 0} `}
           icon="BookOpen"
           badge={null}
@@ -312,7 +312,7 @@ export default function StudentsDashboard() {
           colored={true}
         >
           <div className="text-xs">Subjects: {dashboardStats?.total_subjects ?? '—'}</div>
-          <div className="text-xs mt-1">Active class: {loadingMetrics ? '…' : (activeClassName ? <span title={activeClassName} className="inline-block align-middle">{activeClassName}</span> : '—')}</div>
+          <div className="text-xs mt-1">Active Class: {loadingMetrics ? '…' : (activeClassName ? <span title={activeClassName} className="inline-block align-middle">{activeClassName}</span> : '—')}</div>
         </Card>
 
         {/* Grade card: shows grade for current/active class only */}
@@ -368,20 +368,20 @@ export default function StudentsDashboard() {
               if (avgNum != null && !Number.isNaN(avgNum)) {
                 return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">{avgNum.toFixed(1)}%</span>
               }
-              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">No results yet</span>
+              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">No Results Yet</span>
             })()}
           </div>
         </Card>
 
         <Card
-          title="Pending exams"
+          title="Pending Exams"
           value={loadingMetrics ? '…' : `${dashboardStats?.pending_exams ?? '—'}`}
           icon="Clock"
           badge={null}
           accent="bg-sky-500"
           colored={true}
         >
-          <div className="text-xs">Exams scheduled: {dashboardStats?.pending_exams ?? '—'}</div>
+          <div className="text-xs">Exams Scheduled: {dashboardStats?.pending_exams ?? '—'}</div>
         </Card>
 
         <Card
@@ -403,7 +403,7 @@ export default function StudentsDashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-lg font-medium mb-3 text-black">Upcoming assignments & events</h3>
+          <h3 className="text-lg font-medium mb-3 text-black">Upcoming Assignments & Events</h3>
           {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
           {(() => {
             const items = []
@@ -446,7 +446,7 @@ export default function StudentsDashboard() {
             return (
               <ul className="divide-y">
                 {list.length === 0 && (
-                  <li className="py-2 text-sm text-neutral-500">No upcoming events</li>
+                  <li className="py-2 text-sm text-neutral-500">No Upcoming Events</li>
                 )}
                 {list.map((it, idx) => (
                   <li key={`${it.date}-${idx}`} className="py-2">

@@ -6,15 +6,17 @@ import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
-function sanitizeInput(value) {
+function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
   // eslint-disable-next-line no-control-regex
   const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
-  return value
+  const cleaned = value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(controlChars, '')
-    .trim()
+
+  // Only trim if explicitly requested (for final form submission)
+  return trimSpaces ? cleaned.trim() : cleaned
 }
 
 export default function ClassesList(){
@@ -224,7 +226,7 @@ export default function ClassesList(){
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details.</p>
+          <p className="text-xs sm:text-sm text-neutral-500">Click a Class to View Details.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
@@ -232,11 +234,11 @@ export default function ClassesList(){
               setShowOnlyActive((s) => !s)
               setCurrentPage(1)
             }} />
-            <span className="hidden sm:inline">Show only inactive classes</span>
-            <span className="sm:hidden">Only inactive</span>
+            <span className="hidden sm:inline">Show Only Inactive Classes</span>
+            <span className="sm:hidden">Only Inactive</span>
           </label>
             {user && user.role === 'admin' && (
-              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
+              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add Class</button>
             )}
         </div>
       </div>
@@ -249,12 +251,12 @@ export default function ClassesList(){
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
-          classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
+          classes.length === 0 ? <div className="text-sm text-neutral-400">No Classes Found</div> : classes.map(c => (
             <div key={c.id} className="relative h-full">
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
-                badge={`${c.subjects_count ?? 0} subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
+                badge={`${c.subjects_count ?? 0} Subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
                 icon="Layers"
                 accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
                 colored={true}
@@ -264,7 +266,7 @@ export default function ClassesList(){
                   <div className="truncate" title={c.instructor_name || c.instructor || 'TBD'}>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
                   <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
                   <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} Students` : '— Students'}</span>
                     <span className={`text-xs ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>{c.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
                   <div className="mt-2 flex gap-2">
@@ -345,8 +347,8 @@ export default function ClassesList(){
             <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit class</h4>
-                  <p className="text-sm text-neutral-500">Update class details</p>
+                  <h4 className="text-lg text-black font-medium">Edit Class</h4>
+                  <p className="text-sm text-neutral-500">Update Class Details</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
@@ -380,7 +382,7 @@ export default function ClassesList(){
                         const errVal = friendlyErrors[field]
                         const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
                         if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
-                          friendlyErrors[field] = 'Please select the date'
+                          friendlyErrors[field] = 'Please Select the Date'
                         }
                       }
                     })
@@ -391,8 +393,8 @@ export default function ClassesList(){
                       if (toast?.error) toast.error(msg)
                       else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
                     } else {
-                      if (toast?.error) toast.error('Please check the highlighted fields')
-                      else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                      if (toast?.error) toast.error('Please Check the Highlighted Fields')
+                      else if (toast?.showToast) toast.showToast('Please Check the Highlighted Fields', { type: 'error' })
                     }
                   } else {
                     const msg = err?.message || 'Failed to update class'
@@ -537,16 +539,16 @@ export default function ClassesList(){
                 setClassErrors({})
                 setClassErrorsFromValidation(false)
                 const errs = {}
-                if (!classForm.name) errs.name = 'Class name required'
-                if (!classForm.course) errs.course = 'Please select a course'
-                if (!classForm.instructor) errs.instructor = 'Please select an instructor'
+                if (!classForm.name) errs.name = 'Class Name Required'
+                if (!classForm.course) errs.course = 'Please Select a Course'
+                if (!classForm.instructor) errs.instructor = 'Please Select an Instructor'
                 // Date validation: start date cannot be in the past
                 if (classForm.start_date) {
                   const start = new Date(classForm.start_date)
                   const today = new Date()
                   today.setHours(0, 0, 0, 0)
                   if (start < today) {
-                    errs.start_date = 'Start date cannot be in the past'
+                    errs.start_date = 'Start Date Cannot Be in the Past'
                   }
                 }
                 // Date validation: end date should be after start date
@@ -554,21 +556,21 @@ export default function ClassesList(){
                   const start = new Date(classForm.start_date)
                   const end = new Date(classForm.end_date)
                   if (end < start) {
-                    errs.end_date = 'End date must be after start date'
+                    errs.end_date = 'End Date Must Be After Start Date'
                   }
                 }
                 // Capacity validation: must be a positive number if provided
                 if (classForm.capacity) {
                   const cap = Number(classForm.capacity)
                   if (isNaN(cap) || cap < 1) {
-                    errs.capacity = 'Capacity must be a positive number'
+                    errs.capacity = 'Capacity Must Be a Positive Number'
                   }
                 }
                 if (Object.keys(errs).length) {
                   setClassErrors(errs)
                   setClassErrorsFromValidation(true)
-                  if (toast?.error) toast.error('Please check the highlighted fields')
-                  else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                  if (toast?.error) toast.error('Please Check the Highlighted Fields')
+                  else if (toast?.showToast) toast.showToast('Please Check the Highlighted Fields', { type: 'error' })
                   return
                 }
                 setIsSaving(true)
@@ -584,8 +586,8 @@ export default function ClassesList(){
                     is_active: !!classForm.is_active,
                   }
                   await addClass(payload)
-                  if (toast?.success) toast.success('Class created')
-                  else if (toast?.showToast) toast.showToast('Class created', { type: 'success' })
+                  if (toast?.success) toast.success('Class Created')
+                  else if (toast?.showToast) toast.showToast('Class Created', { type: 'success' })
                   setAddModalOpen(false)
                   setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
                   setClassErrors({})
@@ -602,7 +604,7 @@ export default function ClassesList(){
                         const errVal = friendlyErrors[field]
                         const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
                         if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
-                          friendlyErrors[field] = 'Please select the date'
+                          friendlyErrors[field] = 'Please Select the Date'
                         }
                       }
                     })

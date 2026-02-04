@@ -5,15 +5,17 @@ import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
-function sanitizeInput(value) {
+function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
   // eslint-disable-next-line no-control-regex
   const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
-  return value
+  const cleaned = value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(controlChars, '')
-    .trim()
+
+  // Only trim if explicitly requested (for final form submission)
+  return trimSpaces ? cleaned.trim() : cleaned
 }
 
 export default function Courses() {
@@ -118,10 +120,10 @@ export default function Courses() {
   async function handleAddCourse(e) {
     e.preventDefault()
     setCourseErrors({})
-    if (!newCourse.name) return reportError('Course name is required')
+    if (!newCourse.name) return reportError('Course Name Is Required')
     try {
       await addCourse(newCourse)
-      reportSuccess('Course added')
+      reportSuccess('Course Added')
       setNewCourse({ name: '', code: '', description: '' })
       setAddModalOpen(false)
       load()
@@ -156,14 +158,14 @@ export default function Courses() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Courses</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage courses — create, edit, and view course details and their active classes.</p>
+          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage Courses — Create, Edit, and View Course Details and Their Active Classes.</p>
         </div>
         <div>
           <button
             onClick={() => setAddModalOpen(true)}
             className="w-full sm:w-auto bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition"
           >
-            Add course
+            Add Course
           </button>
         </div>
       </div>
@@ -175,8 +177,8 @@ export default function Courses() {
             <div ref={addModalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Create course</h4>
-                  <p className="text-sm text-neutral-500">Add a new course to the system</p>
+                  <h4 className="text-lg text-black font-medium">Create Course</h4>
+                  <p className="text-sm text-neutral-500">Add a New Course to the System</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
@@ -184,7 +186,7 @@ export default function Courses() {
               <form onSubmit={handleAddCourse}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Course name *</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course Name *</label>
                     <input
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.name ? 'border-rose-500' : 'border-neutral-200'}`}
                       placeholder="e.g. Computer Science"
@@ -196,7 +198,7 @@ export default function Courses() {
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Course code</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course Code</label>
                     <input
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.code ? 'border-rose-500' : 'border-neutral-200'}`}
                       placeholder="e.g. CS101"
@@ -222,7 +224,7 @@ export default function Courses() {
 
                 <div className="flex justify-end gap-2 mt-4">
                   <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Create course</button>
+                  <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Create Course</button>
                 </div>
               </form>
             </div>
@@ -244,8 +246,8 @@ export default function Courses() {
             <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit course</h4>
-                  <p className="text-sm text-neutral-500">Update course information</p>
+                  <h4 className="text-lg text-black font-medium">Edit Course</h4>
+                  <p className="text-sm text-neutral-500">Update Course Information</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={() => setEditCourseModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
@@ -256,7 +258,7 @@ export default function Courses() {
                 try {
                   const payload = { name: editCourseForm.name, code: editCourseForm.code, description: editCourseForm.description }
                   await updateCourse(editingCourse.id, payload)
-                  reportSuccess('Course updated')
+                  reportSuccess('Course Updated')
                   setEditCourseModalOpen(false)
                   load()
                 } catch (err) {
@@ -265,12 +267,12 @@ export default function Courses() {
               }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Course name *</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course Name *</label>
                     <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Computer Science" value={editCourseForm.name} maxLength={50} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: sanitizeInput(e.target.value).slice(0, 50) })} />
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Course code</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">Course Code</label>
                     <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. CS101" value={editCourseForm.code} maxLength={15} onChange={(e) => setEditCourseForm({ ...editCourseForm, code: sanitizeInput(e.target.value).slice(0, 15) })} />
                   </div>
 
@@ -284,7 +286,7 @@ export default function Courses() {
                   <button type="button" onClick={() => setConfirmDeleteCourse(editingCourse)} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setEditCourseModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                    <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Save changes</button>
+                    <button className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Save Changes</button>
                   </div>
                 </div>
               </form>
@@ -304,7 +306,7 @@ export default function Courses() {
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
                     <span className="text-red-600 text-lg">!</span>
                   </div>
-                  <h4 className="text-lg font-medium text-black">Delete course</h4>
+                  <h4 className="text-lg font-medium text-black">Delete Course</h4>
                 </div>
                 <button type="button" aria-label="Close" onClick={() => setConfirmDeleteCourse(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
@@ -316,7 +318,7 @@ export default function Courses() {
                     setIsDeleting(true)
                     try {
                       await deleteCourse(confirmDeleteCourse.id)
-                      reportSuccess('Course deleted')
+                      reportSuccess('Course Deleted')
                       setConfirmDeleteCourse(null)
                       setEditCourseModalOpen(false)
                       load()
@@ -341,7 +343,7 @@ export default function Courses() {
         {loading ? (
           <div>Loading...</div>
         ) : courses.length === 0 ? (
-          <div className="text-sm text-neutral-400">No courses yet</div>
+          <div className="text-sm text-neutral-400">No Courses Yet</div>
         ) : (
           // ensure courses is an array before mapping
           (Array.isArray(courses) ? courses : []).map((course) => (
@@ -351,7 +353,7 @@ export default function Courses() {
                 <Card
                   title={course.code || course.name || 'Untitled'}
                   value={course.name}
-                  badge={`${course.active_classes ?? 0} active • ${course.total_classes ?? course.classes_count ?? 0} classes`}
+                  badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
                   icon="BookOpen"
                   accent="bg-indigo-600"
                   colored={true}

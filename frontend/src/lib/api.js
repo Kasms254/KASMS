@@ -1,7 +1,35 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
+import { transformToSentenceCase } from './textTransform'
 
-//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+
+// Configuration for sentence case transformation
+const SENTENCE_CASE_CONFIG = {
+  enabled: import.meta.env.VITE_SENTENCE_CASE_ENABLED !== 'false', // Enable by default
+  preserveAcronyms: true,
+  excludeKeys: [
+    'password',
+    'token',
+    'refresh',
+    'access',
+    'svc_number',
+    'email',
+    'username',
+    'slug',
+    'code',
+    'url',
+    'qr_token',
+    'latitude',
+    'longitude',
+    'device_id',
+    'biometric_id',
+    'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
+    'status', // Preserve status values for comparisons
+    'type', // Preserve type values
+    'id', // Preserve ID fields
+  ]
+}
 
 
 // Sanitize string input to prevent injection attacks
@@ -14,7 +42,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-const API_BASE = import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -126,6 +154,14 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     err.status = res.status
     err.data = data // Keep data for field-level validation errors
     throw err
+  }
+
+  // Apply sentence case transformation to successful responses
+  if (SENTENCE_CASE_CONFIG.enabled && data) {
+    return transformToSentenceCase(data, {
+      preserveAcronyms: SENTENCE_CASE_CONFIG.preserveAcronyms,
+      excludeKeys: SENTENCE_CASE_CONFIG.excludeKeys
+    })
   }
 
   return data
