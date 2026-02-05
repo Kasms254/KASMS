@@ -198,7 +198,6 @@ export default function ClassNotices() {
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/<[^>]+>/g, '')
       .replace(controlChars, '')
-      .trim()
   }
 
   function update(k, v) {
