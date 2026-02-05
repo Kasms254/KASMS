@@ -83,7 +83,7 @@ WSGI_APPLICATION = "kasms.wsgi.application"
 
 
 
-AUTH_USER_MODEL = "users.User"
+# AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
     "default": {
@@ -219,6 +219,7 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-school-code",
 ]
 
 CORS_EXPOSE_HEADERS = ["Authorization"]
