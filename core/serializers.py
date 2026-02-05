@@ -397,6 +397,7 @@ class ClassSerializer(serializers.ModelSerializer):
 
 
 class ClassListSerializer(serializers.ModelSerializer):
+    
     course_name = serializers.CharField(source='course.name', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
     current_enrollment = serializers.IntegerField(read_only=True)

@@ -1,25 +1,101 @@
 from django.contrib import admin
-from .models import User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, Attendance, ExamResult, ClassNotice, School, SchoolAdmin
+from .models import (
+    User, Course, Class, Enrollment, Subject, Notice, Exam, 
+    ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment
+    )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-@admin.register(User)
-class UserAdmin(BaseUserAdmin):
-    list_display = ('id','username', 'email', 'first_name', 'last_name','svc_number', 'phone_number', 'role', 'is_active', 'is_staff', 'rank')
-    list_filter = ('role', 'is_active', 'is_staff', 'svc_number', 'rank')
-    search_fields = ('username', 'email', 'svc_number', 'phone_number')
-    ordering = ['-created_at']
+class SchoolAdminFilter(admin.SimpleListFilter):
+    title = 'school'
+    parameter_name = 'school'
 
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ('Additional Info', {
-            'fields': ('role', 'phone_number', 'svc_number'),
-        }),)
+    def lookups(self, request, model_admin):
+        schools = School.objects.filter(is_active = True)
+        return [(str(s.id), s.name) for s in schools]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(school_id=self.value())
+        return queryset
+
+class TenantAdminMixin:
     
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Additional Info', {  
-            'fields': ('role', 'phone_number', 'svc_number'),
-        }),)
+    def get_queryset(self, request):
+        qs = self.model.all_objects.all()
+        ordering = self.get_ordering(request)
+        if ordering:
+            qs = qs.order_by(*ordering)
+        return qs
     
+    def save_model(self, request, obj, form, change):
+        if not change and hasattr(obj, 'school') and not obj.school:
+            if hasattr(request.user, 'school') and request.user.school:
+                obj.school = request.user.school
+        super().save_model(request, obj, form, change)
+
+@admin.register(School)
+class SchoolAdmin(admin.ModelAdmin):
+    
+    list_display = ['name', 'code', 'email', 'city', 'is_active', 'student_count', 'instructor_count']
+    list_filter = ['is_active', 'city']
+    search_fields = ['name', 'code', 'email']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'code', 'name', 'short_name', 'email', 'phone')
+        }),
+        ('Location', {
+            'fields': ('address', 'city')
+        }),
+        ('Branding', {
+            'fields': ('logo', 'primary_color', 'secondary_color', 'accent_color', 'theme_config'),
+            'classes': ('collapse',)
+        }),
+        ('Subscription', {
+            'fields': ('is_active', 'subscription_start', 'subscription_end', 'max_students', 'max_instructors')
+        }),
+        ('Metadata', {
+            'fields': ('settings', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def student_count(self, obj):
+        return obj.current_student_count
+    student_count.short_description = 'Students'
+
+    def instructor_count(self, obj):
+        return obj.current_instructor_count
+    instructor_count.short_description = 'Instructors'
+    
+@admin.register(User)
+class UserAdmin(TenantAdminMixin, BaseUserAdmin):
+    list_display = ['username', 'email', 'get_full_name', 'role', 'school', 'is_active']
+    list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
+    search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
+    ordering = ['-created_at']
+    
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'phone_number', 'svc_number')}),
+        ('School & Role', {'fields': ('school', 'role', 'rank', 'unit')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
+    )
+    
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'password1', 'password2', 'school', 'role', 'svc_number', 'phone_number'),
+        }),
+    )
+    
+    readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
+
+    def get_queryset(self, request):
+        return User.all_objects.all()
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
@@ -33,7 +109,7 @@ class CourseAdmin(admin.ModelAdmin):
             obj.created_at = timezone.now()
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
-
+        
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
     list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
@@ -87,7 +163,6 @@ class NoticeAdmin(admin.ModelAdmin):
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
 
-
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'subject', 'exam_date', 'created_at', 'exam_type')
@@ -115,9 +190,81 @@ class AttendanceAdmin(admin.ModelAdmin):
         obj.updated_at = timezone.now()
         super().save_model(request, obj, form, change)
 
-@admin.register(School)
-class School(admin.ModelAdmin):
-    list_display = ('id', 'name', 'short_name', 'short_name', 'max_students', 'max_instructors')
-    list_filter = ['is_active']
-    search_fields = ['name']
-    ordering = ['-name']
+@admin.register(ExamResult)
+class ExamResultAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['exam', 'student', 'marks_obtained', 'grade', 'is_submitted', 'school']
+    list_filter = [SchoolAdminFilter, 'is_submitted']
+    search_fields = ['exam__title', 'student__username']
+    raw_id_fields = ['exam', 'student', 'graded_by']
+    
+    def get_queryset(self, request):
+        return ExamResult.all_objects.select_related('exam', 'student', 'school').all()
+
+@admin.register(AttendanceSession)
+class AttendanceSessionAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['title', 'session_type', 'class_obj', 'status', 'scheduled_start', 'school']
+    list_filter = [SchoolAdminFilter, 'session_type', 'status', 'is_active']
+    search_fields = ['title', 'class_obj__name']
+    raw_id_fields = ['class_obj', 'subject', 'created_by']
+    date_hierarchy = 'scheduled_start'
+    
+    def get_queryset(self, request):
+        return AttendanceSession.all_objects.select_related('class_obj', 'school').all()
+
+@admin.register(SessionAttendance)
+class SessionAttendanceAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['session', 'student', 'status', 'marking_method', 'marked_at', 'school']
+    list_filter = [SchoolAdminFilter, 'status', 'marking_method']
+    search_fields = ['student__username', 'session__title']
+    raw_id_fields = ['session', 'student', 'marked_by']
+    
+    def get_queryset(self, request):
+        return SessionAttendance.all_objects.select_related('session', 'student', 'school').all()
+
+@admin.register(ClassNotice)
+class ClassNoticeAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['title', 'class_obj', 'priority', 'created_by', 'is_active', 'school']
+    list_filter = [SchoolAdminFilter, 'priority', 'is_active']
+    search_fields = ['title', 'content', 'class_obj__name']
+    raw_id_fields = ['class_obj', 'subject', 'created_by']
+    
+    def get_queryset(self, request):
+        return ClassNotice.all_objects.select_related('class_obj', 'school').all()
+
+@admin.register(PersonalNotification)
+class PersonalNotificationAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['title', 'user', 'notification_type', 'priority', 'is_read', 'created_at', 'school']
+    list_filter = [SchoolAdminFilter, 'notification_type', 'priority', 'is_read']
+    search_fields = ['title', 'user__username']
+    raw_id_fields = ['user', 'exam_result', 'created_by']
+    
+    def get_queryset(self, request):
+        return PersonalNotification.all_objects.select_related('user', 'school').all()
+
+@admin.register(ExamAttachment)
+class ExamAttachmentAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['exam', 'file_name', 'uploaded_by', 'created_at', 'school']
+    raw_id_fields = ['exam', 'uploaded_by']
+    
+    def get_queryset(self, request):
+        return ExamAttachment.all_objects.all()
+
+@admin.register(BiometricRecord)
+class BiometricRecordAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['student', 'device_id', 'device_type', 'scan_time', 'processed', 'school']
+    list_filter = [SchoolAdminFilter, 'device_type', 'processed']
+    raw_id_fields = ['student', 'session', 'session_attendance']
+    
+    def get_queryset(self, request):
+        return BiometricRecord.all_objects.all()
+
+@admin.register(ExamReport)
+class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['title', 'subject', 'class_obj', 'report_date', 'school']
+    raw_id_fields = ['subject', 'class_obj', 'created_by']
+    
+    def get_queryset(self, request):
+        list_display = ('id', 'name', 'short_name', 'short_name', 'max_students', 'max_instructors')
+        list_filter = ['is_active']
+        search_fields = ['name']
+        ordering = ['-name']

@@ -65,13 +65,6 @@ class School(models.Model):
             'logo_url': self.logo.url if self.logo else None,
             **self.theme_config
         }
-        return{
-            'primary_color': self.primary_color,
-            'secondary_color':self.secondary_color,
-            'accent_color':self.accent_color,
-            'logo_url':self.logo.url if self.logo else None,
-            **self.theme_config
-        }
 
 class SchoolAdmin(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admins')
