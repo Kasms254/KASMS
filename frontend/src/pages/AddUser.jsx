@@ -399,6 +399,10 @@ export default function AddUser({ onSuccess } = {}) {
                 >
                   <option value="" disabled>-- Select a rank --</option>
                   <option value="general">General</option>
+                  <option value="lieutenant_general">Lieutenant General</option>
+                  <option value="major_general">Major General</option>
+                  <option value="brigadier">Brigadier</option>
+                  <option value="colonel">Colonel</option>
                   <option value="lieutenant_colonel">Lieutenant Colonel</option>
                   <option value="major">Major</option>
                   <option value="captain">Captain</option>

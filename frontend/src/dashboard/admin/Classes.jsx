@@ -5,6 +5,25 @@ import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 
+// Normalize a date value (from the API) to YYYY-MM-DD format for the date picker
+function normalizeDate(dateStr) {
+  if (!dateStr) return ''
+  // Already in YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+  // Strip any time/timezone suffix (e.g. "2024-01-15T00:00:00Z" → "2024-01-15")
+  if (typeof dateStr === 'string' && dateStr.length >= 10) {
+    const prefix = dateStr.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(prefix)) return prefix
+  }
+  // Fallback: try to parse and reformat
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Sanitize text input by removing script tags, HTML tags, and control characters
 function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
@@ -284,8 +303,8 @@ export default function ClassesList(){
                       name: c.name || '',
                       class_code: c.class_code || '',
                       instructor: c.instructor || c.instructor_id || '',
-                      start_date: c.start_date || '',
-                      end_date: c.end_date || '',
+                      start_date: normalizeDate(c.start_date),
+                      end_date: normalizeDate(c.end_date),
                       capacity: c.capacity || '',
                       is_active: !!c.is_active,
                     })

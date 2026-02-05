@@ -38,6 +38,7 @@ export default function AdminInstructors() {
   const [editLoading, setEditLoading] = useState(false)
   const [editFieldErrors, setEditFieldErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
+  const [editError, setEditError] = useState('')
 
   // Validate a single field for edit form
   function validateEditField(name, value) {
@@ -292,6 +293,9 @@ export default function AdminInstructors() {
 
   function openEdit(it) {
     setEditingInstructor(it)
+    setEditError('')
+    setEditFieldErrors({})
+    setEditTouched({})
     setEditForm({
       first_name: it.first_name || '',
       last_name: it.last_name || '',
@@ -308,6 +312,7 @@ export default function AdminInstructors() {
     setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
     setEditFieldErrors({})
     setEditTouched({})
+    setEditError('')
   }
 
   function handleEditChange(k, v) {
@@ -352,6 +357,7 @@ export default function AdminInstructors() {
     }
 
     setEditLoading(true)
+    setEditError('')
     try {
       const payload = {
         first_name: editForm.first_name,
@@ -380,8 +386,35 @@ export default function AdminInstructors() {
       setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
       closeEdit()
     } catch (err) {
-      setError(err)
-      reportError('Failed to update instructor: ' + (err.message || String(err)))
+      const data = err?.data || null
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const fieldErrors = {}
+        const knownFields = ['first_name', 'last_name', 'email', 'svc_number', 'phone_number']
+        let hasFieldError = false
+        for (const field of knownFields) {
+          if (data[field]) {
+            const rawMsg = Array.isArray(data[field]) ? data[field].join(' ') : String(data[field])
+            fieldErrors[field] = rawMsg
+              .replace(/this field/gi, 'This field')
+              .replace(/a user with this .* already exists/gi, 'This value is already taken')
+            hasFieldError = true
+          }
+        }
+        if (hasFieldError) {
+          setEditFieldErrors((prev) => ({ ...prev, ...fieldErrors }))
+          setEditTouched((prev) => {
+            const t = { ...prev }
+            for (const f of Object.keys(fieldErrors)) t[f] = true
+            return t
+          })
+        }
+        const msg = data.non_field_errors
+          ? (Array.isArray(data.non_field_errors) ? data.non_field_errors.join(' ') : String(data.non_field_errors))
+          : data.detail || (!hasFieldError ? (err.message || String(err)) : '')
+        setEditError(msg || 'Please fix the highlighted errors')
+      } else {
+        setEditError('Failed to update instructor: ' + (err.message || String(err)))
+      }
     } finally {
       setEditLoading(false)
     }
@@ -901,6 +934,13 @@ export default function AdminInstructors() {
                 </button>
               </div>
 
+              {editError && (
+                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  <LucideIcons.AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">First name</label>
@@ -925,6 +965,10 @@ export default function AdminInstructors() {
                   <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
                     <option value="general">General</option>
+                    <option value="lieutenant_general">Lieutenant General</option>
+                    <option value="major_general">Major General</option>
+                    <option value="brigadier">Brigadier</option>
+                    <option value="colonel">Colonel</option>
                     <option value="lieutenant_colonel">Lieutenant Colonel</option>
                     <option value="major">Major</option>
                     <option value="captain">Captain</option>
