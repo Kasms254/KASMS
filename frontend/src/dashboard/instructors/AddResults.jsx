@@ -356,7 +356,7 @@ export default function AddResults() {
   }, [hasChanges])
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 text-black max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 md:p-6 text-black w-full">
       <header className="mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-2">Grade Results</h2>
         <p className="text-xs sm:text-sm md:text-base text-gray-600">Select an exam and enter marks for your students. <span className="hidden sm:inline">Use Tab/Enter to navigate, arrow keys to move between rows.</span></p>

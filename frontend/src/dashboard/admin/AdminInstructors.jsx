@@ -12,6 +12,49 @@ function initials(name = '') {
     .toUpperCase()
 }
 
+// Map of rank internal values to display labels
+const RANK_OPTIONS = [
+  { value: 'general', label: 'General' },
+  { value: 'lieutenant_general', label: 'Lieutenant General' },
+  { value: 'major_general', label: 'Major General' },
+  { value: 'brigadier', label: 'Brigadier' },
+  { value: 'colonel', label: 'Colonel' },
+  { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
+  { value: 'major', label: 'Major' },
+  { value: 'captain', label: 'Captain' },
+  { value: 'lieutenant', label: 'Lieutenant' },
+  { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'senior_sergeant', label: 'Senior Sergeant' },
+  { value: 'sergeant', label: 'Sergeant' },
+  { value: 'corporal', label: 'Corporal' },
+  { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'private', label: 'Private' },
+]
+
+// Build a reverse lookup: display label → internal value (case-insensitive)
+const RANK_LABEL_TO_VALUE = {}
+for (const r of RANK_OPTIONS) {
+  RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
+  RANK_LABEL_TO_VALUE[r.value] = r.value // identity mapping for stored values
+}
+
+// Normalize a rank value from the backend to the internal value used by dropdowns.
+// Handles both raw values ("warrant_officer_i") and display labels ("Warrant Officer I").
+function normalizeRank(raw) {
+  if (!raw) return ''
+  const key = String(raw).toLowerCase().trim()
+  return RANK_LABEL_TO_VALUE[key] || ''
+}
+
+// Get display label for a rank value
+function getRankDisplay(raw) {
+  if (!raw) return ''
+  const normalized = normalizeRank(raw)
+  const found = RANK_OPTIONS.find(r => r.value === normalized)
+  return found ? found.label : raw
+}
+
 export default function AdminInstructors() {
   const toast = useToast()
   const reportError = (msg) => {
@@ -38,6 +81,7 @@ export default function AdminInstructors() {
   const [editLoading, setEditLoading] = useState(false)
   const [editFieldErrors, setEditFieldErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
+  const [editError, setEditError] = useState('')
 
   // Validate a single field for edit form
   function validateEditField(name, value) {
@@ -145,7 +189,7 @@ export default function AdminInstructors() {
           svc_number: it.svc_number,
           email: it.email,
           phone_number: it.phone_number,
-          rank: it.rank || it.rank_display || '',
+          rank: normalizeRank(it.rank || it.rank_display),
           role: it.role,
           role_display: it.role_display,
           is_active: it.is_active,
@@ -292,13 +336,16 @@ export default function AdminInstructors() {
 
   function openEdit(it) {
     setEditingInstructor(it)
+    setEditError('')
+    setEditFieldErrors({})
+    setEditTouched({})
     setEditForm({
       first_name: it.first_name || '',
       last_name: it.last_name || '',
       svc_number: it.svc_number || '',
       email: it.email || '',
       phone_number: it.phone_number || '',
-      rank: it.rank || it.rank_display || '',
+      rank: normalizeRank(it.rank || it.rank_display),
       is_active: !!it.is_active,
     })
   }
@@ -308,6 +355,7 @@ export default function AdminInstructors() {
     setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
     setEditFieldErrors({})
     setEditTouched({})
+    setEditError('')
   }
 
   function handleEditChange(k, v) {
@@ -352,6 +400,7 @@ export default function AdminInstructors() {
     }
 
     setEditLoading(true)
+    setEditError('')
     try {
       const payload = {
         first_name: editForm.first_name,
@@ -371,7 +420,7 @@ export default function AdminInstructors() {
         svc_number: updated.svc_number,
         email: updated.email,
         phone_number: updated.phone_number,
-        rank: updated.rank || updated.rank_display || '',
+        rank: normalizeRank(updated.rank || updated.rank_display),
         role: updated.role,
         role_display: updated.role_display,
         is_active: updated.is_active,
@@ -380,8 +429,35 @@ export default function AdminInstructors() {
       setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
       closeEdit()
     } catch (err) {
-      setError(err)
-      reportError('Failed to update instructor: ' + (err.message || String(err)))
+      const data = err?.data || null
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const fieldErrors = {}
+        const knownFields = ['first_name', 'last_name', 'email', 'svc_number', 'phone_number']
+        let hasFieldError = false
+        for (const field of knownFields) {
+          if (data[field]) {
+            const rawMsg = Array.isArray(data[field]) ? data[field].join(' ') : String(data[field])
+            fieldErrors[field] = rawMsg
+              .replace(/this field/gi, 'This field')
+              .replace(/a user with this .* already exists/gi, 'This value is already taken')
+            hasFieldError = true
+          }
+        }
+        if (hasFieldError) {
+          setEditFieldErrors((prev) => ({ ...prev, ...fieldErrors }))
+          setEditTouched((prev) => {
+            const t = { ...prev }
+            for (const f of Object.keys(fieldErrors)) t[f] = true
+            return t
+          })
+        }
+        const msg = data.non_field_errors
+          ? (Array.isArray(data.non_field_errors) ? data.non_field_errors.join(' ') : String(data.non_field_errors))
+          : data.detail || (!hasFieldError ? (err.message || String(err)) : '')
+        setEditError(msg || 'Please fix the highlighted errors')
+      } else {
+        setEditError('Failed to update instructor: ' + (err.message || String(err)))
+      }
     } finally {
       setEditLoading(false)
     }
@@ -398,7 +474,7 @@ export default function AdminInstructors() {
       const role = it.role_display || it.role || ''
       const active = it.is_active ? 'Yes' : 'No'
       const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, (it.rank || it.rank_display) || '', name, email, phone, role, active, created])
+      rows.push([svc, getRankDisplay(it.rank) || '', name, email, phone, role, active, created])
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -432,7 +508,7 @@ export default function AdminInstructors() {
   }
 
   return (
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div className="w-full px-4 sm:px-6 lg:px-8">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-black">Instructors</h2>
@@ -547,7 +623,7 @@ export default function AdminInstructors() {
                 {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{it.rank || it.rank_display || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -621,7 +697,7 @@ export default function AdminInstructors() {
                         <div className="min-w-0">
                           <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                           <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                          {(it.rank || it.rank_display) && <div className="text-xs text-neutral-600">{it.rank || it.rank_display}</div>}
+                          {it.rank && <div className="text-xs text-neutral-600">{getRankDisplay(it.rank)}</div>}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -680,10 +756,10 @@ export default function AdminInstructors() {
 
                 {/* Details */}
                 <div className="space-y-2 mb-4">
-                  {it.rank || it.rank_display ? (
+                  {it.rank ? (
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{it.rank || it.rank_display}</span>
+                      <span className="text-sm text-neutral-700">{getRankDisplay(it.rank)}</span>
                     </div>
                   ) : null}
 
@@ -901,6 +977,13 @@ export default function AdminInstructors() {
                 </button>
               </div>
 
+              {editError && (
+                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  <LucideIcons.AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">First name</label>
@@ -924,18 +1007,9 @@ export default function AdminInstructors() {
                   <label className="text-sm text-neutral-600 mb-1 block">Rank</label>
                   <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
                     <option value="">Unassigned</option>
-                    <option value="general">General</option>
-                    <option value="lieutenant colonel">Lieutenant Colonel</option>
-                    <option value="major">Major</option>
-                    <option value="captain">Captain</option>
-                    <option value="lieutenant">Lieutenant</option>
-                    <option value="warrant_officer">Warrant Officer I</option>
-                    <option value="warrant_officer">Warrant Officer II</option>
-                    <option value="seniorsergeant">Senior Sergeant</option>
-                    <option value="sergeant">Sergeant</option>
-                    <option value="corporal">Corporal</option>
-                    <option value="lance_corporal">Lance Corporal</option>
-                    <option value="private">Private</option>
+                    {RANK_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
                   </select>
                 </div>
 

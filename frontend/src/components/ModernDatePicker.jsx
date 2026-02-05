@@ -4,10 +4,23 @@ import * as Icons from 'lucide-react'
 export default function ModernDatePicker({ value, onChange, label, placeholder = "Select date", minDate = null, maxDate = null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [openUpward, setOpenUpward] = useState(false)
   const dropdownRef = useRef(null)
+  const inputRef = useRef(null)
 
   // Parse the value (YYYY-MM-DD format)
   const selectedDate = value ? new Date(value + 'T00:00:00') : null
+
+  // Check if calendar should open upward
+  const checkAndSetDirection = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const calendarHeight = 320 // Approximate height of calendar
+      const shouldOpenUpward = spaceBelow < calendarHeight && rect.top > calendarHeight
+      setOpenUpward(shouldOpenUpward)
+    }
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -19,6 +32,16 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Check direction when opening
+  useEffect(() => {
+    if (isOpen) {
+      checkAndSetDirection()
+      // Also check on window resize
+      window.addEventListener('resize', checkAndSetDirection)
+      return () => window.removeEventListener('resize', checkAndSetDirection)
+    }
+  }, [isOpen])
 
   // Format date for display
   const formatDisplayDate = (date) => {
@@ -140,6 +163,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
       <div className="relative">
         <Icons.Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
         <input
+          ref={inputRef}
           type="text"
           readOnly
           value={selectedDate ? formatDisplayDate(selectedDate) : ''}
@@ -162,7 +186,9 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-72">
+        <div className={`absolute z-[9999] bg-white rounded-lg shadow-2xl border border-gray-200 p-3 w-72 ${
+          openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
+        }`}>
           {/* Month/Year Header */}
           <div className="flex items-center justify-between mb-2">
             <button

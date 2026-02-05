@@ -38,6 +38,13 @@ const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAtte
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
 
+// Superadmin components
+const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
+const SchoolsPage = lazy(() => import('./dashboard/superadmin/SchoolsPage'))
+const SchoolForm = lazy(() => import('./dashboard/superadmin/SchoolForm'))
+const AdminsPage = lazy(() => import('./dashboard/superadmin/AdminsPage'))
+const SystemStats = lazy(() => import('./dashboard/superadmin/SystemStats'))
+
 // Loading component for code-split routes
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -169,6 +176,19 @@ const App = () => {
 			{/* Exam Reports (admins & instructors) */}
 			<Route path="/list/exam-reports" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ExamReports />} />
+			</Route>
+
+			{/* Superadmin routes */}
+			<Route path="/superadmin" element={<RoleProtectedLayout role="superadmin" />}>
+				<Route index element={<SuperadminDashboard />} />
+				<Route path="schools" element={<SchoolsPage />} />
+				<Route path="schools/new" element={<SchoolForm />} />
+				<Route path="schools/:id" element={<SchoolForm />} />
+				<Route path="schools/:id/edit" element={<SchoolForm />} />
+				<Route path="admins" element={<AdminsPage />} />
+				<Route path="themes" element={<SchoolsPage />} />
+				<Route path="users" element={<AdminStudents />} />
+			  <Route path="stats" element={<SystemStats />} />
 			</Route>
 		</Routes>
 			</Suspense>

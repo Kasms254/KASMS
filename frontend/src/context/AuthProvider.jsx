@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useContext } from 'react'
 import AuthContext from './authContext'
+import { ThemeContext } from './themeContext'
 import * as authStore from '../lib/auth'
 import * as api from '../lib/api'
 
@@ -8,8 +9,9 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => authStore.getToken())
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
+  const { setTheme, resetTheme } = useContext(ThemeContext)
 
-  // try to load current user when token exists
+  // try to load current user and school theme when token exists
   useEffect(() => {
     let mounted = true
     async function fetchUser() {
@@ -17,7 +19,36 @@ export function AuthProvider({ children }) {
       setLoading(true)
       try {
         const me = await api.getCurrentUser()
-        if (mounted) setUser(me)
+        if (mounted) {
+          setUser(me)
+          // Apply school theme after getting user
+          // The user object from /api/auth/me/ includes school_theme if user has a school
+          // For admin users linked via SchoolAdmin (not directly on User), fall back to API call
+          // Apply school theme (superadmins don't have a school)
+          if (me?.role !== 'superadmin') {
+            let themeData = me?.school_theme
+
+            // If no theme in user object, try fetching via API (for admin users linked via SchoolAdmin)
+            if (!themeData && me?.role === 'admin') {
+              try {
+                themeData = await api.getMySchoolTheme()
+              } catch {
+                // ignore theme fetch errors
+              }
+            }
+
+            if (mounted && themeData) {
+              setTheme({
+                primary_color: themeData.primary_color,
+                secondary_color: themeData.secondary_color,
+                accent_color: themeData.accent_color,
+                logo_url: themeData.logo_url,
+                school_name: themeData.school_name || me.school_name,
+                school_code: themeData.school_code || me.school_code,
+              })
+            }
+          }
+        }
       } catch {
         // token may be invalid; clear it
         authStore.logout()
@@ -30,7 +61,7 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false
     }
-  }, [token])
+  }, [token, setTheme])
 
   const login = useCallback(async (svc_number, password) => {
     setLoading(true)
@@ -90,8 +121,9 @@ export function AuthProvider({ children }) {
       try { authStore.logout() } catch { /* ignore */ }
       setToken(null)
       setUser(null)
+      resetTheme() // Clear school theme on logout
     }
-  }, [])
+  }, [resetTheme])
 
   return (
     <AuthContext.Provider value={{ token, user, loading, login, logout }}>

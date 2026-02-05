@@ -1,19 +1,41 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, getAllCourses } from '../../lib/api'
+import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, deleteClass, getAllCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
+import ModernDatePicker from '../../components/ModernDatePicker'
+
+// Normalize a date value (from the API) to YYYY-MM-DD format for the date picker
+function normalizeDate(dateStr) {
+  if (!dateStr) return ''
+  // Already in YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+  // Strip any time/timezone suffix (e.g. "2024-01-15T00:00:00Z" → "2024-01-15")
+  if (typeof dateStr === 'string' && dateStr.length >= 10) {
+    const prefix = dateStr.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(prefix)) return prefix
+  }
+  // Fallback: try to parse and reformat
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
-function sanitizeInput(value) {
+function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
   // eslint-disable-next-line no-control-regex
   const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
-  return value
+  const cleaned = value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(controlChars, '')
-    .trim()
+
+  // Only trim if explicitly requested (for final form submission)
+  return trimSpaces ? cleaned.trim() : cleaned
 }
 
 export default function ClassesList(){
@@ -33,12 +55,16 @@ export default function ClassesList(){
   const [classForm, setClassForm] = useState({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [instructors, setInstructors] = useState([])
   const [classErrors, setClassErrors] = useState({})
+  const [classErrorsFromValidation, setClassErrorsFromValidation] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [coursesList, setCoursesList] = useState([])
   // errors and saving state for the "Add subject" modal
   const [subjectErrors, setSubjectErrors] = useState({})
   const [subjectSaving, setSubjectSaving] = useState(false)
+  // delete confirmation modal state
+  const [confirmDeleteClass, setConfirmDeleteClass] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const toast = useToast()
   const reportError = useCallback((msg) => {
     if (!msg) return
@@ -155,6 +181,7 @@ export default function ClassesList(){
       setCoursesList([])
     }
     setClassErrors({})
+    setClassErrorsFromValidation(false)
     setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
     setAddModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
@@ -218,7 +245,7 @@ export default function ClassesList(){
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Click a class to view details.</p>
+          <p className="text-xs sm:text-sm text-neutral-500">Click a Class to View Details.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
@@ -226,11 +253,11 @@ export default function ClassesList(){
               setShowOnlyActive((s) => !s)
               setCurrentPage(1)
             }} />
-            <span className="hidden sm:inline">Show only inactive classes</span>
-            <span className="sm:hidden">Only inactive</span>
+            <span className="hidden sm:inline">Show Only Inactive Classes</span>
+            <span className="sm:hidden">Only Inactive</span>
           </label>
             {user && user.role === 'admin' && (
-              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add class</button>
+              <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add Class</button>
             )}
         </div>
       </div>
@@ -243,12 +270,12 @@ export default function ClassesList(){
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
-          classes.length === 0 ? <div className="text-sm text-neutral-400">No classes found</div> : classes.map(c => (
+          classes.length === 0 ? <div className="text-sm text-neutral-400">No Classes Found</div> : classes.map(c => (
             <div key={c.id} className="relative h-full">
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
-                badge={`${c.subjects_count ?? 0} subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
+                badge={`${c.subjects_count ?? 0} Subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
                 icon="Layers"
                 accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
                 colored={true}
@@ -258,7 +285,7 @@ export default function ClassesList(){
                   <div className="truncate" title={c.instructor_name || c.instructor || 'TBD'}>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
                   <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
                   <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} students` : '— students'}</span>
+                    <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} Students` : '— Students'}</span>
                     <span className={`text-xs ${c.is_active ? 'text-emerald-600' : 'text-neutral-600'}`}>{c.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
                   <div className="mt-2 flex gap-2">
@@ -276,8 +303,8 @@ export default function ClassesList(){
                       name: c.name || '',
                       class_code: c.class_code || '',
                       instructor: c.instructor || c.instructor_id || '',
-                      start_date: c.start_date || '',
-                      end_date: c.end_date || '',
+                      start_date: normalizeDate(c.start_date),
+                      end_date: normalizeDate(c.end_date),
                       capacity: c.capacity || '',
                       is_active: !!c.is_active,
                     })
@@ -339,8 +366,8 @@ export default function ClassesList(){
             <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit class</h4>
-                  <p className="text-sm text-neutral-500">Update class details</p>
+                  <h4 className="text-lg text-black font-medium">Edit Class</h4>
+                  <p className="text-sm text-neutral-500">Update Class Details</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
@@ -374,7 +401,7 @@ export default function ClassesList(){
                         const errVal = friendlyErrors[field]
                         const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
                         if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
-                          friendlyErrors[field] = 'Please select the date'
+                          friendlyErrors[field] = 'Please Select the Date'
                         }
                       }
                     })
@@ -385,8 +412,8 @@ export default function ClassesList(){
                       if (toast?.error) toast.error(msg)
                       else if (toast?.showToast) toast.showToast(msg, { type: 'error' })
                     } else {
-                      if (toast?.error) toast.error('Please check the highlighted fields')
-                      else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                      if (toast?.error) toast.error('Please Check the Highlighted Fields')
+                      else if (toast?.showToast) toast.showToast('Please Check the Highlighted Fields', { type: 'error' })
                     }
                   } else {
                     const msg = err?.message || 'Failed to update class'
@@ -412,13 +439,22 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
-                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.start_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.start_date} onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })} />
+                    <ModernDatePicker
+                      value={classForm.start_date}
+                      onChange={(date) => setClassForm({ ...classForm, start_date: date })}
+                      placeholder="Select start date"
+                    />
                     {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">End date</label>
-                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.end_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.end_date} onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })} />
+                    <ModernDatePicker
+                      value={classForm.end_date}
+                      onChange={(date) => setClassForm({ ...classForm, end_date: date })}
+                      placeholder="Select end date"
+                      minDate={classForm.start_date || null}
+                    />
                     {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
                   </div>
 
@@ -445,19 +481,68 @@ export default function ClassesList(){
                   </label>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save changes'}</button>
+                <div className="flex justify-between gap-2 mt-4">
+                  <button type="button" onClick={() => setConfirmDeleteClass(editingClass)} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Save changes'}</button>
+                  </div>
                 </div>
               </form>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Class Modal */}
+      {confirmDeleteClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeleteClass(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                    <span className="text-red-600 text-lg">!</span>
+                  </div>
+                  <h4 className="text-lg font-medium text-black">Delete class</h4>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDeleteClass(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4">Are you sure you want to delete <strong>{confirmDeleteClass.name || confirmDeleteClass.class_code}</strong>? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmDeleteClass(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button
+                  onClick={async () => {
+                    setIsDeleting(true)
+                    try {
+                      await deleteClass(confirmDeleteClass.id)
+                      if (toast?.success) toast.success('Class deleted')
+                      else if (toast?.showToast) toast.showToast('Class deleted', { type: 'success' })
+                      setConfirmDeleteClass(null)
+                      setEditModalOpen(false)
+                      loadClasses()
+                    } catch (err) {
+                      reportError(err?.message || 'Failed to delete class')
+                    } finally {
+                      setIsDeleting(false)
+                    }
+                  }}
+                  disabled={isDeleting}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Class Modal */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false); }} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
             <div className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
@@ -465,35 +550,46 @@ export default function ClassesList(){
                   <h4 className="text-lg text-black font-medium">Create class</h4>
                   <p className="text-sm text-neutral-500">Add a new class under a course</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false); }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={async (e) => {
                 e.preventDefault()
                 setClassErrors({})
+                setClassErrorsFromValidation(false)
                 const errs = {}
-                if (!classForm.name) errs.name = 'Class name required'
-                if (!classForm.course) errs.course = 'Please select a course'
-                if (!classForm.instructor) errs.instructor = 'Please select an instructor'
+                if (!classForm.name) errs.name = 'Class Name Required'
+                if (!classForm.course) errs.course = 'Please Select a Course'
+                if (!classForm.instructor) errs.instructor = 'Please Select an Instructor'
+                // Date validation: start date cannot be in the past
+                if (classForm.start_date) {
+                  const start = new Date(classForm.start_date)
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  if (start < today) {
+                    errs.start_date = 'Start Date Cannot Be in the Past'
+                  }
+                }
                 // Date validation: end date should be after start date
                 if (classForm.start_date && classForm.end_date) {
                   const start = new Date(classForm.start_date)
                   const end = new Date(classForm.end_date)
                   if (end < start) {
-                    errs.end_date = 'End date must be after start date'
+                    errs.end_date = 'End Date Must Be After Start Date'
                   }
                 }
                 // Capacity validation: must be a positive number if provided
                 if (classForm.capacity) {
                   const cap = Number(classForm.capacity)
                   if (isNaN(cap) || cap < 1) {
-                    errs.capacity = 'Capacity must be a positive number'
+                    errs.capacity = 'Capacity Must Be a Positive Number'
                   }
                 }
                 if (Object.keys(errs).length) {
                   setClassErrors(errs)
-                  if (toast?.error) toast.error('Please check the highlighted fields')
-                  else if (toast?.showToast) toast.showToast('Please check the highlighted fields', { type: 'error' })
+                  setClassErrorsFromValidation(true)
+                  if (toast?.error) toast.error('Please Check the Highlighted Fields')
+                  else if (toast?.showToast) toast.showToast('Please Check the Highlighted Fields', { type: 'error' })
                   return
                 }
                 setIsSaving(true)
@@ -509,9 +605,12 @@ export default function ClassesList(){
                     is_active: !!classForm.is_active,
                   }
                   await addClass(payload)
-                  if (toast?.success) toast.success('Class created')
-                  else if (toast?.showToast) toast.showToast('Class created', { type: 'success' })
+                  if (toast?.success) toast.success('Class Created')
+                  else if (toast?.showToast) toast.showToast('Class Created', { type: 'success' })
                   setAddModalOpen(false)
+                  setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+                  setClassErrors({})
+                  setClassErrorsFromValidation(false)
                   await loadClasses()
                 } catch (err) {
                   const d = err?.data
@@ -524,11 +623,12 @@ export default function ClassesList(){
                         const errVal = friendlyErrors[field]
                         const errStr = Array.isArray(errVal) ? errVal.join(' ') : String(errVal)
                         if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
-                          friendlyErrors[field] = 'Please select the date'
+                          friendlyErrors[field] = 'Please Select the Date'
                         }
                       }
                     })
                     setClassErrors(friendlyErrors)
+                    setClassErrorsFromValidation(false)
                     const nonField = d.non_field_errors || d.detail || d.message || d.error
                     if (nonField) {
                       const msg = Array.isArray(nonField) ? nonField.join(' ') : String(nonField)
@@ -545,7 +645,7 @@ export default function ClassesList(){
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
-                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} maxLength={50} onChange={(e) => { setClassForm({ ...classForm, name: sanitizeInput(e.target.value).slice(0, 50) }); setClassErrors(prev => ({ ...prev, name: undefined })); }} placeholder="e.g. Class A" />
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} maxLength={50} onChange={(e) => { setClassForm({ ...classForm, name: sanitizeInput(e.target.value).slice(0, 50) }); setClassErrors(prev => ({ ...prev, name: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, name: undefined }).length > 0); }} placeholder="e.g. Class A" />
                     {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
                   </div>
 
@@ -557,7 +657,7 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Course *</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.course ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.course} onChange={(e) => { setClassForm({ ...classForm, course: e.target.value }); setClassErrors(prev => ({ ...prev, course: undefined })); }}>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.course ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.course} onChange={(e) => { setClassForm({ ...classForm, course: e.target.value }); setClassErrors(prev => ({ ...prev, course: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, course: undefined }).length > 0); }}>
                       <option value="">— Select course —</option>
                       {coursesList.map(c => <option key={c.id} value={c.id}>{c.name || c.code}</option>)}
                     </select>
@@ -566,7 +666,7 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => { setClassForm({ ...classForm, instructor: e.target.value }); setClassErrors(prev => ({ ...prev, instructor: undefined })); }}>
+                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => { setClassForm({ ...classForm, instructor: e.target.value }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0); }}>
                       <option value="">— Select instructor —</option>
                       {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
                     </select>
@@ -575,25 +675,35 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
-                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.start_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.start_date} onChange={(e) => { setClassForm({ ...classForm, start_date: e.target.value }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })); }} />
+                    <ModernDatePicker
+                      value={classForm.start_date}
+                      onChange={(date) => { setClassForm({ ...classForm, start_date: date }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })); }}
+                      placeholder="Select start date"
+                      minDate={new Date().toISOString().split('T')[0]}
+                    />
                     {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">End date</label>
-                    <input type="date" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.end_date ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.end_date} onChange={(e) => { setClassForm({ ...classForm, end_date: e.target.value }); setClassErrors(prev => ({ ...prev, end_date: undefined })); }} />
+                    <ModernDatePicker
+                      value={classForm.end_date}
+                      onChange={(date) => { setClassForm({ ...classForm, end_date: date }); setClassErrors(prev => ({ ...prev, end_date: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, end_date: undefined }).length > 0); }}
+                      placeholder="Select end date"
+                      minDate={classForm.start_date || new Date().toISOString().split('T')[0]}
+                    />
                     {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
-                    <input type="number" min="1" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })); }} placeholder="e.g. 30" />
+                    <input type="number" min="1" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, capacity: undefined }).length > 0); }} placeholder="e.g. 30" />
                     {classErrors.capacity && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
                   </div>
                 </div>
 
-                {/* General error alert when there are validation errors */}
-                {Object.keys(classErrors).length > 0 && (
+                {/* General error alert - only show for validation errors */}
+                {classErrorsFromValidation && Object.keys(classErrors).length > 0 && (
                   <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
                     <p className="text-sm text-rose-700">Please fix the highlighted errors before submitting.</p>
                   </div>
@@ -607,7 +717,7 @@ export default function ClassesList(){
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="button" onClick={() => { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false); }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
                   <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Create class'}</button>
                 </div>
               </form>

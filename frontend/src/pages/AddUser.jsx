@@ -12,13 +12,13 @@ const roles = [
 
 const ranks = [
   { value: 'general', label: 'General' },
-  { value: 'lieutenant colonel', label: 'Lieutenant Colonel' },
+  { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
-  { value: 'warrant_officer_1', label: 'Warrant Officer I' },
-  { value: 'warrant_officer_2', label: 'Warrant Officer II' },
-  { value: 'seniorsergeant', label: 'Senior Sergeant' },
+  { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
   { value: 'corporal', label: 'Corporal' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
@@ -399,13 +399,17 @@ export default function AddUser({ onSuccess } = {}) {
                 >
                   <option value="" disabled>-- Select a rank --</option>
                   <option value="general">General</option>
-                  <option value="lieutenant colonel">Lieutenant Colonel</option>
+                  <option value="lieutenant_general">Lieutenant General</option>
+                  <option value="major_general">Major General</option>
+                  <option value="brigadier">Brigadier</option>
+                  <option value="colonel">Colonel</option>
+                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
                   <option value="major">Major</option>
                   <option value="captain">Captain</option>
                   <option value="lieutenant">Lieutenant</option>
-                  <option value="warrant_officer">Warrant Officer I</option>
-                  <option value="warrant_officer">Warrant Officer II</option>
-                  <option value="seniorsergeant">Senior Sergeant</option>
+                  <option value="warrant_officer_i">Warrant Officer I</option>
+                  <option value="warrant_officer_ii">Warrant Officer II</option>
+                  <option value="senior_sergeant">Senior Sergeant</option>
                   <option value="sergeant">Sergeant</option>
                   <option value="corporal">Corporal</option>
                   <option value="lance_corporal">Lance Corporal</option>

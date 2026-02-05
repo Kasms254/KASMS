@@ -123,7 +123,7 @@ export default function Login() {
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
               <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
-              <p className="mt-3 text-sm text-red-100 text-center">Manage classes, students, exams and results</p>
+              <p className="mt-3 text-sm text-red-100 text-center">Manage Classes, Students, Exams And Results</p>
               <div className="mt-6 flex gap-3 flex-wrap justify-center">
                 <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
                   <LucideIcons.FileText className="w-3.5 h-3.5" />
@@ -152,7 +152,7 @@ export default function Login() {
             </div>
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">Welcome back</h2>
-              <p className="text-sm text-gray-500 mt-1">Sign in with your school credentials</p>
+              <p className="text-sm text-gray-500 mt-1">Sign In With Your School Credentials</p>
             </div>
           </div>
 
@@ -260,7 +260,7 @@ export default function Login() {
           </form>
 
           <p className="mt-8 text-center text-sm text-gray-500">
-                         © {new Date().getFullYear()} KASMS All rights reserved.
+                         © {new Date().getFullYear()} KASMS All Rights Reserved.
           </p>
 
         </div>

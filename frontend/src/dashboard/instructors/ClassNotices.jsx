@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function ClassNotices() {
   const toast = useToast()
@@ -588,8 +589,13 @@ export default function ClassNotices() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Expiry / Event date</label>
-                    <input type="date" value={form.expiry_date} onChange={e => update('expiry_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-2 p-2 rounded-md border w-full bg-white" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Expiry / Event date</label>
+                    <ModernDatePicker
+                      value={form.expiry_date}
+                      onChange={(date) => update('expiry_date', date)}
+                      placeholder="Select date"
+                      minDate={new Date().toISOString().split('T')[0]}
+                    />
                   </div>
                 </div>
 
