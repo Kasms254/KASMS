@@ -3,13 +3,20 @@ import { Outlet, Link } from 'react-router-dom'
 import Menu from './Menu'
 import NavBar from './NavBar'
 import useAuth from '../hooks/useAuth'
+import useTheme from '../hooks/useTheme'
 import ToastProvider from './ToastProvider'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user } = useAuth()
+  const { theme } = useTheme()
   const role = user?.role || 'student'
+
+  // Dynamic sidebar gradient style using theme colors
+  const sidebarStyle = {
+    background: `linear-gradient(to bottom, ${theme.primary_color}cc, ${theme.secondary_color}cc)`,
+  }
 
   return (
     <ToastProvider>
@@ -29,17 +36,24 @@ export default function Layout() {
             sidebar fixed inset-y-0 left-0 z-50
             transition-transform duration-300 ease-in-out
             overflow-y-auto text-white p-4 shadow-lg
-            backdrop-blur-sm bg-gradient-to-b from-[#0ea5a4]/80 to-[#166534]/80
+            backdrop-blur-sm
             ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
             lg:translate-x-0
             ${collapsed ? 'lg:w-20' : 'lg:w-64'}
             w-64
           `}
+          style={sidebarStyle}
           aria-label="Sidebar navigation"
         >
           <Link to="/dashboard" className="flex items-center gap-2 mb-6" onClick={() => setMobileMenuOpen(false)}>
-            <img src="/ka.png" alt="Kenya Army School logo" className="w-8 h-8 rounded object-contain" />
-            <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>KASMS</span>
+            <img
+              src={theme.logo_url || '/ka.png'}
+              alt={`${theme.school_name || 'School'} logo`}
+              className="w-8 h-8 rounded object-contain bg-white/10"
+            />
+            <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>
+              {theme.school_name || 'KASMS'}
+            </span>
           </Link>
           <Menu role={role} collapsed={collapsed} onMobileMenuClick={() => setMobileMenuOpen(false)} />
         </aside>

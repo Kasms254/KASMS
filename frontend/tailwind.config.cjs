@@ -14,5 +14,17 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Custom plugin for sentence case utility class
+    function({ addUtilities }) {
+      addUtilities({
+        '.sentence-case': {
+          'text-transform': 'lowercase',
+          '&::first-letter': {
+            'text-transform': 'uppercase',
+          },
+        },
+      })
+    },
+  ],
 }

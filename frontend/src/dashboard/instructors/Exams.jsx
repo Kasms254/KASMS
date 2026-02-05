@@ -509,7 +509,7 @@ export default function Exams() {
   }
 
   return (
-    <div className="p-6 text-black max-w-7xl mx-auto">
+    <div className="p-6 text-black w-full">
       <header className="mb-6 flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>

@@ -169,7 +169,7 @@ export default function SessionAttendance() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6">
+      <div className="w-full px-3 sm:px-4 md:px-6 py-6">
         <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center">
           <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
           <p className="mt-4 text-neutral-600">Loading session data...</p>
@@ -180,7 +180,7 @@ export default function SessionAttendance() {
 
   if (!session) {
     return (
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6">
+      <div className="w-full px-3 sm:px-4 md:px-6 py-6">
         <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
           <h3 className="mt-4 text-lg font-medium text-black">Session not found</h3>
@@ -196,7 +196,7 @@ export default function SessionAttendance() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
+    <div className="w-full px-3 sm:px-4 md:px-6">
       {/* Header */}
       <header className="mb-4 sm:mb-6">
         <button

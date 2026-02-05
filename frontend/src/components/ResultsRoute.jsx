@@ -1,14 +1,26 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import AddResults from '../dashboard/instructors/AddResults'
 import StudentResults from '../dashboard/students/StudentResults'
 
 export default function ResultsRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, logout } = useAuth()
+  const [loggingOut, setLoggingOut] = useState(false)
   if (loading) return null
-  if (!user) return <StudentResults />
 
-  // Only instructors and students can access results
+  // Security: Require authentication
+  if (!user) return <Navigate to="/" replace />
+
+  // Role-based access - only instructors and students
   if (user.role === 'instructor') return <AddResults />
-  return <StudentResults />
+  if (user.role === 'student') return <StudentResults />
+
+  // Security: Admin/superadmin/unknown roles - logout and redirect
+  if (!loggingOut) {
+    console.warn('Unauthorized role in ResultsRoute:', user.role, '- logging out')
+    setLoggingOut(true)
+    logout()
+  }
+  return <Navigate to="/" replace />
 }

@@ -222,6 +222,11 @@ export default function ExamReports() {
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
+      
+      // Only show exams that have results
+      const hasResults = exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
+      if (!hasResults) return false
+      
       return true
     })
     // Reset to page 1 when filters change
@@ -364,6 +369,20 @@ export default function ExamReports() {
     }
     return colors[type] || 'bg-gray-100 text-gray-700'
   }
+
+  // Check if exam has any results
+  const hasExamResults = useCallback((exam) => {
+    return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
+  }, [])
+
+  // Handle viewing an exam report - with validation
+  const handleViewReport = useCallback((exam) => {
+    if (!hasExamResults(exam)) {
+      toast?.showError?.('This exam has no results to display')
+      return
+    }
+    setSelectedExam(exam)
+  }, [hasExamResults, toast])
 
   // Calculate percentage
   const calcPercentage = useCallback((marks, total) => {
@@ -723,7 +742,7 @@ export default function ExamReports() {
 
                       {/* Action Button */}
                       <button
-                        onClick={() => setSelectedExam(exam)}
+                        onClick={() => handleViewReport(exam)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
                       >
                         <LucideIcons.Eye className="w-4 h-4" />
@@ -775,7 +794,7 @@ export default function ExamReports() {
 
                       {/* Action Button */}
                       <button
-                        onClick={() => setSelectedExam(exam)}
+                        onClick={() => handleViewReport(exam)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
                       >
                         <LucideIcons.Eye className="w-5 h-5" />
@@ -832,7 +851,7 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <button
-                            onClick={() => setSelectedExam(exam)}
+                            onClick={() => handleViewReport(exam)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
                           >
                             <LucideIcons.Eye className="w-4 h-4" />

@@ -130,8 +130,8 @@ export default function AdminDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Admin dashboard</h2>
-        <p className="text-sm text-gray-500">Overview of school metrics</p>
+        <h2 className="text-2xl font-semibold text-black">Admin Dashboard</h2>
+        <p className="text-sm text-gray-500">Overview of School Metrics</p>
       </header>
 
       {/* Cards grid - modern layout */}
@@ -147,7 +147,7 @@ export default function AdminDashboard() {
         <Link to="/list/subjects" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
           <UserCard type="subject" count={metrics.subjects} />
         </Link>
-        <Card title="Active classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
+        <Card title="Active Classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
       </section>
 
       {/* removed admin actions (Add user) per design change */}
@@ -162,13 +162,13 @@ export default function AdminDashboard() {
 
         <div className="bg-white text-neutral-800 rounded-xl p-4 border border-neutral-200 h-full">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium mb-3">Latest activity</h3>
+            <h3 className="text-lg font-medium mb-3">Latest Activity</h3>
           </div>
 
           {recentLoading && <div className="text-sm text-neutral-500">Loading…</div>}
 
           {!recentLoading && (!recentItems || recentItems.length === 0) && (
-            <div className="text-sm text-neutral-500">No recent activity</div>
+            <div className="text-sm text-neutral-500">No Recent Activity</div>
           )}
 
           {!recentLoading && recentItems && recentItems.length > 0 && (
