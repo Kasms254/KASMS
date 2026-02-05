@@ -1029,7 +1029,7 @@ export default function Exams() {
                       <span>Title</span>
                       <span className={`text-xs ${(editForm.title?.length || 0) > 25 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.title?.length || 0}/25</span>
                     </div>
-                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <ModernDatePicker

@@ -12,7 +12,6 @@ function sanitizeInput(value) {
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(controlChars, '')
-    .trim()
 }
 
 export default function SubjectsPage() {

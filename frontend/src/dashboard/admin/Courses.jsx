@@ -189,7 +189,7 @@ export default function Courses() {
                     <label className="text-sm text-neutral-600 mb-1 block">Course Name *</label>
                     <input
                       className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${courseErrors.name ? 'border-rose-500' : 'border-neutral-200'}`}
-                      placeholder="e.g. Computer Science"
+                      placeholder="e.g. Cybersecurity"
                       value={newCourse.name}
                       maxLength={50}
                       onChange={(e) => setNewCourse({ ...newCourse, name: sanitizeInput(e.target.value).slice(0, 50) })}
@@ -268,7 +268,7 @@ export default function Courses() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Course Name *</label>
-                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Computer Science" value={editCourseForm.name} maxLength={50} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: sanitizeInput(e.target.value).slice(0, 50) })} />
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="e.g. Cybersecurity" value={editCourseForm.name} maxLength={50} onChange={(e) => setEditCourseForm({ ...editCourseForm, name: sanitizeInput(e.target.value).slice(0, 50) })} />
                   </div>
 
                   <div>

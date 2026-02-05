@@ -77,8 +77,8 @@ export function sanitizeInput(value, options = {}) {
   // 8. Normalize whitespace
   sanitized = sanitized.replace(/\s+/g, ' ')
 
-  // 9. Trim and limit length
-  sanitized = sanitized.trim().slice(0, maxLength)
+  // 9. Limit length (don't trim here — trimming on every keystroke prevents typing spaces between words)
+  sanitized = sanitized.slice(0, maxLength)
 
   return sanitized
 }
@@ -97,7 +97,6 @@ export function sanitizeName(value, maxLength = 50) {
   return value
     .replace(/[^a-zA-Z\s\-']/g, '') // Only letters, spaces, hyphens, apostrophes
     .replace(/\s+/g, ' ') // Normalize spaces
-    .trim()
     .slice(0, maxLength)
 }
 

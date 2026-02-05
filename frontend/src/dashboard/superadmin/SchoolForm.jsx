@@ -28,6 +28,8 @@ export default function SchoolForm() {
   const [errors, setErrors] = useState({})
   const [showPassword, setShowPassword] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: '' })
+  const [adminId, setAdminId] = useState(null) // Track existing admin for edit mode
+  const [adminUserId, setAdminUserId] = useState(null) // Track the admin's user ID for updates
 
   const [form, setForm] = useState({
     // School fields
@@ -75,8 +77,11 @@ export default function SchoolForm() {
   useEffect(() => {
     if (isEditing) {
       setLoading(true)
-      api.getSchool(id)
-        .then((data) => {
+      Promise.all([
+        api.getSchool(id),
+        api.getSchoolAdminsBySchool(id).catch(() => [])
+      ])
+        .then(async ([data, adminsData]) => {
           setForm((prev) => ({
             ...prev,
             name: data.name || '',
@@ -95,6 +100,34 @@ export default function SchoolForm() {
           }))
           if (data.logo) {
             setLogoPreview(data.logo)
+          }
+          // Load the primary admin's details
+          const admins = Array.isArray(adminsData) ? adminsData : (adminsData?.results || [])
+          if (admins.length > 0) {
+            const admin = admins.find(a => a.is_primary) || admins[0]
+            setAdminId(admin.id)
+            // admin.user is an integer ID, fetch full user details
+            const userId = typeof admin.user === 'number' ? admin.user : null
+            if (userId) {
+              setAdminUserId(userId)
+              try {
+                const userData = await api.getUser(userId)
+                setForm((prev) => ({
+                  ...prev,
+                  admin_first_name: userData.first_name || '',
+                  admin_last_name: userData.last_name || '',
+                  admin_email: userData.email || admin.user_email || '',
+                  admin_phone: userData.phone_number || '',
+                  admin_svc_number: userData.svc_number || '',
+                }))
+              } catch {
+                // Fallback to flat fields on admin object
+                setForm((prev) => ({
+                  ...prev,
+                  admin_email: admin.user_email || '',
+                }))
+              }
+            }
           }
         })
         .catch((err) => {
@@ -234,18 +267,21 @@ export default function SchoolForm() {
     setSaving(true)
     setErrors({})
 
-    // Client-side validation
-    if (!isEditing) {
-      if (!form.admin_password || form.admin_password.length < 8) {
-        toast.error('Password must be at least 8 characters long')
-        setSaving(false)
-        return
-      }
-      if (form.admin_password !== form.admin_password2) {
-        toast.error('Passwords do not match')
-        setSaving(false)
-        return
-      }
+    // Client-side validation for password
+    if (!isEditing && (!form.admin_password || form.admin_password.length < 8)) {
+      toast.error('Password must be at least 8 characters long')
+      setSaving(false)
+      return
+    }
+    if (form.admin_password && form.admin_password.length < 8) {
+      toast.error('Password must be at least 8 characters long')
+      setSaving(false)
+      return
+    }
+    if (form.admin_password && form.admin_password !== form.admin_password2) {
+      toast.error('Passwords do not match')
+      setSaving(false)
+      return
     }
 
     try {
@@ -268,6 +304,27 @@ export default function SchoolForm() {
           max_instructors: form.max_instructors,
           is_active: form.is_active,
         })
+        // Update the admin's user account if one exists
+        if (adminUserId) {
+          const userPayload = {
+            first_name: form.admin_first_name,
+            last_name: form.admin_last_name,
+            email: form.admin_email,
+            phone_number: form.admin_phone,
+            svc_number: form.admin_svc_number,
+          }
+          // Only include password if user typed a new one
+          if (form.admin_password) {
+            userPayload.password = form.admin_password
+          }
+          try {
+            await api.partialUpdateUser(adminUserId, userPayload)
+          } catch (adminErr) {
+            toast.error('School saved but failed to update admin: ' + (adminErr.message || 'Unknown error'))
+            setSaving(false)
+            return
+          }
+        }
         toast.success('School updated successfully')
       } else {
         // Create new school with admin using the combined endpoint
@@ -430,7 +487,7 @@ export default function SchoolForm() {
                 className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
                   errors.name || errors.school_name ? 'border-red-500' : 'border-neutral-200'
                 }`}
-                placeholder="e.g., Kenya Army Combat Engineering School"
+                placeholder="e.g. Kenya Army Combat Engineering School"
               />
               {(errors.name || errors.school_name) && <p className="text-red-500 text-sm mt-1">{errors.name || errors.school_name}</p>}
             </div>
@@ -445,7 +502,7 @@ export default function SchoolForm() {
                 value={form.short_name}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                placeholder="e.g., KACEME"
+                placeholder="e.g. KACEME"
               />
             </div>
 
@@ -462,7 +519,7 @@ export default function SchoolForm() {
                 className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono uppercase ${
                   errors.code || errors.school_code ? 'border-red-500' : 'border-neutral-200'
                 }`}
-                placeholder="e.g., KACEME"
+                placeholder="e.g. KACEME"
               />
               {(errors.code || errors.school_code) && <p className="text-red-500 text-sm mt-1">{errors.code || errors.school_code}</p>}
               <p className="text-neutral-500 text-xs mt-1">Uppercase letters, numbers, and underscores only</p>
@@ -512,7 +569,7 @@ export default function SchoolForm() {
                 onChange={handleChange}
                 required
                 className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                placeholder="e.g., Nairobi"
+                placeholder="e.g. Nairobi"
               />
             </div>
 
@@ -533,14 +590,16 @@ export default function SchoolForm() {
           </div>
         </div>
 
-        {/* Admin Information - Only show when creating */}
-        {!isEditing && (
+        {/* Admin Information - Show when creating or when editing with an existing admin */}
+        {(!isEditing || adminId) && (
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-4">
               <UserCog className="w-5 h-5 text-neutral-500" />
               <h3 className="font-semibold text-black">Primary Administrator</h3>
             </div>
-            <p className="text-sm text-neutral-500 mb-4">This user will be created as the primary admin for this school.</p>
+            <p className="text-sm text-neutral-500 mb-4">
+              {isEditing ? 'Update the primary administrator details for this school.' : 'This user will be created as the primary admin for this school.'}
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -592,7 +651,7 @@ export default function SchoolForm() {
                   className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono ${
                     errors.admin_svc_number ? 'border-red-500' : 'border-neutral-200'
                   }`}
-                  placeholder="e.g., 12345678"
+                  placeholder="e.g. 12345678"
                 />
                 {errors.admin_svc_number && <p className="text-red-500 text-sm mt-1">{errors.admin_svc_number}</p>}
                 <p className="text-neutral-500 text-xs mt-1">Numbers only - used for login</p>
@@ -635,7 +694,7 @@ export default function SchoolForm() {
 
               <div>
                 <label className="block text-sm font-medium text-neutral-600 mb-1">
-                  Password *
+                  {isEditing ? 'New Password' : 'Password *'}
                 </label>
                 <div className="relative">
                   <input
@@ -643,11 +702,12 @@ export default function SchoolForm() {
                     name="admin_password"
                     value={form.admin_password}
                     onChange={handleChange}
-                    required
+                    required={!isEditing}
                     minLength={8}
                     className={`w-full px-3 py-2 pr-10 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
                       errors.admin_password ? 'border-red-500' : 'border-neutral-200'
                     }`}
+                    placeholder={isEditing ? 'Leave blank to keep current' : ''}
                   />
                   <button
                     type="button"
@@ -658,6 +718,7 @@ export default function SchoolForm() {
                   </button>
                 </div>
                 {errors.admin_password && <p className="text-red-500 text-sm mt-1">{errors.admin_password}</p>}
+                {isEditing && <p className="text-neutral-500 text-xs mt-1">Leave blank to keep the current password</p>}
                 {form.admin_password && (
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
@@ -682,18 +743,19 @@ export default function SchoolForm() {
 
               <div>
                 <label className="block text-sm font-medium text-neutral-600 mb-1">
-                  Confirm Password *
+                  {isEditing ? 'Confirm New Password' : 'Confirm Password *'}
                 </label>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="admin_password2"
                   value={form.admin_password2}
                   onChange={handleChange}
-                  required
+                  required={!isEditing}
                   minLength={8}
                   className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
                     errors.admin_password2 || (form.admin_password2 && form.admin_password !== form.admin_password2) ? 'border-red-500' : 'border-neutral-200'
                   }`}
+                  placeholder={isEditing ? 'Leave blank to keep current' : ''}
                 />
                 {errors.admin_password2 && <p className="text-red-500 text-sm mt-1">{errors.admin_password2}</p>}
                 {form.admin_password2 && form.admin_password !== form.admin_password2 && (
@@ -907,7 +969,7 @@ export default function SchoolForm() {
               </button>
               <button
                 type="submit"
-                disabled={saving || (!isEditing && form.admin_password !== form.admin_password2)}
+                disabled={saving || (form.admin_password && form.admin_password !== form.admin_password2)}
                 className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {saving ? (
