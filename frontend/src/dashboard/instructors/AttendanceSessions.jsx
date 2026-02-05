@@ -86,7 +86,6 @@ export default function AttendanceSessions() {
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/<[^>]+>/g, '')
       .replace(controlChars, '')
-      .trim()
   }
 
   // Create form state
@@ -625,7 +624,7 @@ export default function AttendanceSessions() {
                     <span>Title</span>
                     <span className={`text-xs ${(createForm.title?.length || 0) > 40 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/40</span>
                   </div>
-                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: sanitizeInput(e.target.value).slice(0, 40) }))} maxLength={40} placeholder="e.g., Morning Attendance" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required />
+                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: sanitizeInput(e.target.value).slice(0, 40) }))} maxLength={40} placeholder="e.g. Bedcheck Attendance" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required />
                 </label>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <label className="block">

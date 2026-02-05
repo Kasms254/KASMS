@@ -175,7 +175,7 @@ export default function Login() {
                   className={`w-full pl-10 pr-3 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
                     fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
                   }`}
-                  placeholder="e.g., 123456"
+                  placeholder="e.g. 123456"
                   aria-invalid={!!fieldErrors.svc_number}
                   aria-describedby={fieldErrors.svc_number ? 'svc-number-error' : undefined}
                   autoComplete="username"

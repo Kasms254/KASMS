@@ -99,7 +99,7 @@ export default function SchoolsPage() {
       </div>
 
       {/* Schools Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-neutral-200">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -119,7 +119,7 @@ export default function SchoolsPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div>
               <table className="w-full">
                 <thead className="bg-neutral-50 border-b border-neutral-200">
                   <tr>
@@ -194,7 +194,7 @@ export default function SchoolsPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-sm text-neutral-500">
-                        {new Date(school.created_at).toLocaleDateString()}
+                        {school.created_at ? new Date(school.created_at).toLocaleDateString() : '—'}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end gap-2 relative">

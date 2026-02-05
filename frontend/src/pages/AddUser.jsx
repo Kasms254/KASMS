@@ -34,7 +34,6 @@ function sanitizeInput(value) {
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(controlChars, '')
-    .trim()
 }
 
 export default function AddUser({ onSuccess } = {}) {
@@ -47,6 +46,7 @@ export default function AddUser({ onSuccess } = {}) {
     phone_number: '',
     role: 'student',
     rank: '',
+    unit: '',
     class_obj: '',
     password: '',
     password2: '',
@@ -143,6 +143,9 @@ export default function AddUser({ onSuccess } = {}) {
       case 'rank':
         if (!value) return 'Please select a rank from the list'
         return ''
+      case 'unit':
+        if (!value) return 'Unit is required'
+        return ''
       case 'class_obj':
         if (formData.role === 'student' && !value) return 'Students must be assigned to a class'
         return ''
@@ -187,6 +190,11 @@ export default function AddUser({ onSuccess } = {}) {
     // Sanitize and limit first_name and last_name to 10 characters
     if (name === 'first_name' || name === 'last_name') {
       newValue = sanitizeInput(value).slice(0, 10)
+    }
+
+    // Sanitize unit field
+    if (name === 'unit') {
+      newValue = sanitizeInput(value).slice(0, 50)
     }
 
     setForm((f) => {
@@ -243,7 +251,7 @@ export default function AddUser({ onSuccess } = {}) {
 
     // Field-specific validation with descriptive messages
     const fErrs = {}
-    const fieldsToValidate = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'phone_number', 'rank', 'class_obj', 'password', 'password2']
+    const fieldsToValidate = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'phone_number', 'unit', 'rank', 'class_obj', 'password', 'password2']
 
     for (const field of fieldsToValidate) {
       const error = validateField(field, form[field], form)
@@ -282,6 +290,7 @@ export default function AddUser({ onSuccess } = {}) {
         phone_number: '',
         role: 'student',
         rank: '',
+        unit: '',
         class_obj: '',
         password: '',
         password2: '',
@@ -307,6 +316,7 @@ export default function AddUser({ onSuccess } = {}) {
           rank: 'Rank',
           class_obj: 'Class',
           phone_number: 'Phone number',
+          unit: 'Unit',
           role: 'Role',
         }
 
@@ -440,6 +450,12 @@ export default function AddUser({ onSuccess } = {}) {
                 <label className="block text-sm font-medium text-gray-700">Phone number</label>
                 <input name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.phone_number}</div>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Unit </label>
+                <input name="unit" value={form.unit} onChange={onChange} onBlur={onBlur} required maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.unit ? 'border-rose-500' : 'border-neutral-200'}`} placeholder="e.g. 21KR" />
+                {fieldErrors.unit && <div className="text-xs text-rose-600 mt-1">{fieldErrors.unit}</div>}
               </div>
 
               <div>

@@ -77,7 +77,7 @@ export default function AdminInstructors() {
   const [selectedClass, setSelectedClass] = useState('all')
   // edit/delete UI state
   const [editingInstructor, setEditingInstructor] = useState(null)
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true })
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', unit: '', is_active: true })
   const [editLoading, setEditLoading] = useState(false)
   const [editFieldErrors, setEditFieldErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
@@ -190,6 +190,7 @@ export default function AdminInstructors() {
           email: it.email,
           phone_number: it.phone_number,
           rank: normalizeRank(it.rank || it.rank_display),
+          unit: it.unit || '',
           role: it.role,
           role_display: it.role_display,
           is_active: it.is_active,
@@ -346,13 +347,14 @@ export default function AdminInstructors() {
       email: it.email || '',
       phone_number: it.phone_number || '',
       rank: normalizeRank(it.rank || it.rank_display),
+      unit: it.unit || '',
       is_active: !!it.is_active,
     })
   }
 
   function closeEdit() {
     setEditingInstructor(null)
-    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', is_active: true, rank: '' })
+    setEditForm({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', unit: '', is_active: true, rank: '' })
     setEditFieldErrors({})
     setEditTouched({})
     setEditError('')
@@ -409,6 +411,7 @@ export default function AdminInstructors() {
         email: editForm.email,
         phone_number: editForm.phone_number,
         rank: editForm.rank || undefined,
+        unit: editForm.unit || '',
         is_active: editForm.is_active,
       }
       const updated = await api.partialUpdateUser(editingInstructor.id, payload)
@@ -421,6 +424,7 @@ export default function AdminInstructors() {
         email: updated.email,
         phone_number: updated.phone_number,
         rank: normalizeRank(updated.rank || updated.rank_display),
+        unit: updated.unit || '',
         role: updated.role,
         role_display: updated.role_display,
         is_active: updated.is_active,
@@ -464,8 +468,8 @@ export default function AdminInstructors() {
   }
 
   function downloadCSV() {
-    // Service No first, then Rank, Name, then the rest
-    const rows = [['Service No', 'Rank', 'Name', 'Email', 'Phone', 'Role', 'Active', 'Created']]
+    // Service No first, then Rank, Name, Unit, then the rest
+    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone', 'Role', 'Active', 'Created']]
     instructors.forEach((it) => {
       const svc = it.svc_number || ''
       const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
@@ -474,7 +478,7 @@ export default function AdminInstructors() {
       const role = it.role_display || it.role || ''
       const active = it.is_active ? 'Yes' : 'No'
       const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, getRankDisplay(it.rank) || '', name, email, phone, role, active, created])
+      rows.push([svc, getRankDisplay(it.rank) || '', name, it.unit || '', email, phone, role, active, created])
     })
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
@@ -613,10 +617,11 @@ export default function AdminInstructors() {
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Service No</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Rank</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Name</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Unit</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Phone</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Classes</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Subjects</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Actions</th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -632,6 +637,7 @@ export default function AdminInstructors() {
                         <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{it.unit || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">
                       {(() => {
@@ -667,10 +673,8 @@ export default function AdminInstructors() {
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                      </div>
+                    <td className="px-4 py-3 text-right">
+                        <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
                     </td>
                   </tr>
                 ))}
@@ -698,6 +702,7 @@ export default function AdminInstructors() {
                           <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                           <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
                           {it.rank && <div className="text-xs text-neutral-600">{getRankDisplay(it.rank)}</div>}
+                          {it.unit && <div className="text-xs text-neutral-400">{it.unit}</div>}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -760,6 +765,13 @@ export default function AdminInstructors() {
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
                       <span className="text-sm text-neutral-700">{getRankDisplay(it.rank)}</span>
+                    </div>
+                  ) : null}
+
+                  {it.unit ? (
+                    <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Unit:</span>
+                      <span className="text-sm text-neutral-700">{it.unit}</span>
                     </div>
                   ) : null}
 
@@ -1011,6 +1023,11 @@ export default function AdminInstructors() {
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Unit</label>
+                  <input value={editForm.unit} onChange={(e) => handleEditChange('unit', e.target.value)} maxLength={50} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" placeholder="e.g. 21KR" />
                 </div>
 
                 <div>

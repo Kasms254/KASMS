@@ -74,7 +74,7 @@ export default function AdminStudents() {
   const [totalCount, setTotalCount] = useState(0)
   // edit / delete UI state
   const [editingStudent, setEditingStudent] = useState(null)
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, class_obj: '' })
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, class_obj: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editFieldErrors, setEditFieldErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
@@ -159,6 +159,7 @@ export default function AdminStudents() {
           email: u.email,
           phone_number: u.phone_number,
           rank: normalizeRank(u.rank || u.rank_display),
+          unit: u.unit || '',
           is_active: u.is_active,
           created_at: u.created_at,
           // backend may include class name under different keys; fall back to 'Unassigned'
@@ -241,6 +242,7 @@ export default function AdminStudents() {
           email: u.email,
           phone_number: u.phone_number,
           rank: normalizeRank(u.rank || u.rank_display),
+          unit: u.unit || '',
           is_active: u.is_active,
           created_at: u.created_at,
           // backend may include class name under different keys; fall back to 'Unassigned'
@@ -264,10 +266,10 @@ export default function AdminStudents() {
 
 
   function downloadCSV() {
-    // Export Service No first, then Rank, Name, Class, Email, Phone, Active
-    const rows = [['Service No', 'Rank', 'Name', 'Class', 'Email', 'Phone', 'Active']]
+    // Export Service No first, then Rank, Name, Unit, Class, Email, Phone, Active
+    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Class', 'Email', 'Phone', 'Active']]
 
-    students.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
+    students.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -293,6 +295,7 @@ export default function AdminStudents() {
       svc_number: st.svc_number || '',
       is_active: !!st.is_active,
       rank: normalizeRank(st.rank || st.rank_display),
+      unit: st.unit || '',
       // ensure class_obj is a string (select values are strings) and fall back to empty
       class_obj: st.class_obj ? String(st.class_obj) : '',
     })
@@ -323,7 +326,7 @@ export default function AdminStudents() {
 
   function closeEdit() {
     setEditingStudent(null)
-    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', is_active: true, rank: '' })
+    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, rank: '' })
     setEditFieldErrors({})
     setEditTouched({})
     setEditError('')
@@ -380,6 +383,7 @@ export default function AdminStudents() {
         phone_number: editForm.phone_number,
         svc_number: editForm.svc_number,
         rank: editForm.rank || undefined,
+        unit: editForm.unit || '',
         is_active: editForm.is_active,
       }
       const updated = await api.partialUpdateUser(editingStudent.id, payload)
@@ -404,6 +408,7 @@ export default function AdminStudents() {
         svc_number: updated.svc_number,
         email: updated.email,
         rank: normalizeRank(updated.rank || updated.rank_display),
+        unit: updated.unit || '',
         phone_number: updated.phone_number,
         is_active: updated.is_active,
         created_at: updated.created_at,
@@ -766,6 +771,7 @@ export default function AdminStudents() {
                         <div className="font-medium text-sm sm:text-base text-black truncate">{st.name || '-'}</div>
                         <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
                         <div className="text-xs text-neutral-500">{st.className}</div>
+                        {st.unit && <div className="text-xs text-neutral-400">{st.unit}</div>}
                       </div>
                     </div>
                     <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full flex-shrink-0 ${st.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -794,6 +800,7 @@ export default function AdminStudents() {
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Service No</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Unit</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Class</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Phone</th>
@@ -812,6 +819,7 @@ export default function AdminStudents() {
                           <div className="font-medium text-sm text-black">{st.name || '-'}</div>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{st.unit || '-'}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700">{st.className}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700 truncate max-w-[200px]">{st.email || '-'}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.phone_number || '-'}</td>
@@ -884,6 +892,11 @@ export default function AdminStudents() {
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Unit</label>
+                  <input value={editForm.unit} onChange={(e) => handleEditChange('unit', e.target.value)} maxLength={50} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" placeholder="e.g. 21KR" />
                 </div>
 
                 <div>
