@@ -3,8 +3,8 @@ from rest_framework import viewsets, status, filters
 from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
-    NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
+    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer, SchoolUploadSerializer,
+    NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer, SchoolUploadSerializer, generate_logo_filename, delete_old_logo,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
@@ -14,7 +14,7 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent,IsInstructorOfClassOrAdmin
+from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent,IsInstructorOfClassOrAdmin,CanManageSchool
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -29,6 +29,14 @@ from django.http import HttpResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
+from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+
 
 
 class TenantFilterMixin:
@@ -99,6 +107,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'name', 'code']
     ordering = ['created_at']
 
+    MAX_LOGO_SIZE = getattr(settings, 'MAX_LOGO_SIZE', 5 * 1024 * 1024)  
+    ALLOWED_LOGO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+    ALLOWED_LOGO_MIME_TYPES = [
+        'image/jpeg', 'image/png', 'image/gif', 
+        'image/webp', 'image/svg+xml'
+    ]
+    LOGO_UPLOAD_DIR = 'school_logos'
+
     def get_serializer_class(self):
         if self.action == 'list':
             return SchoolListSerializer
@@ -128,7 +144,6 @@ class SchoolViewSet(viewsets.ModelViewSet):
             )
         
         return queryset.none()
-
 
     @action(detail=False, methods=['post'], permission_classes=[IsSuperAdmin])
     def create_with_admin(self, request):
@@ -197,6 +212,13 @@ class SchoolViewSet(viewsets.ModelViewSet):
                 'start_date':school.subscription_start,
                 'end_date': school.subscription_end,
                 'is_active':school.is_active
+            },
+            'branding':{
+                'has_logo': bool(school.logo),
+                'logo_url':request.build_absolute_uri(school.logo.url) if school.logo else None,
+                'primary_color': school.primary_color,
+                'secondary_color':school.secondary_color,
+                'accent_color':school.accent_color
             }
         }
 
@@ -242,7 +264,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'school_admin':SchoolAdminSerializer(school_admin).data
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdmin])
     def activate(self, request, pk=None):
         school = self.get_object()
         school.is_active = True
@@ -261,6 +283,102 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'School {school.name} deactivated'
         })
+
+    @action(detail=True, methods=['post', 'delete'], parser_classes = [MultiPartParser, FormParser], url_path='upload_logo', url_name='upload_logo',
+    permission_classes=[IsAuthenticated, CanManageSchool])
+    def upload_logo(self, request, pk=None):
+        school = self.get_object()
+        user = request.user
+
+        if request.method == 'DELETE':
+            return self._delete_logo(school, user)
+
+        return self._upload_logo(request, school, user)
+
+    def _upload_logo(self, request, school, user):
+        serializer = SchoolUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'error': 'validation error', 
+                'detail': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logo_file = serializer.validated_data['logo']
+
+        try:
+            old_logo = school.logo.name if school.logo else None
+
+            new_filename = generate_logo_filename(school.code, logo_file.name)
+
+            school.logo.save(new_filename, logo_file, save=True)
+
+            if old_logo and old_logo != school.logo.name:
+                try:
+                    if default_storage.exists(old_logo):
+                        default_storage.delete(old_logo)
+                except Exception as e:
+                    logger.warning(f"Failed to delete old logo: {e}")
+
+            logo_url = request.build_absolute_uri(school.logo.url) if school.logo else None
+
+            logger.info(f"Logo uploaded: school={school.code}, user={user.username}")
+
+            return Response({
+                'status': 'success',
+                'message': 'Logo uploaded successfully',
+                'logo_url': logo_url,
+                'school_id': str(school.id),
+                'school_code': school.code,
+                'file_name': os.path.basename(school.logo.name) if school.logo else None,
+                'file_size': logo_file.size,
+            }, status=status.HTTP_200_OK)
+
+        except DjangoValidationError as e:
+            return Response({
+                'error': 'Validation error', 
+                'detail': e.messages if hasattr(e, 'messages') else str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"Upload error: {type(e).__name__}: {e}")
+            
+            return Response({
+                'error': 'Upload failed', 
+                'detail': str(e) 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _delete_logo(self, school, user):
+        if not school.logo:
+            return Response({
+                'error': 'Not Found', 
+                'detail': 'This school does not have a logo'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            logo_name = school.logo.name
+
+            delete_old_logo(school.logo)
+
+            school.logo = None
+            school.save(update_fields=['logo', 'updated_at'])
+
+            logger.info(f"Logo deleted: school={school.code}, user={user.username}")
+
+            return Response({
+                'status': 'success',
+                'message':'Logo delete successfully',
+                'school_id':str(school.id),
+                'school_code':school.code,
+            }, status= status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Logo delete failed: school={school.code}, error={e}, exc_info=True")
+            return Response({
+                'error': 'Delete Failed',
+                'detail': ' AN error occured whiel deleting the logo.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class SchoolAdminViewSet(viewsets.ModelViewSet):
 
@@ -939,7 +1057,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer

@@ -250,3 +250,18 @@ AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+MAX_LOGO_SIZE = 5 * 1024 * 1024
+
+ALLOWED_LOGO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+
+ALLOWED_LOGO_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/gif', 
+    'image/webp', 
+    'image/svg+xml'
+]
+
+LOGO_UPLOAD_DIR = 'school_logos'
+

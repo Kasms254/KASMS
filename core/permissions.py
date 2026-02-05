@@ -27,19 +27,16 @@ class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'superadmin']
     
-
 class IsAdminOrInstructor(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin']
     
-
 class IsInstructor(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'instructor'
     
-
 class IsInstructorofClass(BasePermission):
     def has_object_permission(self, request, view, obj):
         if not request.user.is_authenticated:
@@ -59,13 +56,11 @@ class IsStudent(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'student'
     
-
 class IsCommandant(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'commandant'
     
-
 class IsOwnerOrAdmin(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
@@ -92,8 +87,7 @@ class IsAdminOrCommandant(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'superadmin']
 
-
-class  ReadOnlyForCommandant(permissions.BasePermission):
+class ReadOnlyForCommandant(permissions.BasePermission):
 
     def has_permission(self, request, view):
 
@@ -113,7 +107,6 @@ class  ReadOnlyForCommandant(permissions.BasePermission):
 
 
     message = "You do not have permission to perform this action"
-
     
 class BelongsToSameSchool(BasePermission):
 
@@ -142,7 +135,6 @@ class BelongsToSameSchool(BasePermission):
             return obj.school == request.user.school
         
         return True
-
 
 class CanAccessSchoolData(BasePermission):
 
@@ -176,7 +168,15 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
+class CanManageSchool(BasePermission):
 
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.role == 'superadmin':
+            return True
+        if user.role == 'admin' and user.school:
+            return user.school.id == obj.id
+        return False
 
 
 

@@ -8,8 +8,98 @@ from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
+import logging
+from pathlib import Path
+import os
+
+logger = logging.getLogger(__name__)
+
+MAX_LOGO_SIZE = 5 * 1024 * 1024  
+ALLOWED_LOGO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+ALLOWED_LOGO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+
+LOGO_UPLOAD_DIR = 'school_logos'
 
 
+def validate_logo_file(file):
+    errors = []
+    
+    if file.size > MAX_LOGO_SIZE:
+        max_mb = MAX_LOGO_SIZE / (1024 * 1024)
+        file_mb = file.size / (1024 * 1024)
+        errors.append(
+            f'File size ({file_mb:.2f}MB) exceeds maximum ({max_mb:.2f}MB).'
+        )
+    
+    ext = Path(file.name).suffix.lower().lstrip('.')
+    if ext not in ALLOWED_LOGO_EXTENSIONS:
+        errors.append(
+            f'Extension ".{ext}" not allowed. Use: {", ".join(ALLOWED_LOGO_EXTENSIONS)}'
+        )
+    
+    content_type = getattr(file, 'content_type', None)
+    if content_type and content_type not in ALLOWED_LOGO_MIME_TYPES:
+        errors.append(f'File type "{content_type}" not allowed.')
+    
+    try:
+        file.seek(0)
+        header = file.read(32)
+        file.seek(0)
+        
+        valid_signatures = [
+            b'\xff\xd8\xff',      # JPEG
+            b'\x89PNG\r\n\x1a\n', # PNG
+            b'GIF87a',            # GIF
+            b'GIF89a',            # GIF
+            b'RIFF',              # WebP
+            b'<?xml',             # SVG
+            b'<svg',              # SVG
+        ]
+        
+        is_valid = any(header.startswith(sig) for sig in valid_signatures)
+        
+        if header.startswith(b'RIFF') and b'WEBP' not in header[:16]:
+            is_valid = False
+            
+        if not is_valid and ext not in ['svg']:
+            errors.append('File does not appear to be a valid image.')
+            
+    except Exception as e:
+        logger.warning(f"Error reading file header: {e}")
+    
+    if errors:
+        raise DjangoValidationError(errors)
+    
+    return True
+
+
+def generate_logo_filename(school_code, original_filename):
+    ext = Path(original_filename).suffix.lower()
+    unique_id = uuid.uuid4().hex[:12]
+    filename = f"{school_code.lower()}_{unique_id}{ext}"
+    return os.path.join(LOGO_UPLOAD_DIR, school_code.lower(), filename)
+
+
+def delete_old_logo(logo_field):
+    if logo_field and logo_field.name:
+        try:
+            if default_storage.exists(logo_field.name):
+                default_storage.delete(logo_field.name)
+                logger.info(f"Deleted old logo: {logo_field.name}")
+        except Exception as e:
+            logger.warning(f"Failed to delete old logo: {e}")
+
+
+class SchoolUploadSerializer(serializers.Serializer):
+    logo = serializers.ImageField(
+        required=True,
+        help_text="Logo image (max 2MB, formats: jpg, png, gif, webp, svg)"
+    )
+
+    def validate_logo(self, value):
+        validate_logo_file(value)
+        return value
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
     secondary_color = serializers.CharField()
