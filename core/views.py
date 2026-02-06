@@ -1,8 +1,9 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
+from .models import (Certificate,User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
+    BulkCertificateCreateSerializer, CertificateListSerializer,CertificateSerializer, CertificateListSerializer,CertificateCreateSerializer,
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer, SchoolUploadSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer, SchoolUploadSerializer, generate_logo_filename, delete_old_logo,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
@@ -33,11 +34,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 import logging
 import os
+from .models import CertificateDownloadLog
 
 logger = logging.getLogger(__name__)
-
-
-
 
 class TenantFilterMixin:
 
@@ -4193,4 +4192,502 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
         }
         return Response(stats)
+
+
+class CertificateTemplateViewSet(viewsets.ModelViewSet):
+
+    permission_classes = [IsAuthenticated]  
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['template_type', 'is_active', 'is_default']
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        
+        queryset = CertificateTemplate.all_objects.select_related('school').all()
+        user = self.request.user
+        
+        if not user.is_authenticated:
+            return queryset.none()
+        
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                return queryset.filter(school=school)
+            return queryset
+        
+        if user.school:
+            return queryset.filter(school=user.school)
+        
+        return queryset.none()
+    
+    def get_serializer_class(self):        
+        if self.action == 'list':
+            return CertificateTemplateListSerializer
+        return CertificateTemplateSerializer
+    
+    def perform_create(self, serializer):        
+        school = get_current_school() or self.request.user.school
+        
+        if serializer.validated_data.get('is_default'):
+            from .models import CertificateTemplate
+            CertificateTemplate.objects.filter(
+                school=school,
+                is_default=True
+            ).update(is_default=False)
+        
+        serializer.save(school=school)
+    
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        template = self.get_object()
+        
+        CertificateTemplate.objects.filter(
+            school=template.school,
+            is_default=True
+        ).update(is_default=False)
+        
+        template.is_default = True
+        template.save()
+        
+        return Response({
+            'status': 'success',
+            'message': f'Template "{template.name}" set as default'
+        })
+    
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        template = self.get_object()
+                
+        resolver = CertificateImageResolver(template.school)
+        branding = resolver.get_school_branding()
+        
+        preview_data = {
+            **branding,
+            'certificate_number': 'SAMPLE-2024-00001',
+            'verification_code': 'SAMPLE123456789ABCDEF',
+            'student_name': 'John Doe',
+            'student_svc_number': 'SVC-12345',
+            'student_rank': 'Sergeant',
+            'course_name': 'Sample Course',
+            'class_name': 'Sample Class 2024',
+            'final_grade': 'A',
+            'final_percentage': 92.5,
+            'completion_date': timezone.now().date(),
+            'issue_date': timezone.now().date(),
+            'header_text': template.header_text,
+            'signatory_name': template.signatory_name,
+            'signatory_title': template.signatory_title,
+        }
+        
+        return Response(preview_data)
+
+class CertificateViewSet(viewsets.ModelViewSet):
+
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'student', 'enrollment']
+    search_fields = ['certificate_number', 'student_name', 'course_name', 'class_name']
+    ordering_fields = ['issue_date', 'created_at', 'certificate_number']
+    ordering = ['-issue_date']
+    
+    def get_queryset(self):        
+        queryset = Certificate.all_objects.select_related(
+            'school', 'student', 'enrollment', 'template',
+            'issued_by', 'revoked_by'
+        ).all()
+        
+        user = self.request.user
+        
+        if not user.is_authenticated:
+            return queryset.none()
+        
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                return queryset.filter(school=school)
+            return queryset
+        
+        if user.role == 'student':
+            return queryset.filter(student=user)
+        
+        if user.school:
+            return queryset.filter(school=user.school)
+        
+        return queryset.none()
+    
+    def get_serializer_class(self):
+
+        if self.action == 'list':
+            return CertificateListSerializer
+        if self.action == 'create':
+            return CertificateCreateSerializer
+        return CertificateSerializer
+    
+    def create(self, request, *args, **kwargs):
+        
+        serializer = CertificateCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        certificate = serializer.save()
+        
+        output_serializer = CertificateSerializer(
+            certificate,
+            context={'request': request}
+        )
+        
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+
+        serializer = BulkCertificateCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        
+        return Response({
+            'status': 'success',
+            'message': f"Created {result['total_created']} certificates",
+            'total_created': result['total_created'],
+            'total_errors': result['total_errors'],
+            'certificates': CertificateListSerializer(
+                result['created'], 
+                many=True,
+                context={'request': request}
+            ).data,
+            'errors': result['errors']
+        })
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        certificate = self.get_object()
+        
+        user = request.user
+        if user.role == 'student' and certificate.student != user:
+            return Response(
+                {'error': 'You can only download your own certificates'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if not certificate.certificate_file:
+            
+            try:
+                generator = CertificateGenerator(certificate)
+                generator.save_to_model()
+            except Exception as e:
+                logger.error(f"Error generating certificate: {e}", exc_info=True)
+                return Response(
+                    {'error': 'Failed to generate certificate'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        
+        CertificateDownloadLog.objects.create(
+            school=certificate.school,
+            certificate=certificate,
+            downloaded_by=user,
+            download_type='pdf',
+            ip_address=request.META.get('REMOTE_ADDR'),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        certificate.record_download()
+        
+        response = FileResponse(
+            certificate.certificate_file.open('rb'),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="certificate_{certificate.certificate_number}.pdf"'
+        )
+        
+        return response
+    
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        certificate = self.get_object()
+                
+        generator = CertificateGenerator(certificate)
+        html_content, _ = generator.generate(format='html')
+        
+        certificate.record_view()
+        
+        return HttpResponse(html_content, content_type='text/html')
+    
+    @action(detail=True, methods=['get'])
+    def regenerate(self, request, pk=None):
+        certificate = self.get_object()
+                
+        try:
+            generator = CertificateGenerator(certificate)
+            generator.save_to_model()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Certificate regenerated successfully'
+            })
+        except Exception as e:
+            logger.error(f"Error regenerating certificate: {e}", exc_info=True)
+            return Response(
+                {'error': 'Failed to regenerate certificate'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        certificate = self.get_object()
+        
+        if certificate.status == 'revoked':
+            return Response(
+                {'error': 'Certificate is already revoked'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        reason = request.data.get('reason', '')
+        certificate.revoke(request.user, reason)
+        
+        from .serializers import CertificateSerializer
+        
+        return Response({
+            'status': 'success',
+            'message': 'Certificate revoked',
+            'certificate': CertificateSerializer(
+                certificate,
+                context={'request': request}
+            ).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def my_certificates(self, request):
+        if request.user.role != 'student':
+            return Response(
+                {'error': 'Only students can access their certificates'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        from .models import Certificate
+        from .serializers import CertificateListSerializer
+        
+        certificates = Certificate.objects.filter(
+            student=request.user,
+            status='issued'
+        ).order_by('-issue_date')
+        
+        serializer = CertificateListSerializer(
+            certificates, 
+            many=True,
+            context={'request': request}
+        )
+        
+        return Response({
+            'count': certificates.count(),
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+
+        school = get_current_school() or request.user.school
+        
+        queryset = Certificate.all_objects.all()
+        if school:
+            queryset = queryset.filter(school=school)
+        
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        stats = {
+            'total_certificates': queryset.count(),
+            'issued_count': queryset.filter(status='issued').count(),
+            'pending_count': queryset.filter(status='pending').count(),
+            'revoked_count': queryset.filter(status='revoked').count(),
+            'expired_count': queryset.filter(status='expired').count(),
+            'total_downloads': queryset.aggregate(
+                total=Sum('download_count')
+            )['total'] or 0,
+            'total_views': queryset.aggregate(
+                total=Sum('view_count')
+            )['total'] or 0,
+            'certificates_this_month': queryset.filter(
+                created_at__gte=month_start
+            ).count(),
+            'certificates_this_year': queryset.filter(
+                created_at__gte=year_start
+            ).count(),
+        }
+        
+        return Response(stats)
+    
+    @action(detail=False, methods=['get'])
+    def download_logs(self, request):
+  
+        school = get_current_school() or request.user.school
+        
+        queryset = CertificateDownloadLog.all_objects.select_related(
+            'certificate', 'downloaded_by'
+        ).order_by('-downloaded_at')
+        
+        if school:
+            queryset = queryset.filter(school=school)
+        
+        page_size = int(request.query_params.get('page_size', 20))
+        page = int(request.query_params.get('page', 1))
+        
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        logs = queryset[start:end]
+        total = queryset.count()
+        
+        serializer = CertificateDownloadLogSerializer(logs, many=True)
+        
+        return Response({
+            'count': total,
+            'page': page,
+            'page_size': page_size,
+            'results': serializer.data
+        })
+
+class CertificateVerificationView(APIView):
+    
+    permission_classes = [AllowAny]
+    
+    def get(self, request, verification_code):
+
+        try:
+            certificate = Certificate.all_objects.select_related(
+                'school', 'student', 'enrollment'
+            ).get(verification_code=verification_code.upper())
+        except Certificate.DoesNotExist:
+            return Response({
+                'is_valid': False,
+                'error': 'Certificate not found',
+                'message': 'No certificate exists with this verification code.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        verification_data = {
+            'is_valid': certificate.is_valid,
+            'certificate_number': certificate.certificate_number,
+            'student_name': certificate.student_name,
+            'student_svc_number': certificate.student_svc_number,
+            'student_rank': certificate.student_rank,
+            'course_name': certificate.course_name,
+            'class_name': certificate.class_name,
+            'school_name': certificate.school.name if certificate.school else '',
+            'final_grade': certificate.final_grade,
+            'final_percentage': certificate.final_percentage,
+            'issue_date': certificate.issue_date,
+            'completion_date': certificate.completion_date,
+            'status': certificate.status,
+            'status_display': certificate.get_status_display(),
+        }
+        
+        if certificate.status == 'revoked':
+            verification_data['revocation_reason'] = certificate.revocation_reason
+            verification_data['revoked_at'] = certificate.revoked_at
+        
+        return Response(verification_data)
+    
+    def post(self, request):
+        verification_code = request.data.get('verification_code', '')
+        
+        if not verification_code:
+            return Response({
+                'is_valid': False,
+                'error': 'Verification code required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return self.get(request, verification_code)
+
+class EnrollmentCertificateView(APIView):
+   
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, enrollment_id):
+
+        try:
+            enrollment = Enrollment.all_objects.get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        user = request.user
+        if user.role == 'student' and enrollment.student != user:
+            return Response(
+                {'error': 'You can only view your own enrollment'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            certificate = Certificate.all_objects.get(enrollment=enrollment)
+            return Response({
+                'has_certificate': True,
+                'is_eligible': True,
+                'certificate': CertificateSerializer(
+                    certificate,
+                    context={'request': request}
+                ).data
+            })
+        except Certificate.DoesNotExist:
+            pass
+        
+        is_eligible = enrollment.completion_date is not None
+        
+        return Response({
+            'has_certificate': False,
+            'is_eligible': is_eligible,
+            'enrollment_id': enrollment.id,
+            'student_name': enrollment.student.get_full_name(),
+            'course_name': enrollment.class_obj.course.name,
+            'class_name': enrollment.class_obj.name,
+            'completion_date': enrollment.completion_date,
+            'message': 'Eligible for certificate' if is_eligible else 'Enrollment not completed'
+        })
+    
+    def post(self, request, enrollment_id):
+        
+        user = request.user
+        if user.role not in ['admin', 'superadmin', 'instructor', 'commandant']:
+            return Response(
+                {'error': 'You do not have permission to issue certificates'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        data = {
+            'enrollment_id': enrollment_id,
+            **request.data
+        }
+        
+        serializer = CertificateCreateSerializer(
+            data=data,
+            context={'request': request}
+        )
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            certificate = serializer.save()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Certificate issued successfully',
+                'certificate': CertificateSerializer(
+                    certificate,
+                    context={'request': request}
+                ).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 

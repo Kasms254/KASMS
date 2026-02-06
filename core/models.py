@@ -801,3 +801,331 @@ class PersonalNotification(models.Model):
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', 'is_read']), models.Index(fields=['user', 'created_at']), models.Index(fields=['notification_type'])]
 
+# certificate
+
+class CertificateTemplate(models.Model):
+
+    TEMPLATE_TYPE_CHOICES = [
+        ('completion', 'Course completion'),
+        ('achievement', 'Achievement'),
+        ('participation', 'Participation'),
+        ('excellence', 'Excellence Award'),
+    ]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='certificate_templates', null=True, blank=True)
+    name  = models.CharField(max_length=200)
+    template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPE_CHOICES, default='completion')
+    description = models.TextField(blank=True)
+
+    header_text = models.CharField(max_length=500, default="Certificate of Completion", help_text="Main title text on the certificate")
+    body_template = models.TextField(blank=True, help_text="Custom body text template. Use placeholders: {student_name}, {course_name}, {class_name}, {completion_date}, {grade}")
+    footer_text  = models.CharField(max_length=500, blank=True, help_text="Footer text (eg., accredition information)")
+
+    use_school_branding = models.BooleanField(
+        default=True,
+        help_text="Use school's logo and colors"
+    )
+    custom_logo = models.ImageField(
+        upload_to = 'certificate_logos/',
+        null = True,
+        blank = True,
+        help_text = "Override school logo for this template"
+    )
+    primary_color = models.CharField(max_length=7, blank=True)
+    secondary_color = models.CharField(max_length=7, blank=True)
+    accent_color = models.CharField(max_length=7, blank=True)
+
+    signature_image = models.ImageField(
+        upload_to='certificate_signatures/', 
+        null=True, 
+        blank=True
+    )
+    signatory_name = models.CharField(max_length=200, blank=True)
+    signatory_title = models.CharField(max_length=200, blank=True)
+
+    secondary_signature_image = models.ImageField(
+        upload_to='certificate_signatures/', 
+        null=True, 
+        blank=True
+    )
+    secondary_signatory_name = models.CharField(max_length=200, blank=True)
+    secondary_signatory_title = models.CharField(max_length=200, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Use as default template for this school"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    objects = SimpleTenantAwareManager()
+    all_objects = models.Manager()
+
+
+    class Meta:
+        db_table = 'certificate_templates'
+        ordering  = ['school', 'name']
+        unique_together = ['school', 'name']
+
+
+    def __str__(self):
+        return f"{self.name} - {self.school.name if self.school else 'Global'}"
+    
+    def get_effective_logo(self):
+        if not self.use_school_branding and self.custom_logo:
+            return self.custom_logo
+        if self.school and self.school.logo:
+            return self.school.logo
+        return None
+    
+    def get_effective_colors(self):
+        if not self.use_school_branding:
+            return {
+                'primary': self.primary_color or '#1976D2',
+                'secondary': self.secondary_color or '#424242',
+                'accent': self.accent_color or '#FFC107',
+            }
+        if self.school:
+            return {
+                'primary': self.school.primary_color,
+                'secondary': self.school.secondary_color,
+                'accent': self.school.accent_color,
+            }
+        return {
+            'primary': '#1976D2',
+            'secondary': '#424242',
+            'accent': '#FFC107',
+        }
+
+
+class Certificate(models.Model):
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('issued', 'Issued'),
+        ('revoked', 'Revoked'),
+        ('expired', 'Expired'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    school = models.ForeignKey(
+        'School', 
+        on_delete=models.CASCADE,
+        related_name='certifications', 
+        null=True,
+        blank=True
+    )
+
+    student = models.ForeignKey(
+        'User', on_delete=models.CASCADE,
+        related_name='certifications',
+        limit_choices_to= {'role': 'student'}
+    )
+    enrollment = models.OneToOneField(
+        'Enrollment', 
+        on_delete=models.CASCADE, 
+        related_name='certificate'
+    )
+    template = models.ForeignKey(
+        CertificateTemplate, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='certificates'
+    )
+    certificate_number = models.CharField(
+        max_length=50, 
+        unique=True, 
+        editable=False
+    )
+    verification_code = models.CharField(
+        max_length=32, 
+        unique=True, 
+        editable=False,
+        help_text="Unique code for certificate verification"
+    )
+    student_name = models.CharField(max_length=300)
+    student_svc_number = models.CharField(max_length=50, blank=True)
+    student_rank = models.CharField(max_length=50, blank=True)
+    course_name = models.CharField(max_length=200)
+    class_name = models.CharField(max_length=200)
+    
+    final_grade = models.CharField(max_length=10, blank=True)
+    final_percentage = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    attendance_percentage = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    issue_date = models.DateField(default=timezone.now)
+    completion_date = models.DateField()
+    expiry_date = models.DateField(null=True, blank=True)
+    
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='issued'
+    )
+    issued_by = models.ForeignKey(
+        'User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='certificates_issued'
+    )
+    revoked_by = models.ForeignKey(
+        'User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='certificates_revoked'
+    )
+    revocation_reason = models.TextField(blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    certificate_file = models.FileField(
+        upload_to='certificates/generated/', 
+        null=True, 
+        blank=True
+    )
+    file_generated_at = models.DateTimeField(null=True, blank=True)
+    
+    download_count = models.IntegerField(default=0)
+    last_downloaded_at = models.DateTimeField(null=True, blank=True)
+    view_count = models.IntegerField(default=0)
+    last_viewed_at = models.DateTimeField(null=True, blank=True)
+    
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+    
+    class Meta:
+        db_table = 'certificates'
+        ordering = ['-issue_date', '-created_at']
+        indexes = [
+            models.Index(fields=['certificate_number']),
+            models.Index(fields=['verification_code']),
+            models.Index(fields=['student', 'status']),
+            models.Index(fields=['school', 'issue_date']),
+        ]
+    
+    def __str__(self):
+        return f"Certificate {self.certificate_number} - {self.student_name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.certificate_number:
+            self.certificate_number = self._generate_certificate_number()
+        
+        if not self.verification_code:
+            self.verification_code = self._generate_verification_code()
+        
+        if not self.school and self.enrollment:
+            self.school = self.enrollment.school
+        
+        if not self.student_name and self.student:
+            self.student_name = self.student.get_full_name()
+            self.student_svc_number = self.student.svc_number or ''
+            self.student_rank = self.student.get_rank_display() if self.student.rank else ''
+        
+        if not self.course_name and self.enrollment:
+            self.course_name = self.enrollment.class_obj.course.name
+            self.class_name = self.enrollment.class_obj.name
+        
+        super().save(*args, **kwargs)
+    
+    def _generate_certificate_number(self):
+        year = timezone.now().year
+        school_code = self.school.code if self.school else 'GEN'
+        
+        count = Certificate.all_objects.filter(
+            school=self.school,
+            certificate_number__startswith=f"{school_code}-{year}"
+        ).count() + 1
+        
+        return f"{school_code}-{year}-{count:05d}"
+    
+    def _generate_verification_code(self):
+        data = f"{self.student_id}-{self.enrollment_id}-{timezone.now().isoformat()}-{uuid.uuid4()}"
+        return hashlib.sha256(data.encode()).hexdigest()[:32].upper()
+    
+    def record_download(self):
+        self.download_count += 1
+        self.last_downloaded_at = timezone.now()
+        self.save(update_fields=['download_count', 'last_downloaded_at'])
+    
+    def record_view(self):
+        self.view_count += 1
+        self.last_viewed_at = timezone.now()
+        self.save(update_fields=['view_count', 'last_viewed_at'])
+    
+    def revoke(self, user, reason=''):
+        self.status = 'revoked'
+        self.revoked_by = user
+        self.revocation_reason = reason
+        self.revoked_at = timezone.now()
+        self.save()
+    
+    @property
+    def is_valid(self):
+        if self.status != 'issued':
+            return False
+        if self.expiry_date and self.expiry_date < timezone.now().date():
+            return False
+        return True
+    
+    @property
+    def verification_url(self):
+        return f"/verify/{self.verification_code}/"
+
+
+class CertificateDownloadLog(models.Model):
+    school = models.ForeignKey(
+        'School', 
+        on_delete=models.CASCADE, 
+        related_name='certificate_downloads',
+        null=True, 
+        blank=True
+    )
+    certificate = models.ForeignKey(
+        Certificate, 
+        on_delete=models.CASCADE, 
+        related_name='download_logs'
+    )
+    downloaded_by = models.ForeignKey(
+        'User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='certificate_downloads'
+    )
+    download_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('pdf', 'PDF Download'),
+            ('image', 'Image Download'),
+            ('view', 'View Only'),
+        ],
+        default='pdf'
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    downloaded_at = models.DateTimeField(auto_now_add=True)
+    
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+    
+    class Meta:
+        db_table = 'certificate_download_logs'
+        ordering = ['-downloaded_at']
+        

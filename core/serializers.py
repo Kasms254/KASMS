@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School, Certificate, CertificateDownloadLog
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -12,6 +12,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 import logging
 from pathlib import Path
 import os
+from decimal import Decimal
+from dateutil import parser
+from core.services import certificate_service
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +103,7 @@ class SchoolUploadSerializer(serializers.Serializer):
     def validate_logo(self, value):
         validate_logo_file(value)
         return value
+
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
     secondary_color = serializers.CharField()
@@ -1209,7 +1213,7 @@ class BiometricSyncSerializer(serializers.Serializer):
                     )
 
             try:
-                from dateutil import parser
+                
                 parser.parse(record['scan_time'])
             except Exception:
                 raise serializers.ValidationError(
@@ -1289,3 +1293,423 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
                 'grade': obj.exam_result.grade
             }
         return None
+
+
+class CertificateTemplateSerializer(serializers.ModelSerializer):
+    
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    effective_colors = serializers.SerializerMethodField(read_only=True)
+    has_logo = serializers.SerializerMethodField(read_only=True)
+    has_signature = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = None  
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_effective_colors(self, obj):
+        return obj.get_effective_colors()
+    
+    def get_has_logo(self, obj):
+        logo = obj.get_effective_logo()
+        return logo is not None and bool(logo.name)
+    
+    def get_has_signature(self, obj):
+        return bool(obj.signature_image and obj.signature_image.name)
+
+
+class CertificateTemplateListSerializer(serializers.ModelSerializer):
+    
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    template_type_display = serializers.CharField(
+        source='get_template_type_display', 
+        read_only=True
+    )
+    
+    class Meta:
+        model = None  
+        fields = [
+            'id', 'name', 'template_type', 'template_type_display',
+            'school', 'school_name', 'is_active', 'is_default',
+            'created_at'
+        ]
+
+
+class CertificateSerializer(serializers.ModelSerializer):
+    
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    template_name = serializers.CharField(
+        source='template.name', 
+        read_only=True,
+        allow_null=True
+    )
+    issued_by_name = serializers.SerializerMethodField(read_only=True)
+    revoked_by_name = serializers.SerializerMethodField(read_only=True)
+    
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_valid = serializers.BooleanField(read_only=True)
+    
+    verification_url = serializers.CharField(read_only=True)
+    download_url = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = None  
+        fields = '__all__'
+        read_only_fields = [
+            'id', 'certificate_number', 'verification_code',
+            'student_name', 'student_svc_number', 'student_rank',
+            'course_name', 'class_name', 'created_at', 'updated_at',
+            'download_count', 'last_downloaded_at', 'view_count', 
+            'last_viewed_at', 'file_generated_at'
+        ]
+    
+    def get_issued_by_name(self, obj):
+        if obj.issued_by:
+            return obj.issued_by.get_full_name()
+        return None
+    
+    def get_revoked_by_name(self, obj):
+        if obj.revoked_by:
+            return obj.revoked_by.get_full_name()
+        return None
+    
+    def get_download_url(self, obj):
+        if obj.certificate_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.certificate_file.url)
+            return obj.certificate_file.url
+        return None
+
+class CertificateListSerializer(serializers.ModelSerializer):
+    
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_valid = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = None  # Set this to Certificate
+        fields = [
+            'id', 'certificate_number', 'verification_code',
+            'student_name', 'student_svc_number', 'student_rank',
+            'course_name', 'class_name',
+            'final_grade', 'final_percentage',
+            'issue_date', 'completion_date',
+            'status', 'status_display', 'is_valid',
+            'school', 'school_name',
+            'download_count', 'view_count'
+        ]
+
+class CertificateCreateSerializer(serializers.Serializer):
+
+    enrollment_id = serializers.IntegerField()
+    template_id = serializers.IntegerField(required=False, allow_null=True)
+    final_grade = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    final_percentage = serializers.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        required=False,
+        allow_null=True
+    )
+    attendance_percentage = serializers.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        required=False,
+        allow_null=True
+    )
+    issue_date = serializers.DateField(required=False)
+    expiry_date = serializers.DateField(required=False, allow_null=True)
+    
+    def validate_enrollment_id(self, value):
+        
+        try:
+            enrollment = Enrollment.all_objects.select_related(
+                'student', 'class_obj', 'class_obj__course', 'school'
+            ).get(id=value)
+        except Enrollment.DoesNotExist:
+            raise serializers.ValidationError("Enrollment not found.")
+        
+        if not enrollment.completion_date:
+            raise serializers.ValidationError(
+                "Cannot issue certificate for incomplete enrollment. "
+                "Please mark the enrollment as completed first."
+            )
+        
+        from .models import Certificate  
+        if Certificate.all_objects.filter(enrollment=enrollment).exists():
+            raise serializers.ValidationError(
+                "A certificate has already been issued for this enrollment."
+            )
+        
+        return value
+    
+    def validate_template_id(self, value):
+        if value is None:
+            return value
+        
+        
+        try:
+            CertificateTemplate.all_objects.get(id=value, is_active=True)
+        except CertificateTemplate.DoesNotExist:
+            raise serializers.ValidationError("Certificate template not found.")
+        
+        return value
+    
+    def validate(self, attrs):
+        enrollment_id = attrs.get('enrollment_id')
+        template_id = attrs.get('template_id')
+        
+        if enrollment_id and template_id:
+            
+            enrollment = Enrollment.all_objects.get(id=enrollment_id)
+            template = CertificateTemplate.all_objects.get(id=template_id)
+            
+            if template.school and enrollment.school:
+                if template.school.id != enrollment.school.id:
+                    raise serializers.ValidationError({
+                        'template_id': "Template must belong to the same school as the enrollment."
+                    })
+        
+        return attrs
+    
+    def create(self, validated_data):
+
+        enrollment_id = validated_data.pop('enrollment_id')
+        template_id = validated_data.pop('template_id', None)
+        
+        enrollment = Enrollment.all_objects.select_related(
+            'student', 'class_obj', 'class_obj__course', 'school'
+        ).get(id=enrollment_id)
+        
+        template = None
+        if template_id:
+            template = CertificateTemplate.all_objects.get(id=template_id)
+        else:
+            template = CertificateTemplate.objects.filter(
+                school=enrollment.school,
+                is_active=True,
+                is_default=True
+            ).first()
+        
+        final_grade = validated_data.get('final_grade')
+        final_percentage = validated_data.get('final_percentage')
+        attendance_percentage = validated_data.get('attendance_percentage')
+        
+        if not final_grade or not final_percentage:
+            grade_data = self._calculate_student_grade(enrollment)
+            final_grade = final_grade or grade_data.get('grade', '')
+            final_percentage = final_percentage or grade_data.get('percentage')
+        
+        if not attendance_percentage:
+            attendance_percentage = self._calculate_attendance_rate(enrollment)
+        
+        with transaction.atomic():
+            certificate = Certificate.objects.create(
+                school=enrollment.school,
+                student=enrollment.student,
+                enrollment=enrollment,
+                template=template,
+                completion_date=enrollment.completion_date,
+                issue_date=validated_data.get('issue_date', timezone.now().date()),
+                expiry_date=validated_data.get('expiry_date'),
+                final_grade=final_grade or '',
+                final_percentage=final_percentage,
+                attendance_percentage=attendance_percentage,
+                issued_by=self.context.get('request').user if self.context.get('request') else None,
+                status='issued'
+            )
+            
+            try:
+                generator = CertificateGenerator(certificate)
+                generator.save_to_model()
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error generating certificate PDF: {e}", exc_info=True)
+        
+        return certificate
+    
+    def _calculate_student_grade(self, enrollment):
+        
+        results = ExamResult.all_objects.filter(
+            student=enrollment.student,
+            exam__subject__class_obj=enrollment.class_obj,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).select_related('exam')
+        
+        if not results.exists():
+            return {'grade': '', 'percentage': None}
+        
+        total_marks = sum(float(r.marks_obtained) for r in results)
+        total_possible = sum(r.exam.total_marks for r in results)
+        
+        if total_possible == 0:
+            return {'grade': '', 'percentage': None}
+        
+        percentage = (total_marks / total_possible) * 100
+        
+        if percentage >= 90:
+            grade = 'A'
+        elif percentage >= 80:
+            grade = 'B'
+        elif percentage >= 70:
+            grade = 'C'
+        elif percentage >= 60:
+            grade = 'D'
+        else:
+            grade = 'F'
+        
+        return {
+            'grade': grade,
+            'percentage': Decimal(str(round(percentage, 2)))
+        }
+    
+    def _calculate_attendance_rate(self, enrollment):
+        
+        total_sessions = AttendanceSession.all_objects.filter(
+            class_obj=enrollment.class_obj,
+            status='completed'
+        ).count()
+        
+        if total_sessions == 0:
+            return None
+        
+        attended = SessionAttendance.all_objects.filter(
+            student=enrollment.student,
+            session__class_obj=enrollment.class_obj,
+            status__in=['present', 'late']
+        ).count()
+        
+        percentage = (attended / total_sessions) * 100
+        return Decimal(str(round(percentage, 2)))
+
+class BulkCertificateCreateSerializer(serializers.Serializer):
+    
+    class_id = serializers.IntegerField()
+    template_id = serializers.IntegerField(required=False, allow_null=True)
+    issue_date = serializers.DateField(required=False)
+    
+    def validate_class_id(self, value):
+        
+        try:
+            Class.all_objects.get(id=value)
+        except Class.DoesNotExist:
+            raise serializers.ValidationError("Class not found.")
+        
+        return value
+    
+    def create(self, validated_data):
+        
+        class_id = validated_data.get('class_id')
+        template_id = validated_data.get('template_id')
+        issue_date = validated_data.get('issue_date', timezone.now().date())
+        
+        class_obj = Class.all_objects.get(id=class_id)
+        
+        existing_cert_enrollments = Certificate.all_objects.values_list(
+            'enrollment_id', flat=True
+        )
+        
+        completed_enrollments = Enrollment.all_objects.filter(
+            class_obj=class_obj,
+            completion_date__isnull=False
+        ).exclude(
+            id__in=existing_cert_enrollments
+        ).select_related('student', 'school')
+        
+        created_certificates = []
+        errors = []
+        
+        for enrollment in completed_enrollments:
+            try:
+                serializer = CertificateCreateSerializer(
+                    data={
+                        'enrollment_id': enrollment.id,
+                        'template_id': template_id,
+                        'issue_date': issue_date,
+                    },
+                    context=self.context
+                )
+                serializer.is_valid(raise_exception=True)
+                certificate = serializer.save()
+                created_certificates.append(certificate)
+            except Exception as e:
+                errors.append({
+                    'enrollment_id': enrollment.id,
+                    'student_name': enrollment.student.get_full_name(),
+                    'error': str(e)
+                })
+        
+        return {
+            'created': created_certificates,
+            'errors': errors,
+            'total_created': len(created_certificates),
+            'total_errors': len(errors)
+        }
+
+class CertificateVerificationSerializer(serializers.Serializer):
+    
+    is_valid = serializers.BooleanField()
+    certificate_number = serializers.CharField()
+    student_name = serializers.CharField()
+    student_svc_number = serializers.CharField(allow_blank=True)
+    student_rank = serializers.CharField(allow_blank=True)
+    course_name = serializers.CharField()
+    class_name = serializers.CharField()
+    school_name = serializers.CharField()
+    final_grade = serializers.CharField(allow_blank=True)
+    final_percentage = serializers.DecimalField(
+        max_digits=5, 
+        decimal_places=2,
+        allow_null=True
+    )
+    issue_date = serializers.DateField()
+    completion_date = serializers.DateField()
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    
+    revocation_reason = serializers.CharField(allow_blank=True, required=False)
+    revoked_at = serializers.DateTimeField(allow_null=True, required=False)
+
+class CertificateDownloadLogSerializer(serializers.ModelSerializer):
+    
+    certificate_number = serializers.CharField(
+        source='certificate.certificate_number',
+        read_only=True
+    )
+    downloaded_by_name = serializers.SerializerMethodField(read_only=True)
+    download_type_display = serializers.CharField(
+        source='get_download_type_display',
+        read_only=True
+    )
+    
+    class Meta:
+        model = None  
+        fields = '__all__'
+        read_only_fields = ['id', 'downloaded_at']
+    
+    def get_downloaded_by_name(self, obj):
+        if obj.downloaded_by:
+            return obj.downloaded_by.get_full_name()
+        return 'Anonymous'
+
+class CertificateStatsSerializer(serializers.Serializer):
+    
+    total_certificates = serializers.IntegerField()
+    issued_count = serializers.IntegerField()
+    pending_count = serializers.IntegerField()
+    revoked_count = serializers.IntegerField()
+    expired_count = serializers.IntegerField()
+    total_downloads = serializers.IntegerField()
+    total_views = serializers.IntegerField()
+    certificates_this_month = serializers.IntegerField()
+    certificates_this_year = serializers.IntegerField()
+
+
+
+
+
+
