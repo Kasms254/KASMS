@@ -38,7 +38,7 @@ class TenantAdminMixin:
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
     
-    list_display = ['name', 'code', 'email', 'city', 'is_active', 'student_count', 'instructor_count']
+    list_display = ['name', 'code', 'email', 'city', 'is_active', 'student_count', 'instructor_count', 'logo']
     list_filter = ['is_active', 'city']
     search_fields = ['name', 'code', 'email']
     readonly_fields = ['id', 'created_at', 'updated_at']

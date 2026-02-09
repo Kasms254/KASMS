@@ -114,7 +114,7 @@ export default function SuperadminDashboard() {
                       style={{ backgroundColor: school.primary_color || '#1976D2' }}
                     >
                       {school.logo ? (
-                        <img src={school.logo} alt={school.name} className="w-8 h-8 rounded object-contain" />
+                        <img src={school.logo_url} alt={school.name} className="w-8 h-8 rounded object-contain" />
                       ) : (
                         <School className="w-5 h-5 text-white" />
                       )}

@@ -9,8 +9,21 @@ import hashlib
 from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
 from django.core.validators import RegexValidator
+from pathlib import Path
+
+def school_logo_upload_path(instance, filename):
+
+    file_path = Path(filename)
+    ext = file_path.suffix.lower().lstrip('.')  
+  
+    school_code = instance.code.upper().replace(" ", "_").replace("%20", "_")
+    
+    unique_id = uuid.uuid4().hex
+    
+    return f"school_logos/{school_code}/{unique_id}.{ext}"
 
 class School(models.Model):
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
         max_length=20, unique=True,
@@ -23,7 +36,7 @@ class School(models.Model):
     phone = models.CharField(max_length=20)
     address = models.TextField()
     city = models.CharField(max_length=100)
-    logo = models.ImageField(upload_to="school_logos/", null=True, blank=True)
+    logo = models.ImageField(upload_to=school_logo_upload_path, blank=True, null=True)
     primary_color = models.CharField(max_length=7, default="#1976D2")
     secondary_color = models.CharField(max_length=7, default='#424242')
     accent_color = models.CharField(max_length=7, default='#FFC107')
@@ -58,14 +71,45 @@ class School(models.Model):
 
     @property
     def get_theme(self):
+
+        logo_url = None
+        if self.logo and self.logo.name:
+            try:
+                logo_url = self.logo.url
+            except Exception:
+                logo_url  = None
+
         return {
             'primary_color': self.primary_color,
             'secondary_color': self.secondary_color,
             'accent_color': self.accent_color,
-            'logo_url': self.logo.url if self.logo else None,
-            **self.theme_config
+            'logo_url': logo_url,
+            **(self.theme_config or {})
         }
 
+    def get_logo_url(self, request=None, absolute=True):
+   
+        if not self.logo or not self.logo.name:
+            return None
+        
+        try:
+            url = self.logo.url
+            
+            if url.startswith(('http://', 'https://')):
+                return url
+            
+            if absolute and request:
+                return request.build_absolute_uri(url)
+            
+            return url
+            
+        except Exception as e:
+            logger.warning(
+                f"Error accessing logo for school {self.code}: {e}",
+                exc_info=True
+            )
+            return None
+            
 class SchoolAdmin(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admins')
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='managed_schools')
@@ -225,7 +269,6 @@ class Notice(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
-
     
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
@@ -251,6 +294,52 @@ class Enrollment(models.Model):
         if not self.school and self.class_obj:
             self.school = self.class_obj.school
         super().save(*args, **kwargs)
+
+    def get_subject_completion_status(self):
+        subjects = Subject.all_objects.filter(
+            class_obj=self.class_obj,
+            is_active=True
+        )
+
+        status ={
+            'total_subjects': subjects.count(),
+            'completed_subjects':0,
+            'incomplete_subjects':[],
+            'subject_details': []
+        }
+
+        for subject in subjects:
+            has_result = ExamResult.all_objects.filter(
+                student = self.student,
+                exam__subject = subject,
+                is_submitted=True,
+                marks_obtained__isnull = False
+            ).exists()
+
+            status['subject_details'].append({
+                'name': subject.name,
+                'code': subject.subject_code,
+                'completed': has_result
+            })
+            
+            if has_result:
+                status['completed_subjects'] +=1
+            else:
+                status['incomplete_subjects'].append(subject.name)
+
+        status['can_be_completed'] = len(status['incomplete_subjects']) == 0
+        return status
+
+    def can_issue_certificate(self):
+
+        if not self.completion_date:
+            return False, "Enrollment not completed"
+
+        status = self.get_subject_completion_status()
+        if not status['can_be_completed']:
+            return False, f"Missing subjects:{', '.join(status['incomplete_subjects'])}"
+
+        return True, "All requirements met."
 
 # instructor
 class Exam(models.Model):

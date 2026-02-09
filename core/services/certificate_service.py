@@ -487,7 +487,7 @@ def generate_certificate_context(certificate) -> Dict[str, Any]:
 
 def _format_logo_section(context: Dict) -> str:
     if context.get('logo_base64'):
-        return f'<img src="{context["logo_base64"]}" class="logo" alt="School Logo">'
+        return f'<img src="{context["logo_base64"]}" class="logo" alt="school_logo">'
     return ''
 
 

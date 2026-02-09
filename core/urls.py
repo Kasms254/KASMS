@@ -1,7 +1,9 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
+    EnrollmentCompletionCheckView,CertificateViewSet, CertificateTemplateViewSet, CertificateVerificationView,
+    serve_media,
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
@@ -56,6 +58,10 @@ router.register(r'personal-notifications', PersonalNotificationViewSet, basename
 router.register(r'schools', SchoolViewSet, basename='school')
 router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
 
+# certificate issuance
+router.register(r'certificates', CertificateViewSet, basename='certificate')
+router.register(r'certificate-template', CertificateTemplateViewSet, basename='certificate-template')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
@@ -68,7 +74,10 @@ urlpatterns = [
     path('auth/change-password/', change_password_view, name='change_password'),
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
+    re_path(r'^media/(?P<path>.*)$', serve_media, name='serve_media'),
+    path('enrollments/<uuid:enrollment_id>/completion-check/', EnrollmentCompletionCheckView.as_view(), name='enrollment-completion-check'),
+    path('certificates/verify/<str:verification_code>/', CertificateVerificationView.as_view(), name='certificate-verify'),
 
-    
+
 ]
 

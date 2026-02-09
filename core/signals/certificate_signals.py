@@ -5,13 +5,54 @@ import logging
 from core.models import Certificate, CertificateTemplate, ExamResult, SessionAttendance, AttendanceSession
 from core.services.certificate_service import CertificateGenerator
 from decimal import Decimal
-
+from core.models import Subject, ExamResult, PersonalNotification
 
 logger = logging.getLogger(__name__)
 
 AUTO_ISSUE_CERTIFICATES = getattr(settings, 'AUTO_ISSUE_CERTIFICATES', True)
 GENERATE_PDF_ON_ISSUE = getattr(settings, 'GENERATE_PDF_ON_ISSUE', True)
 
+def validate_subject_completion(enrollment):
+
+    class_subjects = Subject.all_objects.filter(
+        class_obj=enrollment.class_obj,
+        is_active=True
+    )
+
+    if not class_subjects.exists():
+        return False, "No active subjects found for this class.", {}
+
+    total_subjects = class_subjects.count()
+    completed_subjects = []
+    incomplete_subjects = []
+    subject_details = {}
+
+    for subject in class_subjects:
+        has_result = ExamResult.all_objects.filter(
+            student = enrollment.student,
+            exam__subject = subject,
+            is_submitted=True,
+            marks_obtained__isnull = False
+        ).exists()
+
+        if has_result:
+            completed_subjects.append(subject.name)
+            subject_details[subject.name] = "Completed"
+
+        else:
+            incomplete_subjects.append(subject.name)
+            subject_details[subject.name] = "Not completed"
+
+    if incomplete_subjects:
+        error_msg =(
+            f"Certificate cannot be issued. Student has not completed all the subjects"
+            f"Completed: {len(completed_subjects)}/{total_subjects}. "
+            f"Missing:{', '.join(incomplete_subjects)}"
+
+        )
+        return False, error_msg, subject_details
+
+    return True, None, subject_details
 
 @receiver(pre_save)
 def track_enrollment_completion(sender, instance, **kwargs):
@@ -52,8 +93,34 @@ def auto_issue_certificate_on_completion(sender, instance, created, **kwargs):
     if Certificate.all_objects.filter(enrollment=instance).exists():
         logger.info(f"Certificate already exists for enrollment {instance.id}")
         return
+
+    is_valid, error_message, subject_details = validate_subject_completion(instance)
     
+    if not is_valid:
+        logger.warning(
+            f"Cannot issue certificate for enrollment {instance.id}: {error_message}"
+            f"Subject details: {subject_details}"
+        )
+
+        try:
+            PersonalNotification.objects.create(
+                school = instance.school,
+                user = instance.student,
+                notification_type = 'general',
+                priority = 'high',
+                title = 'Certificate Issuance Blocked',
+                content = (
+                    f"Your certificate for {instance.class_obj.course.name} cannot be issued yet."
+                    f"{error_message}"
+                ),
+                is_active = True
+            )
+        except Exception as e:
+            logger.warning(f"Could not create a notification: {e}")
+        return
+
     try:
+
         template = CertificateTemplate.objects.filter(
             school=instance.school,
             is_active=True,
@@ -168,6 +235,21 @@ def manually_issue_certificate(enrollment, issued_by=None, template=None, **kwar
     if Certificate.all_objects.filter(enrollment=enrollment).exists():
         raise ValueError("Certificate already exists for this enrollment")
     
+    if not force_issue:
+        is_valid, error_message, subject_details = validate_subject_completion(enrollment)
+
+        if not is_valid:
+            raise ValueError(
+                f"Certificate cannot be issued: {error_message}"
+                f"Subject details: {subject_details}"
+                f"Use force_issue = True to override (not recommended)."
+            )
+    else:
+        logger.warning(
+            f"Forced certificate issuance for enrollment {enrollment.id} by {issued_by}. "
+            "Subject completion validation was bypassed."
+        )
+        
     if not template:
         template = CertificateTemplate.objects.filter(
             school=enrollment.school,

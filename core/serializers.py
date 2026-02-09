@@ -15,6 +15,8 @@ import os
 from decimal import Decimal
 from dateutil import parser
 from core.services import certificate_service
+from django.core.files.storage import default_storage
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,6 @@ ALLOWED_LOGO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
 ALLOWED_LOGO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
 
 LOGO_UPLOAD_DIR = 'school_logos'
-
 
 def validate_logo_file(file):
     errors = []
@@ -76,13 +77,12 @@ def validate_logo_file(file):
     
     return True
 
-
 def generate_logo_filename(school_code, original_filename):
     ext = Path(original_filename).suffix.lower()
     unique_id = uuid.uuid4().hex[:12]
-    filename = f"{school_code.lower()}_{unique_id}{ext}"
-    return os.path.join(LOGO_UPLOAD_DIR, school_code.lower(), filename)
-
+    safe_school_code = school_code.upper().replace(" ", "_").replace("%20", "_").lower()
+    filename = f"{safe_school_code}_{unique_id}{ext}"
+    return os.path.join('school_logos', safe_school_code, filename)
 
 def delete_old_logo(logo_field):
     if logo_field and logo_field.name:
@@ -92,7 +92,6 @@ def delete_old_logo(logo_field):
                 logger.info(f"Deleted old logo: {logo_field.name}")
         except Exception as e:
             logger.warning(f"Failed to delete old logo: {e}")
-
 
 class SchoolUploadSerializer(serializers.Serializer):
     logo = serializers.ImageField(
@@ -110,13 +109,13 @@ class SchoolThemeSerializer(serializers.Serializer):
     accent_color = serializers.CharField()
     logo_url = serializers.URLField(allow_null=True)
 
-
 class SchoolSerializer(serializers.ModelSerializer):
     theme = serializers.SerializerMethodField(read_only=True)
     current_student_count = serializers.IntegerField(read_only=True)
     current_instructor_count = serializers.IntegerField(read_only=True)
     is_within_limits = serializers.BooleanField(read_only=True)
     admin_count = serializers.SerializerMethodField(read_only=True)
+    logo_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = School
@@ -124,10 +123,22 @@ class SchoolSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_theme(self, obj):
-        return obj.get_theme
+        request = self.context.get('request')
+        
+        return {
+            'primary_color': obj.primary_color,
+            'secondary_color': obj.secondary_color,
+            'accent_color': obj.accent_color,
+            'logo_url': obj.get_logo_url(request=request, absolute=True),
+            **(obj.theme_config or {})
+        }
 
     def get_admin_count(self, obj):
         return obj.school_admins.count()
+
+    def get_logo_url(self, obj):
+        request = self.context.get('request')
+        return obj.get_logo_url(request=request, absolute=True)
 
     def validate_code(self, value):
         value = value.upper()
@@ -148,7 +159,6 @@ class SchoolSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This email is already in use.")
         return value
 
-
 class SchoolListSerializer(serializers.ModelSerializer):
     current_student_count = serializers.IntegerField(read_only=True)
     current_instructor_count = serializers.IntegerField(read_only=True)
@@ -156,7 +166,6 @@ class SchoolListSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
         fields = '__all__'
-
 
 class SchoolAdminSerializer(serializers.ModelSerializer):
     school_name = serializers.CharField(source='school.name', read_only=True)
@@ -184,7 +193,6 @@ class SchoolAdminSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-
 
 class SchoolCreateWithAdminSerializer(serializers.Serializer):
 
@@ -289,7 +297,6 @@ class SchoolCreateWithAdminSerializer(serializers.Serializer):
                 'school': school,
                 'admin_user': admin_user
             }
-
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -414,7 +421,6 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('class_obj', None)
         return super().update(instance, validated_data)
 
-
 class UserListSerializer(serializers.ModelSerializer):
     school_name = serializers.CharField(source='school.name', read_only=True)
     school_code = serializers.CharField(source='school.code', read_only=True)
@@ -455,7 +461,6 @@ class UserListSerializer(serializers.ModelSerializer):
             is_active=True
         ).exists()
 
-
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -489,7 +494,6 @@ class ClassSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class ClassListSerializer(serializers.ModelSerializer):
     
     course_name = serializers.CharField(source='course.name', read_only=True)
@@ -504,7 +508,6 @@ class ClassListSerializer(serializers.ModelSerializer):
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
-
 
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
@@ -528,7 +531,6 @@ class CourseSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError("This course code is already in use.")
         return value
-
 
 class SubjectSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -567,7 +569,6 @@ class SubjectSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError("This subject code is already in use.")
         return value
-
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField(read_only=True)
@@ -639,7 +640,6 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
 
-
 class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
@@ -673,13 +673,11 @@ class NoticeSerializer(serializers.ModelSerializer):
             ).exists()
         return False
 
-
 class ExamAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamAttachment
         fields = '__all__'
         read_only_fields = ('created_at', 'uploaded_at', 'uploaded_by', 'id', 'file_name', 'file_size')
-
 
 class ExamSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -725,7 +723,6 @@ class ExamSerializer(serializers.ModelSerializer):
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
         return data
-
 
 class ExamResultSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -812,7 +809,6 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 validated_data['submitted_at'] = timezone.now()
         return super().update(instance, validated_data)
 
-
 class BulkExamResultSerializer(serializers.Serializer):
     results = serializers.ListField(
         child=serializers.DictField(),
@@ -826,7 +822,6 @@ class BulkExamResultSerializer(serializers.Serializer):
             if 'marks_obtained' not in result:
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
-
 
 class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -859,7 +854,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
                 })
         return attrs
 
-
 class BulkAttendanceSerializer(serializers.Serializer):
     class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
     subject = serializers.PrimaryKeyRelatedField(
@@ -883,7 +877,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
             if record['status'] not in valid_statuses:
                 raise serializers.ValidationError(f"Invalid status: {record['status']}")
         return value
-
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -923,7 +916,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
         except ClassNoticeReadStatus.DoesNotExist:
             return None
 
-
 class ExamReportSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -949,7 +941,6 @@ class ExamReportSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("All exams must belong to the same subject.")
         
         return value
-
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -1022,7 +1013,6 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
         validated_data['qr_code_secret'] = uuid.uuid4().hex
         return super().create(validated_data)
 
-
 class AttendanceSessionListSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -1035,7 +1025,6 @@ class AttendanceSessionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttendanceSession
         fields = '__all__'
-
 
 class SessionAttendanceSerializer(serializers.ModelSerializer):
     session_title = serializers.CharField(source='session.title', read_only=True)
@@ -1099,7 +1088,6 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class QRAttendanceMarkSerializer(serializers.Serializer):
     session_id = serializers.UUIDField()
     qr_token = serializers.CharField(max_length=16)
@@ -1139,7 +1127,6 @@ class QRAttendanceMarkSerializer(serializers.Serializer):
         attrs['session'] = session
         return attrs
 
-
 class BulkSessionAttendanceSerializer(serializers.Serializer):
     session_id = serializers.IntegerField()
     attendance_records = serializers.ListField(
@@ -1172,7 +1159,6 @@ class BulkSessionAttendanceSerializer(serializers.Serializer):
 
         return value
 
-
 class BiometricRecordSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
@@ -1192,7 +1178,6 @@ class BiometricRecordSerializer(serializers.ModelSerializer):
                 'marked_at': obj.session_attendance.marked_at
             }
         return None
-
 
 class BiometricSyncSerializer(serializers.Serializer):
     device_id = serializers.CharField(max_length=100)
@@ -1437,7 +1422,12 @@ class CertificateCreateSerializer(serializers.Serializer):
                 "Please mark the enrollment as completed first."
             )
         
-        from .models import Certificate  
+        can_issue, message = enrollment.can_issue_certificate()
+        if not can_issue:
+            raise serializers.ValidationError(
+                f"Cannot issue certificate: {message}"
+            )
+
         if Certificate.all_objects.filter(enrollment=enrollment).exists():
             raise serializers.ValidationError(
                 "A certificate has already been issued for this enrollment."

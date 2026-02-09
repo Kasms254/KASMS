@@ -142,7 +142,7 @@ export default function SchoolsPage() {
                           >
                             {school.logo ? (
                               <img
-                                src={school.logo}
+                                src={school.logo_url}
                                 alt={school.name}
                                 className="w-8 h-8 rounded object-contain"
                               />

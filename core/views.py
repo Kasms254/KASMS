@@ -3,6 +3,7 @@ from rest_framework import viewsets, status, filters
 from .models import (Certificate,User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
+    SchoolUploadSerializer, generate_logo_filename,
     BulkCertificateCreateSerializer, CertificateListSerializer,CertificateSerializer, CertificateListSerializer,CertificateCreateSerializer,
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer, SchoolUploadSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer, SchoolUploadSerializer, generate_logo_filename, delete_old_logo,
@@ -35,8 +36,29 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 import logging
 import os
 from .models import CertificateDownloadLog
+from rest_framework.views import APIView
+from rest_framework import status
+from django.db.models import Sum
+from django.core.files.storage import default_storage
+from pathlib import Path
+import uuid
 
 logger = logging.getLogger(__name__)
+
+def serve_media(request, path):
+
+    file_path = os.path.join(settings.MEDIA_ROOT, path)
+
+    if not os.path.exists(file_path):
+        raise Http404("File not found")
+
+    real_path = os.path.realpath(file_path)
+    media_root = os.path.realpath(settings.MEDIA_ROOT)
+
+    if not real_path.startswith(media_root):
+        raise Http404("File not found")
+
+    return FileResponse(open(file_path, 'rb'))
 
 class TenantFilterMixin:
 
@@ -114,6 +136,11 @@ class SchoolViewSet(viewsets.ModelViewSet):
     ]
     LOGO_UPLOAD_DIR = 'school_logos'
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
     def get_serializer_class(self):
         if self.action == 'list':
             return SchoolListSerializer
@@ -159,9 +186,13 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def theme(self, request, pk=None):
-
         school = self.get_object()
-        return Response (school.get_theme)
+        data = school.get_theme.copy()
+
+        if school.logo:
+            data["logo_url"] = request.build_absolute_uri(school.logo.url)
+
+        return Response(data)
 
     @action(detail=True, methods=['patch'])
     def update_theme(self, request, pk=None):
@@ -282,9 +313,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'School {school.name} deactivated'
         })
-
-    @action(detail=True, methods=['post', 'delete'], parser_classes = [MultiPartParser, FormParser], url_path='upload_logo', url_name='upload_logo',
-    permission_classes=[IsAuthenticated, CanManageSchool])
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, CanManageSchool],
+        url_path='upload_logo',
+        url_name='upload_logo'
+    )
     def upload_logo(self, request, pk=None):
         school = self.get_object()
         user = request.user
@@ -295,10 +331,11 @@ class SchoolViewSet(viewsets.ModelViewSet):
         return self._upload_logo(request, school, user)
 
     def _upload_logo(self, request, school, user):
+        
         serializer = SchoolUploadSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({
-                'error': 'validation error', 
+                'error': 'Validation error', 
                 'detail': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -307,20 +344,34 @@ class SchoolViewSet(viewsets.ModelViewSet):
         try:
             old_logo = school.logo.name if school.logo else None
 
-            new_filename = generate_logo_filename(school.code, logo_file.name)
-
-            school.logo.save(new_filename, logo_file, save=True)
+            ext = Path(logo_file.name).suffix.lower()
+            unique_id = uuid.uuid4().hex[:12]
+            safe_school_code = school.code.upper().replace(" ", "_").replace("%20", "_").lower()
+            new_filename = f"{safe_school_code}_{unique_id}{ext}"
+            school.logo.save(logo_file.name, logo_file, save=True)
+            
+            school.refresh_from_db()
 
             if old_logo and old_logo != school.logo.name:
                 try:
                     if default_storage.exists(old_logo):
                         default_storage.delete(old_logo)
+                        logger.info(f"Deleted old logo: {old_logo}")
                 except Exception as e:
                     logger.warning(f"Failed to delete old logo: {e}")
 
-            logo_url = request.build_absolute_uri(school.logo.url) if school.logo else None
+            logo_url = school.get_logo_url(request=request, absolute=True)
+            if not logo_url and school.logo and school.logo.name:
+                try:
+                    url = school.logo.url
+                    if not url.startswith(('http://', 'https://')):
+                        logo_url = request.build_absolute_uri(url)
+                    else:
+                        logo_url = url
+                except Exception as e:
+                    logger.error(f"Error building logo URL: {e}", exc_info=True)
 
-            logger.info(f"Logo uploaded: school={school.code}, user={user.username}")
+            logger.info(f"Logo uploaded: school={school.code}, user={user.username}, url={logo_url}")
 
             return Response({
                 'status': 'success',
@@ -332,21 +383,41 @@ class SchoolViewSet(viewsets.ModelViewSet):
                 'file_size': logo_file.size,
             }, status=status.HTTP_200_OK)
 
-        except DjangoValidationError as e:
-            return Response({
-                'error': 'Validation error', 
-                'detail': e.messages if hasattr(e, 'messages') else str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Upload error: {type(e).__name__}: {e}")
-            
+            logger.error(f"Logo upload failed: school={school.code}, error={e}", exc_info=True)
             return Response({
                 'error': 'Upload failed', 
                 'detail': str(e) 
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], url_path='refresh-logo')
+    def refresh_logo(self, request, pk=None):
+        school = self.get_object()
+        
+        if not school.logo:
+            return Response({
+                'status': 'no_logo',
+                'message': 'School does not have a logo uploaded',
+                'logo_url': None
+            })
+        
+        logo_url = school.get_logo_url(request=request, absolute=True)
+        
+        logo_info = {
+            'status': 'success',
+            'logo_url': logo_url,
+            'has_logo': bool(school.logo),
+            'logo_name': school.logo.name if school.logo else None,
+        }
+        try:
+            if school.logo:
+                logo_info['file_exists'] = school.logo.storage.exists(school.logo.name)
+                if logo_info['file_exists']:
+                    logo_info['file_size'] = school.logo.size
+        except Exception as e:
+            logo_info['file_check_error'] = str(e)
+        
+        return Response(logo_info)
 
     def _delete_logo(self, school, user):
         if not school.logo:
@@ -358,7 +429,8 @@ class SchoolViewSet(viewsets.ModelViewSet):
         try:
             logo_name = school.logo.name
 
-            delete_old_logo(school.logo)
+            if default_storage.exists(logo_name):
+                default_storage.delete(logo_name)
 
             school.logo = None
             school.save(update_fields=['logo', 'updated_at'])
@@ -367,16 +439,16 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'status': 'success',
-                'message':'Logo delete successfully',
-                'school_id':str(school.id),
-                'school_code':school.code,
-            }, status= status.HTTP_200_OK)
+                'message': 'Logo deleted successfully',
+                'school_id': str(school.id),
+                'school_code': school.code,
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Logo delete failed: school={school.code}, error={e}, exc_info=True")
+            logger.error(f"Logo delete failed: school={school.code}, error={e}", exc_info=True)
             return Response({
                 'error': 'Delete Failed',
-                'detail': ' AN error occured whiel deleting the logo.'
+                'detail': 'An error occurred while deleting the logo.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class SchoolAdminViewSet(viewsets.ModelViewSet):
@@ -4193,7 +4265,6 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
 
-
 class CertificateTemplateViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]  
@@ -4557,7 +4628,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
 class CertificateVerificationView(APIView):
     
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, verification_code):
 
@@ -4690,4 +4761,42 @@ class EnrollmentCertificateView(APIView):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
+# admin view to check enrollment status for certificate issuance
+
+class EnrollmentCompletionCheckView(APIView):
+
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, enrollment_id):
+        try:
+            enrollment = Enrollment.objects.get(id=enrollment_id)
+            
+            if request.user.role not in ['superadmin', 'admin', 'instructor']:
+                if request.user.role == 'student' and request.user != enrollment.student:
+                    return Response(
+                        {'error': 'Permission denied'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            subject_status = enrollment.get_subject_completion_status()
+            can_issue, message = enrollment.can_issue_certificate()
+            
+            cert_exists = Certificate.all_objects.filter(enrollment=enrollment).exists()
+            
+            return Response({
+                'enrollment_id': str(enrollment.id),
+                'student': enrollment.student.get_full_name(),
+                'class': f"{enrollment.class_obj.course.name} - {enrollment.class_obj.name}",
+                'completion_date': enrollment.completion_date,
+                'can_issue_certificate': can_issue,
+                'message': message,
+                'certificate_exists': cert_exists,
+                'subject_completion': subject_status
+            })
+            
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
