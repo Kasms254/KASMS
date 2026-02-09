@@ -10,6 +10,11 @@ from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
 from django.core.validators import RegexValidator
 
+
+def school_logo_upload_path(instance, filename):
+        ext = filename.split('.')[-1]
+        return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
+        
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(

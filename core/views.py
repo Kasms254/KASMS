@@ -3107,7 +3107,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             Q(class_obj__instructor=request.user)|
             Q(subject__instructor=request.user)
             ).annotate(
-                marked_count=Count('session_attendances', distinct=True)
+                marked_count_db=Count('session_attendances', distinct=True)
             )
 
         status_filter = request.query_params.get('status')
@@ -3209,8 +3209,11 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
     serializer_class = SessionAttendanceSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, FormParser, MultiPartParser]
+    filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['session', 'student', 'status', 'marking_method']
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
     ordering = ['marked_at']
+    ordering_fields = ['marked_at', 'student__last_name']
 
     def get_queryset(self):
         queryset = SessionAttendance.all_objects.select_related(
