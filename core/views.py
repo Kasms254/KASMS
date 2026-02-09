@@ -313,6 +313,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'message': f'School {school.name} deactivated'
         })
+        
     @action(
         detail=True,
         methods=['post', 'delete'],
@@ -321,6 +322,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
         url_path='upload_logo',
         url_name='upload_logo'
     )
+
     def upload_logo(self, request, pk=None):
         school = self.get_object()
         user = request.user

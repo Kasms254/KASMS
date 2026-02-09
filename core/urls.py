@@ -74,7 +74,6 @@ urlpatterns = [
     path('auth/change-password/', change_password_view, name='change_password'),
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
-    re_path(r'^media/(?P<path>.*)$', serve_media, name='serve_media'),
     path('enrollments/<uuid:enrollment_id>/completion-check/', EnrollmentCompletionCheckView.as_view(), name='enrollment-completion-check'),
     path('certificates/verify/<str:verification_code>/', CertificateVerificationView.as_view(), name='certificate-verify'),
 
