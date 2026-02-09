@@ -69,6 +69,5 @@ urlpatterns = [
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
 
-    
 ]
 
