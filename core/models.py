@@ -10,6 +10,9 @@ from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
 from django.core.validators import RegexValidator
 
+def school_logo_upload_path(instance, filename):
+        ext = filename.split('.')[-1]
+        return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
@@ -23,7 +26,7 @@ class School(models.Model):
     phone = models.CharField(max_length=20)
     address = models.TextField()
     city = models.CharField(max_length=100)
-    logo = models.ImageField(upload_to="school_logos/", null=True, blank=True)
+    logo = models.ImageField(upload_to=school_logo_upload_path, null=True, blank=True)
     primary_color = models.CharField(max_length=7, default="#1976D2")
     secondary_color = models.CharField(max_length=7, default='#424242')
     accent_color = models.CharField(max_length=7, default='#FFC107')
@@ -225,8 +228,7 @@ class Notice(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
-
-    
+  
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
