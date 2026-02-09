@@ -275,7 +275,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'logo': request.build_absolute_uri(school.logo.url)
         })
-        
+
 class SchoolAdminViewSet(viewsets.ModelViewSet):
 
     queryset = SchoolAdmin.objects.select_related('school', 'user').all()
@@ -952,8 +952,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'count': subjects.count(),
             'results': serializer.data
         })
-
-    
+  
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
@@ -2777,7 +2776,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
         })
     
 # attendance
-
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     queryset = AttendanceSession.objects.select_related(

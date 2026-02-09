@@ -7,7 +7,7 @@ from django.views.static import serve
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("core.urls")),
-    re_path(r'^media/(?P<path>.*)$', serve, name='serve_media'),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]
 
 if settings.DEBUG:
