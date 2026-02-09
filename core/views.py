@@ -30,7 +30,6 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 
-
 class TenantFilterMixin:
 
     def get_school_for_request(self):
@@ -938,8 +937,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'count': subjects.count(),
             'results': serializer.data
         })
-
-    
+ 
 class NoticeViewSet(viewsets.ModelViewSet):
     queryset = Notice.objects.select_related('created_by').all()
     serializer_class = NoticeSerializer
@@ -2763,7 +2761,6 @@ class StudentDashboardViewset(viewsets.ViewSet):
         })
     
 # attendance
-
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     queryset = AttendanceSession.objects.select_related(
@@ -3064,8 +3061,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         writer.writerow(
             [
-                'student Name', 'SVC Number', 'Email', 'Status', 
-                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks','Time'
+                'student_Name', 'Rank', 'SVC_Number', 'Email', 'Status', 
+                'Marking_Method', 'Marked_At', 'Minutes_Late', 'Remarks','Time'
             ]
         )
 
@@ -3107,7 +3104,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             Q(class_obj__instructor=request.user)|
             Q(subject__instructor=request.user)
             ).annotate(
-                marked_count=Count('session_attendances', distinct=True)
+                marked_count_db=Count('session_attendances', distinct=True)
             )
 
         status_filter = request.query_params.get('status')
