@@ -566,7 +566,7 @@ export default function NavBar({
                   onClick={async () => {
                     setLogoutModalOpen(false)
                     await auth.logout()
-                    navigate('/', { replace: true })
+                    navigate('/login', { replace: true })
                   }}
                   className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
                 >

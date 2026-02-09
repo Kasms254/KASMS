@@ -10,7 +10,7 @@ export default function ResultsRoute() {
   if (loading) return null
 
   // Security: Require authentication
-  if (!user) return <Navigate to="/" replace />
+  if (!user) return <Navigate to="/login" replace />
 
   // Role-based access - only instructors and students
   if (user.role === 'instructor') return <AddResults />
@@ -22,5 +22,5 @@ export default function ResultsRoute() {
     setLoggingOut(true)
     logout()
   }
-  return <Navigate to="/" replace />
+  return <Navigate to="/login" replace />
 }
