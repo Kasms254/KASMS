@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, role = null }) {
 
   // Defensive: require either a user object or a token to allow access
   if (!user && !token) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
 
   // Role-based access control: show access denied page instead of redirecting

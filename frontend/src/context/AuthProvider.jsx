@@ -42,7 +42,9 @@ export function AuthProvider({ children }) {
                 primary_color: themeData.primary_color,
                 secondary_color: themeData.secondary_color,
                 accent_color: themeData.accent_color,
-                logo_url: themeData.logo_url,
+                logo_url: themeData.logo_url
+                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+                  : null,
                 school_name: themeData.school_name || me.school_name,
                 school_code: themeData.school_code || me.school_code,
               })

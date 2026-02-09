@@ -632,7 +632,6 @@ export default function ExamReports() {
                 onChange={(e) => setSelectedExamType(e.target.value)}
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="">All Types</option>
                 <option value="final">Final</option>
               </select>
             </div>

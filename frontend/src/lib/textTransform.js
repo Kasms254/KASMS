@@ -95,6 +95,10 @@ export function transformToSentenceCase(data, options = {}) {
 
   // Handle strings
   if (typeof data === 'string') {
+    // Skip URLs and file paths (e.g., /media/school_logos/..., http://...)
+    if (/^(https?:\/\/|\/media\/|\/static\/)/.test(data) || /\.\w{2,4}$/.test(data)) {
+      return data
+    }
     return toSentenceCase(data, preserveAcronyms)
   }
 

@@ -8,6 +8,7 @@ import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
+import IntroPage from './pages/IntroPage'
 import useAuth from './hooks/useAuth'
 
 // Lazy load heavy dashboard components for better performance
@@ -68,8 +69,11 @@ const App = () => {
 		<ErrorBoundary>
 			<Suspense fallback={<LoadingFallback />}>
 				<Routes>
-			{/* Public landing: login at root - redirect to dashboard if already authenticated */}
-			<Route path="/" element={<ProtectedLogin />} />
+			{/* Public landing page */}
+			<Route path="/" element={<IntroPage />} />
+
+			{/* Login page - redirect to dashboard if already authenticated */}
+			<Route path="/login" element={<ProtectedLogin />} />
 
 			{/* IMPORTANT: Specific routes MUST come before general routes */}
 

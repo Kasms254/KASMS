@@ -15,7 +15,7 @@ export default function AdminOrInstructorLayout() {
 
   // Require authentication
   if (!user && !token) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
 
   // Check if user is admin OR instructor
