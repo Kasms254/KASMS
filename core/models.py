@@ -231,7 +231,6 @@ class Notice(models.Model):
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
 
-    
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
@@ -256,7 +255,6 @@ class Enrollment(models.Model):
         if not self.school and self.class_obj:
             self.school = self.class_obj.school
         super().save(*args, **kwargs)
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project')]
