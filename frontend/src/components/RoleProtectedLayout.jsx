@@ -15,7 +15,7 @@ export default function RoleProtectedLayout({ role = null }) {
 
   // Require authentication
   if (!user && !token) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
 
   // Check role authorization BEFORE rendering Layout

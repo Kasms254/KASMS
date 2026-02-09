@@ -15,7 +15,7 @@ export default function InstructorOrStudentLayout() {
 
   // Require authentication
   if (!user && !token) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
 
   // Check if user is instructor OR student

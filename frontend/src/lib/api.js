@@ -28,6 +28,12 @@ const SENTENCE_CASE_CONFIG = {
     'status', // Preserve status values for comparisons
     'type', // Preserve type values
     'id', // Preserve ID fields
+    'logo', // Preserve file paths (e.g., school_logos/...)
+    'logo_url', // Preserve logo URL paths
+    'file', // Preserve file paths
+    'file_url', // Preserve file URL paths
+    'image', // Preserve image paths
+    'image_url', // Preserve image URL paths
   ]
 }
 
