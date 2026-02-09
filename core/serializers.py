@@ -293,6 +293,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         user = User.objects.create(**validated_data)
         user.set_password(password)
+        user.must_change_password=  True
         user.save()
 
         if user.role == 'student' and class_obj:

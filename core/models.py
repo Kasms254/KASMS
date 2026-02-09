@@ -113,6 +113,7 @@ class User(AbstractUser):
     ]
     
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+    must_change_password = models.BooleanField(default=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     rank = models.CharField(max_length=20, choices=RANK_CHOICES, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
