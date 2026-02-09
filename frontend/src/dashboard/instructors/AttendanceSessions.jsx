@@ -251,6 +251,17 @@ export default function AttendanceSessions() {
 
   // Start session
   async function handleStartSession(session) {
+    // Check if session can be started (within 5 minutes before scheduled start)
+    const now = new Date()
+    const scheduledStart = new Date(session.scheduled_start)
+    const minutesUntilStart = (scheduledStart - now) / 1000 / 60
+
+    if (minutesUntilStart > 5) {
+      const timeStr = scheduledStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      toast.error(`Session cannot be started yet. Please wait until 5 minutes before the scheduled time (${timeStr}).`)
+      return
+    }
+
     try {
       await api.startAttendanceSession(session.id)
       toast.success('Session started')

@@ -5,7 +5,10 @@ export default function ModernDateTimePicker({ value, onChange, label, placehold
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedTime, setSelectedTime] = useState({ hours: '09', minutes: '00' })
+  const [isTimePickerOpen, setIsTimePickerOpen] = useState(false)
+  const [timePickerMode, setTimePickerMode] = useState('hours') // 'hours' or 'minutes'
   const calendarRef = useRef(null)
+  const timePickerRef = useRef(null)
 
   // Parse the value (YYYY-MM-DDTHH:MM format)
   const selectedDate = value ? new Date(value) : null
@@ -25,6 +28,9 @@ export default function ModernDateTimePicker({ value, onChange, label, placehold
     function handleClickOutside(event) {
       if (calendarRef.current && !calendarRef.current.contains(event.target)) {
         setIsCalendarOpen(false)
+      }
+      if (timePickerRef.current && !timePickerRef.current.contains(event.target)) {
+        setIsTimePickerOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -244,23 +250,190 @@ export default function ModernDateTimePicker({ value, onChange, label, placehold
         </div>
 
         {/* Time Input */}
-        <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded px-2">
-          <Icons.Clock className="w-4 h-4 text-gray-400" />
-          <select
-            value={selectedTime.hours}
-            onChange={(e) => handleTimeChange('hours', e.target.value)}
-            className="bg-transparent text-sm py-2 pr-0 pl-1 border-0 focus:ring-0 text-black cursor-pointer"
+        <div className="relative" ref={timePickerRef}>
+          <div
+            onClick={() => {
+              setIsTimePickerOpen(!isTimePickerOpen)
+              setTimePickerMode('hours')
+            }}
+            className="flex items-center gap-1 bg-white border border-neutral-200 rounded px-3 py-2 cursor-pointer hover:border-indigo-300 transition-colors"
           >
-            {hours.map(h => <option key={h} value={h}>{h}</option>)}
-          </select>
-          <span className="text-gray-400">:</span>
-          <select
-            value={selectedTime.minutes}
-            onChange={(e) => handleTimeChange('minutes', e.target.value)}
-            className="bg-transparent text-sm py-2 pr-1 pl-0 border-0 focus:ring-0 text-black cursor-pointer"
-          >
-            {minutes.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+            <Icons.Clock className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-black font-medium">
+              {selectedTime.hours}:{selectedTime.minutes}
+            </span>
+          </div>
+
+          {/* Clock Picker Dropdown */}
+          {isTimePickerOpen && (
+            <div className="absolute z-50 mt-1 right-0 bg-white rounded-lg shadow-2xl border border-gray-200 p-2 w-52">
+              {/* Time Display */}
+              <div className="text-center mb-1.5">
+                <div className="text-lg font-bold text-indigo-600">
+                  {selectedTime.hours}:{selectedTime.minutes}
+                </div>
+              </div>
+
+              {/* AM/PM Toggle */}
+              {timePickerMode === 'hours' && (
+                <div className="flex gap-1 mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentHour = parseInt(selectedTime.hours)
+                      const newHour = currentHour >= 12 ? currentHour - 12 : currentHour
+                      handleTimeChange('hours', String(newHour).padStart(2, '0'))
+                    }}
+                    className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                      parseInt(selectedTime.hours) < 12
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    AM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentHour = parseInt(selectedTime.hours)
+                      const newHour = currentHour < 12 ? currentHour + 12 : currentHour
+                      handleTimeChange('hours', String(newHour).padStart(2, '0'))
+                    }}
+                    className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                      parseInt(selectedTime.hours) >= 12
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    PM
+                  </button>
+                </div>
+              )}
+
+              {/* Clock Face */}
+              <div className="relative w-36 h-36 mx-auto mb-1.5">
+                <svg className="w-full h-full" viewBox="0 0 150 150">
+                  {/* Clock circle background */}
+                  <circle cx="75" cy="75" r="70" fill="#f9fafb" />
+                  <circle cx="75" cy="75" r="70" fill="none" stroke="#e5e7eb" strokeWidth="2" />
+                  <circle cx="75" cy="75" r="3" fill="#4f46e5" />
+
+                  {timePickerMode === 'hours' ? (
+                    /* Hour markers - 12 numbers (0-23 using AM/PM toggle) */
+                    Array.from({ length: 12 }, (_, i) => {
+                      const displayNum = i === 0 ? 12 : i
+                      const currentHour = parseInt(selectedTime.hours)
+                      const isPM = currentHour >= 12
+                      const hour12 = currentHour % 12 || 12
+
+                      // Calculate position
+                      const angle = (i * 30 - 90) * (Math.PI / 180)
+                      const radius = 54
+                      const x = 75 + radius * Math.cos(angle)
+                      const y = 75 + radius * Math.sin(angle)
+                      const isSelected = displayNum === hour12
+
+                      return (
+                        <g key={i}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="13"
+                            fill={isSelected ? '#4f46e5' : 'white'}
+                            stroke={isSelected ? '#4f46e5' : '#e5e7eb'}
+                            strokeWidth="1.5"
+                            className="cursor-pointer hover:fill-indigo-100 transition-all"
+                            onClick={() => {
+                              // Convert 12-hour to 24-hour
+                              let hour24 = displayNum === 12 ? 0 : displayNum
+                              if (isPM && hour24 !== 0) hour24 += 12
+                              else if (isPM && hour24 === 0) hour24 = 12
+                              handleTimeChange('hours', String(hour24).padStart(2, '0'))
+                              setTimePickerMode('minutes')
+                            }}
+                          />
+                          <text
+                            x={x}
+                            y={y}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className="text-xs font-bold pointer-events-none select-none"
+                            fill={isSelected ? 'white' : '#374151'}
+                          >
+                            {displayNum}
+                          </text>
+                        </g>
+                      )
+                    })
+                  ) : (
+                    /* Minute markers */
+                    Array.from({ length: 12 }, (_, i) => {
+                      const minute = i * 5
+                      const angle = (i * 30 - 90) * (Math.PI / 180)
+                      const radius = 54
+                      const x = 75 + radius * Math.cos(angle)
+                      const y = 75 + radius * Math.sin(angle)
+                      const isSelected = String(minute).padStart(2, '0') === selectedTime.minutes
+
+                      return (
+                        <g key={minute}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="14"
+                            fill={isSelected ? '#4f46e5' : 'white'}
+                            stroke={isSelected ? '#4f46e5' : '#e5e7eb'}
+                            strokeWidth="1.5"
+                            className="cursor-pointer hover:fill-indigo-100 transition-all"
+                            onClick={() => {
+                              handleTimeChange('minutes', String(minute).padStart(2, '0'))
+                              setIsTimePickerOpen(false)
+                            }}
+                          />
+                          <text
+                            x={x}
+                            y={y}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className="text-xs font-bold pointer-events-none select-none"
+                            fill={isSelected ? 'white' : '#374151'}
+                          >
+                            {String(minute).padStart(2, '0')}
+                          </text>
+                        </g>
+                      )
+                    })
+                  )}
+                </svg>
+              </div>
+
+              {/* Mode switcher */}
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTimePickerMode('hours')}
+                  className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                    timePickerMode === 'hours'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Hours
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimePickerMode('minutes')}
+                  className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                    timePickerMode === 'minutes'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Minutes
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

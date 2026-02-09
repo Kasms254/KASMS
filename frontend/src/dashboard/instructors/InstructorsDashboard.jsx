@@ -138,23 +138,8 @@ export default function InstructorsDashboard() {
             // non-fatal
           }
 
-          // also include classes (start_date) as events so they appear on calendar
-          if (Array.isArray(classes)) {
-            classes.forEach(cl => {
-              const iso = cl.start_date ? toISO(cl.start_date) : null
-              if (!iso) return
-              const evt = {
-                kind: 'class',
-                title: cl.name || cl.class_name || 'Class',
-                className: cl.name || cl.class_name || null,
-                course: cl.course?.name || cl.course_name || null,
-              }
-              ev[iso] = ev[iso] || []
-              // avoid duplicate structured events based on title+class
-              const exists = ev[iso].some(e => typeof e !== 'string' && e.title === evt.title && (e.className || e.class_name) === (evt.className || evt.class_name))
-              if (!exists) ev[iso].push(evt)
-            })
-          }
+          // Note: Class creation events are intentionally excluded from calendar
+          // to avoid cluttering the events view with administrative actions
           if (mounted) setCalendarEvents(ev)
         } catch (err) {
           // ignore calendar load errors; don't block dashboard

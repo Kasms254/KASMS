@@ -95,8 +95,15 @@ export function transformToSentenceCase(data, options = {}) {
 
   // Handle strings
   if (typeof data === 'string') {
-    // Skip URLs and file paths (e.g., /media/school_logos/..., http://...)
-    if (/^(https?:\/\/|\/media\/|\/static\/)/.test(data) || /\.\w{2,4}$/.test(data)) {
+    // Skip URLs, file paths, and ISO date strings
+    // - URLs: http://, https://, /media/, /static/
+    // - Files: ends with extension like .jpg, .png
+    // - Dates: ISO format like 2024-02-09T14:30:00Z
+    if (
+      /^(https?:\/\/|\/media\/|\/static\/)/.test(data) ||
+      /\.\w{2,4}$/.test(data) ||
+      /^\d{4}-\d{2}-\d{2}/.test(data)
+    ) {
       return data
     }
     return toSentenceCase(data, preserveAcronyms)

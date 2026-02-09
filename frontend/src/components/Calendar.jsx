@@ -94,6 +94,8 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
         {monthData.days.map((d, i) => {
           if (!d) return <div key={i} className="h-10" />
           const iso = formatISO(d)
+          const todayISO = formatISO(new Date())
+          const isToday = iso === todayISO
           const hasEvents = showEvents && Array.isArray(events[iso]) && events[iso].length > 0
           const isSelected = displaySelected === iso
           const dow = d.getDay()
@@ -104,6 +106,14 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
             : hasEvents
             ? 'text-black'
             : `${isWeekend ? 'text-rose-600' : 'text-black'}`
+
+          // Build button classes: today gets a ring, selected gets filled background
+          const buttonClass = isSelected
+            ? 'bg-indigo-500'
+            : isToday
+            ? 'ring-2 ring-indigo-500 ring-inset hover:bg-indigo-50'
+            : 'hover:bg-neutral-100'
+
           return (
             <button
               key={iso}
@@ -111,9 +121,9 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                 setSelected(iso)
                 if (onSelect) onSelect(iso)
               }}
-              className={`h-10 flex items-center justify-center rounded-md transition ${isSelected ? 'bg-indigo-500' : 'hover:bg-neutral-100'}`}>
+              className={`h-10 flex items-center justify-center rounded-md transition ${buttonClass}`}>
               <div className="flex flex-col items-center">
-                <span className={`text-sm leading-4 ${numberClass}`}>{d.getDate()}</span>
+                <span className={`text-sm leading-4 font-medium ${isToday && !isSelected ? 'text-indigo-600' : numberClass}`}>{d.getDate()}</span>
                 {hasEvents && <span className={`${isWeekend ? 'bg-rose-500' : 'bg-indigo-500'} w-1.5 h-1.5 rounded-full mt-1`} />}
               </div>
             </button>
