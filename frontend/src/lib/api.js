@@ -2,7 +2,7 @@
 import * as authStore from './auth'
 import { transformToSentenceCase } from './textTransform'
 
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+//const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
 
 // Configuration for sentence case transformation
 const SENTENCE_CASE_CONFIG = {
@@ -48,7 +48,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-//const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_URL;
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
