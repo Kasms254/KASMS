@@ -431,7 +431,22 @@ export async function markAbsentStudents(sessionId) {
 // Export session attendance to CSV
 export async function exportSessionAttendance(sessionId) {
   if (!sessionId) throw new Error('sessionId is required')
-  return request(`/api/attendance-sessions/${sessionId}/export_csv/`)
+
+  // Handle CSV export specially - don't parse as JSON
+  const url = `${API_BASE}/api/attendance-sessions/${sessionId}/export_csv/`
+  const token = authStore.getToken()
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const response = await fetch(url, { headers })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Failed to export CSV (${response.status})`)
+  }
+
+  // Return the CSV as plain text to preserve newlines
+  return await response.text()
 }
 
 // Get instructor's sessions
