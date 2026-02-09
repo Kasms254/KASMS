@@ -187,8 +187,8 @@ export default function IntroPage() {
                 About <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-900 to-rose-700">KASMS</span>
               </h3>
               <p className="text-gray-600 max-w-2xl mx-auto">
-                The Kenya Army School Management System is designed to streamline educational operations
-                and enhance the learning experience for military educational institutions.
+                The Kenya Army School Management System is designed to streamline training operations
+                and enhance the learning experience for military training institutions.
               </p>
             </div>
 
@@ -229,19 +229,19 @@ export default function IntroPage() {
             </div>
 
             {/* Feature Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {features.map((feature) => {
                 const Icon = feature.icon
                 return (
                   <div
                     key={feature.title}
-                    className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl border border-gray-100 transition-all duration-300 hover:-translate-y-1 group"
+                    className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 text-center group"
                   >
-                    <div className={`w-14 h-14 ${feature.color} rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                      <Icon className="w-7 h-7 text-white" />
+                    <div className={`w-16 h-16 ${feature.color} rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className="w-8 h-8 text-white" />
                     </div>
-                    <h4 className="text-gray-900 font-bold text-lg mb-2">{feature.title}</h4>
-                    <p className="text-gray-500 text-sm leading-relaxed">{feature.description}</p>
+                    <h4 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h4>
+                    <p className="text-gray-500 leading-relaxed">{feature.description}</p>
                   </div>
                 )
               })}
