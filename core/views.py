@@ -262,7 +262,6 @@ class SchoolViewSet(viewsets.ModelViewSet):
             'message': f'School {school.name} deactivated'
         })
 
-
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload_logo(self, request, pk=None):
         school = self.get_object()
