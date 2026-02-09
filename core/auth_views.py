@@ -7,22 +7,41 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
 from .serializers import UserSerializer, UserListSerializer
+from .models import Enrollment
+
 
 def get_tokens_for_user(user):
-  
     refresh = RefreshToken.for_user(user)
     return {
         'refresh': str(refresh),
         'access': str(refresh.access_token),
     }
 
+
+def check_student_can_login(user):
+
+    if user.role != 'student':
+        return True, None
+    
+    has_active_enrollment = Enrollment.all_objects.filter(
+        student=user,
+        is_active=True,
+        class_obj__is_active=True
+    ).exists()
+    
+    if not has_active_enrollment:
+        return False, "Your enrollment is not active. Please contact your school administrator."
+    
+    return True, None
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
- 
-    # username = request.data.get('username')
+
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
+    school_code = request.data.get('school_code')  # Optional for explicit school selection
     
     if not svc_number or not password:
         return Response(
@@ -30,7 +49,7 @@ def login_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Authenticate user
+    # Authenticate user using custom backend (SvcNumberBackend)
     user = authenticate(request, svc_number=svc_number, password=password)
     
     if user is None:
@@ -45,10 +64,22 @@ def login_view(request):
             status=status.HTTP_403_FORBIDDEN
         )
     
-    # Generate JWT tokens
+    if user.role != 'superadmin' and user.school:
+        if not user.school.is_active:
+            return Response(
+                {'error': 'Your school account is currently inactive. Please contact support.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+    can_login, error_message = check_student_can_login(user)
+    if not can_login:
+        return Response(
+            {'error': error_message},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
     tokens = get_tokens_for_user(user)
     
-    # Serialize user data
     user_data = UserListSerializer(user).data
     
     return Response({
@@ -57,6 +88,7 @@ def login_view(request):
         'refresh': tokens['refresh'],
         'user': user_data
     }, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -76,10 +108,10 @@ def logout_view(request):
             'error': 'Invalid token or token already blacklisted'
         }, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh_view(request):
-
 
     from rest_framework_simplejwt.serializers import TokenRefreshSerializer
     
@@ -90,12 +122,13 @@ def token_refresh_view(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):
-
-    serializer = UserSerializer(request.user)
+    serializer = UserListSerializer(request.user)
     return Response(serializer.data)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -124,11 +157,20 @@ def change_password_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Set new password
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    
+    try:
+        validate_password(new_password, user)
+    except ValidationError as e:
+        return Response(
+            {'error': list(e.messages)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     user.set_password(new_password)
     user.save()
     
-    # Generate new tokens
     tokens = get_tokens_for_user(user)
     
     return Response({
@@ -137,11 +179,23 @@ def change_password_view(request):
         'refresh': tokens['refresh']
     }, status=status.HTTP_200_OK)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_token_view(request):
 
+    user = request.user
+    
+    if user.role == 'student':
+        can_login, error_message = check_student_can_login(user)
+        if not can_login:
+            return Response({
+                'valid': False,
+                'error': error_message
+            }, status=status.HTTP_403_FORBIDDEN)
+    
     return Response({
         'message': 'Token is valid',
-        'user': UserListSerializer(request.user).data
+        'valid': True,
+        'user': UserListSerializer(user).data
     }, status=status.HTTP_200_OK)

@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import * as LucideIcons from 'lucide-react'
@@ -12,8 +13,28 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['superadmin', 'admin', 'instructor', 'student'],
       },
+      // Superadmin-only items
+      {
+        icon: 'Building2',
+        label: 'Schools',
+        href: '/superadmin/schools',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'UserCog',
+        label: 'Admins',
+        href: '/superadmin/admins',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'BarChart3',
+        label: 'System Stats',
+        href: '/superadmin/stats',
+        visible: ['superadmin'],
+      },
+      // Admin items
       {
         icon: 'User',
         label: 'Add User',
@@ -130,7 +151,7 @@ const menuItems = [
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['admin', 'instructor', 'student',],
+        visible: ['superadmin', 'admin', 'instructor', 'student'],
       },
     ],
   },
@@ -140,6 +161,17 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
   const location = useLocation()
   const navigate = useNavigate()
   const auth = useAuth()
+  const [logoutModalOpen, setLogoutModalOpen] = React.useState(false)
+
+  async function handleLogout() {
+    setLogoutModalOpen(false)
+    try {
+      await auth.logout()
+    } catch { /* ignore logout errors */ }
+    navigate('/')
+    if (onMobileMenuClick) onMobileMenuClick()
+  }
+
   return (
     <nav className="mt-4 text-sm">
       {menuItems.map((section) => (
@@ -156,13 +188,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                     <button
                       title={item.label}
                       aria-label={item.label}
-                      onClick={async () => {
-                        try {
-                          await auth.logout()
-                        } catch { /* ignore logout errors */ }
-                        navigate('/')
-                        if (onMobileMenuClick) onMobileMenuClick()
-                      }}
+                      onClick={() => setLogoutModalOpen(true)}
                       className="group relative flex items-center justify-center gap-3 text-red-300 py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
                     >
                       {(() => {
@@ -198,13 +224,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                   key={item.label}
                   title={item.label}
                   aria-label={item.label}
-                  onClick={async () => {
-                    try {
-                      await auth.logout()
-                    } catch { /* ignore logout errors */ }
-                    navigate('/')
-                    if (onMobileMenuClick) onMobileMenuClick()
-                  }}
+                  onClick={() => setLogoutModalOpen(true)}
                   className="group relative flex items-center justify-start gap-3 text-red-300 py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
                 >
                   {(() => {
@@ -239,6 +259,39 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
           })}
         </div>
       ))}
+
+      {/* Logout Confirmation Modal */}
+      {logoutModalOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setLogoutModalOpen(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <LucideIcons.LogOut className="w-5 h-5 text-red-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-black">Confirm Logout</h4>
+              </div>
+              <p className="text-sm text-neutral-600 mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setLogoutModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </nav>
   )
 }

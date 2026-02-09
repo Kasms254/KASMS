@@ -12,6 +12,7 @@ import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
 import QRCodeDisplay from '../../components/QRCodeDisplay'
+import ModernDateTimePicker from '../../components/ModernDateTimePicker'
 
 const SESSION_TYPES = [
   { value: 'class', label: 'Class' },
@@ -76,12 +77,22 @@ export default function AttendanceSessions() {
   const [qrData, setQrData] = useState(null)
   const [sessionStats, setSessionStats] = useState(null)
 
+  // Sanitize text input
+  function sanitizeInput(value) {
+    if (typeof value !== 'string') return value
+    // eslint-disable-next-line no-control-regex
+    const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+    return value
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(controlChars, '')
+  }
+
   // Create form state
   const [createForm, setCreateForm] = useState({
     title: '',
     session_type: 'class',
     class_obj: '',
-    subject: '',
     scheduled_start: '',
     scheduled_end: '',
     duration_minutes: 60,
@@ -93,6 +104,8 @@ export default function AttendanceSessions() {
     require_location: false,
     description: ''
   })
+  const [createError, setCreateError] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
 
   // QR refresh timer
   const [qrRefreshTimer, setQrRefreshTimer] = useState(null)
@@ -175,8 +188,10 @@ export default function AttendanceSessions() {
   // Create session
   async function handleCreateSession(e) {
     e.preventDefault()
+    setCreateError('')
+
     if (!createForm.title || !createForm.class_obj || !createForm.scheduled_start || !createForm.scheduled_end) {
-      toast.error('Please fill in all required fields')
+      setCreateError('Please fill in all required fields')
       return
     }
 
@@ -186,21 +201,22 @@ export default function AttendanceSessions() {
 
     // Validate start time is not in the past
     if (startTime < now) {
-      toast.error('Start time cannot be in the past')
+      setCreateError('Start time cannot be in the past')
       return
     }
 
     // Validate end time is after start time
     if (endTime <= startTime) {
-      toast.error('End time must be after start time')
+      setCreateError('End time must be after start time')
       return
     }
 
+    setCreateLoading(true)
     try {
+      const { subject, ...rest } = createForm;
       const payload = {
-        ...createForm,
-        class_obj: Number(createForm.class_obj),
-        subject: createForm.subject ? Number(createForm.subject) : null
+        ...rest,
+        class_obj: Number(createForm.class_obj)
       }
       await api.createAttendanceSession(payload)
       toast.success('Session created successfully')
@@ -208,7 +224,9 @@ export default function AttendanceSessions() {
       resetCreateForm()
       loadSessions()
     } catch (err) {
-      toast.error(err.message || 'Failed to create session')
+      setCreateError(err.message || 'Failed to create session')
+    } finally {
+      setCreateLoading(false)
     }
   }
 
@@ -217,7 +235,6 @@ export default function AttendanceSessions() {
       title: '',
       session_type: 'class',
       class_obj: '',
-      subject: '',
       scheduled_start: '',
       scheduled_end: '',
       duration_minutes: 60,
@@ -229,6 +246,7 @@ export default function AttendanceSessions() {
       require_location: false,
       description: ''
     })
+    setCreateError('')
   }
 
   // Start session
@@ -583,187 +601,102 @@ export default function AttendanceSessions() {
 
       {/* Create Session Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Create Attendance Session</h2>
-              <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateSession} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Session Title *</label>
-                  <input
-                    type="text"
-                    value={createForm.title}
-                    onChange={(e) => setCreateForm(f => ({ ...f, title: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    placeholder="e.g., Morning Class Attendance"
-                    required
-                  />
-                </div>
-
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowCreateModal(false); resetCreateForm() }} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <form onSubmit={handleCreateSession} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Session Type</label>
-                  <select
-                    value={createForm.session_type}
-                    onChange={(e) => setCreateForm(f => ({ ...f, session_type: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {SESSION_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
+                  <h4 className="text-lg text-black font-medium">Create session</h4>
+                  <p className="text-sm text-neutral-500">Create a new attendance session.</p>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
-                  <select
-                    value={createForm.class_obj}
-                    onChange={(e) => setCreateForm(f => ({ ...f, class_obj: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    required
-                  >
-                    <option value="">Select class</option>
-                    {classes.map(c => (
-                      <option key={c.id} value={c.id}>{c.name || c.class_code}</option>
-                    ))}
-                  </select>
+                <button type="button" aria-label="Close" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              </div>
+              {createError && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{createError}</p>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject (Optional)</label>
-                  <select
-                    value={createForm.subject}
-                    onChange={(e) => setCreateForm(f => ({ ...f, subject: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Select subject</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name || s.subject_code}</option>
-                    ))}
-                  </select>
+              )}
+              <div className="mt-4">
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                    <span>Title</span>
+                    <span className={`text-xs ${(createForm.title?.length || 0) > 40 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/40</span>
+                  </div>
+                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: sanitizeInput(e.target.value).slice(0, 40) }))} maxLength={40} placeholder="e.g. Bedcheck Attendance" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required />
+                </label>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <label className="block">
+                    <div className="text-sm text-neutral-600 mb-1">Type</div>
+                    <select value={createForm.session_type} onChange={(e) => setCreateForm(f => ({ ...f, session_type: e.target.value }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                      {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <div className="text-sm text-neutral-600 mb-1">Class</div>
+                    <select value={createForm.class_obj} onChange={(e) => setCreateForm(f => ({ ...f, class_obj: e.target.value }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required>
+                      <option value="">Select class</option>
+                      {classes.map(c => <option key={c.id} value={c.id}>{c.name || c.class_code}</option>)}
+                    </select>
+                  </label>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
-                  <input
-                    type="datetime-local"
+                <label className="block mb-3">
+                  {/* Subject field removed */}
+                </label>
+                <div className="mb-3">
+                  <ModernDateTimePicker
+                    label="Start Time"
                     value={createForm.scheduled_start}
+                    onChange={(val) => setCreateForm(f => ({ ...f, scheduled_start: val }))}
                     min={getMinDateTime()}
-                    onChange={(e) => setCreateForm(f => ({ ...f, scheduled_start: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    required
+                    placeholder="Select date"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
-                  <input
-                    type="datetime-local"
+                <div className="mb-3">
+                  <ModernDateTimePicker
+                    label="End Time"
                     value={createForm.scheduled_end}
+                    onChange={(val) => setCreateForm(f => ({ ...f, scheduled_end: val }))}
                     min={createForm.scheduled_start || getMinDateTime()}
-                    onChange={(e) => setCreateForm(f => ({ ...f, scheduled_end: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    required
+                    placeholder="Select date"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Late Grace Period (minutes)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="60"
-                    value={createForm.allow_late_minutes}
-                    onChange={(e) => setCreateForm(f => ({ ...f, allow_late_minutes: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <label className="block">
+                    <div className="text-sm text-neutral-600 mb-1">Late Grace Period (min)</div>
+                    <input type="number" min="0" max="60" value={createForm.allow_late_minutes} onChange={(e) => setCreateForm(f => ({ ...f, allow_late_minutes: Number(e.target.value) }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
+                  <label className="block">
+                    <div className="text-sm text-neutral-600 mb-1">QR Refresh (sec)</div>
+                    <input type="number" min="10" max="300" value={createForm.qr_refresh_interval} onChange={(e) => setCreateForm(f => ({ ...f, qr_refresh_interval: Number(e.target.value) }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">QR Refresh Interval (seconds)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="300"
-                    value={createForm.qr_refresh_interval}
-                    onChange={(e) => setCreateForm(f => ({ ...f, qr_refresh_interval: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm(f => ({ ...f, description: e.target.value }))}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    rows={3}
-                    placeholder="Optional description..."
-                  />
-                </div>
-
-                <div className="md:col-span-2 space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">Marking Methods</label>
-                  <div className="flex flex-wrap gap-4">
+                <div className="mb-3">
+                  <div className="text-sm text-neutral-600 mb-2">Marking Methods</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createForm.enable_qr_scan}
-                        onChange={(e) => setCreateForm(f => ({ ...f, enable_qr_scan: e.target.checked }))}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-sm text-gray-700">QR Code Scan</span>
+                      <input type="checkbox" checked={createForm.enable_qr_scan} onChange={(e) => setCreateForm(f => ({ ...f, enable_qr_scan: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="text-sm text-gray-700">QR Scan</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createForm.enable_manual_marking}
-                        onChange={(e) => setCreateForm(f => ({ ...f, enable_manual_marking: e.target.checked }))}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-sm text-gray-700">Manual Marking</span>
+                      <input type="checkbox" checked={createForm.enable_manual_marking} onChange={(e) => setCreateForm(f => ({ ...f, enable_manual_marking: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="text-sm text-gray-700">Manual</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createForm.enable_biometric}
-                        onChange={(e) => setCreateForm(f => ({ ...f, enable_biometric: e.target.checked }))}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
+                      <input type="checkbox" checked={createForm.enable_biometric} onChange={(e) => setCreateForm(f => ({ ...f, enable_biometric: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                       <span className="text-sm text-gray-700">Biometric</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createForm.require_location}
-                        onChange={(e) => setCreateForm(f => ({ ...f, require_location: e.target.checked }))}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-sm text-gray-700">Require Location</span>
+                      <input type="checkbox" checked={createForm.require_location} onChange={(e) => setCreateForm(f => ({ ...f, require_location: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="text-sm text-gray-700">Location</span>
                     </label>
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-                >
-                  Create Session
-                </button>
+              <div className="flex justify-end gap-3 mt-4">
+                <button type="button" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" disabled={createLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{createLoading ? 'Creating...' : 'Create session'}</button>
               </div>
             </form>
           </div>
@@ -1094,9 +1027,9 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h3 className="font-semibold text-gray-900">{session.title}</h3>
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[session.status]}`}>
               {session.status}
@@ -1144,7 +1077,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {session.status === 'scheduled' && (
             <button
               onClick={onStart}
@@ -1160,25 +1093,25 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               {session.enable_manual_marking && (
                 <button
                   onClick={onShowAttendance}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
                 >
                   <UserCheck className="w-4 h-4" />
-                  Mark Attendance
+                  <span className="hidden sm:inline">Mark</span>
                 </button>
               )}
               <button
                 onClick={onShowQR}
-                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
               >
                 <QrCode className="w-4 h-4" />
-                QR Code
+                <span className="hidden sm:inline">QR</span>
               </button>
               <button
                 onClick={onEnd}
-                className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
               >
                 <Square className="w-4 h-4" />
-                End
+                <span className="hidden sm:inline">End</span>
               </button>
             </>
           )}

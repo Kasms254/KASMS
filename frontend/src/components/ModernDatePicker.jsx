@@ -1,13 +1,26 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Icons from 'lucide-react'
 
-export default function ModernDatePicker({ value, onChange, label, placeholder = "Select date" }) {
+export default function ModernDatePicker({ value, onChange, label, placeholder = "Select date", minDate = null, maxDate = null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [openUpward, setOpenUpward] = useState(false)
   const dropdownRef = useRef(null)
+  const inputRef = useRef(null)
 
   // Parse the value (YYYY-MM-DD format)
   const selectedDate = value ? new Date(value + 'T00:00:00') : null
+
+  // Check if calendar should open upward
+  const checkAndSetDirection = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const calendarHeight = 320 // Approximate height of calendar
+      const shouldOpenUpward = spaceBelow < calendarHeight && rect.top > calendarHeight
+      setOpenUpward(shouldOpenUpward)
+    }
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -19,6 +32,16 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Check direction when opening
+  useEffect(() => {
+    if (isOpen) {
+      checkAndSetDirection()
+      // Also check on window resize
+      window.addEventListener('resize', checkAndSetDirection)
+      return () => window.removeEventListener('resize', checkAndSetDirection)
+    }
+  }, [isOpen])
 
   // Format date for display
   const formatDisplayDate = (date) => {
@@ -79,7 +102,10 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
   const goToToday = () => {
     const today = new Date()
     setCurrentMonth(today)
-    handleDateClick(today)
+    // Only select today if it's within the allowed range
+    if (!isDisabled(today)) {
+      handleDateClick(today)
+    }
   }
 
   const isToday = (date) => {
@@ -95,6 +121,28 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
     return date.getDate() === selectedDate.getDate() &&
            date.getMonth() === selectedDate.getMonth() &&
            date.getFullYear() === selectedDate.getFullYear()
+  }
+
+  const isDisabled = (date) => {
+    if (!date) return false
+    const check = new Date(date)
+    check.setHours(0, 0, 0, 0)
+
+    // Check if date is before minDate
+    if (minDate) {
+      const min = new Date(minDate)
+      min.setHours(0, 0, 0, 0)
+      if (check < min) return true
+    }
+
+    // Check if date is after maxDate
+    if (maxDate) {
+      const max = new Date(maxDate)
+      max.setHours(0, 0, 0, 0)
+      if (check > max) return true
+    }
+
+    return false
   }
 
   const clearDate = () => {
@@ -115,6 +163,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
       <div className="relative">
         <Icons.Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
         <input
+          ref={inputRef}
           type="text"
           readOnly
           value={selectedDate ? formatDisplayDate(selectedDate) : ''}
@@ -137,7 +186,9 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-72">
+        <div className={`absolute z-[9999] bg-white rounded-lg shadow-2xl border border-gray-200 p-3 w-72 ${
+          openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
+        }`}>
           {/* Month/Year Header */}
           <div className="flex items-center justify-between mb-2">
             <button
@@ -177,14 +228,18 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
 
               const today = isToday(date)
               const selected = isSelected(date)
+              const disabled = isDisabled(date)
 
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => handleDateClick(date)}
+                  onClick={() => !disabled && handleDateClick(date)}
+                  disabled={disabled}
                   className={`
                     aspect-square flex items-center justify-center rounded text-xs font-medium transition-all
-                    ${selected
+                    ${disabled
+                      ? 'text-gray-300 cursor-not-allowed bg-gray-50'
+                      : selected
                       ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
                       : today
                       ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'

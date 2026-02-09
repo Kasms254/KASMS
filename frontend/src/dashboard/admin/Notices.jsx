@@ -362,6 +362,7 @@ export default function Notices() {
               value={filterDateFrom}
               onChange={(value) => setFilterDateFrom(value)}
               placeholder="Select start date"
+              maxDate={new Date().toISOString().split('T')[0]}
             />
 
             {/* Date To */}
@@ -370,6 +371,7 @@ export default function Notices() {
               value={filterDateTo}
               onChange={(value) => setFilterDateTo(value)}
               placeholder="Select end date"
+              maxDate={new Date().toISOString().split('T')[0]}
             />
           </div>
 
@@ -437,13 +439,12 @@ export default function Notices() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Expiry / Event date</label>
-                    <input
-                      type="date"
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Expiry / Event date</label>
+                    <ModernDatePicker
                       value={form.expiry_date}
-                      onChange={e => update('expiry_date', e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="mt-2 p-2 rounded-md border w-full bg-white"
+                      onChange={(date) => update('expiry_date', date)}
+                      placeholder="Select date"
+                      minDate={new Date().toISOString().split('T')[0]}
                     />
                     {errors.expiry_date && <div className="text-rose-600 text-sm mt-1">{errors.expiry_date}</div>}
                   </div>

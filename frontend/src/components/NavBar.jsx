@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import * as LucideIcons from "lucide-react"
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
@@ -13,6 +14,7 @@ export default function NavBar({
   const [notifs, setNotifs] = useState([])
   const [notifsLoading, setNotifsLoading] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false)
   const menuRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -524,10 +526,9 @@ export default function NavBar({
               {user ? (
                 <button
                   role="menuitem"
-                  onClick={async () => {
-                    await auth.logout()
+                  onClick={() => {
                     setMenuOpen(false)
-                    navigate('/', { replace: true })
+                    setLogoutModalOpen(true)
                   }}
                   className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
                 >
@@ -540,6 +541,43 @@ export default function NavBar({
           )}
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {logoutModalOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setLogoutModalOpen(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <LucideIcons.LogOut className="w-5 h-5 text-red-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-black">Confirm Logout</h4>
+              </div>
+              <p className="text-sm text-neutral-600 mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setLogoutModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setLogoutModalOpen(false)
+                    await auth.logout()
+                    navigate('/', { replace: true })
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

@@ -1,7 +1,35 @@
 // Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
 import * as authStore from './auth'
+import { transformToSentenceCase } from './textTransform'
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+
+// Configuration for sentence case transformation
+const SENTENCE_CASE_CONFIG = {
+  enabled: import.meta.env.VITE_SENTENCE_CASE_ENABLED !== 'false', // Enable by default
+  preserveAcronyms: true,
+  excludeKeys: [
+    'password',
+    'token',
+    'refresh',
+    'access',
+    'svc_number',
+    'email',
+    'username',
+    'slug',
+    'code',
+    'url',
+    'qr_token',
+    'latitude',
+    'longitude',
+    'device_id',
+    'biometric_id',
+    'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
+    'status', // Preserve status values for comparisons
+    'type', // Preserve type values
+    'id', // Preserve ID fields
+  ]
+}
 
 
 // Sanitize string input to prevent injection attacks
@@ -128,6 +156,14 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     throw err
   }
 
+  // Apply sentence case transformation to successful responses
+  if (SENTENCE_CASE_CONFIG.enabled && data) {
+    return transformToSentenceCase(data, {
+      preserveAcronyms: SENTENCE_CASE_CONFIG.preserveAcronyms,
+      excludeKeys: SENTENCE_CASE_CONFIG.excludeKeys
+    })
+  }
+
   return data
 }
 
@@ -209,6 +245,10 @@ export async function updateCourse(id, payload) {
   return request(`/api/courses/${id}/`, { method: 'PATCH', body: payload })
 }
 
+export async function deleteCourse(id) {
+  return request(`/api/courses/${id}/`, { method: 'DELETE' })
+}
+
 export async function getClasses(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/classes/${qs}`)
@@ -285,6 +325,10 @@ export async function addClass(payload) {
 export async function updateClass(id, payload) {
   // Use PATCH for partial updates so callers can send only changed fields
   return request(`/api/classes/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteClass(id) {
+  return request(`/api/classes/${id}/`, { method: 'DELETE' })
 }
 
 export async function getClassSubjects(classId) {
@@ -920,6 +964,10 @@ export async function getUsers() {
   return request('/api/users/')
 }
 
+export async function getUserStats() {
+  return request('/api/users/stats/')
+}
+
 export async function addUser(payload) {
   return request('/api/users/', { method: 'POST', body: payload })
 }
@@ -950,6 +998,152 @@ export async function deactivateUser(id) {
 
 export async function resetUserPassword(id, newPassword) {
   return request(`/api/users/${id}/reset_password/`, { method: 'POST', body: { new_password: newPassword } })
+}
+
+// =====================
+// Schools API (Superadmin)
+// =====================
+
+// Get all schools (paginated)
+export async function getSchools(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/schools/${qs}`)
+}
+
+// Get a single school by ID
+export async function getSchool(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/schools/${id}/`)
+}
+
+// Create a new school
+export async function createSchool(payload) {
+  return request('/api/schools/', { method: 'POST', body: payload })
+}
+
+// Update a school
+export async function updateSchool(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/schools/${id}/`, { method: 'PATCH', body: payload })
+}
+
+// Delete a school
+export async function deleteSchool(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/schools/${id}/`, { method: 'DELETE' })
+}
+
+// Get school theme (public endpoint for login page theming)
+export async function getSchoolTheme(schoolCode) {
+  if (!schoolCode) throw new Error('schoolCode is required')
+  return request(`/api/schools/theme/?code=${encodeURIComponent(schoolCode)}`)
+}
+
+// Get current user's school theme
+export async function getMySchoolTheme() {
+  return request('/api/schools/my-theme/')
+}
+
+// Upload school logo (multipart/form-data)
+export async function uploadSchoolLogo(schoolId, file) {
+  const API = API_BASE
+  const token = authStore.getToken()
+  const url = `${API}/api/schools/${schoolId}/upload_logo/`
+  const form = new FormData()
+  form.append('logo', file)
+
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(url, { method: 'POST', headers, body: form })
+
+  if (!res.ok) {
+    let text = await res.text()
+    try {
+      text = JSON.parse(text)
+    } catch (e) {
+      if (import.meta.env.DEV) console.debug('upload parse error', e)
+    }
+    const err = new Error(res.statusText || 'Upload failed')
+    err.status = res.status
+    err.data = text
+    throw err
+  }
+
+  return res.json()
+}
+
+// Get school statistics
+export async function getSchoolStats(schoolId) {
+  if (!schoolId) throw new Error('schoolId is required')
+  return request(`/api/schools/${schoolId}/stats/`)
+}
+
+// Activate/Deactivate school
+export async function activateSchool(id) {
+  return request(`/api/schools/${id}/activate/`, { method: 'POST' })
+}
+
+export async function deactivateSchool(id) {
+  return request(`/api/schools/${id}/deactivate/`, { method: 'POST' })
+}
+
+// =====================
+// School Admins API (Superadmin)
+// =====================
+
+// Get all school admins (paginated)
+export async function getSchoolAdmins(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/school-admins/${qs}`)
+}
+
+// Get a single school admin by ID
+export async function getSchoolAdmin(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/school-admins/${id}/`)
+}
+
+// Create a new school admin (link user to school)
+export async function createSchoolAdmin(payload) {
+  // payload: { school, user, is_primary?, permissions? }
+  return request('/api/school-admins/', { method: 'POST', body: payload })
+}
+
+// Update a school admin
+export async function updateSchoolAdmin(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/school-admins/${id}/`, { method: 'PATCH', body: payload })
+}
+
+// Delete a school admin (unlink user from school)
+export async function deleteSchoolAdmin(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/school-admins/${id}/`, { method: 'DELETE' })
+}
+
+// Get admins for a specific school
+export async function getSchoolAdminsBySchool(schoolId) {
+  if (!schoolId) throw new Error('schoolId is required')
+  return request(`/api/schools/${schoolId}/admins/`)
+}
+
+// Add admin to a specific school
+export async function addAdminToSchool(schoolId, userId) {
+  if (!schoolId) throw new Error('schoolId is required')
+  if (!userId) throw new Error('userId is required')
+  return request(`/api/schools/${schoolId}/add_admin/`, { method: 'POST', body: { user_id: userId } })
+}
+
+// Create school with admin (combined endpoint)
+export async function createSchoolWithAdmin(payload) {
+  return request('/api/schools/create_with_admin/', { method: 'POST', body: payload })
+}
+
+// Get all admin users (role=admin) across all schools - for superadmin
+export async function getAllAdminUsers(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/admins${qs}`)
 }
 
 export default {
@@ -990,8 +1184,10 @@ export default {
   getAllCourses,
   addCourse,
   updateCourse,
+  deleteCourse,
   addClass,
   updateClass,
+  deleteClass,
   reactivateEnrollment,
   withdrawEnrollment,
   partialUpdateSubject,
@@ -1078,4 +1274,26 @@ export default {
   markAllPersonalNotificationsAsRead,
   getExamResultNotifications,
   getPersonalNotificationStats,
+  // Schools (Superadmin)
+  getSchools,
+  getSchool,
+  createSchool,
+  updateSchool,
+  deleteSchool,
+  getSchoolTheme,
+  getMySchoolTheme,
+  uploadSchoolLogo,
+  getSchoolStats,
+  activateSchool,
+  deactivateSchool,
+  // School Admins (Superadmin)
+  getSchoolAdmins,
+  getSchoolAdmin,
+  createSchoolAdmin,
+  updateSchoolAdmin,
+  deleteSchoolAdmin,
+  getSchoolAdminsBySchool,
+  addAdminToSchool,
+  createSchoolWithAdmin,
+  getAllAdminUsers,
 }

@@ -12,18 +12,29 @@ const roles = [
 
 const ranks = [
   { value: 'general', label: 'General' },
-  { value: 'lieutenant colonel', label: 'Lieutenant Colonel' },
+  { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
-  { value: 'warrant_officer_1', label: 'Warrant Officer I' },
-  { value: 'warrant_officer_2', label: 'Warrant Officer II' },
-  { value: 'seniorsergeant', label: 'Senior Sergeant' },
+  { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
   { value: 'corporal', label: 'Corporal' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'private', label: 'Private' },
 ]
+
+// Sanitize text input by removing script tags, HTML tags, and control characters
+function sanitizeInput(value) {
+  if (typeof value !== 'string') return value
+  // eslint-disable-next-line no-control-regex
+  const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(controlChars, '')
+}
 
 export default function AddUser({ onSuccess } = {}) {
   const [form, setForm] = useState({
@@ -35,6 +46,7 @@ export default function AddUser({ onSuccess } = {}) {
     phone_number: '',
     role: 'student',
     rank: '',
+    unit: '',
     class_obj: '',
     password: '',
     password2: '',
@@ -107,11 +119,13 @@ export default function AddUser({ onSuccess } = {}) {
       case 'first_name':
         if (!value) return 'First name is required'
         if (value.length < 2) return 'First name must be at least 2 characters'
+        if (value.length > 10) return 'First name cannot exceed 10 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'last_name':
         if (!value) return 'Last name is required'
         if (value.length < 2) return 'Last name must be at least 2 characters'
+        if (value.length > 10) return 'Last name cannot exceed 10 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'email':
@@ -128,6 +142,9 @@ export default function AddUser({ onSuccess } = {}) {
         return ''
       case 'rank':
         if (!value) return 'Please select a rank from the list'
+        return ''
+      case 'unit':
+        if (!value) return 'Unit is required'
         return ''
       case 'class_obj':
         if (formData.role === 'student' && !value) return 'Students must be assigned to a class'
@@ -168,6 +185,16 @@ export default function AddUser({ onSuccess } = {}) {
     // Only allow numeric input for phone number
     if (name === 'phone_number') {
       newValue = value.replace(/\D/g, '')
+    }
+
+    // Sanitize and limit first_name and last_name to 10 characters
+    if (name === 'first_name' || name === 'last_name') {
+      newValue = sanitizeInput(value).slice(0, 10)
+    }
+
+    // Sanitize unit field
+    if (name === 'unit') {
+      newValue = sanitizeInput(value).slice(0, 50)
     }
 
     setForm((f) => {
@@ -224,7 +251,7 @@ export default function AddUser({ onSuccess } = {}) {
 
     // Field-specific validation with descriptive messages
     const fErrs = {}
-    const fieldsToValidate = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'phone_number', 'rank', 'class_obj', 'password', 'password2']
+    const fieldsToValidate = ['username', 'first_name', 'last_name', 'email', 'svc_number', 'phone_number', 'unit', 'rank', 'class_obj', 'password', 'password2']
 
     for (const field of fieldsToValidate) {
       const error = validateField(field, form[field], form)
@@ -263,6 +290,7 @@ export default function AddUser({ onSuccess } = {}) {
         phone_number: '',
         role: 'student',
         rank: '',
+        unit: '',
         class_obj: '',
         password: '',
         password2: '',
@@ -288,6 +316,7 @@ export default function AddUser({ onSuccess } = {}) {
           rank: 'Rank',
           class_obj: 'Class',
           phone_number: 'Phone number',
+          unit: 'Unit',
           role: 'Role',
         }
 
@@ -342,18 +371,18 @@ export default function AddUser({ onSuccess } = {}) {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex items-start justify-between">
+    <div className="min-h-screen w-full bg-gray-50">
+      <div className="w-full h-full">
+        <div className="bg-white min-h-screen p-8">
+          <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-800">Add user</h1>
-              <p className="text-sm text-gray-500 mt-1">Create a new account for staff or students.</p>
+              <h1 className="text-3xl font-semibold text-gray-800">Add user</h1>
+              <p className="text-gray-500 mt-2">Create a new account for staff or students.</p>
             </div>
           </div>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Username</label>
                 <input name="username" value={form.username} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.username ? 'border-rose-500' : 'border-neutral-200'}`} />
@@ -380,13 +409,17 @@ export default function AddUser({ onSuccess } = {}) {
                 >
                   <option value="" disabled>-- Select a rank --</option>
                   <option value="general">General</option>
-                  <option value="lieutenant colonel">Lieutenant Colonel</option>
+                  <option value="lieutenant_general">Lieutenant General</option>
+                  <option value="major_general">Major General</option>
+                  <option value="brigadier">Brigadier</option>
+                  <option value="colonel">Colonel</option>
+                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
                   <option value="major">Major</option>
                   <option value="captain">Captain</option>
                   <option value="lieutenant">Lieutenant</option>
-                  <option value="warrant_officer">Warrant Officer I</option>
-                  <option value="warrant_officer">Warrant Officer II</option>
-                  <option value="seniorsergeant">Senior Sergeant</option>
+                  <option value="warrant_officer_i">Warrant Officer I</option>
+                  <option value="warrant_officer_ii">Warrant Officer II</option>
+                  <option value="senior_sergeant">Senior Sergeant</option>
                   <option value="sergeant">Sergeant</option>
                   <option value="corporal">Corporal</option>
                   <option value="lance_corporal">Lance Corporal</option>
@@ -397,13 +430,13 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.first_name}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.last_name}</div>}
               </div>
 
@@ -417,6 +450,12 @@ export default function AddUser({ onSuccess } = {}) {
                 <label className="block text-sm font-medium text-gray-700">Phone number</label>
                 <input name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.phone_number}</div>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Unit </label>
+                <input name="unit" value={form.unit} onChange={onChange} onBlur={onBlur} required maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.unit ? 'border-rose-500' : 'border-neutral-200'}`} placeholder="e.g. 21KR" />
+                {fieldErrors.unit && <div className="text-xs text-rose-600 mt-1">{fieldErrors.unit}</div>}
               </div>
 
               <div>
@@ -470,7 +509,7 @@ export default function AddUser({ onSuccess } = {}) {
             <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Password Setup</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Password</label>
                   <input name="password" type="password" value={form.password} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password ? 'border-rose-500' : 'border-neutral-200'}`} />

@@ -356,7 +356,7 @@ export default function AddResults() {
   }, [hasChanges])
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 text-black max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 md:p-6 text-black w-full">
       <header className="mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-2">Grade Results</h2>
         <p className="text-xs sm:text-sm md:text-base text-gray-600">Select an exam and enter marks for your students. <span className="hidden sm:inline">Use Tab/Enter to navigate, arrow keys to move between rows.</span></p>
@@ -507,19 +507,98 @@ export default function AddResults() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto -mx-3 sm:mx-0">
-            <div className="inline-block min-w-full align-middle px-3 sm:px-0">
+          {/* Mobile Card View */}
+          <div className="md:hidden p-3 space-y-3">
+            {paginatedResults.map((r) => {
+              const actualIdx = results.findIndex(row => row.id === r.id);
+              return (
+                <div key={r.id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                  {/* Student Info Header */}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 text-base truncate">{r.student_name || '-'}</div>
+                      <div className="text-sm text-gray-500 mt-0.5">SVC: {r.svc_number || '-'}</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
+                        r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
+                        r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
+                        r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
+                        r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
+                        r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {r.grade || '-'}
+                      </span>
+                      <span className={`text-sm font-semibold ${
+                        Number(r.percentage) >= 70 ? 'text-green-600' :
+                        Number(r.percentage) >= 50 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {formatPercentage(r.percentage)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Input Fields */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Marks <span className="text-gray-400">(out of {examInfo?.total_marks || '?'})</span>
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        max={examInfo?.total_marks || undefined}
+                        step="any"
+                        value={r.marks_obtained}
+                        onChange={e => updateRow(actualIdx, 'marks_obtained', e.target.value)}
+                        onKeyDown={e => handleKeyDown(e, actualIdx, 'marks_obtained')}
+                        data-idx={actualIdx}
+                        data-field="marks_obtained"
+                        placeholder="Enter marks"
+                        className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
+                          r.errors?.marks_obtained
+                            ? 'border-red-500 focus:ring-red-500 bg-red-50'
+                            : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                        } focus:ring-2 focus:outline-none transition`}
+                      />
+                      {r.errors?.marks_obtained && (
+                        <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+                      <input
+                        type="text"
+                        value={r.remarks}
+                        onChange={e => updateRow(actualIdx, 'remarks', e.target.value)}
+                        onKeyDown={e => handleKeyDown(e, actualIdx, 'remarks')}
+                        data-idx={actualIdx}
+                        data-field="remarks"
+                        placeholder="Optional remarks"
+                        className="w-full px-4 py-3 text-base rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <div className="inline-block min-w-full align-middle">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-100">
                   <tr>
                     <th
                       onClick={() => handleSort('svc_number')}
-                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="hidden sm:inline">Svc No</span>
-                        <span className="sm:hidden">Svc</span>
+                        Svc No
                         {sortConfig.key === 'svc_number' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
@@ -527,11 +606,10 @@ export default function AddResults() {
                     </th>
                     <th
                       onClick={() => handleSort('student_name')}
-                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="hidden sm:inline">Student Name</span>
-                        <span className="sm:hidden">Name</span>
+                        Student Name
                         {sortConfig.key === 'student_name' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
@@ -539,11 +617,10 @@ export default function AddResults() {
                     </th>
                     <th
                       onClick={() => handleSort('marks_obtained')}
-                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="hidden sm:inline">Marks (/{examInfo?.total_marks || '?'})</span>
-                        <span className="sm:hidden">Marks</span>
+                        Marks (/{examInfo?.total_marks || '?'})
                         {sortConfig.key === 'marks_obtained' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
@@ -551,11 +628,10 @@ export default function AddResults() {
                     </th>
                     <th
                       onClick={() => handleSort('percentage')}
-                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="hidden sm:inline">Percentage</span>
-                        <span className="sm:hidden">%</span>
+                        Percentage
                         {sortConfig.key === 'percentage' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
@@ -563,7 +639,7 @@ export default function AddResults() {
                     </th>
                     <th
                       onClick={() => handleSort('grade')}
-                      className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
                         Grade
@@ -572,7 +648,7 @@ export default function AddResults() {
                         )}
                       </div>
                     </th>
-                    <th className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left text-[10px] sm:text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Remarks
                     </th>
                   </tr>
@@ -582,13 +658,13 @@ export default function AddResults() {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     return (
                       <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap text-[10px] sm:text-xs md:text-sm text-gray-900">
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {r.svc_number || '-'}
                         </td>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-[10px] sm:text-xs md:text-sm text-gray-900">
+                        <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
                           {r.student_name || '-'}
                         </td>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3">
+                        <td className="px-3 lg:px-4 py-3">
                           <div>
                             <input
                               type="number"
@@ -601,18 +677,18 @@ export default function AddResults() {
                               data-idx={actualIdx}
                               data-field="marks_obtained"
                               placeholder="Marks"
-                              className={`w-full px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-xs md:text-sm rounded-md border ${
+                              className={`w-full px-2 py-1.5 text-sm rounded-md border ${
                                 r.errors?.marks_obtained
                                   ? 'border-red-500 focus:ring-red-500'
                                   : 'border-gray-300 focus:ring-indigo-500'
                               } focus:ring-2 focus:border-transparent`}
                             />
                             {r.errors?.marks_obtained && (
-                              <div className="text-[10px] sm:text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>
+                              <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>
                             )}
                           </div>
                         </td>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap text-[10px] sm:text-xs md:text-sm">
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                           <span className={`font-medium ${
                             Number(r.percentage) >= 70 ? 'text-green-600' :
                             Number(r.percentage) >= 50 ? 'text-yellow-600' :
@@ -621,8 +697,8 @@ export default function AddResults() {
                             {formatPercentage(r.percentage)}
                           </span>
                         </td>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 whitespace-nowrap">
-                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-full ${
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
                             r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
                             r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
@@ -633,7 +709,7 @@ export default function AddResults() {
                             {r.grade || '-'}
                           </span>
                         </td>
-                        <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3">
+                        <td className="px-3 lg:px-4 py-3">
                           <input
                             type="text"
                             value={r.remarks}
@@ -642,7 +718,7 @@ export default function AddResults() {
                             data-idx={actualIdx}
                             data-field="remarks"
                             placeholder="Remarks"
-                            className="w-full px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-xs md:text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                           />
                         </td>
                       </tr>

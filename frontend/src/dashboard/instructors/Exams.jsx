@@ -4,6 +4,7 @@ import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function Exams() {
   const { user } = useAuth()
@@ -22,8 +23,9 @@ export default function Exams() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
   const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
-  
-  
+  const [createError, setCreateError] = useState('')
+  const [editError, setEditError] = useState('')
+
   const [createFiles, setCreateFiles] = useState([])
   const [editFiles, setEditFiles] = useState([])
   
@@ -111,16 +113,37 @@ export default function Exams() {
     return { total, active, finals, upcoming }
   }, [exams])
 
+  const isCreateFormValid = useMemo(() => {
+    return !!(createForm.subject && createForm.title?.trim() && createForm.exam_date && createForm.total_marks)
+  }, [createForm])
+
+  const isEditFormValid = useMemo(() => {
+    return !!(editForm.subject && editForm.title?.trim() && editForm.exam_date && editForm.total_marks)
+  }, [editForm])
+
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
   async function submit(e) {
     e && e.preventDefault()
+    setCreateError('')
     const currentForm = editingId ? editForm : createForm
-    if (!currentForm.subject) return toast.error('Select a subject')
-    if (!currentForm.title) return toast.error('Enter exam title')
-    if (!currentForm.exam_date) return toast.error('Select exam date')
-    if (!currentForm.total_marks) return toast.error('Enter total marks')
+    if (!currentForm.subject) {
+      setCreateError('Select a subject')
+      return
+    }
+    if (!currentForm.title) {
+      setCreateError('Enter exam title')
+      return
+    }
+    if (!currentForm.exam_date) {
+      setCreateError('Select exam date')
+      return
+    }
+    if (!currentForm.total_marks) {
+      setCreateError('Enter total marks')
+      return
+    }
 
     // Client-side unique constraint check: subject + exam_date must be unique
     try {
@@ -131,7 +154,8 @@ export default function Exams() {
         return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
       })
       if (same) {
-        return toast.error('An exam for this subject on the selected date already exists.')
+        setCreateError('An exam for this subject on the selected date already exists.')
+        return
       }
     } catch (err) {
       // Silently handle duplicate check failure
@@ -179,36 +203,36 @@ export default function Exams() {
       try {
         const res = await api.updateExam(editingId, payload)
         toast.success('Exam updated')
-    setExams(s => s.map(x => (x.id === res.id ? res : x)))
-    setEditingId(null)
-  setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
-      // if files were selected while editing, upload them now
-      if (editFiles && editFiles.length) {
-        const filesToUpload = [...editFiles]
-        try {
-          await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
-          await fetchAttachmentsForExam(res.id)
-          toast.success(`${filesToUpload.length} resource(s) uploaded`)
-        } catch (err) {
-          // Silently handle file upload failure
-          toast.error('Failed to upload one or more files')
-        } finally {
-          setEditFiles([])
+        setExams(s => s.map(x => (x.id === res.id ? res : x)))
+        setEditingId(null)
+        setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+        // if files were selected while editing, upload them now
+        if (editFiles && editFiles.length) {
+          const filesToUpload = [...editFiles]
+          try {
+            await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
+            await fetchAttachmentsForExam(res.id)
+            toast.success(`${filesToUpload.length} resource(s) uploaded`)
+          } catch (err) {
+            // Silently handle file upload failure
+            toast.error('Failed to upload one or more files')
+          } finally {
+            setEditFiles([])
+          }
         }
-      }
-    // notify students via class notice immediately after edit
-    try {
-      const subj = subjects.find(s => String(s.id) === String(res.subject || currentForm.subject))
-      const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
-      if (classId) {
-        await api.createClassNotice({ title: `Exam scheduled: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || currentForm.subject) })
-        toast.success('Students notified')
-      }
-    } catch (err) {
-      // Silently handle class notice creation failure
-    }
+        // notify students via class notice immediately after edit
+        try {
+          const subj = subjects.find(s => String(s.id) === String(res.subject || currentForm.subject))
+          const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
+          if (classId) {
+            await api.createClassNotice({ title: `Exam scheduled: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || currentForm.subject) })
+            toast.success('Students notified')
+          }
+        } catch (err) {
+          // Silently handle class notice creation failure
+        }
       } catch (err) {
-        toast.error(getErrorMessage(err) || 'Failed to update exam')
+        setEditError(getErrorMessage(err) || 'Failed to update exam')
       } finally {
         setEditLoading(false)
       }
@@ -218,36 +242,36 @@ export default function Exams() {
         const res = await api.createExam(payload)
         toast.success('Exam created')
         // prepend to list
-  setExams(s => [res, ...s])
-  setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
-  // if files were selected on create, upload them now (create-time uploads only)
-  if (createFiles && createFiles.length) {
-    const filesToUpload = [...createFiles]
-    try {
-      await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
-      await fetchAttachmentsForExam(res.id)
-      toast.success(`${filesToUpload.length} file(s) uploaded`)
-    } catch (err) {
-      // Silently handle file upload failure
-      toast.error('Failed to upload one or more files')
-    } finally {
-      setCreateFiles([])
-    }
-  }
-  try {
-    const subj = subjects.find(s => String(s.id) === String(res.subject || createForm.subject))
-    const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
-    if (classId) {
-      await api.createClassNotice({ title: `New exam: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || createForm.subject) })
-      toast.success('Students notified')
-    }
-  } catch {
-    // Silently handle class notice creation failure
-  }
-  // close create modal after successful creation
-  setCreateModalOpen(false)
+        setExams(s => [res, ...s])
+        setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
+        // if files were selected on create, upload them now (create-time uploads only)
+        if (createFiles && createFiles.length) {
+          const filesToUpload = [...createFiles]
+          try {
+            await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
+            await fetchAttachmentsForExam(res.id)
+            toast.success(`${filesToUpload.length} file(s) uploaded`)
+          } catch (err) {
+            // Silently handle file upload failure
+            toast.error('Failed to upload one or more files')
+          } finally {
+            setCreateFiles([])
+          }
+        }
+        try {
+          const subj = subjects.find(s => String(s.id) === String(res.subject || createForm.subject))
+          const classId = subj && (subj.class_obj || subj.class || subj.class_obj_id || subj.class_id || subj.class_obj?.id || subj.class?.id)
+          if (classId) {
+            await api.createClassNotice({ title: `New exam: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || createForm.subject) })
+            toast.success('Students notified')
+          }
+        } catch {
+          // Silently handle class notice creation failure
+        }
+        // close create modal after successful creation
+        setCreateModalOpen(false)
       } catch (err) {
-        toast.error(getErrorMessage(err) || 'Failed to create exam')
+        setCreateError(getErrorMessage(err) || 'Failed to create exam')
       } finally {
         setLoading(false)
       }
@@ -300,6 +324,58 @@ export default function Exams() {
     }
   }
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+  const MAX_FILES = 5
+  const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx']
+  const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ]
+  const DANGEROUS_PATTERNS = /\.(exe|bat|cmd|sh|ps1|scr|msi|dll|js|vbs|jar|com|pif)$/i
+
+  function sanitizeFileName(name) {
+    // Remove invalid/dangerous characters and control chars
+    // eslint-disable-next-line no-control-regex
+    const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').replace(/[\x00-\x1F]/g, '')
+    return cleaned.replace(/\.{2,}/g, '.').trim()
+  }
+
+  function validateFile(file) {
+    const errors = []
+    const ext = file.name.split('.').pop()?.toLowerCase()
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      errors.push(`${file.name}: File too large (max 10MB)`)
+    }
+
+    // Check extension
+    if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
+      errors.push(`${file.name}: Invalid file type`)
+    }
+
+    // Check MIME type
+    if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+      errors.push(`${file.name}: Invalid file format`)
+    }
+
+    // Check for dangerous patterns
+    if (DANGEROUS_PATTERNS.test(file.name)) {
+      errors.push(`${file.name}: File type not allowed`)
+    }
+
+    // Check for empty files
+    if (file.size === 0) {
+      errors.push(`${file.name}: File is empty`)
+    }
+
+    return errors
+  }
+
   function handleCreateFilesChange(e) {
     const files = Array.from(e.target.files || [])
     if (!files.length) {
@@ -307,23 +383,31 @@ export default function Exams() {
       return
     }
 
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ]
-
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Allowed file types: PDF, DOC, DOCX, TXT, XLS, XLSX')
-        return
-      }
+    if (files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed`)
+      e.target.value = ''
+      return
     }
 
-    setCreateFiles(files)
+    const allErrors = []
+    for (const file of files) {
+      const errors = validateFile(file)
+      allErrors.push(...errors)
+    }
+
+    if (allErrors.length > 0) {
+      toast.error(allErrors[0]) // Show first error
+      e.target.value = ''
+      return
+    }
+
+    // Sanitize filenames for display (actual upload uses original file)
+    const sanitizedFiles = files.map(f => {
+      Object.defineProperty(f, 'sanitizedName', { value: sanitizeFileName(f.name), writable: false })
+      return f
+    })
+
+    setCreateFiles(sanitizedFiles)
   }
 
   function handleEditFilesChange(e) {
@@ -332,21 +416,31 @@ export default function Exams() {
       setEditFiles([])
       return
     }
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ]
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Allowed file types: PDF, DOC, DOCX, TXT, XLS, XLSX')
-        return
-      }
+
+    if (files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed`)
+      e.target.value = ''
+      return
     }
-    setEditFiles(files)
+
+    const allErrors = []
+    for (const file of files) {
+      const errors = validateFile(file)
+      allErrors.push(...errors)
+    }
+
+    if (allErrors.length > 0) {
+      toast.error(allErrors[0])
+      e.target.value = ''
+      return
+    }
+
+    const sanitizedFiles = files.map(f => {
+      Object.defineProperty(f, 'sanitizedName', { value: sanitizeFileName(f.name), writable: false })
+      return f
+    })
+
+    setEditFiles(sanitizedFiles)
   }
 
   function toggleAttachments(examId) {
@@ -415,7 +509,7 @@ export default function Exams() {
   }
 
   return (
-    <div className="p-6 text-black max-w-7xl mx-auto">
+    <div className="p-6 text-black w-full">
       <header className="mb-6 flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
@@ -473,121 +567,213 @@ export default function Exams() {
           {!loading && displayed.length > 0 && (
             <>
               {/* Mobile & Tablet: card list */}
-              <div className="lg:hidden space-y-3">
+              <div className="lg:hidden space-y-4">
                 {displayed.map((x) => {
                   const links = parseLinksFromDescription(x.description)
                   const files = attachmentsMap[x.id] || []
                   const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
                   return (
-                    <div key={x.id} className="bg-white rounded-lg p-4 md:p-5 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={x.id} className="bg-white rounded-xl p-4 shadow-md border border-neutral-200 hover:shadow-lg transition-shadow">
+                      {/* Header with status badge */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-black text-base md:text-lg break-words flex items-center gap-2 flex-wrap">
-                            <span className="truncate">{x.title}</span>
-                            {x.is_active ? <span className="text-[10px] md:text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap">Active</span> : <span className="text-[10px] md:text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full whitespace-nowrap">Inactive</span>}
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            {x.is_active ? (
+                              <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">Active</span>
+                            ) : (
+                              <span className="text-xs bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full font-medium">Inactive</span>
+                            )}
+                            <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium uppercase">
+                              {x.exam_type_display || x.exam_type}
+                            </span>
                           </div>
-                          <div className="text-sm md:text-base text-neutral-600 mt-1">{x.subject_name || x.subject?.name || '—'}</div>
-                          <div className="text-sm text-neutral-500 mt-1">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'} • {x.exam_duration ? `${x.exam_duration} min` : 'No duration'}</div>
+                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{x.title}</h3>
+                          <p className="text-base text-indigo-600 font-medium mt-1">{x.subject_name || x.subject?.name || '—'}</p>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm md:text-base text-neutral-600 font-medium">{x.total_marks ?? '—'} pts</div>
-                          <div className="text-xs md:text-sm mt-1 uppercase tracking-wide text-neutral-500">{x.exam_type_display || x.exam_type}</div>
+                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-3 py-2">
+                          <div className="text-xl font-bold text-indigo-700">{x.total_marks ?? '—'}</div>
+                          <div className="text-xs text-indigo-500 font-medium">marks</div>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-col gap-3">
-                        {/* Metadata section */}
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-3 bg-neutral-50 md:bg-transparent p-2 md:p-0 rounded-md">
-                          <div className="text-sm md:text-base text-neutral-700">
-                            <span className="font-medium">Resources:</span> {totalResources}
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-4 py-3 border-y border-neutral-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                           </div>
-                          <div className="text-sm md:text-base text-neutral-600">
-                            <span className="font-medium">Created by:</span> {x.created_by_name || '—'}
+                          <div>
+                            <div className="text-xs text-neutral-500">Date</div>
+                            <div className="text-sm font-semibold text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
                           </div>
                         </div>
-
-                        {/* Action buttons */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-                          <button
-                            onClick={() => navigate(`/list/results?exam=${x.id}`)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-emerald-600 text-sm md:text-base text-white font-medium hover:bg-emerald-700 transition shadow-sm"
-                          >
-                            Grade
-                          </button>
-                          <button
-                            onClick={() => startEdit(x)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-indigo-600 text-sm md:text-base text-white font-medium hover:bg-indigo-700 transition shadow-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            disabled={deletingId === x.id}
-                            onClick={() => handleDelete(x)}
-                            className="px-3 py-2 md:py-2.5 rounded-md bg-red-600 text-sm md:text-base text-white font-medium hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
-                          >
-                            {deletingId === x.id ? 'Deleting...' : 'Remove'}
-                          </button>
-                          <button
-                            onClick={() => toggleAttachments(x.id)}
-                            className={`px-3 py-2 md:py-2.5 rounded-md text-sm md:text-base font-medium transition shadow-sm ${
-                              attachmentsOpenId === x.id
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                            aria-expanded={attachmentsOpenId === x.id}
-                            aria-label={attachmentsOpenId === x.id ? 'Hide resources' : 'View resources'}
-                          >
-                            {attachmentsOpenId === x.id ? 'Hide' : 'Resources'}
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Duration</div>
+                            <div className="text-sm font-semibold text-gray-900">{x.exam_duration ? `${x.exam_duration} min` : '—'}</div>
+                          </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Resources</div>
+                            <div className="text-sm font-semibold text-gray-900">{totalResources} file(s)</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-neutral-500">Created by</div>
+                            <div className="text-sm font-semibold text-gray-900 truncate max-w-[100px]">{x.created_by_name || '—'}</div>
+                          </div>
+                        </div>
+                      </div>
 
-                        {attachmentsOpenId === x.id && (
-                          <div className="mt-3 bg-neutral-50 p-3 md:p-4 rounded-lg border border-neutral-200 shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-4">
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg className="w-4 h-4 md:w-5 md:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {/* Action buttons - larger touch targets */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => navigate(`/list/results?exam=${x.id}`)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-base text-white font-semibold hover:bg-emerald-700 active:bg-emerald-800 transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                          Grade
+                        </button>
+                        <button
+                          onClick={() => startEdit(x)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-base text-white font-semibold hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => toggleAttachments(x.id)}
+                          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-base font-semibold transition shadow-sm ${
+                            attachmentsOpenId === x.id
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                          }`}
+                          aria-expanded={attachmentsOpenId === x.id}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                          {attachmentsOpenId === x.id ? 'Hide' : 'Resources'}
+                        </button>
+                        <button
+                          disabled={deletingId === x.id}
+                          onClick={() => handleDelete(x)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-base text-white font-semibold hover:bg-red-700 active:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          {deletingId === x.id ? '...' : 'Delete'}
+                        </button>
+                      </div>
+
+                      {/* Resources Panel */}
+                      {attachmentsOpenId === x.id && (
+                        <div className="mt-4 bg-gradient-to-br from-neutral-50 to-blue-50 p-4 rounded-xl border border-neutral-200">
+                          <div className="space-y-4">
+                            {/* Uploaded Files */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                   </svg>
-                                  <div className="text-sm md:text-base font-semibold text-gray-900">Uploaded files</div>
                                 </div>
-                                {(files && files.length > 0) ? (
-                                  <div className="space-y-2">
-                                    {files.map(f => (
-                                      <div key={f.id} className="text-sm p-2 md:p-3 bg-white rounded border border-neutral-200 hover:border-blue-300 transition">
-                                        {((f.file || f.file_url) || '').toLowerCase().match(/\.(png|jpe?g|gif|webp)$/) ? (
-                                          <img src={f.file_url || f.file} alt={f.file ? f.file.split('/').pop() : 'image'} className="max-w-full h-auto rounded mb-2" />
-                                        ) : null}
-                                        <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block md:text-base">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
-                                        <div className="text-xs md:text-sm text-neutral-600 mt-1">📎 {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : <div className="text-sm md:text-base text-neutral-500 italic">No uploaded files</div>}
+                                <div className="text-base font-semibold text-gray-900">Uploaded Files</div>
                               </div>
+                              {(files && files.length > 0) ? (
+                                <div className="space-y-2">
+                                  {files.map(f => (
+                                    <a
+                                      key={f.id}
+                                      href={f.file_url || f.file}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-blue-400 hover:shadow-sm transition active:bg-blue-50"
+                                    >
+                                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-blue-700 truncate">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</div>
+                                        <div className="text-xs text-neutral-500">{f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
+                                      </div>
+                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-neutral-500 italic p-3 bg-white rounded-lg border border-dashed border-neutral-300 text-center">No uploaded files</div>
+                              )}
+                            </div>
 
-                              {(links && links.length > 0) ? (
-                                <div>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <svg className="w-4 h-4 md:w-5 md:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {/* Links */}
+                            {(links && links.length > 0) && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                     </svg>
-                                    <div className="text-sm md:text-base font-semibold text-gray-900">Links</div>
                                   </div>
-                                  <div className="space-y-2">
-                                    {links.map((lnk, idx) => (
-                                      <div key={idx} className="text-sm p-2 md:p-3 bg-white rounded border border-neutral-200 hover:border-blue-300 transition">
-                                        <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block md:text-base">{lnk}</a>
-                                        <span className="text-xs md:text-sm text-neutral-600 mt-1 block">🔗 External link</span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <div className="text-base font-semibold text-gray-900">Links</div>
                                 </div>
-                              ) : null}
-                            </div>
+                                <div className="space-y-2">
+                                  {links.map((lnk, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={lnk}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-purple-400 hover:shadow-sm transition active:bg-purple-50"
+                                    >
+                                      <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-purple-700 truncate">{lnk}</div>
+                                        <div className="text-xs text-neutral-500">External link</div>
+                                      </div>
+                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )})}
               </div>
@@ -737,56 +923,68 @@ export default function Exams() {
                     <h4 className="text-lg text-black font-medium">Create exam</h4>
                     <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
-
+                {createError && (
+                  <div className="mt-3 mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    {createError}
+                  </div>
+                )}
                 <div className="mt-4">
-                  <label className="block text-sm text-gray-700">Subject</label>
-                  <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="">-- select subject --</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
-                    ))}
-                  </select>
-
-                  <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={createForm.title} onChange={(e) => updateField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
-
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <div>
-                      <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={createForm.exam_date} onChange={(e) => updateField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
+                    <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                      <option value="">Select a subject</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
+                    </select>
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Title</span>
+                      <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/25</span>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700">Total marks</label>
-                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <ModernDatePicker
+                      label="Date"
+                      value={createForm.exam_date}
+                      onChange={(val) => updateField('exam_date', val)}
+                      placeholder="Select date"
+                      minDate={new Date()}
+                    />
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input type="hidden" value={createForm.exam_type || 'final'} />
+                    </label>
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Description</span>
+                      <span className={`text-xs ${(createForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.description?.length || 0}/150</span>
                     </div>
-                  </div>
-
-                  <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
-                  <input type="hidden" value={createForm.exam_type || 'final'} />
-                
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Description</label>
-                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Duration (minutes)</label>
-                    <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Upload resources</label>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="mt-1" />
-                    {createFiles && createFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{createFiles.length} resource(s) selected</div>}
-                  </div>
+                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="w-full text-sm text-neutral-600" />
+                    {createFiles && createFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{createFiles.length} file(s) selected</div>}
+                  </label>
                 </div>
-
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={loading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{loading ? 'Saving...' : 'Create'}</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
                 </div>
               </form>
             </div>
@@ -809,65 +1007,70 @@ export default function Exams() {
         {editingId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelEdit} />
-            <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h4 className="text-lg text-black font-medium">Edit exam</h4>
                     <p className="text-sm text-neutral-500">Update exam details.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-red-700 hover:bg-neutral-100">✕</button>
+                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
-
                 <div className="mt-4">
-                  <label className="block text-sm text-gray-700">Subject</label>
-                  <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="mt-1 p-2 rounded border w-full">
-                    <option value="">-- select subject --</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>
-                    ))}
-                  </select>
-
-                  <label className="block text-sm text-gray-700 mt-3">Title</label>
-                  <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value)} placeholder="e.g., Final Exam" className="mt-1 p-2 rounded border w-full" />
-
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <div>
-                      <label className="block text-sm text-gray-700">Date</label>
-                      <input type="date" value={editForm.exam_date} onChange={(e) => updateEditField('exam_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-1 p-2 rounded border w-full" />
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
+                    <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                      <option value="">Select a subject</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
+                    </select>
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Title</span>
+                      <span className={`text-xs ${(editForm.title?.length || 0) > 25 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.title?.length || 0}/25</span>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700">Total marks</label>
-                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="mt-1 p-2 rounded border w-full" />
+                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <ModernDatePicker
+                      label="Date"
+                      value={editForm.exam_date}
+                      onChange={(val) => updateEditField('exam_date', val)}
+                      placeholder="Select date"
+                      minDate={new Date()}
+                    />
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input type="hidden" value={editForm.exam_type || 'final'} />
+                    </label>
+                    <label className="block">
+                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    </label>
+                  </div>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                      <span>Description</span>
+                      <span className={`text-xs ${(editForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.description?.length || 0}/150</span>
                     </div>
-                  </div>
-
-                  <label className="block text-sm text-gray-700 mt-3">Type</label>
-                  <input type="text" value="Final" disabled className="mt-1 p-2 rounded border w-full bg-gray-100 text-neutral-700" />
-                  <input type="hidden" value={editForm.exam_type || 'final'} />
-                
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Description</label>
-                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value)} className="mt-1 p-2 rounded border w-full" rows={3} />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Duration (minutes)</label>
-                    <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="mt-1 p-2 rounded border w-full" />
-                  </div>
-
-                  {/* Notifications are sent automatically on edit */}
-                  {/* Upload resources while editing */}
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-700">Upload resources</label>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="mt-1" />
-                    {editFiles && editFiles.length > 0 && <div className="text-sm text-neutral-600 mt-1">{editFiles.length} resource(s) selected</div>}
-                  </div>
+                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                  </label>
+                  <label className="block mb-3">
+                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="w-full text-sm text-neutral-600" />
+                    {editFiles && editFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{editFiles.length} file(s) selected</div>}
+                  </label>
                 </div>
-
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading || !isEditFormValid} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </form>
             </div>

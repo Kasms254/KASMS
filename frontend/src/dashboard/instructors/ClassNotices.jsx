@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+import ModernDatePicker from '../../components/ModernDatePicker'
 
 export default function ClassNotices() {
   const toast = useToast()
@@ -189,7 +190,20 @@ export default function ClassNotices() {
     return () => { mounted = false }
   }, [form.class_obj, auth])
 
-  function update(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  function sanitizeInput(value) {
+    if (typeof value !== 'string') return value
+    // eslint-disable-next-line no-control-regex
+    const controlChars = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g
+    return value
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(controlChars, '')
+  }
+
+  function update(k, v) {
+    const sanitized = (k === 'title' || k === 'content') ? sanitizeInput(v) : v
+    setForm(f => ({ ...f, [k]: sanitized }))
+  }
 
   async function handleCreate(e) {
     e && e.preventDefault()
@@ -546,14 +560,20 @@ export default function ClassNotices() {
                   </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Title</label>
-                  <input value={form.title} onChange={e => { update('title', e.target.value); if (errors.title) setErrors(prev => ({ ...prev, title: undefined })) }} className={`mt-2 p-3 rounded-md border w-full bg-white ${errors.title ? 'border-rose-500' : ''}`} placeholder="Short headline" />
+                  <div className="flex justify-between items-center">
+                    <label className="block text-sm font-medium text-gray-700">Title</label>
+                    <span className={`text-xs ${(form.title?.length || 0) > 40 ? 'text-red-500' : 'text-neutral-400'}`}>{form.title?.length || 0}/40</span>
+                  </div>
+                  <input value={form.title} onChange={e => { update('title', e.target.value.slice(0, 40)); if (errors.title) setErrors(prev => ({ ...prev, title: undefined })) }} maxLength={40} className={`mt-2 p-3 rounded-md border w-full bg-white ${errors.title ? 'border-rose-500' : ''}`} placeholder="Short headline" />
                   {errors.title && <div className="text-rose-600 text-sm mt-1">{errors.title}</div>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Content</label>
-                  <textarea value={form.content} onChange={e => { update('content', e.target.value); if (errors.content) setErrors(prev => ({ ...prev, content: undefined })) }} rows={6} className={`mt-2 p-3 rounded-md border w-full bg-white ${errors.content ? 'border-rose-500' : ''}`} placeholder="Message to class" />
+                  <div className="flex justify-between items-center">
+                    <label className="block text-sm font-medium text-gray-700">Content</label>
+                    <span className={`text-xs ${(form.content?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{form.content?.length || 0}/150</span>
+                  </div>
+                  <textarea value={form.content} onChange={e => { update('content', e.target.value.slice(0, 150)); if (errors.content) setErrors(prev => ({ ...prev, content: undefined })) }} maxLength={150} rows={4} className={`mt-2 p-3 rounded-md border w-full bg-white ${errors.content ? 'border-rose-500' : ''}`} placeholder="Message to class" />
                   {errors.content && <div className="text-rose-600 text-sm mt-1">{errors.content}</div>}
                 </div>
 
@@ -568,8 +588,13 @@ export default function ClassNotices() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Expiry / Event date</label>
-                    <input type="date" value={form.expiry_date} onChange={e => update('expiry_date', e.target.value)} min={new Date().toISOString().split('T')[0]} className="mt-2 p-2 rounded-md border w-full bg-white" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Expiry / Event date</label>
+                    <ModernDatePicker
+                      value={form.expiry_date}
+                      onChange={(date) => update('expiry_date', date)}
+                      placeholder="Select date"
+                      minDate={new Date().toISOString().split('T')[0]}
+                    />
                   </div>
                 </div>
 
