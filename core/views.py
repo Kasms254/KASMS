@@ -3206,8 +3206,12 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
     serializer_class = SessionAttendanceSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, FormParser, MultiPartParser]
+    filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['session', 'student', 'status', 'marking_method']
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
     ordering = ['marked_at']
+    ordering_fields = ['marked_at', 'student__last_name']
+    
 
     def get_queryset(self):
         queryset = SessionAttendance.all_objects.select_related(

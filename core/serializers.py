@@ -9,7 +9,6 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 
-
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
     secondary_color = serializers.CharField()
