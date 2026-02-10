@@ -544,6 +544,38 @@ export default function PerformanceAnalytics() {
     )
   }, [subjects, selectedClass])
 
+  // In Class View, instructors only see classes where they are the class instructor.
+  // In Subject/Trends view they see all their classes (so subject filtering still works).
+  const selectableClasses = useMemo(() => {
+    if (user?.role === 'instructor' && viewMode === 'class') {
+      return classes.filter(c => c.instructor === user?.id)
+    }
+    return classes
+  }, [user, viewMode, classes])
+
+  // True if the logged-in instructor is the class instructor of the currently selected class
+  const isClassInstructor = useMemo(() => {
+    if (user?.role !== 'instructor') return false
+    if (!selectedClass) return false
+    const cls = classes.find(c => String(c.id) === selectedClass)
+    return cls?.instructor === user?.id
+  }, [user, selectedClass, classes])
+
+  // True if the instructor is a class instructor for at least one of their classes
+  // Used to decide whether to show the Class View button at all
+  const hasAnyClassInstructorRole = useMemo(() => {
+    if (user?.role !== 'instructor') return false
+    return classes.some(c => c.instructor === user?.id)
+  }, [user, classes])
+
+  // If instructor has selected a class but is NOT its class instructor, fall back to subject view.
+  // Don't reset when no class is selected yet (they should be allowed to stay in class view to pick a class).
+  useEffect(() => {
+    if (user?.role === 'instructor' && viewMode === 'class' && selectedClass && !isClassInstructor) {
+      setViewMode('subject')
+    }
+  }, [isClassInstructor, user, viewMode, selectedClass])
+
   // Load analytics when class/subject changes
   useEffect(() => {
     async function loadAnalytics() {
@@ -634,8 +666,8 @@ export default function PerformanceAnalytics() {
 
       {/* View Mode Toggle */}
       <div className="bg-white rounded-xl border border-gray-200 p-1.5 md:p-2 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
-        {/* Class View - only visible to admins */}
-        {user?.role !== 'instructor' && (
+        {/* Class View - visible to non-instructors, or instructors who are a class instructor for at least one class */}
+        {(user?.role !== 'instructor' || hasAnyClassInstructorRole) && (
           <button
             onClick={() => setViewMode('class')}
             className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
@@ -707,7 +739,7 @@ export default function PerformanceAnalytics() {
               }`}
             >
               <option value="">Select a class...</option>
-              {classes.map(c => (
+              {selectableClasses.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.course_name ? `(${c.course_name})` : ''}
                 </option>
