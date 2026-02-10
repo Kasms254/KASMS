@@ -2083,18 +2083,32 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.localdate()
+
+        today_attendance_sessions = AttendanceSession.all_objects.filter(
+            subject__instructor=user,
+            school=school,
+            is_active=True,
+            scheduled_start__date=today   
+        )
+
         return Response({
             'total_classes': my_classes.count(),
             'total_subjects': my_subjects.count(),
             'total_students': my_students_count,
             'total_exams': my_exams.count(),
             'pending_results': pending_results,
+            'today_attendance_sessions_count': today_attendance_sessions.count(),
+            'today_attendance_sessions': AttendanceSessionSerializer(
+        today_attendance_sessions,
+        many=True
+    ).data,
             'classes': ClassSerializer(my_classes, many=True).data,
             'subjects': SubjectSerializer(my_subjects, many=True).data
         })
 
     @action(detail=False, methods=['get'])
-    def summary(slef, request):
+    def summary(self, request):
         if request.user.role != 'instructor':
             return Response(
                 {'error': 'Only instructors can access the dashboard.'},
@@ -2133,13 +2147,20 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.localdate()
+
+        today_attendance_sessions = AttendanceSession.objects.filter(
+            instructor=user,
+            is_active=True,
+            session_date=today   
+        ).count()
         return Response({
             'classes': classes_count,
             'subjects': subjects_count,
             'students': students_count,
             'exams': exams_count,
-            'pending_grading': pending_grading
-
+            'pending_grading': pending_grading,
+            'today_attendance_sessions': today_attendance_sessions
         })
 
 # students
