@@ -29,7 +29,7 @@ from django.http import HttpResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
-
+from rest_framework.exceptions import ValidationError
 
 class TenantFilterMixin:
 
@@ -1290,7 +1290,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if instance:
             qs  = qs.exclude(pk=instance.pk)
         if qs.exists():
-            from rest_framework.exceptions import ValidationError
+            
             raise ValidationError("Theres already an existing final exam for this subject")
 
     def perform_create(self, serializer):
