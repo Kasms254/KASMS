@@ -468,6 +468,7 @@ export default function AdminStudents() {
             reportError('Failed to update enrollment: ' + (err.message || String(err)))
           }
       closeEdit()
+      toast?.success?.('Student updated successfully') || toast?.showToast?.('Student updated successfully', { type: 'success' })
     } catch (err) {
       // Parse backend field-level validation errors (e.g. { email: ["already exists"] })
       const data = err?.data || null

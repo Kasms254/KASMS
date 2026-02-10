@@ -4,7 +4,6 @@ import Menu from './Menu'
 import NavBar from './NavBar'
 import useAuth from '../hooks/useAuth'
 import useTheme from '../hooks/useTheme'
-import ToastProvider from './ToastProvider'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -19,7 +18,7 @@ export default function Layout() {
   }
 
   return (
-    <ToastProvider>
+    <>
       <div className="min-h-screen flex text-gray-900 dark:text-gray-100">
         {/* Mobile/Tablet Sidebar Overlay (drawer) */}
         {mobileMenuOpen && (
@@ -81,6 +80,6 @@ export default function Layout() {
           </main>
         </div>
       </div>
-    </ToastProvider>
+    </>
   )
 }

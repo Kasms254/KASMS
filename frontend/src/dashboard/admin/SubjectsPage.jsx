@@ -242,6 +242,7 @@ export default function SubjectsPage() {
       // update local subjects list
       setSubjects((s) => s.map((x) => (x.id === updated.id ? updated : x)))
       closeEdit()
+      toast?.success?.('Subject updated successfully') || toast?.showToast?.('Subject updated successfully', { type: 'success' })
     } catch (err) {
       reportError('Failed to update subject: ' + (err.message || String(err)))
     } finally {

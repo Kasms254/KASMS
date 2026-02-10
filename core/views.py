@@ -2811,8 +2811,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(
-                Q(class_obj__instructor=user) | Q(subject__instructor=user)
-            )
+                Q(class_obj__instructor=user) | Q(subject__instructor=user) | Q(created_by=user)
+            ).distinct()
         elif user.role == 'student':
             enrolled_classes = Enrollment.all_objects.filter(
                 student=user,
@@ -3116,7 +3116,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         sessions = self.get_queryset().filter(
             Q(class_obj__instructor=request.user)|
-            Q(subject__instructor=request.user)
+            Q(subject__instructor=request.user)|
+            Q(created_by=request.user)
             ).annotate(
                 marked_count_db=Count('session_attendances', distinct=True)
             )
