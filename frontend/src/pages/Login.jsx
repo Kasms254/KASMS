@@ -82,8 +82,11 @@ export default function Login() {
       // Trim values before sending to API
       const result = await login(svc_number.trim(), password)
       if (result.ok) {
-        // go to dashboard after successful login
-        navigate('/dashboard')
+        if (result.mustChangePassword) {
+          navigate('/change-password')
+        } else {
+          navigate('/dashboard')
+        }
       } else {
         // Check if there are field-level errors
         if (result.fieldErrors) {

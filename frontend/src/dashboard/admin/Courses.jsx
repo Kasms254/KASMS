@@ -349,7 +349,7 @@ export default function Courses() {
           (Array.isArray(courses) ? courses : []).map((course) => (
             <div key={course.id}>
               <div className="flex items-start gap-2">
-                <div onClick={() => openCourseModal(course)} className="cursor-pointer flex-1">
+                <div className="flex-1">
                 <Card
                   title={course.code || course.name || 'Untitled'}
                   value={course.name}

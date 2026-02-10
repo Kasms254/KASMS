@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => authStore.getToken())
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [mustChangePassword, setMustChangePassword] = useState(false)
   const { setTheme, resetTheme } = useContext(ThemeContext)
 
   // try to load current user and school theme when token exists
@@ -21,6 +22,10 @@ export function AuthProvider({ children }) {
         const me = await api.getCurrentUser()
         if (mounted) {
           setUser(me)
+          // Check if user must change password (for page reloads)
+          if (me?.must_change_password) {
+            setMustChangePassword(true)
+          }
           // Apply school theme after getting user
           // The user object from /api/auth/me/ includes school_theme if user has a school
           // For admin users linked via SchoolAdmin (not directly on User), fall back to API call
@@ -78,8 +83,10 @@ export function AuthProvider({ children }) {
       authStore.login({ access: newAccess, refresh: newRefresh })
       setToken(newAccess)
       setUser(userInfo)
+      const needsPasswordChange = !!resp?.must_change_password
+      setMustChangePassword(needsPasswordChange)
       setLoading(false)
-      return { ok: true }
+      return { ok: true, mustChangePassword: needsPasswordChange }
     } catch (err) {
       // Extract field-level errors if present
       const fieldErrors = {}
@@ -123,12 +130,13 @@ export function AuthProvider({ children }) {
       try { authStore.logout() } catch { /* ignore */ }
       setToken(null)
       setUser(null)
+      setMustChangePassword(false)
       resetTheme() // Clear school theme on logout
     }
   }, [resetTheme])
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, login, logout }}>
+    <AuthContext.Provider value={{ token, user, loading, login, logout, mustChangePassword, setMustChangePassword }}>
       {children}
     </AuthContext.Provider>
   )

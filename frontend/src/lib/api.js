@@ -25,6 +25,7 @@ const SENTENCE_CASE_CONFIG = {
     'device_id',
     'biometric_id',
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
+    'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
     'type', // Preserve type values
     'id', // Preserve ID fields
@@ -188,6 +189,13 @@ export async function login(svc_number, password) {
 
 export async function logout(refresh) {
   return request('/api/auth/logout/', { method: 'POST', body: { refresh } })
+}
+
+export async function changePassword(oldPassword, newPassword, newPassword2) {
+  return request('/api/auth/change-password/', {
+    method: 'POST',
+    body: { old_password: oldPassword, new_password: newPassword, new_password2: newPassword2 }
+  })
 }
 
 export async function getCurrentUser() {
@@ -1169,6 +1177,7 @@ export async function getAllAdminUsers(params = '') {
 
 export default {
   login,
+  changePassword,
   getCurrentUser,
   getStudents,
   getClasses,
