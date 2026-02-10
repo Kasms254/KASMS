@@ -3075,8 +3075,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         writer.writerow(
             [
-                'student Name', 'SVC Number', 'Email', 'Status', 
-                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks','Time'
+                'Student Name', 'Rank', 'SVC Number', 'Email', 'Status',
+                'Marking Method', 'Marked At', 'Minutes Late', 'Remarks', 'Time'
             ]
         )
 
