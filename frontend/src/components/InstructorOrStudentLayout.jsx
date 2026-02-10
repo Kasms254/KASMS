@@ -5,7 +5,7 @@ import AccessDenied from './AccessDenied'
 import Layout from './Layout'
 
 export default function InstructorOrStudentLayout() {
-  const { user, token, loading } = useAuth()
+  const { user, token, loading, mustChangePassword } = useAuth()
 
   // while validating token avoid rendering
   if (loading) return null
@@ -16,6 +16,11 @@ export default function InstructorOrStudentLayout() {
   // Require authentication
   if (!user && !token) {
     return <Navigate to="/login" replace />
+  }
+
+  // Force password change before allowing access
+  if (mustChangePassword) {
+    return <Navigate to="/change-password" replace />
   }
 
   // Check if user is instructor OR student

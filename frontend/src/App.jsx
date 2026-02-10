@@ -12,6 +12,7 @@ import IntroPage from './pages/IntroPage'
 import useAuth from './hooks/useAuth'
 
 // Lazy load heavy dashboard components for better performance
+const ChangePassword = lazy(() => import('./pages/ChangePassword'))
 const AdminDashboard = lazy(() => import('./dashboard/admin/AdminDashboard'))
 const InstructorsDashboard = lazy(() => import('./dashboard/instructors/InstructorsDashboard'))
 const StudentsDashboard = lazy(() => import('./dashboard/students/StudentsDashboard'))
@@ -75,7 +76,10 @@ const App = () => {
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />
 
-			{/* IMPORTANT: Specific routes MUST come before general routes */}
+			{/* Change password page (outside dashboard layout since other endpoints are blocked) */}
+		<Route path="/change-password" element={<ChangePassword />} />
+
+		{/* IMPORTANT: Specific routes MUST come before general routes */}
 
 			{/* Admin-only dashboard routes */}
 			<Route path="/dashboard/admin" element={<RoleProtectedLayout role="admin" />}>
