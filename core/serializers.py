@@ -16,7 +16,6 @@ class SchoolThemeSerializer(serializers.Serializer):
     accent_color = serializers.CharField()
     logo_url = serializers.URLField(allow_null=True)
 
-
 class SchoolSerializer(serializers.ModelSerializer):
     theme = serializers.SerializerMethodField(read_only=True)
     current_student_count = serializers.IntegerField(read_only=True)
@@ -54,7 +53,6 @@ class SchoolSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This email is already in use.")
         return value
 
-
 class SchoolListSerializer(serializers.ModelSerializer):
     current_student_count = serializers.IntegerField(read_only=True)
     current_instructor_count = serializers.IntegerField(read_only=True)
@@ -62,7 +60,6 @@ class SchoolListSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
         fields = '__all__'
-
 
 class SchoolAdminSerializer(serializers.ModelSerializer):
     school_name = serializers.CharField(source='school.name', read_only=True)
@@ -90,7 +87,6 @@ class SchoolAdminSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-
 
 class SchoolCreateWithAdminSerializer(serializers.Serializer):
 
@@ -196,7 +192,6 @@ class SchoolCreateWithAdminSerializer(serializers.Serializer):
                 'admin_user': admin_user
             }
 
-
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True, 
@@ -298,6 +293,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         user = User.objects.create(**validated_data)
         user.set_password(password)
+        user.must_change_password=  True
         user.save()
 
         if user.role == 'student' and class_obj:
@@ -319,7 +315,6 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('password2', None)
         validated_data.pop('class_obj', None)
         return super().update(instance, validated_data)
-
 
 class UserListSerializer(serializers.ModelSerializer):
     school_name = serializers.CharField(source='school.name', read_only=True)
@@ -361,7 +356,6 @@ class UserListSerializer(serializers.ModelSerializer):
             is_active=True
         ).exists()
 
-
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -394,7 +388,6 @@ class ClassSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-
 
 class ClassListSerializer(serializers.ModelSerializer):
     

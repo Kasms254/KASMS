@@ -113,6 +113,7 @@ class User(AbstractUser):
     ]
     
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+    must_change_password = models.BooleanField(default=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     rank = models.CharField(max_length=20, choices=RANK_CHOICES, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
@@ -231,7 +232,6 @@ class Notice(models.Model):
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
 
-    
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
@@ -256,7 +256,6 @@ class Enrollment(models.Model):
         if not self.school and self.class_obj:
             self.school = self.class_obj.school
         super().save(*args, **kwargs)
-
 # instructor
 class Exam(models.Model):
     EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project')]

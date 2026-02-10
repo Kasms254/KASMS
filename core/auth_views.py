@@ -86,6 +86,7 @@ def login_view(request):
         'message': 'Login successful',
         'access': tokens['access'],
         'refresh': tokens['refresh'],
+        'must_change_password': user.must_change_password,
         'user': user_data
     }, status=status.HTTP_200_OK)
 
@@ -169,6 +170,7 @@ def change_password_view(request):
         )
     
     user.set_password(new_password)
+    user.must_change_password = False
     user.save()
     
     tokens = get_tokens_for_user(user)

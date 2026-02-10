@@ -176,7 +176,26 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
+class ForcePasswordChangePermission(BasePermission):
 
+    def has_permission(self, request, view):
+
+        user = request.user
+
+        if not user or not user.is_authenticated:
+            return True
+
+        allowed_views = [
+            "change_password_view",
+            "logout_view",
+            "verify_token_view",
+            "token_refresh_view",
+        ]
+
+        if user.must_change_password:
+            return view.__name__ in allowed_views
+
+        return True
 
 
 
