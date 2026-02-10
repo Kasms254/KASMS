@@ -887,7 +887,16 @@ export default function PerformanceAnalytics() {
           {/* All Students Table */}
           {classPerformance.all_students && classPerformance.all_students.length > 0 && (
             <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
-              <StudentPerformanceTable students={classPerformance.all_students} />
+              <StudentPerformanceTable
+                students={classPerformance.all_students}
+                title={(() => {
+                  const cls = classes.find(c => String(c.id) === selectedClass)
+                  if (!cls) return 'All Students Performance'
+                  return cls.course_name
+                    ? `${cls.name} — ${cls.course_name}`
+                    : cls.name
+                })()}
+              />
             </section>
           )}
         </>
