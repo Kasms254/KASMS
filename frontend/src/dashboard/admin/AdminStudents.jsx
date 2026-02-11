@@ -4,6 +4,7 @@ import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useNavigate } from 'react-router-dom'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 function initials(name = '') {
   return name
@@ -165,6 +166,8 @@ export default function AdminStudents() {
           // backend may include class name under different keys; fall back to 'Unassigned'
           className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
         }))
+        // Sort by rank: senior first
+        mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         setStudents(mapped)
       })
       .catch((err) => {
@@ -248,6 +251,8 @@ export default function AdminStudents() {
           // backend may include class name under different keys; fall back to 'Unassigned'
           className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
         }))
+        // Sort by rank: senior first
+        mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         setStudents(mapped)
       })
       .catch((err) => {
@@ -468,6 +473,7 @@ export default function AdminStudents() {
             reportError('Failed to update enrollment: ' + (err.message || String(err)))
           }
       closeEdit()
+      toast?.success?.('Student updated successfully') || toast?.showToast?.('Student updated successfully', { type: 'success' })
     } catch (err) {
       // Parse backend field-level validation errors (e.g. { email: ["already exists"] })
       const data = err?.data || null

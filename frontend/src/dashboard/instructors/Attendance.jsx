@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import Calendar from '../../components/Calendar'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 export default function Attendance() {
   const { user } = useAuth()
@@ -98,6 +99,8 @@ export default function Attendance() {
           // ignore if attendance history not available
         }
 
+        // Sort by rank: senior first
+        list.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         if (mounted) setStudents(list)
       } catch {
         toast.error('Failed to load enrolled students for the class')
