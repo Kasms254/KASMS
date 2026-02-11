@@ -5,8 +5,8 @@ from .views import (
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet
-, ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,
+    ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
@@ -69,6 +69,7 @@ urlpatterns = [
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
 
-    
+    path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
+    ,),
 ]
 

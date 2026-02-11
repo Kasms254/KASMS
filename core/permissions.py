@@ -143,7 +143,6 @@ class BelongsToSameSchool(BasePermission):
         
         return True
 
-
 class CanAccessSchoolData(BasePermission):
 
     message = "You do not have permission to access this data."

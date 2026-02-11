@@ -138,6 +138,30 @@ class User(AbstractUser):
             return True
         return Enrollment.all_objects.filter(student=self, is_active=True).exists()
     
+class Profile(models.Model):
+    user = models.OneToOneField(
+        "User", on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="profiles", null=True, blank=True,
+    )
+    bio = models.TextField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = "profiles"
+        indexes = [
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"Profile: {self.user.username}"
+    
 class Course(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
     name = models.CharField(max_length=100)
@@ -504,8 +528,8 @@ class ExamResultNotificationReadStatus(models.Model):
 
     def __str__(self):
         return f"{self.user.username} read result for {self.exam_result.exam.title}"
-# Attendance
 
+# Attendance
 class AttendanceSession(models.Model):
 
     SESSION_TYPE_CHOICES = [('class', 'Class Session'), ('exam', 'Exam Session'), ('bedcheck', 'Bedcheck Session'), ('lab', 'Lab Session'), ('other', 'Other')]
