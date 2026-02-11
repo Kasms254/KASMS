@@ -3,6 +3,7 @@ import * as api from '../../lib/api'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import useAuth from '../../hooks/useAuth'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 function initials(name = '') {
   return name
@@ -77,6 +78,9 @@ export default function InstructorStudents() {
             }
           })
 
+          // Sort by rank: senior first
+          mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
+
           // Apply search filter
           if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase()
@@ -136,6 +140,9 @@ export default function InstructorStudents() {
             }
             return acc
           }, [])
+
+          // Sort by rank: senior first
+          uniqueStudents.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
 
           // Apply search filter
           let filtered = uniqueStudents
