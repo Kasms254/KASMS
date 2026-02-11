@@ -17,7 +17,10 @@ class SchoolAdminFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(school_id=self.value())
+            return queryset.filter(
+                school_memberships__school_id=self.value(),
+                school_memberships__status='active'
+            )
         return queryset
 
 class TenantAdminMixin:
@@ -31,8 +34,9 @@ class TenantAdminMixin:
     
     def save_model(self, request, obj, form, change):
         if not change and hasattr(obj, 'school') and not obj.school:
-            if hasattr(request.user, 'school') and request.user.school:
-                obj.school = request.user.school
+            admin_school = request.user.school  
+            if admin_school:
+                obj.school = admin_school
         super().save_model(request, obj, form, change)
 
 @admin.register(School)

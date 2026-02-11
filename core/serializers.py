@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -87,6 +87,34 @@ class SchoolAdminSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+class SchoolMembershipSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(
+        source='user.get_full_name', read_only=True
+    )
+    user_svc_number = serializers.CharField(
+        source='user.svc_number', read_only=True
+    )
+    school_name = serializers.CharField(
+        source='school.name', read_only=True
+    )
+    school_code = serializers.CharField(
+        source='school.code', read_only=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display', read_only=True
+    )
+    role_display = serializers.CharField(
+        source='get_role_display', read_only=True
+    )
+
+    class Meta:
+        model = SchoolMembership
+        fields = '__all__'
+        read_only_fields = (
+            'id', 'created_at', 'updated_at',
+            'ended_at', 'completion_date'
+        )
 
 class SchoolCreateWithAdminSerializer(serializers.Serializer):
 
@@ -317,9 +345,13 @@ class UserSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class UserListSerializer(serializers.ModelSerializer):
-    school_name = serializers.CharField(source='school.name', read_only=True)
-    school_code = serializers.CharField(source='school.code', read_only=True)
+    school_name = serializers.SerializerMethodField()
+    school_code = serializers.SerializerMethodField()
     school_theme = serializers.SerializerMethodField(read_only=True)
+    membership_status = serializers.SerializerMethodField()
+    school_history = SchoolMembershipSerializer(
+        source='school_memberships', many=True, read_only=True
+    )
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     full_name = serializers.SerializerMethodField()
     class_name = serializers.SerializerMethodField()
@@ -330,8 +362,17 @@ class UserListSerializer(serializers.ModelSerializer):
         exclude = ['password']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+    def get_school_name(self, obj):
+        m = obj.active_membership
+        return m.school.name if m else None
+
+    def get_school_code(self, obj):
+        m = obj.active_membership
+        return m.school.code if m else None
+
+    def get_membership_status(self, obj):
+        m = obj.active_membership
+        return m.status if m else 'unaffiliated'
     
     def get_class_name(self, obj):
         if obj.role == 'student':
@@ -347,15 +388,7 @@ class UserListSerializer(serializers.ModelSerializer):
         if obj.school:
             return obj.school.get_theme
         return None
-
-    def get_has_active_enrollment(self, obj):
-        if obj.role != 'student':
-            return None
-        return Enrollment.all_objects.filter(
-            student=obj,
-            is_active=True
-        ).exists()
-
+        
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -404,7 +437,6 @@ class ClassListSerializer(serializers.ModelSerializer):
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
 
-
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
 
@@ -427,7 +459,6 @@ class CourseSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError("This course code is already in use.")
         return value
-
 
 class SubjectSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -466,7 +497,6 @@ class SubjectSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError("This subject code is already in use.")
         return value
-
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField(read_only=True)
@@ -538,6 +568,97 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
 
+class SchoolEnrollmentSerializer(serializers.Serializer):
+
+    svc_number = serializers.CharField(max_length=50)
+    school_id = serializers.UUIDField()
+    role = serializers.ChoiceField(
+        choices=SchoolMembership.Role.choices
+    )
+    class_id = serializers.IntegerField(
+        required=False, allow_null=True
+    )
+
+    def validate_svc_number(self, value):
+        try:
+            user = User.all_objects.get(svc_number=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                'No user found with this service number.'
+            )
+
+        active = SchoolMembership.all_objects.filter(
+            user=user, status='active'
+        ).select_related('school').first()
+
+        if active:
+            raise serializers.ValidationError(
+                f'User has active membership at '
+                f'{active.school.name}. Complete or '
+                f'transfer that membership first.'
+            )
+
+        self.context['resolved_user'] = user
+        return value
+
+    def validate_school_id(self, value):
+        try:
+            school = School.objects.get(
+                id=value, is_active=True
+            )
+        except School.DoesNotExist:
+            raise serializers.ValidationError(
+                'School not found or inactive.'
+            )
+        self.context['resolved_school'] = school
+        return value
+
+    def validate(self, attrs):
+        user = self.context.get('resolved_user')
+        school = self.context.get('resolved_school')
+        role = attrs.get('role')
+
+        if not user or not school:
+            return attrs
+
+        if role == 'student':
+            count = SchoolMembership.all_objects.filter(
+                school=school, role='student',
+                status='active'
+            ).count()
+            if count >= school.max_students:
+                raise serializers.ValidationError({
+                    'school_id': 'School at max student capacity.'
+                })
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context['resolved_user']
+        school = self.context['resolved_school']
+
+        membership = SchoolMembership.objects.create(
+            user=user,
+            school=school,
+            role=validated_data['role'],
+            status=SchoolMembership.Status.ACTIVE,
+        )
+
+        class_id = validated_data.get('class_id')
+        if class_id and validated_data['role'] == 'student':
+            class_obj = Class.objects.get(
+                id=class_id, school=school
+            )
+            Enrollment.objects.create(
+                student=user,
+                class_obj=class_obj,
+                school=school,
+                membership=membership,
+                is_active=True,
+            )
+
+        return membership
 
 class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
@@ -572,13 +693,11 @@ class NoticeSerializer(serializers.ModelSerializer):
             ).exists()
         return False
 
-
 class ExamAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamAttachment
         fields = '__all__'
         read_only_fields = ('created_at', 'uploaded_at', 'uploaded_by', 'id', 'file_name', 'file_size')
-
 
 class ExamSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -624,7 +743,6 @@ class ExamSerializer(serializers.ModelSerializer):
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
         return data
-
 
 class ExamResultSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -711,7 +829,6 @@ class ExamResultSerializer(serializers.ModelSerializer):
                 validated_data['submitted_at'] = timezone.now()
         return super().update(instance, validated_data)
 
-
 class BulkExamResultSerializer(serializers.Serializer):
     results = serializers.ListField(
         child=serializers.DictField(),
@@ -725,7 +842,6 @@ class BulkExamResultSerializer(serializers.Serializer):
             if 'marks_obtained' not in result:
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
-
 
 class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -758,7 +874,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
                 })
         return attrs
 
-
 class BulkAttendanceSerializer(serializers.Serializer):
     class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
     subject = serializers.PrimaryKeyRelatedField(
@@ -782,7 +897,6 @@ class BulkAttendanceSerializer(serializers.Serializer):
             if record['status'] not in valid_statuses:
                 raise serializers.ValidationError(f"Invalid status: {record['status']}")
         return value
-
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -822,7 +936,6 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
         except ClassNoticeReadStatus.DoesNotExist:
             return None
 
-
 class ExamReportSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -848,7 +961,6 @@ class ExamReportSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("All exams must belong to the same subject.")
         
         return value
-
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
@@ -921,7 +1033,6 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
         validated_data['qr_code_secret'] = uuid.uuid4().hex
         return super().create(validated_data)
 
-
 class AttendanceSessionListSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -934,7 +1045,6 @@ class AttendanceSessionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttendanceSession
         fields = '__all__'
-
 
 class SessionAttendanceSerializer(serializers.ModelSerializer):
     session_title = serializers.CharField(source='session.title', read_only=True)
@@ -998,7 +1108,6 @@ class SessionAttendanceSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class QRAttendanceMarkSerializer(serializers.Serializer):
     session_id = serializers.UUIDField()
     qr_token = serializers.CharField(max_length=16)
@@ -1038,7 +1147,6 @@ class QRAttendanceMarkSerializer(serializers.Serializer):
         attrs['session'] = session
         return attrs
 
-
 class BulkSessionAttendanceSerializer(serializers.Serializer):
     session_id = serializers.IntegerField()
     attendance_records = serializers.ListField(
@@ -1071,7 +1179,6 @@ class BulkSessionAttendanceSerializer(serializers.Serializer):
 
         return value
 
-
 class BiometricRecordSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
@@ -1091,7 +1198,6 @@ class BiometricRecordSerializer(serializers.ModelSerializer):
                 'marked_at': obj.session_attendance.marked_at
             }
         return None
-
 
 class BiometricSyncSerializer(serializers.Serializer):
     device_id = serializers.CharField(max_length=100)
@@ -1121,7 +1227,6 @@ class BiometricSyncSerializer(serializers.Serializer):
 
         return value
 
-
 class AttendanceSessionLogSerializer(serializers.ModelSerializer):
     session_title = serializers.CharField(source='session.title', read_only=True)
     performed_by_name = serializers.SerializerMethodField(read_only=True)
@@ -1134,7 +1239,6 @@ class AttendanceSessionLogSerializer(serializers.ModelSerializer):
 
     def get_performed_by_name(self, obj):
         return obj.performed_by.get_full_name() if obj.performed_by else 'System'
-
 
 class SessionStatisticsSerializer(serializers.Serializer):
     total_students = serializers.IntegerField()
@@ -1150,7 +1254,6 @@ class SessionStatisticsSerializer(serializers.Serializer):
     biometric_count = serializers.IntegerField()
     admin_count = serializers.IntegerField()
 
-
 class StudentAttendanceSummarySerializer(serializers.Serializer):
     student_id = serializers.IntegerField()
     student_name = serializers.CharField()
@@ -1164,7 +1267,6 @@ class StudentAttendanceSummarySerializer(serializers.Serializer):
     attendance_rate = serializers.FloatField()
     punctuality_rate = serializers.FloatField()
     recent_sessions = SessionAttendanceSerializer(many=True, read_only=True)
-
 
 class PersonalNotificationSerializer(serializers.ModelSerializer):
     notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)

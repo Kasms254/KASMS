@@ -1,9 +1,9 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
+from .models import (User,SchoolMembership, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+    SchoolMembershipSerializer,UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
@@ -170,13 +170,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
         school = self.get_object()
 
-        stats ={
-            'users':{
-                'total': school.users.filter(is_active=True).count(),
-                'students': school.users.filter(role='student',is_active=True).count(),
-                'instructors': school.users.filter(role='instructor', is_active=True).count(),
-                'admins': school.users.filter(role="admin", is_active=True).count(),
-                'commandants':school.users.filter(role='commandant', is_active=True).count(),
+   
+        stats = {
+            'users': {
+                'total': school.memberships.filter(status='active').count(),
+                'students': school.memberships.filter(role='student', status='active').count(),
+                'instructors': school.memberships.filter(role='instructor', status='active').count(),
+                'admins': school.memberships.filter(role='admin', status='active').count(),
+                'commandants': school.memberships.filter(role='commandant', status='active').count(),
             },
             'academic':{
                 'courses':school.courses.filter(is_active=True).count(),
@@ -294,6 +295,93 @@ class SchoolAdminViewSet(viewsets.ModelViewSet):
             return queryset.filter(school=user.school)
         
         return queryset.none()
+
+class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+    serializer_class = SchoolMembershipSerializer
+    queryset = SchoolMembership.all_objects.select_related(
+        'user', 'school', 'transfer_to'
+    )
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['status', 'role']
+    search_fields = [
+        'user__svc_number', 'user__first_name',
+        'user__last_name'
+    ]
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        membership = self.get_object()
+        if membership.status != 'active':
+            return Response(
+                {'error': 'Only active memberships can be completed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        membership.complete()
+        return Response(
+            SchoolMembershipSerializer(membership).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def transfer(self, request, pk=None):
+        membership = self.get_object()
+        to_school_id = request.data.get('to_school_id')
+        try:
+            to_school = School.objects.get(
+                id=to_school_id, is_active=True
+            )
+        except School.DoesNotExist:
+            return Response(
+                {'error': 'Destination school not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        new_membership = membership.transfer(to_school)
+        return Response(
+            SchoolMembershipSerializer(new_membership).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        membership = self.get_object()
+        try:
+            membership.reactivate()
+        except ValidationError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_409_CONFLICT
+            )
+        return Response(
+            SchoolMembershipSerializer(membership).data
+        )
+
+    @action(
+        detail=False, methods=['post'],
+        serializer_class=SchoolEnrollmentSerializer
+    )
+    def enroll_at_school(self, request):
+        serializer = SchoolEnrollmentSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        membership = serializer.save()
+        return Response(
+            SchoolMembershipSerializer(membership).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(
+        detail=False, methods=['get'],
+        url_path='user-history/(?P<svc_number>[^/.]+)'
+    )
+    def user_history(self, request, svc_number=None):
+        memberships = SchoolMembership.all_objects.filter(
+            user__svc_number=svc_number
+        ).select_related('school', 'transfer_to').order_by('started_at')
+        return Response(
+            SchoolMembershipSerializer(memberships, many=True).data
+        )
 
 class UserViewSetWithSchool(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])

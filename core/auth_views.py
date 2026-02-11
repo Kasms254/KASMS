@@ -38,58 +38,58 @@ def check_student_can_login(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
-    school_code = request.data.get('school_code')  # Optional for explicit school selection
-    
-    if not svc_number or not password:
-        return Response(
-            {'error': 'Service Number and password are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Authenticate user using custom backend (SvcNumberBackend)
-    user = authenticate(request, svc_number=svc_number, password=password)
-    
+
+    user = authenticate(
+        request, svc_number=svc_number, password=password
+    )
     if user is None:
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED
         )
-    
+
     if not user.is_active:
         return Response(
-            {'error': 'User account is disabled'},
+            {'error': 'Account disabled'},
             status=status.HTTP_403_FORBIDDEN
         )
-    
-    if user.role != 'superadmin' and user.school:
-        if not user.school.is_active:
-            return Response(
-                {'error': 'Your school account is currently inactive. Please contact support.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-    
-    can_login, error_message = check_student_can_login(user)
-    if not can_login:
-        return Response(
-            {'error': error_message},
-            status=status.HTTP_403_FORBIDDEN
-        )
-    
+
+    memberships = SchoolMembership.all_objects.filter(
+        user=user, status='active'
+    ).select_related('school')
+
+    if user.role != 'superadmin' and not memberships.exists():
+        history = SchoolMembership.all_objects.filter(
+            user=user
+        ).select_related('school').order_by('-ended_at')
+        return Response({
+            'error': 'No active school membership.',
+            'school_history': SchoolMembershipSerializer(
+                history, many=True
+            ).data
+        }, status=status.HTTP_403_FORBIDDEN)
+
     tokens = get_tokens_for_user(user)
-    
     user_data = UserListSerializer(user).data
-    
-    return Response({
+
+    response_data = {
         'message': 'Login successful',
         'access': tokens['access'],
         'refresh': tokens['refresh'],
         'must_change_password': user.must_change_password,
-        'user': user_data
-    }, status=status.HTTP_200_OK)
+        'user': user_data,
+    }
 
+    if memberships.count() > 1:
+        response_data['available_schools'] = [
+            {'code': m.school.code, 'name': m.school.name,
+             'role': m.role}
+            for m in memberships
+        ]
+
+    return Response(response_data, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
