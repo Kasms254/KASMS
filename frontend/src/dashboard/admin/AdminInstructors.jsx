@@ -432,6 +432,7 @@ export default function AdminInstructors() {
       }
       setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
       closeEdit()
+      toast?.success?.('Instructor updated successfully') || toast?.showToast?.('Instructor updated successfully', { type: 'success' })
     } catch (err) {
       const data = err?.data || null
       if (data && typeof data === 'object' && !Array.isArray(data)) {
