@@ -510,6 +510,10 @@ export default function NavBar({
             >
               <button
                 role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  navigate('/profile')
+                }}
                 className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
               >
                 Profile

@@ -39,6 +39,7 @@ const AttendanceSessions = lazy(() => import('./dashboard/instructors/Attendance
 const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
@@ -78,6 +79,11 @@ const App = () => {
 
 			{/* Change password page (outside dashboard layout since other endpoints are blocked) */}
 		<Route path="/change-password" element={<ChangePassword />} />
+
+		{/* Profile page (all authenticated users, inside Layout with sidebar/navbar) */}
+		<Route path="/profile" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+			<Route index element={<ProfilePage />} />
+		</Route>
 
 		{/* IMPORTANT: Specific routes MUST come before general routes */}
 
