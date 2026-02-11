@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, filters
 from .models import (User,SchoolMembership, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    SchoolMembershipSerializer,UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+  SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
@@ -117,16 +117,16 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
         if user.role == 'superadmin':
             return queryset.annotate(
-                student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
-                instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+                student_count=Count('memberships', filter=Q(memberships__role='student', memberships__status='active')),
+                instructor_count=Count('memberships', filter=Q(memberships__role='instructor', memberships__status='active')),
             )
-        
+
         if user.school:
             return queryset.filter(id=user.school.id).annotate(
-                student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
-                instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+                student_count=Count('memberships', filter=Q(memberships__role='student', memberships__status='active')),
+                instructor_count=Count('memberships', filter=Q(memberships__role='instructor', memberships__status='active')),
             )
-        
+
         return queryset.none()
 
 
@@ -220,7 +220,12 @@ class SchoolViewSet(viewsets.ModelViewSet):
         is_primary = request.data.get('is_primary', False)
 
         try:
-            user = User.objects.get(id=user_id, school=school, role='admin')
+            user = User.all_objects.get(
+                id=user_id,
+                role='admin',
+                school_memberships__school=school,
+                school_memberships__status='active'
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'User not found or not an admin in this school'
@@ -477,11 +482,17 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
-                queryset = queryset.filter(school=school)
+                queryset = queryset.filter(
+                    school_memberships__school=school,
+                    school_memberships__status='active'
+                ).distinct()
             return queryset.prefetch_related('enrollments', 'enrollments__class_obj')
 
         if user.school:
-            return queryset.filter(school=user.school).prefetch_related(
+            return queryset.filter(
+                school_memberships__school=user.school,
+                school_memberships__status='active'
+            ).distinct().prefetch_related(
                 'enrollments', 'enrollments__class_obj'
             )
 
@@ -521,15 +532,16 @@ class UserViewSet(viewsets.ModelViewSet):
         school = get_current_school() or user.school
 
         role = serializer.validated_data.get('role', 'student')
-        
+
         if role == 'superadmin' and user.role != 'superadmin':
             raise PermissionDenied("Only superadmins can create superadmin users")
-        
+
         if role == 'superadmin':
-            serializer.save(school=None)
+            serializer.save()  # No school for superadmin
         else:
             if not school:
                 raise ValidationError({"school": "School is required for non-superadmin users"})
+
             serializer.save(school=school)
     
     @action(detail=False, methods=['get'])
@@ -562,7 +574,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    
     @action(detail=False, methods=['get'])
     def students(self, request):
         queryset = self.get_queryset().filter(role='student', is_active=True)

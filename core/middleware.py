@@ -1,6 +1,6 @@
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
-from .models import School, User, Enrollment
+from .models import School, User, Enrollment,SchoolMembership
 from .managers import set_current_school, get_current_school,clear_current_school
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken

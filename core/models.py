@@ -57,7 +57,7 @@ class School(models.Model):
     @property
     def current_instructor_count(self):
         return self.memberships.filter(role='instructor', status='active').count()
-
+        
     @property
     def is_within_limits(self):
         return self.current_student_count <= self.max_students and self.current_instructor_count <= self.max_instructors

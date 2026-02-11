@@ -7,7 +7,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
 from .serializers import UserSerializer, UserListSerializer
-from .models import Enrollment
+from .models import Enrollment,SchoolMembership
 
 
 def get_tokens_for_user(user):
