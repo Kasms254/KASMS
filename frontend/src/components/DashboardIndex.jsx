@@ -18,7 +18,7 @@ export default function DashboardIndex() {
   if (loading) return null
 
   // If not logged in, go to login
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
 
   // Redirect based on role
   if (user.role === 'superadmin') return <Navigate to="/superadmin" replace />
@@ -33,5 +33,5 @@ export default function DashboardIndex() {
     setLoggingOut(true)
     logout()
   }
-  return <Navigate to="/login" replace />
+  return <Navigate to="/" replace />
 }
