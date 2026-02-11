@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 const ATTENDANCE_STATUS_COLORS = {
   present: 'bg-green-100 text-green-700',
@@ -59,8 +60,13 @@ export default function SessionAttendance() {
         api.getUnmarkedStudents(sessionId)
       ])
       setSession(sessionData)
-      setAttendanceRecords(Array.isArray(records) ? records : (records?.results || records?.attendances || []))
-      setUnmarkedStudents(Array.isArray(unmarked) ? unmarked : (unmarked?.unmarked_students || unmarked?.results || []))
+      const recordsList = Array.isArray(records) ? records : (records?.results || records?.attendances || [])
+      const unmarkedList = Array.isArray(unmarked) ? unmarked : (unmarked?.unmarked_students || unmarked?.results || [])
+      // Sort by rank: senior first
+      recordsList.sort((a, b) => getRankSortIndex(a.student_rank) - getRankSortIndex(b.student_rank))
+      unmarkedList.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
+      setAttendanceRecords(recordsList)
+      setUnmarkedStudents(unmarkedList)
     } catch (err) {
       toast.error(err.message || 'Failed to load session data')
     } finally {

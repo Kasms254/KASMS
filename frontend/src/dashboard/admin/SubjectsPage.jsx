@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
+import SearchableSelect from '../../components/SearchableSelect'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
 function sanitizeInput(value) {
@@ -69,6 +71,8 @@ export default function SubjectsPage() {
         api.getAllInstructors().then((ins) => {
           if (!mounted) return
           const list = Array.isArray(ins) ? ins : []
+          // Sort by rank: senior first
+          list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
           setInstructors(list)
         }).catch(() => {})
       })
@@ -273,6 +277,8 @@ export default function SubjectsPage() {
     try{
       const ins = await api.getAllInstructors()
       const list = Array.isArray(ins) ? ins : []
+      // Sort by rank: senior first
+      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
       setInstructors(list)
     }catch{
       setInstructors([])
@@ -771,52 +777,61 @@ export default function SubjectsPage() {
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <form ref={modalRef} onSubmit={handleAddSubject} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <div className="flex items-start justify-between gap-4">
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
+            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <h4 className="text-lg text-black font-medium">Add subject</h4>
                   <p className="text-sm text-neutral-500">Create a new subject and assign it to a class.</p>
                 </div>
                 <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
-              <div className="mt-4">
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Name</div>
-                  <input value={form.name} maxLength={50} onChange={(e) => setForm({ ...form, name: sanitizeInput(e.target.value).slice(0, 50) })} placeholder="Subject name" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required />
-                </label>
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Code</div>
-                  <input value={form.subject_code} maxLength={20} onChange={(e) => setForm({ ...form, subject_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="Subject code" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                </label>
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Description</div>
-                  <textarea value={form.description} maxLength={150} onChange={(e) => setForm({ ...form, description: sanitizeInput(e.target.value).slice(0, 150) })} placeholder="Short description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={3} required />
-                </label>
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Class</div>
-                  <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required>
-                    <option value="">Select a class</option>
-                    {classes.filter(c => showInactive || c.is_active).map(cl => (
-                      <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Instructor</div>
-                  <select value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required>
-                    <option value="">Select an instructor</option>
-                    {instructors.map(ins => (
-                      <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add subject'}</button>
-              </div>
-            </form>
+
+              <form onSubmit={handleAddSubject}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Subject name *</label>
+                    <input value={form.name} maxLength={50} onChange={(e) => setForm({ ...form, name: sanitizeInput(e.target.value).slice(0, 50) })} placeholder="e.g. Mathematics" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" required />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Subject code</label>
+                    <input value={form.subject_code} maxLength={20} onChange={(e) => setForm({ ...form, subject_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. MATH101" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Class *</label>
+                    <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" required>
+                      <option value="">— Select class —</option>
+                      {classes.filter(c => showInactive || c.is_active).map(cl => (
+                        <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
+                    <SearchableSelect
+                      value={form.instructor}
+                      onChange={(val) => setForm({ ...form, instructor: val })}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      placeholder="— Select instructor —"
+                      searchPlaceholder="Search by service number, rank, or name..."
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Description *</label>
+                    <textarea value={form.description} maxLength={150} onChange={(e) => setForm({ ...form, description: sanitizeInput(e.target.value).slice(0, 150) })} placeholder="Short description of the subject" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" rows={3} required />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-4">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add subject'}</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -842,15 +857,16 @@ export default function SubjectsPage() {
                   <div className="text-sm text-neutral-600 mb-1">Code</div>
                   <input value={editForm.code} maxLength={20} onChange={(e) => handleEditChange('code', sanitizeInput(e.target.value).slice(0, 20))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                 </label>
-                <label className="block mb-3">
+                <div className="block mb-3">
                   <div className="text-sm text-neutral-600 mb-1">Instructor</div>
-                  <select value={editForm.instructor} onChange={(e) => handleEditChange('instructor', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
-                    <option value="">Unassigned</option>
-                    {instructors.map((ins) => (
-                      <option key={ins.id} value={ins.id}>{ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`}</option>
-                    ))}
-                  </select>
-                </label>
+                  <SearchableSelect
+                    value={editForm.instructor}
+                    onChange={(val) => handleEditChange('instructor', val)}
+                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
+                    placeholder="Unassigned"
+                    searchPlaceholder="Search by service number, rank, or name..."
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import api from '../../lib/api'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 function toPercent(n) {
   if (n == null || Number.isNaN(Number(n))) return null
@@ -69,6 +70,8 @@ export default function ClassDetail() {
             created_at: student.created_at,
           }
         })
+        // Sort by rank: senior first
+        mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         if (mounted) setStudents(mapped)
       } catch (err) {
         if (mounted) setError(err)
