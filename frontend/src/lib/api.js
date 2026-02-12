@@ -1175,6 +1175,20 @@ export async function getAllAdminUsers(params = '') {
   return request(`/api/users/admins${qs}`)
 }
 
+// =====================
+// Profile API
+// =====================
+
+// Get current user's profile
+export async function getProfile() {
+  return request('/api/profile/me/')
+}
+
+// Update current user's profile (username, bio)
+export async function updateProfile(data) {
+  return request('/api/profile/me/', { method: 'PATCH', body: data })
+}
+
 export default {
   login,
   changePassword,
@@ -1326,4 +1340,7 @@ export default {
   addAdminToSchool,
   createSchoolWithAdmin,
   getAllAdminUsers,
+  // Profile
+  getProfile,
+  updateProfile,
 }

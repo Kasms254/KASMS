@@ -430,7 +430,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             "username",
-            "avatar",
             "bio",
         ]
 

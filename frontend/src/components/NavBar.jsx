@@ -510,6 +510,10 @@ export default function NavBar({
             >
               <button
                 role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  navigate('/profile')
+                }}
                 className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
               >
                 Profile
@@ -566,7 +570,7 @@ export default function NavBar({
                   onClick={async () => {
                     setLogoutModalOpen(false)
                     await auth.logout()
-                    navigate('/login', { replace: true })
+                    navigate('/', { replace: true })
                   }}
                   className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
                 >
