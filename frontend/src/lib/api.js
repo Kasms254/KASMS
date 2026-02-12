@@ -28,6 +28,8 @@ const SENTENCE_CASE_CONFIG = {
     'status', // Preserve status values for comparisons
     'type', // Preserve type values
     'id', // Preserve ID fields
+    'certificate_number',
+    'verification_code',
   ]
 }
 
@@ -1146,6 +1148,124 @@ export async function getAllAdminUsers(params = '') {
   return request(`/api/users/admins${qs}`)
 }
 
+export async function getClassEnrollments(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/classes/${classId}/enrolled_students/`)
+}
+
+// =====================
+// Certificates
+// =====================
+
+export async function getCertificatesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/certificates/${qs}`)
+}
+
+export async function getCertificate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/`)
+}
+
+export async function addCertificate(payload) {
+  return request('/api/certificates/', { method: 'POST', body: payload })
+}
+
+export async function updateCertificate(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteCertificate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/`, { method: 'DELETE' })
+}
+
+export async function revokeCertificate(id, reason = '') {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/revoke/`, { method: 'POST', body: { reason } })
+}
+
+export async function regenerateCertificate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/regenerate/`)
+}
+
+export async function downloadCertificatePdf(id) {
+  if (!id) throw new Error('id is required')
+  const token = authStore.getToken()
+  const url = `${API_BASE}/api/certificates/${id}/download/`
+  const headers = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(url, { method: 'GET', headers })
+  if (!res.ok) {
+    const err = new Error('Failed to download certificate')
+    err.status = res.status
+    throw err
+  }
+  return res.blob()
+}
+
+export async function getMyCertificates() {
+  return request('/api/certificates/my_certificates/')
+}
+
+export async function getCertificateStats() {
+  return request('/api/certificates/stats/')
+}
+
+export async function bulkCreateCertificates(payload) {
+  return request('/api/certificates/bulk_create/', { method: 'POST', body: payload })
+}
+
+export async function getCertificateDownloadLogs(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/certificates/download_logs/${qs}`)
+}
+
+export async function verifyCertificate(verificationCode) {
+  if (!verificationCode) throw new Error('verificationCode is required')
+  return request(`/api/certificates/verify/${encodeURIComponent(verificationCode)}/`)
+}
+
+// =====================
+// Certificate Templates
+// =====================
+
+export async function getCertificateTemplatesPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/certificate-template/${qs}`)
+}
+
+export async function getCertificateTemplate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificate-template/${id}/`)
+}
+
+export async function addCertificateTemplate(payload) {
+  return request('/api/certificate-template/', { method: 'POST', body: payload })
+}
+
+export async function updateCertificateTemplate(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificate-template/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteCertificateTemplate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificate-template/${id}/`, { method: 'DELETE' })
+}
+
+export async function setDefaultCertificateTemplate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificate-template/${id}/set_default/`, { method: 'POST' })
+}
+
+export async function previewCertificateTemplate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificate-template/${id}/preview/`)
+}
+
 export default {
   login,
   getCurrentUser,
@@ -1179,6 +1299,7 @@ export default {
   getInstructorSummary,
   getMyStudents,
   getUserEnrollments,
+  getClassEnrollments,
   addEnrollment,
   getCourses,
   getAllCourses,
@@ -1296,4 +1417,26 @@ export default {
   addAdminToSchool,
   createSchoolWithAdmin,
   getAllAdminUsers,
+  // Certificates
+  getCertificatesPaginated,
+  getCertificate,
+  addCertificate,
+  updateCertificate,
+  deleteCertificate,
+  revokeCertificate,
+  regenerateCertificate,
+  downloadCertificatePdf,
+  getMyCertificates,
+  getCertificateStats,
+  bulkCreateCertificates,
+  getCertificateDownloadLogs,
+  verifyCertificate,
+  // Certificate Templates
+  getCertificateTemplatesPaginated,
+  getCertificateTemplate,
+  addCertificateTemplate,
+  updateCertificateTemplate,
+  deleteCertificateTemplate,
+  setDefaultCertificateTemplate,
+  previewCertificateTemplate,
 }

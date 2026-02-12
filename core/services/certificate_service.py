@@ -1,5 +1,6 @@
 import os
 import io
+import base64
 import logging
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
@@ -20,6 +21,68 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 logger = logging.getLogger(__name__)
+
+CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {{ size: A4 landscape; margin: 0; }}
+  body {{ margin: 0; padding: 0; font-family: 'Georgia', 'Times New Roman', serif; }}
+  .certificate {{ width: 297mm; height: 210mm; position: relative; background: #fff; overflow: hidden; box-sizing: border-box; padding: 15mm 20mm; }}
+  .border-outer {{ position: absolute; top: 8mm; left: 8mm; right: 8mm; bottom: 8mm; border: 3px solid {primary_color}; }}
+  .border-inner {{ position: absolute; top: 11mm; left: 11mm; right: 11mm; bottom: 11mm; border: 1px solid {primary_color}; }}
+  .content {{ position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+  .logo {{ max-height: 60px; max-width: 200px; margin-bottom: 10px; }}
+  .school-name {{ font-size: 14px; color: {secondary_color}; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }}
+  .header {{ font-size: 32px; color: {primary_color}; margin: 10px 0; font-weight: bold; }}
+  .certify-text {{ font-size: 14px; color: #555; margin: 8px 0; }}
+  .student-name {{ font-size: 28px; color: #222; font-weight: bold; margin: 5px 0; border-bottom: 2px solid {accent_color}; display: inline-block; padding-bottom: 3px; }}
+  .rank-svc {{ font-size: 12px; color: #777; margin: 5px 0; }}
+  .course-name {{ font-size: 20px; color: {primary_color}; font-weight: bold; margin: 5px 0; }}
+  .class-name {{ font-size: 13px; color: #666; }}
+  .grade-info {{ font-size: 12px; color: #555; margin: 8px 0; }}
+  .footer-text {{ font-size: 10px; color: #888; margin-top: 8px; }}
+  .signatures {{ display: flex; justify-content: space-around; width: 80%; margin-top: 15px; }}
+  .signature-block {{ text-align: center; }}
+  .signature-image {{ max-height: 40px; margin-bottom: 3px; }}
+  .signature-line {{ width: 150px; border-top: 1px solid #333; margin: 0 auto 3px; }}
+  .signature-name {{ font-size: 12px; font-weight: bold; color: #333; }}
+  .signature-title {{ font-size: 10px; color: #666; }}
+  .cert-number {{ position: absolute; bottom: 15mm; left: 0; right: 0; text-align: center; font-size: 8px; color: #aaa; }}
+</style>
+</head>
+<body>
+<div class="certificate">
+  <div class="border-outer"></div>
+  <div class="border-inner"></div>
+  <div class="content">
+    {logo_section}
+    <div class="school-name">{school_name}</div>
+    <div class="header">{header_text}</div>
+    <div class="certify-text">This is to certify that</div>
+    <div class="student-name">{student_name}</div>
+    <div class="rank-svc">{rank_svc_display}</div>
+    <div class="certify-text">has successfully completed the course</div>
+    <div class="course-name">{course_name}</div>
+    <div class="class-name">{class_name}</div>
+    <div class="grade-info">{grade_display}</div>
+    <div class="certify-text">Completed on {completion_date_formatted}</div>
+    <div class="footer-text">{footer_text}</div>
+    <div class="signatures">
+      <div class="signature-block">
+        {signature_section}
+        <div class="signature-line"></div>
+        <div class="signature-name">{signatory_name}</div>
+        <div class="signature-title">{signatory_title}</div>
+      </div>
+      {secondary_signature_block}
+    </div>
+  </div>
+  <div class="cert-number">Certificate No: {certificate_number} | Verification: {verification_code} | Issued: {issue_date_formatted}</div>
+</div>
+</body>
+</html>"""
 
 class CertificateImageResolver:
 
@@ -174,9 +237,14 @@ class CertificateGenerator:
         )
     
     def generate(self, format: str = 'pdf') -> Tuple[bytes, str]:
- 
+
         context = self._build_context()
-        
+        context['logo_section'] = _format_logo_section(context)
+        context['rank_svc_display'] = _format_rank_svc(context)
+        context['grade_display'] = _format_grade(context)
+        context['signature_section'] = _format_signature(context)
+        context['secondary_signature_block'] = _format_secondary_signature(context)
+
         html_content = self._render_html(context)
         
         if format == 'html':

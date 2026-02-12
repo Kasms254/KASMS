@@ -37,6 +37,10 @@ const AttendanceSessions = lazy(() => import('./dashboard/instructors/Attendance
 const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
+const Certificates = lazy(() => import('./dashboard/admin/Certificates'))
+const CertificateIssue = lazy(() => import('./dashboard/admin/CertificateIssue'))
+const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTemplates'))
+const MyCertificates = lazy(() => import('./dashboard/students/MyCertificates'))
 
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
@@ -166,6 +170,26 @@ const App = () => {
 			{/* Teaching assignments: create and view instructor-class-subject assignments (admin only) */}
 			<Route path="/list/assignments" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<TeachingAssignments />} />
+			</Route>
+
+			{/* Certificates (admin) */}
+			<Route path="/list/certificates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Certificates />} />
+			</Route>
+
+			{/* Issue Certificate (admin) */}
+			<Route path="/add/certificate" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<CertificateIssue />} />
+			</Route>
+
+			{/* Certificate Templates (admin) */}
+			<Route path="/list/certificate-templates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<CertificateTemplates />} />
+			</Route>
+
+			{/* My Certificates (student) */}
+			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
+				<Route index element={<MyCertificates />} />
 			</Route>
 
 			{/* Performance Analytics (admins & instructors) */}

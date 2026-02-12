@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (Certificate,User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
+from .models import (Certificate, CertificateTemplate, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
     SchoolUploadSerializer, generate_logo_filename,
-    BulkCertificateCreateSerializer, CertificateListSerializer,CertificateSerializer, CertificateListSerializer,CertificateCreateSerializer,
+    BulkCertificateCreateSerializer, CertificateListSerializer,CertificateSerializer, CertificateListSerializer,CertificateCreateSerializer,CertificateTemplateSerializer,CertificateTemplateListSerializer,
     UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer, SchoolUploadSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer, SchoolUploadSerializer, generate_logo_filename, delete_old_logo,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
@@ -27,7 +27,7 @@ from dateutil import parser
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
@@ -36,6 +36,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 import logging
 import os
 from .models import CertificateDownloadLog
+from .serializers import CertificateDownloadLogSerializer
+from .services.certificate_service import CertificateGenerator, CertificateImageResolver
 from rest_framework.views import APIView
 from rest_framework import status
 from django.db.models import Sum

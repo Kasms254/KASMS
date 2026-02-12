@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School, Certificate, CertificateDownloadLog
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School, Certificate, CertificateTemplate, CertificateDownloadLog
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -1289,10 +1289,10 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     has_signature = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
-        model = None  
+        model = CertificateTemplate
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
-    
+
     def get_effective_colors(self, obj):
         return obj.get_effective_colors()
     
@@ -1313,7 +1313,7 @@ class CertificateTemplateListSerializer(serializers.ModelSerializer):
     )
     
     class Meta:
-        model = None  
+        model = CertificateTemplate
         fields = [
             'id', 'name', 'template_type', 'template_type_display',
             'school', 'school_name', 'is_active', 'is_default',
@@ -1340,13 +1340,13 @@ class CertificateSerializer(serializers.ModelSerializer):
     download_url = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
-        model = None  
+        model = Certificate
         fields = '__all__'
         read_only_fields = [
             'id', 'certificate_number', 'verification_code',
             'student_name', 'student_svc_number', 'student_rank',
             'course_name', 'class_name', 'created_at', 'updated_at',
-            'download_count', 'last_downloaded_at', 'view_count', 
+            'download_count', 'last_downloaded_at', 'view_count',
             'last_viewed_at', 'file_generated_at'
         ]
     
@@ -1375,7 +1375,7 @@ class CertificateListSerializer(serializers.ModelSerializer):
     is_valid = serializers.BooleanField(read_only=True)
     
     class Meta:
-        model = None  # Set this to Certificate
+        model = Certificate
         fields = [
             'id', 'certificate_number', 'verification_code',
             'student_name', 'student_svc_number', 'student_rank',
@@ -1677,7 +1677,7 @@ class CertificateDownloadLogSerializer(serializers.ModelSerializer):
     )
     
     class Meta:
-        model = None  
+        model = CertificateDownloadLog
         fields = '__all__'
         read_only_fields = ['id', 'downloaded_at']
     
