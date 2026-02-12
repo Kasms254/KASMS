@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
     SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership
 )
@@ -431,7 +431,117 @@ class UserListSerializer(serializers.ModelSerializer):
         if obj.school:
             return obj.school.get_theme
         return None
-        
+
+    def get_has_active_enrollment(self, obj):
+        if obj.role != 'student':
+            return None
+        return Enrollment.all_objects.filter(
+            student=obj,
+            is_active=True
+        ).exists()
+
+class ProfileReadSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    first_name = serializers.CharField(source="user.first_name", read_only=True)
+    last_name = serializers.CharField(source="user.last_name", read_only=True)
+    service_number = serializers.CharField(source="user.svc_number", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    role = serializers.CharField(source="user.role", read_only=True)
+    role_display = serializers.CharField(source="user.get_role_display", read_only=True)
+    rank = serializers.CharField(source="user.rank", read_only=True)
+    rank_display = serializers.CharField(source="user.get_rank_display", read_only=True, default=None)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
+    unit = serializers.CharField(source="user.unit", read_only=True)
+    school_name = serializers.CharField(source="school.name", read_only=True, default=None)
+    school_code = serializers.CharField(source="school.code", read_only=True, default=None)
+    enrollment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Profile
+        fields = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "service_number",
+            "email",
+            "role",
+            "role_display",
+            "rank",
+            "rank_display",
+            "phone_number",
+            "unit",
+            "school_name",
+            "school_code",
+            "enrollment",
+            "bio",
+            "created_at",
+            "updated_at",
+        ]
+    
+    def get_enrollment(self, obj):
+        if obj.user.role != "student":
+            return None
+
+        enrollment = (
+            Enrollment.all_objects.filter(student=obj.user, is_active=True)
+            .select_related("class_obj", "class_obj__course")
+            .first()
+        )
+
+        if not enrollment:
+            return None
+
+        return {
+            "id": enrollment.id,
+            "class_name": enrollment.class_obj.name,
+            "course_name": enrollment.class_obj.course.name,
+            "course_code": enrollment.class_obj.course.code,
+            "enrollment_date": enrollment.enrollment_date,
+            "is_active": enrollment.is_active,
+        }
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+
+    username = serializers.CharField(
+        required=False,
+        min_length=3,
+        max_length=150,
+        help_text="Updates the username on the User model.",
+    )
+
+    class Meta:
+        model = Profile
+        fields = [
+            "username",
+            "bio",
+        ]
+
+    def validate_username(self, value):
+
+        request = self.context.get("request")
+        current_user = request.user if request else None
+
+        qs = User.all_objects.filter(username=value)
+        if current_user:
+            qs = qs.exclude(pk=current_user.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+    def update(self, instance, validated_data):
+        username = validated_data.pop("username", None)
+
+        with transaction.atomic():
+            instance = super().update(instance, validated_data)
+
+            if username is not None and username != instance.user.username:
+                instance.user.username = username
+                instance.user.save(update_fields=["username"])
+
+        return instance
+
 class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
@@ -610,98 +720,6 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             })
         
         return attrs
-
-class SchoolEnrollmentSerializer(serializers.Serializer):
-
-    svc_number = serializers.CharField(max_length=50)
-    school_id = serializers.UUIDField()
-    role = serializers.ChoiceField(
-        choices=SchoolMembership.Role.choices
-    )
-    class_id = serializers.IntegerField(
-        required=False, allow_null=True
-    )
-
-    def validate_svc_number(self, value):
-        try:
-            user = User.all_objects.get(svc_number=value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError(
-                'No user found with this service number.'
-            )
-
-        active = SchoolMembership.all_objects.filter(
-            user=user, status='active'
-        ).select_related('school').first()
-
-        if active:
-            raise serializers.ValidationError(
-                f'User has active membership at '
-                f'{active.school.name}. Complete or '
-                f'transfer that membership first.'
-            )
-
-        self.context['resolved_user'] = user
-        return value
-
-    def validate_school_id(self, value):
-        try:
-            school = School.objects.get(
-                id=value, is_active=True
-            )
-        except School.DoesNotExist:
-            raise serializers.ValidationError(
-                'School not found or inactive.'
-            )
-        self.context['resolved_school'] = school
-        return value
-
-    def validate(self, attrs):
-        user = self.context.get('resolved_user')
-        school = self.context.get('resolved_school')
-        role = attrs.get('role')
-
-        if not user or not school:
-            return attrs
-
-        if role == 'student':
-            count = SchoolMembership.all_objects.filter(
-                school=school, role='student',
-                status='active'
-            ).count()
-            if count >= school.max_students:
-                raise serializers.ValidationError({
-                    'school_id': 'School at max student capacity.'
-                })
-
-        return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        user = self.context['resolved_user']
-        school = self.context['resolved_school']
-
-        membership = SchoolMembership.objects.create(
-            user=user,
-            school=school,
-            role=validated_data['role'],
-            status=SchoolMembership.Status.ACTIVE,
-        )
-
-        class_id = validated_data.get('class_id')
-        if class_id and validated_data['role'] == 'student':
-            class_obj = Class.objects.get(
-                id=class_id, school=school
-            )
-            Enrollment.objects.create(
-                student=user,
-                class_obj=class_obj,
-                school=school,
-                membership=membership,
-                is_active=True,
-            )
-
-        return membership
 
 class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)

@@ -1,9 +1,9 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User,SchoolMembership, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
+from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
  Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-  SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+    UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
@@ -30,6 +30,9 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
+from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
+from rest_framework.viewsets import GenericViewSet
+
 
 class TenantFilterMixin:
 
@@ -690,6 +693,43 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
+class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
+    
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action in ("update", "partial_update"):
+            return ProfileUpdateSerializer
+        return ProfileReadSerializer
+
+    def get_object(self):
+
+        profile, _ = Profile.all_objects.select_related(
+            "user", "school"
+        ).get_or_create(
+            user=self.request.user,
+            defaults={"school": self.request.user.school},
+        )
+        return profile
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        read_serializer = ProfileReadSerializer(instance)
+        return Response(read_serializer.data)
+
+
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
@@ -2910,8 +2950,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(
-                Q(class_obj__instructor=user) | Q(subject__instructor=user)
-            )
+                Q(class_obj__instructor=user) | Q(subject__instructor=user) | Q(created_by=user)
+            ).distinct()
         elif user.role == 'student':
             enrolled_classes = Enrollment.all_objects.filter(
                 student=user,
@@ -3215,7 +3255,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
         sessions = self.get_queryset().filter(
             Q(class_obj__instructor=request.user)|
-            Q(subject__instructor=request.user)
+            Q(subject__instructor=request.user)|
+            Q(created_by=request.user)
             ).annotate(
                 marked_count_db=Count('session_attendances', distinct=True)
             )
@@ -4189,4 +4230,3 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
         }
         return Response(stats)
-

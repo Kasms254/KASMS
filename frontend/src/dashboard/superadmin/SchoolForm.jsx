@@ -27,7 +27,8 @@ export default function SchoolForm() {
   const [logoFile, setLogoFile] = useState(null)
   const [errors, setErrors] = useState({})
   const [showPassword, setShowPassword] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: '' })
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [], label: '', color: '' })
   const [adminId, setAdminId] = useState(null) // Track existing admin for edit mode
   const [adminUserId, setAdminUserId] = useState(null) // Track the admin's user ID for updates
 
@@ -56,22 +57,57 @@ export default function SchoolForm() {
     admin_password2: '',
   })
 
-  // Calculate password strength
+  // Calculate password strength (returns score 0..4 and feedback items)
   const calculatePasswordStrength = (password) => {
+    const feedback = []
     let score = 0
-    if (!password) return { score: 0, label: '', color: '' }
+    if (!password) return { score: 0, feedback, label: '', color: '' }
 
-    if (password.length >= 8) score += 1
-    if (password.length >= 12) score += 1
-    if (/[a-z]/.test(password)) score += 1
-    if (/[A-Z]/.test(password)) score += 1
-    if (/[0-9]/.test(password)) score += 1
-    if (/[^a-zA-Z0-9]/.test(password)) score += 1
+    if (password.length >= 8) {
+      score += 1
+      feedback.push({ met: true, text: 'At least 8 characters' })
+    } else {
+      feedback.push({ met: false, text: 'At least 8 characters' })
+    }
 
-    if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500' }
-    if (score <= 4) return { score, label: 'Fair', color: 'bg-yellow-500' }
-    if (score <= 5) return { score, label: 'Good', color: 'bg-blue-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains uppercase and lowercase' })
+    } else {
+      feedback.push({ met: false, text: 'Contains uppercase and lowercase' })
+    }
+
+    if (/\d/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains numbers' })
+    } else {
+      feedback.push({ met: false, text: 'Contains numbers' })
+    }
+
+    if (/[^a-zA-Z0-9]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains special characters' })
+    } else {
+      feedback.push({ met: false, text: 'Contains special characters' })
+    }
+
+    let label = ''
+    let color = ''
+    if (score <= 1) {
+      label = 'Weak'
+      color = 'bg-red-500'
+    } else if (score === 2) {
+      label = 'Fair'
+      color = 'bg-yellow-500'
+    } else if (score === 3) {
+      label = 'Good'
+      color = 'bg-blue-500'
+    } else {
+      label = 'Strong'
+      color = 'bg-green-500'
+    }
+
+    return { score, feedback, label, color }
   }
 
   useEffect(() => {
@@ -313,12 +349,21 @@ export default function SchoolForm() {
             phone_number: form.admin_phone,
             svc_number: form.admin_svc_number,
           }
-          // Only include password if user typed a new one
-          if (form.admin_password) {
-            userPayload.password = form.admin_password
-          }
+
           try {
+            // Update basic user fields via PATCH
             await api.partialUpdateUser(adminUserId, userPayload)
+
+            // If admin entered a new password, call the reset password endpoint
+            if (form.admin_password) {
+              try {
+                await api.resetUserPassword(adminUserId, form.admin_password)
+              } catch (pwErr) {
+                toast.error('School saved but failed to update admin password: ' + (pwErr.message || 'Unknown error'))
+                setSaving(false)
+                return
+              }
+            }
           } catch (adminErr) {
             toast.error('School saved but failed to update admin: ' + (adminErr.message || 'Unknown error'))
             setSaving(false)
@@ -369,40 +414,65 @@ export default function SchoolForm() {
       // Navigate after a short delay so user sees success message
       setTimeout(() => navigate('/superadmin/schools'), 1000)
     } catch (err) {
-      // Parse and display errors
+      // Improved error parsing & friendly messages (map backend field keys -> UI fields)
       let errorMessage = 'Failed to save school. Please check the form and try again.'
 
-      if (err.data) {
+      const data = err?.data || null
+      if (data && typeof data === 'object') {
         const fieldErrors = {}
-        const errorMessages = []
+        const fieldLabels = {
+          school_code: 'School Code',
+          school_name: 'School Name',
+          school_email: 'School Email',
+          admin_email: 'Admin Email',
+          admin_svc_number: 'Service Number',
+          admin_password: 'Password',
+          admin_password2: 'Confirm password',
+          admin_username: 'Username',
+        }
 
-        Object.entries(err.data).forEach(([key, value]) => {
-          const msg = Array.isArray(value) ? value[0] : value
-          fieldErrors[key] = msg
+        const messages = []
+        Object.entries(data).forEach(([k, v]) => {
+          const raw = Array.isArray(v) ? v.join(' ') : String(v)
+          // Make common backend messages more user-friendly
+          let friendly = raw
+            .replace(/this field/gi, fieldLabels[k] || 'This field')
+            .replace(/a user with this username already exists/gi, 'This username is already taken. Please choose another')
+            .replace(/a user with this email already exists/gi, 'An account with this email already exists')
+            .replace(/a user with this svc_number already exists/gi, 'This service number is already registered')
+            .replace(/enter a valid email/gi, 'Please enter a valid email address')
+            .replace(/this password is too common/gi, 'This password is too common. Please choose a stronger one')
+            .replace(/this password is entirely numeric/gi, 'Password cannot be all numbers')
 
-          // Create user-friendly field names
-          const fieldNames = {
-            school_code: 'School Code',
-            school_name: 'School Name',
-            school_email: 'School Email',
-            admin_email: 'Admin Email',
-            admin_svc_number: 'Service Number',
-            admin_password: 'Password',
-            admin_username: 'Username',
-          }
-          const fieldName = fieldNames[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-          errorMessages.push(`${fieldName}: ${msg}`)
+          fieldErrors[k] = friendly
+          const label = fieldLabels[k] || k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          messages.push(`${label}: ${friendly}`)
         })
 
         setErrors(fieldErrors)
 
-        if (errorMessages.length > 0) {
-          errorMessage = errorMessages.length === 1
-            ? errorMessages[0]
-            : `Please fix the following errors:\n• ${errorMessages.slice(0, 3).join('\n• ')}${errorMessages.length > 3 ? `\n• ...and ${errorMessages.length - 3} more` : ''}`
+        if (messages.length > 0) {
+          errorMessage = messages.length === 1
+            ? messages[0]
+            : `Please fix the following errors:\n• ${messages.slice(0, 4).join('\n• ')}${messages.length > 4 ? `\n• ...and ${messages.length - 4} more` : ''}`
         }
-      } else if (err.message) {
-        errorMessage = err.message
+      } else {
+        // Fallback to network / generic friendly messages
+        let msg = err?.message || ''
+        if (msg.includes('Network') || msg.includes('fetch')) {
+          msg = 'Unable to connect to the server. Please check your internet connection and try again.'
+        } else if (msg.includes('500') || msg.includes('Internal Server')) {
+          msg = 'Something went wrong on our end. Please try again later or contact support.'
+        } else if (msg.includes('401') || msg.includes('Unauthorized')) {
+          msg = 'Your session has expired. Please log in again.'
+        } else if (msg.includes('403') || msg.includes('Forbidden')) {
+          msg = 'You do not have permission to perform this action.'
+        } else if (msg) {
+          // use the original message if present
+        } else {
+          msg = errorMessage
+        }
+        errorMessage = msg
       }
 
       toast.error(errorMessage)
@@ -721,21 +791,30 @@ export default function SchoolForm() {
                 {isEditing && <p className="text-neutral-500 text-xs mt-1">Leave blank to keep the current password</p>}
                 {form.admin_password && (
                   <div className="mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-300 ${passwordStrength.color}`}
-                          style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
-                        />
-                      </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-neutral-700">Password strength:</span>
                       <span className={`text-xs font-medium ${
                         passwordStrength.label === 'Weak' ? 'text-red-600' :
                         passwordStrength.label === 'Fair' ? 'text-yellow-600' :
                         passwordStrength.label === 'Good' ? 'text-blue-600' :
                         'text-green-600'
-                      }`}>
-                        {passwordStrength.label}
-                      </span>
+                      }`}>{passwordStrength.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                          style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-neutral-600 space-y-1">
+                      {passwordStrength.feedback.map((item, idx) => (
+                        <div key={idx} className={`flex items-center gap-2 ${item.met ? 'text-neutral-700' : 'text-neutral-500'}`}>
+                          <span className={`w-3 h-3 rounded-full ${item.met ? 'bg-green-500' : 'bg-neutral-300'} inline-block`} />
+                          <span>{item.text}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -745,18 +824,27 @@ export default function SchoolForm() {
                 <label className="block text-sm font-medium text-neutral-600 mb-1">
                   {isEditing ? 'Confirm New Password' : 'Confirm Password *'}
                 </label>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="admin_password2"
-                  value={form.admin_password2}
-                  onChange={handleChange}
-                  required={!isEditing}
-                  minLength={8}
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.admin_password2 || (form.admin_password2 && form.admin_password !== form.admin_password2) ? 'border-red-500' : 'border-neutral-200'
-                  }`}
-                  placeholder={isEditing ? 'Leave blank to keep current' : ''}
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="admin_password2"
+                    value={form.admin_password2}
+                    onChange={handleChange}
+                    required={!isEditing}
+                    minLength={8}
+                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+                      errors.admin_password2 || (form.admin_password2 && form.admin_password !== form.admin_password2) ? 'border-red-500' : 'border-neutral-200'
+                    }`}
+                    placeholder={isEditing ? 'Leave blank to keep current' : ''}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {errors.admin_password2 && <p className="text-red-500 text-sm mt-1">{errors.admin_password2}</p>}
                 {form.admin_password2 && form.admin_password !== form.admin_password2 && (
                   <p className="text-red-500 text-sm mt-1">Passwords do not match</p>

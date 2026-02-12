@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 function initials(name = '') {
   return name
@@ -196,6 +197,8 @@ export default function AdminInstructors() {
           is_active: it.is_active,
           created_at: it.created_at,
         }))
+        // Sort by rank: senior first
+        normalized.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         setInstructors(normalized)
         setTotalCount(selectedClass !== 'all' ? normalized.length : data.count || 0)
         setError(null)
@@ -432,6 +435,7 @@ export default function AdminInstructors() {
       }
       setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
       closeEdit()
+      toast?.success?.('Instructor updated successfully') || toast?.showToast?.('Instructor updated successfully', { type: 'success' })
     } catch (err) {
       const data = err?.data || null
       if (data && typeof data === 'object' && !Array.isArray(data)) {

@@ -11,7 +11,7 @@ export default function StudentsRoute() {
   if (loading) return null
 
   // Security: Require authentication
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
 
   // Role-based access
   if (user.role === 'admin') return <AdminStudents />
@@ -24,5 +24,5 @@ export default function StudentsRoute() {
     setLoggingOut(true)
     logout()
   }
-  return <Navigate to="/login" replace />
+  return <Navigate to="/" replace />
 }

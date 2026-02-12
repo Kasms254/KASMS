@@ -499,7 +499,19 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
     #     })
 
 class ClassPerformanceViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdminOrCommandant]
+    permission_classes = [IsAuthenticated]
+
+    def _has_class_access(self, request, class_obj):
+        """
+        Admins, superadmins and commandants can access all classes.
+        Instructors can only access a class if they are assigned as its class instructor.
+        """
+        user = request.user
+        if user.role in ['admin', 'superadmin', 'commandant']:
+            return True
+        if user.role == 'instructor' and class_obj.instructor_id == user.id:
+            return True
+        return False
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -520,6 +532,11 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             return Response({
                 'error': 'Class Not found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._has_class_access(request, class_obj):
+            return Response({
+                'error': 'You do not have permission to view this class.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         enrollments = Enrollment.objects.filter(
             class_obj = class_obj,
@@ -728,11 +745,16 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.get(id=class_id, is_active=True)
+            class_obj = Class.objects.select_related('instructor').get(id=class_id, is_active=True)
         except Class.DoesNotExist:
             return Response({
                 'error': 'Class Not Found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._has_class_access(request, class_obj):
+            return Response({
+                'error': 'You do not have permission to view this class.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         enrollments = Enrollment.objects.filter(
             class_obj=class_obj,
@@ -781,6 +803,11 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def compare_classes(self, request):
+
+        if request.user.role not in ['admin', 'superadmin', 'commandant']:
+            return Response({
+                'error': 'You do not have permission to compare classes.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         course_id = request.query_params.get('course_id')
 
@@ -846,7 +873,16 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'error': 'class_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        
+        try:
+            class_obj = Class.objects.select_related('instructor').get(id=class_id, is_active=True)
+        except Class.DoesNotExist:
+            return Response({'error': 'Class Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._has_class_access(request, class_obj):
+            return Response({
+                'error': 'You do not have permission to view this class.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         summary_response = self.summary(request)
 
         if report_format == 'detailed':
@@ -878,13 +914,18 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.select_related('course').get(
+            class_obj = Class.objects.select_related('course', 'instructor').get(
                 id=class_id, is_active=True
             )
         except Class.DoesNotExist:
             return Response({
                 'error': 'Class Not Found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._has_class_access(request, class_obj):
+            return Response({
+                'error': 'You do not have permission to view this class.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         cutoff_date = timezone.now().date() - timedelta(days=days)
 
@@ -991,13 +1032,18 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.select_related('course').get(
+            class_obj = Class.objects.select_related('course', 'instructor').get(
                 id=class_id, is_active=True
             )
         except Class.DoesNotExist:
             return Response({
                 'error': 'Class Not Found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+        if not self._has_class_access(request, class_obj):
+            return Response({
+                'error': 'You do not have permission to view this class.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         enrolled_students = Enrollment.objects.filter(
             class_obj=class_obj,

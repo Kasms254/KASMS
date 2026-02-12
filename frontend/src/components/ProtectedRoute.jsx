@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, role = null }) {
 
   // Defensive: require either a user object or a token to allow access
   if (!user && !token) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/" replace />
   }
 
   // Force password change before allowing access to protected routes

@@ -6,6 +6,7 @@ import ScrollToTop from './components/ScrollToTop'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './context/themeContext'
 import { AuthProvider } from './context/AuthProvider'
+import ToastProvider from './components/ToastProvider'
 
 // Security: Disable DevTools and console logging in production
 if (typeof window !== 'undefined' && import.meta.env.PROD) {
@@ -47,7 +48,9 @@ createRoot(document.getElementById('root')).render(
       <ScrollToTop />
       <ThemeProvider>
         <AuthProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

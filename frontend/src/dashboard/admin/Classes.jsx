@@ -4,6 +4,8 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import SearchableSelect from '../../components/SearchableSelect'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 // Normalize a date value (from the API) to YYYY-MM-DD format for the date picker
 function normalizeDate(dateStr) {
@@ -159,7 +161,10 @@ export default function ClassesList(){
   async function openAddSubjectModal(classId = ''){
     try{
       const ins = await getAllInstructors()
-      setInstructors(Array.isArray(ins) ? ins : [])
+      const list = Array.isArray(ins) ? ins : []
+      // Sort by rank: senior first
+      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+      setInstructors(list)
     }catch{
       setInstructors([])
     }
@@ -174,7 +179,10 @@ export default function ClassesList(){
   async function openAddClassModal(){
     try{
       const [ins, courses] = await Promise.all([getAllInstructors().catch(()=>[]), getAllCourses().catch(()=>[])])
-      setInstructors(Array.isArray(ins) ? ins : [])
+      const list = Array.isArray(ins) ? ins : []
+      // Sort by rank: senior first
+      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+      setInstructors(list)
       setCoursesList(Array.isArray(courses) ? courses : [])
     }catch{
       setInstructors([])
@@ -294,7 +302,10 @@ export default function ClassesList(){
                     // ensure instructors list is loaded for the select
                     try {
                       const ins = await getAllInstructors()
-                      setInstructors(Array.isArray(ins) ? ins : [])
+                      const list = Array.isArray(ins) ? ins : []
+                      // Sort by rank: senior first
+                      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+                      setInstructors(list)
                     } catch {
                       setInstructors([])
                     }
@@ -466,10 +477,14 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => setClassForm({ ...classForm, instructor: e.target.value })}>
-                      <option value="">— Select instructor —</option>
-                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={classForm.instructor}
+                      onChange={(val) => setClassForm({ ...classForm, instructor: val })}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      placeholder="— Select instructor —"
+                      searchPlaceholder="Search by service number, rank, or name..."
+                      error={!!classErrors.instructor}
+                    />
                     {classErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
                   </div>
                 </div>
@@ -666,10 +681,14 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
-                    <select className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.instructor} onChange={(e) => { setClassForm({ ...classForm, instructor: e.target.value }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0); }}>
-                      <option value="">— Select instructor —</option>
-                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={classForm.instructor}
+                      onChange={(val) => { setClassForm({ ...classForm, instructor: val }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0); }}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      placeholder="— Select instructor —"
+                      searchPlaceholder="Search by service number, rank, or name..."
+                      error={!!classErrors.instructor}
+                    />
                     {classErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
                   </div>
 
@@ -763,10 +782,14 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
-                    <select value={form.instructor} onChange={(e) => { setForm({ ...form, instructor: e.target.value }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }} className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${subjectErrors.instructor ? 'border-rose-500' : 'border-neutral-200'}`}>
-                      <option value="">— Select instructor —</option>
-                      {instructors.map(ins => <option key={ins.id} value={ins.id}>{ins.full_name || ins.username}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={form.instructor}
+                      onChange={(val) => { setForm({ ...form, instructor: val }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      placeholder="— Select instructor —"
+                      searchPlaceholder="Search by service number, rank, or name..."
+                      error={!!subjectErrors.instructor}
+                    />
                     {subjectErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(subjectErrors.instructor) ? subjectErrors.instructor.join(' ') : String(subjectErrors.instructor)}</div>}
                   </div>
 

@@ -168,7 +168,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
     try {
       await auth.logout()
     } catch { /* ignore logout errors */ }
-    navigate('/login')
+    navigate('/')
     if (onMobileMenuClick) onMobileMenuClick()
   }
 
