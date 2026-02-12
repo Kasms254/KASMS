@@ -55,26 +55,37 @@ export default function SubjectsPage() {
     // developer fallback
   }
 
+  // Fetch classes and instructors once on mount (for dropdowns and enrichment)
   useEffect(() => {
     let mounted = true
 
-    Promise.all([api.getAllClasses().catch(() => null), api.getAllSubjects().catch(() => null)])
-      .then(([clsData, subjData]) => {
+    Promise.all([api.getAllClasses().catch(() => null), api.getAllInstructors().catch(() => null)])
+      .then(([clsData, insData]) => {
         if (!mounted) return
-        const clsList = Array.isArray(clsData) ? clsData : []
-        const subjList = Array.isArray(subjData) ? subjData : []
+        setClasses(Array.isArray(clsData) ? clsData : [])
+        const list = Array.isArray(insData) ? insData : []
+        list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+        setInstructors(list)
+      })
+      .catch(() => {})
 
-        setClasses(clsList)
-        setSubjects(subjList)
+    return () => { mounted = false }
+  }, [])
 
-        // fetch instructors for editing dropdown
-        api.getAllInstructors().then((ins) => {
-          if (!mounted) return
-          const list = Array.isArray(ins) ? ins : []
-          // Sort by rank: senior first
-          list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
-          setInstructors(list)
-        }).catch(() => {})
+  // Fetch subjects — re-fetches when class or instructor filter changes,
+  // passing filters to backend to reduce data transferred
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+
+    const params = []
+    if (selectedClass !== 'all') params.push(`class_obj=${selectedClass}`)
+    if (selectedInstructor !== 'all') params.push(`instructor=${selectedInstructor}`)
+
+    api.getAllSubjects(params.join('&'))
+      .then((subjData) => {
+        if (!mounted) return
+        setSubjects(Array.isArray(subjData) ? subjData : [])
       })
       .catch((err) => {
         if (!mounted) return
@@ -83,7 +94,7 @@ export default function SubjectsPage() {
       .finally(() => { if (mounted) setLoading(false) })
 
     return () => { mounted = false }
-  }, [])
+  }, [selectedClass, selectedInstructor])
 
   // Enhanced subjects list with class and instructor names, service number, and rank
   const enrichedSubjects = useMemo(() => {
