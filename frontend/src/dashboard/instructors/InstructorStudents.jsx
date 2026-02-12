@@ -17,6 +17,7 @@ function initials(name = '') {
 export default function InstructorStudents() {
   const { user } = useAuth()
   const [students, setStudents] = useState([])
+  const [allFilteredStudents, setAllFilteredStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   // Pagination state
@@ -94,6 +95,7 @@ export default function InstructorStudents() {
             })
           }
 
+          setAllFilteredStudents(mapped)
           setTotalCount(mapped.length)
           // Apply pagination on client-side
           const start = (page - 1) * pageSize
@@ -159,6 +161,7 @@ export default function InstructorStudents() {
             })
           }
 
+          setAllFilteredStudents(filtered)
           setTotalCount(filtered.length)
           // Apply pagination on client-side
           const start = (page - 1) * pageSize
@@ -179,7 +182,7 @@ export default function InstructorStudents() {
     // Export Service No first, then Rank, Name, Class, Email, Phone, Active
     const rows = [['Service No', 'Rank', 'Name', 'Class', 'Email', 'Phone', 'Active']]
 
-    students.forEach((st) => rows.push([st.svc_number || '', st.rank || '', st.name || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
+    allFilteredStudents.forEach((st) => rows.push([st.svc_number || '', st.rank || '', st.name || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -213,7 +216,7 @@ export default function InstructorStudents() {
               <div className="relative flex-1">
                 <input
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
                   placeholder="Search students..."
                   className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 />

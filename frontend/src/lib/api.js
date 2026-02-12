@@ -218,6 +218,29 @@ export async function getStudentsPaginated(params = '') {
   return request(`/api/users/students${qs}`)
 }
 
+// Fetch ALL students by iterating through all pages
+export async function getAllStudents(params = '') {
+  let allStudents = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+
+  while (hasMore) {
+    try {
+      const data = await getStudentsPaginated(`${baseParams}page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allStudents = [...allStudents, ...results]
+
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allStudents
+}
+
 export async function getCourses() {
   return request('/api/courses/')
 }
