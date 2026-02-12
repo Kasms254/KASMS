@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     User, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -74,17 +74,24 @@ class SchoolAdmin(admin.ModelAdmin):
         return obj.current_instructor_count
     instructor_count.short_description = 'Instructors'
     
+class SchoolMembershipInline(admin.TabularInline):
+    model = SchoolMembership
+    extra = 0
+    fields = ['school', 'role', 'status', 'started_at', 'ended_at']
+    readonly_fields = ['started_at', 'ended_at']
+
 @admin.register(User)
 class UserAdmin(TenantAdminMixin, BaseUserAdmin):
-    list_display = ['username', 'email', 'get_full_name', 'role', 'school', 'is_active']
+    list_display = ['username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
     ordering = ['-created_at']
+    inlines = [SchoolMembershipInline]
     
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'phone_number', 'svc_number')}),
-        ('School & Role', {'fields': ('school', 'role', 'rank', 'unit')}),
+        ('Role & Military', {'fields': ('role', 'rank', 'unit')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
@@ -92,11 +99,15 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'school', 'role', 'svc_number', 'phone_number'),
+            'fields': ('username', 'email', 'password1', 'password2', 'role', 'svc_number', 'phone_number'),
         }),
     )
     
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
+
+    def get_school(self, obj):
+        return obj.school.name if obj.school else 'Unaffiliated'
+    get_school.short_description = 'Current School'
 
     def get_queryset(self, request):
         return User.all_objects.all()

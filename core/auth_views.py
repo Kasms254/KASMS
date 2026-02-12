@@ -6,7 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
-from .serializers import UserSerializer, UserListSerializer
+from .serializers import UserSerializer, UserListSerializer,SchoolMembershipSerializer
 from .models import Enrollment,SchoolMembership
 
 

@@ -120,6 +120,98 @@ class SchoolMembershipSerializer(serializers.ModelSerializer):
             'ended_at', 'completion_date'
         )
 
+class SchoolEnrollmentSerializer(serializers.Serializer):
+
+    svc_number = serializers.CharField(max_length=50)
+    school_id = serializers.UUIDField()
+    role = serializers.ChoiceField(
+        choices=SchoolMembership.Role.choices
+    )
+    class_id = serializers.IntegerField(
+        required=False, allow_null=True
+    )
+
+    def validate_svc_number(self, value):
+        try:
+            user = User.all_objects.get(svc_number=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                'No user found with this service number.'
+            )
+
+        active = SchoolMembership.all_objects.filter(
+            user=user, status='active'
+        ).select_related('school').first()
+
+        if active:
+            raise serializers.ValidationError(
+                f'User has active membership at '
+                f'{active.school.name}. Complete or '
+                f'transfer that membership first.'
+            )
+
+        self.context['resolved_user'] = user
+        return value
+
+    def validate_school_id(self, value):
+        try:
+            school = School.objects.get(
+                id=value, is_active=True
+            )
+        except School.DoesNotExist:
+            raise serializers.ValidationError(
+                'School not found or inactive.'
+            )
+        self.context['resolved_school'] = school
+        return value
+
+    def validate(self, attrs):
+        user = self.context.get('resolved_user')
+        school = self.context.get('resolved_school')
+        role = attrs.get('role')
+
+        if not user or not school:
+            return attrs
+
+        if role == 'student':
+            count = SchoolMembership.all_objects.filter(
+                school=school, role='student',
+                status='active'
+            ).count()
+            if count >= school.max_students:
+                raise serializers.ValidationError({
+                    'school_id': 'School at max student capacity.'
+                })
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context['resolved_user']
+        school = self.context['resolved_school']
+
+        membership = SchoolMembership.objects.create(
+            user=user,
+            school=school,
+            role=validated_data['role'],
+            status=SchoolMembership.Status.ACTIVE,
+        )
+
+        class_id = validated_data.get('class_id')
+        if class_id and validated_data['role'] == 'student':
+            class_obj = Class.objects.get(
+                id=class_id, school=school
+            )
+            Enrollment.objects.create(
+                student=user,
+                class_obj=class_obj,
+                school=school,
+                membership=membership,
+                is_active=True,
+            )
+
+        return membership
+
 class SchoolCreateWithAdminSerializer(serializers.Serializer):
 
     school_code = serializers.CharField(max_length=20)
