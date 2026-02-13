@@ -35,6 +35,7 @@ const SENTENCE_CASE_CONFIG = {
     'file_url', // Preserve file URL paths
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
+    'exam_type', // Preserve choice values sent back to API
   ]
 }
 
