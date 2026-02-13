@@ -1277,21 +1277,30 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
-     
         enrollment = self.get_object()
-        
+
         if enrollment.completion_date:
-            return Response(
-                {'error': 'Enrollment already marked as completed'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({
+                'error': 'Cannot complete an inactive enrollment. Reactivate it first.'}
+            , status=status.HTTP_400_BAD_REQUEST)
+            
         enrollment.completion_date = timezone.now().date()
-        enrollment.save()
-        
+        enrollment.is_active = False
+        enrollment.save(update_fields=['completion_date', 'is_active'])
+
+        membership = enrollment.membership
+        if membership:
+            active_enrollments = Enrollment.all_objects.filter(
+                membership=membership, is_active=True
+            ).exists()
+            if not active_enrollments:
+
+                if membership.status == 'active':
+                    membership.complete()
+
         return Response({
-            'status': 'success',
-            'message': 'Enrollment marked as completed',
+            'status': 'success', 
+            'message': 'Enrollment marked as complete',
             'enrollment': EnrollmentSerializer(enrollment).data
         })
     
@@ -1319,29 +1328,36 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def reactivate(self, request, pk=None):
      
         enrollment = self.get_object()
-        
+
         if enrollment.is_active:
-            return Response(
-                {'error': 'Enrollment is already active'},
-                status=status.HTTP_400_BAD_REQUEST
+            return Response({
+                'error': 'Enrollment is already active'
+            }, 
             )
-        
-   
+        if enrollment.completion_date:
+            return Response({
+                'error': 'Cannot reactivate a completed enrollment. Create a new enrollment'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if enrollment.membership and enrollment.membership.status != 'active':
+            return Response({
+                'error': 'Cannot reactivate enrollment - the school membership is no longer active'
+            }, status = status.HTTP_400_BAD_REQUEST)
+
         if enrollment.class_obj.current_enrollment >= enrollment.class_obj.capacity:
-            return Response(
-                {'error': 'Class is at full capacity'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        enrollment.is_active = True
+            return Response({
+                'error': 'Class is at full capacity'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment.is_active =True
         enrollment.save()
-        
+
         return Response({
             'status': 'success',
             'message': 'Enrollment reactivated',
             'enrollment': EnrollmentSerializer(enrollment).data
         })
-    
+        
     @action(detail=False, methods=['get'])
     def by_student(self, request):
     

@@ -112,7 +112,6 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     def get_queryset(self, request):
         return User.all_objects.all()
 
-
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name', 'code', 'created_at', 'updated_at')
