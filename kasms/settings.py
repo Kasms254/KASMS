@@ -148,7 +148,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "core.User"
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':timedelta(hours=5),
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION':True,
@@ -171,13 +171,14 @@ SIMPLE_JWT = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
+        'core.cookie_auth.CookieJWTAuthentication',
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
         
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ],
     "DEFAULT_PERMISSION_CLASSES": [
         "core.permissions.ForcePasswordChangePermission",
     ],
@@ -201,7 +202,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -243,11 +244,22 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_NAME = "csrftoken"
 CSRF_COOKIE_SECURE = not DEBUG
-
 SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
-SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+
+COOKIE_CROSS_SITE = os.getenv("COOKIE_CROSS_SITE", "True") == "True"
+
+if not DEBUG and COOKIE_CROSS_SITE:
+    CSRF_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SAMESITE = "None"
+
+else:
+    CSRF_COOKIE_SAMESITE ="Lax"
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+# CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+# SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
 AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
