@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, deleteClass, getAllCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
@@ -43,6 +44,7 @@ function sanitizeInput(value, trimSpaces = false) {
 export default function ClassesList(){
   const [classes, setClasses] = useState([])
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [showOnlyActive, setShowOnlyActive] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -321,6 +323,9 @@ export default function ClassesList(){
                     })
                     setEditModalOpen(true)
                     }} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
+                  )}
+                  {user && user.role === 'admin' && (
+                    <button onClick={() => navigate(`/list/classes/${c.id}/certificates`)} className="px-3 py-1 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition" aria-label={`Certificates for ${c.name || 'class'}`}>Certificates</button>
                   )}
                   </div>
                 </div>

@@ -1176,6 +1176,47 @@ export async function getAllAdminUsers(params = '') {
 }
 
 // =====================
+// Certificates API
+// =====================
+
+// List certificates (paginated, filterable by class_obj, student; searchable by certificate_number, svc_number)
+export async function getCertificates(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/certificates/${qs}`)
+}
+
+// Get a single certificate by ID
+export async function getCertificate(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/certificates/${id}/`)
+}
+
+// Get completion status for all students in a class
+export async function getClassCompletionStatus(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/classes/${classId}/completion_status/`)
+}
+
+// Bulk issue certificates for all eligible students in a closed class
+export async function issueCertificates(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/classes/${classId}/issue_certificates/`, { method: 'POST' })
+}
+
+// Issue a certificate for a single enrollment in a class
+export async function issueCertificateSingle(classId, enrollmentId) {
+  if (!classId) throw new Error('classId is required')
+  if (!enrollmentId) throw new Error('enrollmentId is required')
+  return request(`/api/classes/${classId}/issue_certificate_single/`, { method: 'POST', body: { enrollment_id: enrollmentId } })
+}
+
+// Close a class (sets is_closed=True, required before issuing certificates)
+export async function closeClass(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/classes/${classId}/close/`, { method: 'POST' })
+}
+
+// =====================
 // Profile API
 // =====================
 
@@ -1343,4 +1384,11 @@ export default {
   // Profile
   getProfile,
   updateProfile,
+  // Certificates
+  getCertificates,
+  getCertificate,
+  getClassCompletionStatus,
+  issueCertificates,
+  issueCertificateSingle,
+  closeClass,
 }

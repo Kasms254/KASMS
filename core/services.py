@@ -68,7 +68,7 @@ def get_class_completion_status(class_obj, student):
         }
 
     subject_statuses = []
-    for subjects in subjects:
+    for subject in subjects:
         status = get_subject_completion_status(subject, student)
         subject_statuses.append(status)
 
