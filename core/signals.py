@@ -40,9 +40,9 @@ def check_academic_completion_on_grade(sender, instance, **kwargs):
         if status['is_academically_complete']:
 
             admin_memberships =class_obj.school.memberships.filter(
-                role__on = ['admin', 'commandant'],
+                role__in = ['admin', 'commandant'],
                 status = 'active'
-            ).select_realted('user')
+            ).select_related('user')
 
             for membership in admin_memberships:
                 PersonalNotification.objects.create(
