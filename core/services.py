@@ -109,7 +109,7 @@ def check_class_completion_for_all_students(class_obj):
 
 def issue_certificate(enrollment, issued_by):
 
-    if hasattr(enrollment, error_message):
+    if hasattr(enrollment, 'certificate'):
         return None, 'Certificate already issued for this enrollment.'
 
     class_obj = enrollment.class_obj

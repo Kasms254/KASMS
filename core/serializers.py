@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -1468,4 +1468,3 @@ class CertificateSerializer(serializers.ModelSerializer):
 
     def get_issued_by_name(self, obj):
         return obj.issued_by.get_full_name() if obj.issued_by else None
-        

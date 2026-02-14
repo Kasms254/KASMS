@@ -5,7 +5,7 @@ from .views import (
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )

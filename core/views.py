@@ -1,9 +1,9 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
+from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+    CertificateSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
@@ -992,7 +992,7 @@ class ClassViewSet(viewsets.ModelViewSet):
     def completion_status(self, request, pk=None):
 
         class_obj = self.get_object()
-        results = check_class_completion_for_all_students
+        results = check_class_completion_for_all_students(class_obj)
 
         complete_count = sum(1 for r in results if r ['is_academically_complete'])
 
@@ -1515,7 +1515,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         status_data['enrollment_id'] = enrollment.id
         status_data['is_active'] = enrollment.is_active
         status_data['completion_date'] = enrollment.completion_date
-        status_data['has_certificate'] = hasattr(enrollmenr, 'certificate')
+        status_data['has_certificate'] = hasattr(enrollment, 'certificate')
 
         return Response(status_data)
 
