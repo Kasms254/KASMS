@@ -14,7 +14,8 @@ from django.core.validators import RegexValidator
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
         return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
-        
+      
+
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
@@ -51,12 +52,12 @@ class School(models.Model):
 
     @property
     def current_student_count(self):
-        return self.users.filter(role="student", is_active=True).count()
+        return self.memberships.filter(role='student', status='active').count()
 
     @property
     def current_instructor_count(self):
-        return self.users.filter(role="instructor", is_active=True).count()
-
+        return self.memberships.filter(role='instructor', status='active').count()
+        
     @property
     def is_within_limits(self):
         return self.current_student_count <= self.max_students and self.current_instructor_count <= self.max_instructors
@@ -70,6 +71,98 @@ class School(models.Model):
             'logo_url': self.logo.url if self.logo else None,
             **self.theme_config
         }
+
+#    school membership
+
+class SchoolMembership(models.Model):
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        COMPLETED = 'completed', 'Completed'
+        INACTIVE = 'inactive', 'Inactive'
+        TRANSFERRED = 'transferred', 'Transferred'
+        WITHDRAWN = 'withdrawn', 'Withdrawn'
+
+    class Role(models.TextChoices):
+        STUDENT = 'student', 'Student'
+        INSTRUCTOR = 'instructor', 'Instructor'
+        ADMIN = 'admin', 'Admin'
+        COMMANDANT = 'commandant', 'Commandant'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        'User', on_delete=models.CASCADE, related_name='school_memberships'
+    )
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name='memberships'
+    )
+    role = models.CharField(max_length=20, choices=Role.choices)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVE
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    completion_date = models.DateField(null=True, blank=True)
+    transfer_to = models.ForeignKey(
+        School, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='inbound_transfers'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'school_memberships'
+        ordering = ['-started_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'school'],
+                condition=models.Q(status='active'),
+                name='unique_active_membership_per_school'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['school', 'status']),
+            models.Index(fields=['user', 'school', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.svc_number} @ {self.school.code} ({self.status})"
+
+    def complete(self):
+        self.status = self.Status.COMPLETED
+        self.ended_at = timezone.now()
+        self.completion_date = timezone.now().date()
+        self.save(update_fields=['status', 'ended_at', 'completion_date', 'updated_at'])
+        Enrollment.all_objects.filter(
+            membership=self, is_active=True
+        ).update(is_active=False, completion_date=timezone.now().date())
+
+    def transfer(self, to_school):
+        self.status = self.Status.TRANSFERRED
+        self.ended_at = timezone.now()
+        self.transfer_to = to_school
+        self.save()
+        return SchoolMembership.objects.create(
+            user=self.user, school=to_school,
+            role=self.role, status=self.Status.ACTIVE
+        )
+
+    def reactivate(self):
+        if SchoolMembership.all_objects.filter(
+            user=self.user, status=self.Status.ACTIVE
+        ).exclude(pk=self.pk).exists():
+            raise ValidationError(
+                'User already has an active membership at another school.'
+            )
+        self.status = self.Status.ACTIVE
+        self.ended_at = None
+        self.save(update_fields=['status', 'ended_at', 'updated_at'])
 
 class SchoolAdmin(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admins')
@@ -111,10 +204,12 @@ class User(AbstractUser):
         ('lieutenant_general', 'Lieutenant General'),
         ('general', 'General'),
     ]
-    
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+
     must_change_password = models.BooleanField(default=True)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    role = models.CharField(
+        max_length=20, choices=ROLE_CHOICES,
+        help_text="Base role. Overridden by active membership role when affiliated."
+    )
     rank = models.CharField(max_length=20, choices=RANK_CHOICES, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     svc_number = models.CharField(max_length=50, unique=True)
@@ -131,10 +226,46 @@ class User(AbstractUser):
         db_table = 'users'
 
     def __str__(self):
-        return f"{self.username} ({self.get_role_display()})"
+        return f"{self.svc_number} - {self.get_full_name()}"
+
+    @property
+    def active_membership(self):
+        if not hasattr(self, '_active_membership_cache'):
+            self._active_membership_cache = (
+                self.school_memberships
+                .filter(status=SchoolMembership.Status.ACTIVE)
+                .select_related('school')
+                .first()
+            )
+        return self._active_membership_cache
+
+    def clear_membership_cache(self):
+        if hasattr(self, '_active_membership_cache'):
+            del self._active_membership_cache
+
+    @property
+    def school(self):
+        membership = self.active_membership
+        return membership.school if membership else None
+
+    @property
+    def active_role(self):
+
+        membership = self.active_membership
+        return membership.role if membership else self.role
+
+    def get_membership_for_school(self, school):
+        return self.school_memberships.filter(
+            school=school
+        ).order_by('-started_at').first()
+
+    def get_school_history(self):
+        return self.school_memberships.select_related(
+            'school', 'transfer_to'
+        ).order_by('started_at')
 
     def has_active_enrollment(self):
-        if self.role != 'student':
+        if self.active_role != 'student':
             return True
         return Enrollment.all_objects.filter(student=self, is_active=True).exists()
     
@@ -193,7 +324,12 @@ class Class(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     capacity = models.IntegerField(validators=[MinValueValidator(1)], default=30)
     is_active = models.BooleanField(default=True)
-
+    is_closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
+    )
+    
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
@@ -259,12 +395,22 @@ class Notice(models.Model):
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='enrollments')
+    membership = models.ForeignKey(SchoolMembership, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='enrollments')
     enrolled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrollments_processed')
     enrollment_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     completion_date = models.DateField(null=True, blank=True)
-
+    completed_via = models.CharField(
+        max_length=20,
+        choices=[
+            ('manual', 'Manual'),
+            ('certificate', 'Certificate Issued'),
+            ('admin_closure', 'Admin Class Closure'),
+        ],
+        null=True, blank=True
+    )
+    
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
@@ -829,3 +975,66 @@ class PersonalNotification(models.Model):
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', 'is_read']), models.Index(fields=['user', 'created_at']), models.Index(fields=['notification_type'])]
 
+# certificate
+
+class Certificate(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name='certificates',
+        null=True, blank=True
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        limit_choices_to={'role': 'student'},
+        related_name='certificates'
+    )
+    enrollment = models.OneToOneField(
+        Enrollment, on_delete=models.CASCADE,
+        related_name='certificate'
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='certificates'
+    )
+    certificate_number = models.CharField(max_length=100, unique=True)
+    issued_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificates_issued'
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'certificates'
+        ordering = ['-issued_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'enrollment'],
+                name='unique_certificate_per_enrollment'
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.certificate_number} — {self.student.svc_number}"
+
+    def save(self, *args, **kwargs):
+        if not self.school:
+            self.school = self.class_obj.school
+        if not self.certificate_number:
+            self.certificate_number = self._generate_number()
+        super().save(*args, **kwargs)
+
+    def _generate_number(self):
+        """Generate: SCHOOL_CODE/YEAR/SEQUENCE"""
+        import datetime
+        year = datetime.date.today().year
+        school_code = self.school.code if self.school else 'GEN'
+        count = Certificate.all_objects.filter(
+            school=self.school,
+            issued_at__year=year
+        ).count() + 1
+        return f"{school_code}/{year}/{count:04d}"

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -81,12 +81,136 @@ class SchoolAdminSerializer(serializers.ModelSerializer):
                 'user': 'User must have admin role to be a school admin.'
             })
 
-        if user and school and user.school != school:
-            raise serializers.ValidationError({
-                'user': 'User must belong to the same school.'
-            })
+        if user and school:
+            has_membership = SchoolMembership.all_objects.filter(
+                user=user, school=school, status='active'
+            ).exists()
+            if not has_membership:
+                raise serializers.ValidationError({
+                    'user': 'User must have an active membership at this school.'
+                })
 
         return attrs
+
+class SchoolMembershipSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(
+        source='user.get_full_name', read_only=True
+    )
+    user_svc_number = serializers.CharField(
+        source='user.svc_number', read_only=True
+    )
+    school_name = serializers.CharField(
+        source='school.name', read_only=True
+    )
+    school_code = serializers.CharField(
+        source='school.code', read_only=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display', read_only=True
+    )
+    role_display = serializers.CharField(
+        source='get_role_display', read_only=True
+    )
+
+    class Meta:
+        model = SchoolMembership
+        fields = '__all__'
+        read_only_fields = (
+            'id', 'created_at', 'updated_at',
+            'ended_at', 'completion_date'
+        )
+
+class SchoolEnrollmentSerializer(serializers.Serializer):
+
+    svc_number = serializers.CharField(max_length=50)
+    school_id = serializers.UUIDField()
+    role = serializers.ChoiceField(
+        choices=SchoolMembership.Role.choices
+    )
+    class_id = serializers.IntegerField(
+        required=False, allow_null=True
+    )
+
+    def validate_svc_number(self, value):
+        try:
+            user = User.all_objects.get(svc_number=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                'No user found with this service number.'
+            )
+
+        active = SchoolMembership.all_objects.filter(
+            user=user, status='active'
+        ).select_related('school').first()
+
+        if active:
+            raise serializers.ValidationError(
+                f'User has active membership at '
+                f'{active.school.name}. Complete or '
+                f'transfer that membership first.'
+            )
+
+        self.context['resolved_user'] = user
+        return value
+
+    def validate_school_id(self, value):
+        try:
+            school = School.objects.get(
+                id=value, is_active=True
+            )
+        except School.DoesNotExist:
+            raise serializers.ValidationError(
+                'School not found or inactive.'
+            )
+        self.context['resolved_school'] = school
+        return value
+
+    def validate(self, attrs):
+        user = self.context.get('resolved_user')
+        school = self.context.get('resolved_school')
+        role = attrs.get('role')
+
+        if not user or not school:
+            return attrs
+
+        if role == 'student':
+            count = SchoolMembership.all_objects.filter(
+                school=school, role='student',
+                status='active'
+            ).count()
+            if count >= school.max_students:
+                raise serializers.ValidationError({
+                    'school_id': 'School at max student capacity.'
+                })
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context['resolved_user']
+        school = self.context['resolved_school']
+
+        membership = SchoolMembership.objects.create(
+            user=user,
+            school=school,
+            role=validated_data['role'],
+            status=SchoolMembership.Status.ACTIVE,
+        )
+
+        class_id = validated_data.get('class_id')
+        if class_id and validated_data['role'] == 'student':
+            class_obj = Class.objects.get(
+                id=class_id, school=school
+            )
+            Enrollment.objects.create(
+                student=user,
+                class_obj=class_obj,
+                school=school,
+                membership=membership,
+                is_active=True,
+            )
+
+        return membership
 
 class SchoolCreateWithAdminSerializer(serializers.Serializer):
 
@@ -168,7 +292,6 @@ class SchoolCreateWithAdminSerializer(serializers.Serializer):
             )
 
             admin_user = User.all_objects.create(
-                school=school,
                 username=validated_data['admin_username'],
                 email=validated_data['admin_email'],
                 first_name=validated_data['admin_first_name'],
@@ -180,6 +303,13 @@ class SchoolCreateWithAdminSerializer(serializers.Serializer):
             )
             admin_user.set_password(validated_data['admin_password'])
             admin_user.save()
+
+            SchoolMembership.objects.create(
+                user=admin_user,
+                school=school,
+                role=SchoolMembership.Role.ADMIN,
+                status=SchoolMembership.Status.ACTIVE,
+            )
 
             SchoolAdmin.objects.create(
                 school=school,
@@ -193,6 +323,7 @@ class SchoolCreateWithAdminSerializer(serializers.Serializer):
             }
 
 class UserSerializer(serializers.ModelSerializer):
+
     password = serializers.CharField(
         write_only=True, 
         required=True, 
@@ -248,18 +379,22 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         request = self.context.get('request')
         school = getattr(request, 'school', None) if request else None
-        
+
         if self.instance:
-            qs = User.objects.exclude(pk=self.instance.pk).filter(email=value)
+            qs = User.all_objects.exclude(pk=self.instance.pk).filter(email=value)
         else:
-            qs = User.objects.filter(email=value)
-        
+            qs = User.all_objects.filter(email=value)
+
         if school:
-            qs = qs.filter(school=school)
-        
+            qs = qs.filter(
+                school_memberships__school=school,
+                school_memberships__status='active'
+            )
+
         if qs.exists():
             raise serializers.ValidationError("This email is already in use.")
         return value
+        
     
     def validate_svc_number(self, value):
 
@@ -291,22 +426,39 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('password2')
         password = validated_data.pop('password')
 
-        user = User.objects.create(**validated_data)
+        school_from_data = validated_data.pop('school', None)
+
+        user = User(**validated_data)
         user.set_password(password)
-        user.must_change_password=  True
+        user.must_change_password = True
         user.save()
 
-        if user.role == 'student' and class_obj:
-            enrolled_by = self.context.get('request').user if self.context.get('request') else None
-            school = getattr(self.context.get('request'), 'school', None) if self.context.get('request') else class_obj.school
+        request = self.context.get('request')
+        school = (
+            school_from_data
+            or (getattr(request, 'school', None) if request else None)
+            or (class_obj.school if class_obj else None)
+        )
 
+        membership = None
+        if school:
+            membership = SchoolMembership.objects.create(
+                user=user,
+                school=school,
+                role=user.role,
+                status=SchoolMembership.Status.ACTIVE,
+            )
+
+        if user.role == 'student' and class_obj:
+            enrolled_by = request.user if request else None
             if not Enrollment.objects.filter(student=user, class_obj=class_obj).exists():
                 Enrollment.objects.create(
-                    school=school,
+                    school=school or class_obj.school,
                     student=user,
                     class_obj=class_obj,
+                    membership=membership,
                     enrolled_by=enrolled_by,
-                    is_active=True
+                    is_active=True,
                 )
         return user
 
@@ -317,9 +469,13 @@ class UserSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class UserListSerializer(serializers.ModelSerializer):
-    school_name = serializers.CharField(source='school.name', read_only=True)
-    school_code = serializers.CharField(source='school.code', read_only=True)
+    school_name = serializers.SerializerMethodField()
+    school_code = serializers.SerializerMethodField()
     school_theme = serializers.SerializerMethodField(read_only=True)
+    membership_status = serializers.SerializerMethodField()
+    school_history = SchoolMembershipSerializer(
+        source='school_memberships', many=True, read_only=True
+    )
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     full_name = serializers.SerializerMethodField()
     class_name = serializers.SerializerMethodField()
@@ -332,6 +488,26 @@ class UserListSerializer(serializers.ModelSerializer):
     
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
+
+    def get_has_active_enrollment(self, obj):
+        if obj.role != 'student':
+            return None
+        return Enrollment.all_objects.filter(
+            student=obj, 
+            is_active=True
+        ).exists()
+
+    def get_school_name(self, obj):
+        m = obj.active_membership
+        return m.school.name if m else None
+
+    def get_school_code(self, obj):
+        m = obj.active_membership
+        return m.school.code if m else None
+
+    def get_membership_status(self, obj):
+        m = obj.active_membership
+        return m.status if m else 'unaffiliated'
     
     def get_class_name(self, obj):
         if obj.role == 'student':
@@ -1271,3 +1447,24 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
                 'grade': obj.exam_result.grade
             }
         return None
+
+class CertificateSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    student_svc_number = serializers.CharField(
+        source='student.svc_number', read_only=True
+    )
+    class_name = serializers.CharField(
+        source='class_obj.name', read_only=True
+    )
+    issued_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Certificate
+        fields = '__all__'
+        read_only_fields = ('certificate_number', 'issued_at', 'school')
+
+    def get_student_name(self, obj):
+        return obj.student.get_full_name()
+
+    def get_issued_by_name(self, obj):
+        return obj.issued_by.get_full_name() if obj.issued_by else None
