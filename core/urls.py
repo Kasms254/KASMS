@@ -10,7 +10,7 @@ from .views import (
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
-    login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
+   csrf_token_view,login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 from .performance_viewsets import(
     SubjectPerformanceViewSet, ClassPerformanceViewSet
 )
@@ -68,6 +68,7 @@ urlpatterns = [
     path('auth/change-password/', change_password_view, name='change_password'),
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
+    path('auth/csrf/', csrf_token_view, name="csrf-token"),
 
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),

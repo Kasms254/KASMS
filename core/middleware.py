@@ -11,39 +11,34 @@ logger = logging.getLogger(__name__)
 
 def get_user_from_jwt(request):
 
-    auth_header = request.headers.get('Authorization', '')
-    
-    if not auth_header.startswith('Bearer '):
-        logger.debug("No Bearer token in Authorization header")
+    raw_token = None
+    raw_token = request.COOKIES.get(ACCESS_COOKIE_NAME)
+
+    if not raw_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            raw_token = auth_header[7:]
+
+    if not raw_token:
         return None
-    
-    token = auth_header[7:]  
-    
-    if not token:
-        logger.debug("Empty token after Bearer prefix")
-        return None
-    
+
     try:
-        access_token = AccessToken(token)
-        user_id = access_token.get('user_id')
-        
+        access_token = AccessToken(raw_token)
+        user_id = access_token.get("user_id")
+
         if user_id:
-            user = User.all_objects.filter(id=user_id, is_active=True).first()
+            user = User.all_objects.filter(id=user_id, is_active=True). first()
             if user:
-                logger.debug(f"JWT validated - User: {user.username}, School: {user.school}")
+                logger.debug(f"JWT validated -User: {user.username}, School: {user.school}")
             else:
                 logger.warning(f"No active user found for user_id: {user_id}")
-            return user
+                return user
         else:
             logger.warning("No user_id in token payload")
             return None
-            
+
     except TokenError as e:
         logger.debug(f"Token validation error: {e}")
-        return None
-        
-    except Exception as e:
-        logger.error(f"Unexpected error in JWT validation: {e}", exc_info=True)
         return None
 
 class TenantMiddleware(MiddlewareMixin):
