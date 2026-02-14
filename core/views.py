@@ -1609,6 +1609,13 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         class_obj = exam.subject.class_obj
 
+        # Prevent generating results for a closed class
+        if class_obj.is_closed:
+            return Response(
+                {'error': 'Cannot generate exam results for a closed class.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         enrollments = Enrollment.objects.filter(
             class_obj=class_obj,
             is_active =True
@@ -1792,6 +1799,11 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         with transaction.atomic():
             old_instance = self.get_object()
+
+            # Prevent grading if the class is closed
+            if old_instance.exam.subject.class_obj.is_closed:
+                raise ValidationError("Cannot update exam results for a closed class.")
+
             was_graded = old_instance.is_submitted and old_instance.marks_obtained is not None
 
             instance = serializer.save()
@@ -1821,6 +1833,13 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                         id = result_data.get('id'),
                         exam__subject__instructor = request.user
                     )
+
+                    # Prevent grading if the class is closed
+                    if result.exam.subject.class_obj.is_closed:
+                        errors.append(
+                            f"Result {result_data.get('id')}: cannot grade — class is closed"
+                        )
+                        continue
 
                     result.marks_obtained = result_data['marks_obtained']
                     result.remarks = result_data.get('remarks', '')
@@ -1852,6 +1871,13 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def grade(self, request, pk=None):
         result = self.get_object()
+
+        # Prevent grading if the class is closed
+        if result.exam.subject.class_obj.is_closed:
+            return Response(
+                {'error': 'Cannot grade exams for a closed class.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if request.user.role == 'instructor':
             if result.exam.subject.instructor != request.user:
@@ -4389,4 +4415,3 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             return queryset.filter(school=user.school)
 
         return queryset.none()
-

@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     User, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -283,3 +283,12 @@ class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
         list_filter = ['is_active']
         search_fields = ['name']
         ordering = ['-name']
+
+
+@admin.register(Certificate)
+class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['id', 'school', 'student', 'certificate_number', 'issued_by']
+    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number']
+    list_filter = ['issued_by', 'school']
+    ordering = ['-school', 'certificate_number']
+    raw_id_fields = ['school', 'student', 'issued_by']

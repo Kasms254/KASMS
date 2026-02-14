@@ -405,19 +405,36 @@ class UserSerializer(serializers.ModelSerializer):
         existing_user = User.all_objects.filter(svc_number=value).first()
         
         if existing_user and (not self.instance or self.instance.pk != existing_user.pk):
+            active_membership = SchoolMembership.all_objects.filter(
+                user=existing_user,
+                status='active'
+            ).select_related('school').first()
+
             if role == 'student':
-                active_enrollment = Enrollment.all_objects.filter(
-                    student=existing_user,
-                    is_active=True
-                ).select_related('school').first()
-                
-                if active_enrollment and active_enrollment.school != school:
-                    raise serializers.ValidationError(
-                        f"This service number has an active enrollment in {active_enrollment.school.name}. "
-                        "They must complete or withdraw from that enrollment first."
-                    )
+                if active_membership:
+                    active_enrollment = Enrollment.all_objects.filter(
+                        student=existing_user,
+                        is_active=True
+                    ).select_related('school').first()
+
+                    if active_enrollment:
+                        raise serializers.ValidationError(
+                            f"This service number has an active enrollment in {active_enrollment.school.name}. "
+                            "They must complete or withdraw from that enrollment first."
+                        )
+                    else:
+                        raise serializers.ValidationError(
+                            f"This service number has an active membership at {active_membership.school.name}. "
+                            "Their membership must be completed first."
+                        )
+
+                self._existing_user = existing_user
             else:
-                raise serializers.ValidationError("This service number is already in use.")
+                if active_membership:
+                    raise serializers.ValidationError(
+                        f"This service number is already in use at {active_membership.school.name}."
+                    )
+                self._existing_user = existing_user
         
         return value
     
@@ -428,11 +445,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         school_from_data = validated_data.pop('school', None)
 
-        user = User(**validated_data)
-        user.set_password(password)
-        user.must_change_password = True
-        user.save()
-
         request = self.context.get('request')
         school = (
             school_from_data
@@ -440,14 +452,41 @@ class UserSerializer(serializers.ModelSerializer):
             or (class_obj.school if class_obj else None)
         )
 
+        existing_user = getattr(self, '_existing_user', None)
+
+        if existing_user:
+            user = existing_user
+            for attr, value in validated_data.items():
+                if attr not in ('username',):  # Don't overwrite username
+                    setattr(user, attr, value)
+            user.set_password(password)
+            user.must_change_password = True
+            user.is_active = True
+            user.save()
+        else:
+            # Brand new user
+            user = User(**validated_data)
+            user.set_password(password)
+            user.must_change_password = True
+            user.save()
+
         membership = None
         if school:
-            membership = SchoolMembership.objects.create(
+            # Check there's no existing active membership for this user at this school
+            existing_membership = SchoolMembership.all_objects.filter(
                 user=user,
                 school=school,
-                role=user.role,
                 status=SchoolMembership.Status.ACTIVE,
-            )
+            ).first()
+            if not existing_membership:
+                membership = SchoolMembership.objects.create(
+                    user=user,
+                    school=school,
+                    role=user.role,
+                    status=SchoolMembership.Status.ACTIVE,
+                )
+            else:
+                membership = existing_membership
 
         if user.role == 'student' and class_obj:
             enrolled_by = request.user if request else None

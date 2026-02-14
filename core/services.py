@@ -114,8 +114,6 @@ def issue_certificate(enrollment, issued_by):
 
     class_obj = enrollment.class_obj
 
-    if not class_obj.is_closed:
-        return None, 'Class must be closed before issuing certificates.'
 
     status = get_class_completion_status(class_obj, enrollment.student)
     if not status['is_academically_complete']:
@@ -150,6 +148,19 @@ def close_class(class_obj, closed_by):
     if class_obj.is_closed:
         return False, 'Class is already closed.'
 
+    active_without_cert = Enrollment.all_objects.filter(
+        class_obj=class_obj,
+        is_active=True
+    ).exclude(
+        certificate__isnull=False
+    ).count()
+
+    if active_without_cert > 0:
+        return False, (
+            f'{active_without_cert} student(s) still have active enrollments without certificates. '
+            'Issue certificates to all eligible students before closing the class.'
+        )
+
     class_obj.is_closed = True
     class_obj.closed_at = timezone.now()
     class_obj.closed_by = closed_by
@@ -157,10 +168,8 @@ def close_class(class_obj, closed_by):
 
     return True, None
 
-
 def bulk_issue_certificates(class_obj, issued_by):
-    if not class_obj.is_closed:
-        return {'error': 'Class must be closed first.'}
+
 
     enrollments = Enrollment.all_objects.filter(
         class_obj=class_obj,
@@ -199,7 +208,6 @@ def bulk_issue_certificates(class_obj, issued_by):
         'skipped': skipped,
         'failed': failed,
     }
-
 
 def _try_complete_membership(enrollment):
 
