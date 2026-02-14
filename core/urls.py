@@ -58,6 +58,10 @@ router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
 
 # membership
 router.register(r'memberships', SchoolMembershipViewSet, basename='membership' )
+
+# certificate
+router.register(r'certificates', CertificateViewSet, basename='certificate')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 

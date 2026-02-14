@@ -1447,3 +1447,25 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
                 'grade': obj.exam_result.grade
             }
         return None
+
+class CertificateSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    student_svc_number = serializers.CharField(
+        source='student.svc_number', read_only=True
+    )
+    class_name = serializers.CharField(
+        source='class_obj.name', read_only=True
+    )
+    issued_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Certificate
+        fields = '__all__'
+        read_only_fields = ('certificate_number', 'issued_at', 'school')
+
+    def get_student_name(self, obj):
+        return obj.student.get_full_name()
+
+    def get_issued_by_name(self, obj):
+        return obj.issued_by.get_full_name() if obj.issued_by else None
+        

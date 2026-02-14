@@ -324,7 +324,12 @@ class Class(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     capacity = models.IntegerField(validators=[MinValueValidator(1)], default=30)
     is_active = models.BooleanField(default=True)
-
+    is_closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
+    )
+    
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
@@ -396,7 +401,16 @@ class Enrollment(models.Model):
     enrollment_date = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     completion_date = models.DateField(null=True, blank=True)
-
+    completed_via = models.CharField(
+        max_length=20,
+        choices=[
+            ('manual', 'Manual'),
+            ('certificate', 'Certificate Issued'),
+            ('admin_closure', 'Admin Class Closure'),
+        ],
+        null=True, blank=True
+    )
+    
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
@@ -961,3 +975,66 @@ class PersonalNotification(models.Model):
         ordering = ['-created_at']
         indexes = [models.Index(fields=['user', 'is_read']), models.Index(fields=['user', 'created_at']), models.Index(fields=['notification_type'])]
 
+# certificate
+
+class Certificate(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name='certificates',
+        null=True, blank=True
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        limit_choices_to={'role': 'student'},
+        related_name='certificates'
+    )
+    enrollment = models.OneToOneField(
+        Enrollment, on_delete=models.CASCADE,
+        related_name='certificate'
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='certificates'
+    )
+    certificate_number = models.CharField(max_length=100, unique=True)
+    issued_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificates_issued'
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'certificates'
+        ordering = ['-issued_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'enrollment'],
+                name='unique_certificate_per_enrollment'
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.certificate_number} — {self.student.svc_number}"
+
+    def save(self, *args, **kwargs):
+        if not self.school:
+            self.school = self.class_obj.school
+        if not self.certificate_number:
+            self.certificate_number = self._generate_number()
+        super().save(*args, **kwargs)
+
+    def _generate_number(self):
+        """Generate: SCHOOL_CODE/YEAR/SEQUENCE"""
+        import datetime
+        year = datetime.date.today().year
+        school_code = self.school.code if self.school else 'GEN'
+        count = Certificate.all_objects.filter(
+            school=self.school,
+            issued_at__year=year
+        ).count() + 1
+        return f"{school_code}/{year}/{count:04d}"
