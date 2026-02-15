@@ -127,7 +127,7 @@ class CourseAdmin(admin.ModelAdmin):
         
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
+    list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active','is_closed', 'current_enrollment', 'enrollment_status')
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
     ordering = ['-created_at']
