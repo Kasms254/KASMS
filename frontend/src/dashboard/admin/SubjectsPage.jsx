@@ -485,6 +485,11 @@ export default function SubjectsPage() {
                     </button>
                   </th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Subject Code <SortIcon field="code" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
                     <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
                       Class <SortIcon field="class" />
                     </button>
@@ -511,6 +516,7 @@ export default function SubjectsPage() {
                 {paginatedSubjects.map((s) => (
                   <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700 font-medium">{s.name ?? s.title ?? 'Untitled'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{s.subject_code ?? s.code ?? '-'}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
                     </td>
@@ -549,6 +555,11 @@ export default function SubjectsPage() {
                     </button>
                   </th>
                   <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
+                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                      Code <SortIcon field="code" />
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
                     <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
                       Class <SortIcon field="class" />
                     </button>
@@ -571,6 +582,7 @@ export default function SubjectsPage() {
                   <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-3 py-3">
                       <div className="font-medium text-black text-sm">{s.name ?? s.title ?? 'Untitled'}</div>
+                      <div className="text-xs text-neutral-500">{s.subject_code ?? s.code ?? '-'}</div>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
