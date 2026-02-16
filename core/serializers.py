@@ -638,37 +638,33 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         return attrs
 
 class NoticeSerializer(serializers.ModelSerializer):
-    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+
+    priority_display = serializers.CharField(
+        source='get_priority_display', read_only=True,
+    )
     created_by_name = serializers.SerializerMethodField(read_only=True)
-    is_expired = serializers.SerializerMethodField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
+    read_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Notice
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at', 'created_by', 'is_expired')
+        read_only_fields = ('created_at', 'updated_at', 'created_by')
 
-    def get_is_expired(self, obj):
-        if not obj.expiry_date:
-            return False
-        return obj.expiry_date < timezone.now().date()
-    
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
 
+    def get_is_read(self, obj):
+        return getattr(obj, '_user_read_at', None) is not None
+
+    def get_read_at(self, obj):
+        return getattr(obj, '_user_read_at', None)
+
     def validate_expiry_date(self, value):
-        if value and value < timezone.now().date():
+        if value and value < timezone.now():
             raise serializers.ValidationError("Expiry date cannot be in the past.")
         return value
-
-    def get_is_read(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return NoticeReadStatus.objects.filter(
-                user=request.user,
-                notice=obj,
-            ).exists()
-        return False
 
 class ExamAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -876,10 +872,16 @@ class BulkAttendanceSerializer(serializers.Serializer):
         return value
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
+
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
-    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    subject_name = serializers.CharField(
+        source='subject.name', read_only=True, allow_null=True,
+    )
     created_by_name = serializers.SerializerMethodField(read_only=True)
-    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    priority_display = serializers.CharField(
+        source='get_priority_display', read_only=True,
+    )
+    is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
     read_at = serializers.SerializerMethodField()
 
@@ -890,28 +892,12 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
-    
+
     def get_is_read(self, obj):
-        request = self.context.get('request')
-        if not request or not request.user or not request.user.is_authenticated:
-            return False
-        return ClassNoticeReadStatus.objects.filter(
-            user=request.user,
-            class_notice=obj
-        ).exists()
-    
+        return getattr(obj, '_user_read_at', None) is not None
+
     def get_read_at(self, obj):
-        request = self.context.get('request')
-        if not request or not request.user or not request.user.is_authenticated:
-            return None
-        try:
-            read_status = ClassNoticeReadStatus.objects.get(
-                user=request.user,
-                class_notice=obj
-            )
-            return read_status.read_at
-        except ClassNoticeReadStatus.DoesNotExist:
-            return None
+        return getattr(obj, '_user_read_at', None)
 
 class ExamReportSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
