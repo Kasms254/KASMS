@@ -3,8 +3,7 @@ from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
-    AttendanceSession, SessionAttendance,
-)
+    AttendanceSession, SessionAttendance)
 from django.conf import settings
 import io
 import os
@@ -170,13 +169,11 @@ def calculate_attendance_percentage(class_obj, student) -> Optional[Decimal]:
     return Decimal(str(round((attended / total_sessions) * 100, 2)))
 
 def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = None, generate_pdf: bool = True, ):
-    # 1. Guard
     if hasattr(enrollment, 'certificate'):
         return None, 'Certificate already issued for this enrollment.'
 
     class_obj = enrollment.class_obj
 
-    # 2. Validate academic completion
     status = get_class_completion_status(class_obj, enrollment.student)
     if not status['is_academically_complete']:
         incomplete = [
@@ -184,15 +181,12 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
         ]
         return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
 
-    # 3. Resolve template
     if not template:
         template = _resolve_default_template(enrollment.school)
 
-    # 4. Calculate grade + attendance
     grade_data = calculate_student_grade(class_obj, enrollment.student)
     attendance_pct = calculate_attendance_percentage(class_obj, enrollment.student)
 
-    # 5. Create Certificate
     certificate = Certificate.objects.create(
         student=enrollment.student,
         enrollment=enrollment,
@@ -206,18 +200,15 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
         attendance_percentage=attendance_pct,
     )
 
-    # 6. Mark enrollment complete
     enrollment.completion_date = timezone.now().date()
-    enrollment.is_active = False
+    # enrollment.is_active = False
     enrollment.completed_via = 'certificate'
     enrollment.save(update_fields=[
-        'completion_date', 'is_active', 'completed_via',
+        'completion_date', 'completed_via',
     ])
 
-    # 7. Membership lifecycle
-    _try_complete_membership(enrollment)
+    # _try_complete_membership(enrollment)
 
-    # 8. PDF generation (non-blocking — failure is logged, not raised)
     if generate_pdf:
         try:
             generator = CertificateGenerator(certificate)
@@ -255,9 +246,21 @@ def close_class(class_obj, closed_by):
         )
 
     class_obj.is_closed = True
+    class_obj.is_active = False
     class_obj.closed_at = timezone.now()
     class_obj.closed_by = closed_by
-    class_obj.save(update_fields=['is_closed', 'closed_at', 'closed_by'])
+    class_obj.save(update_fields=['is_closed', 'is_active','closed_at', 'closed_by'])
+
+    enrollments = Enrollment.all_objects.filter(class_obj=class_obj, is_active=True)
+    for enrollment in enrollments:
+        enrollment.is_active = False
+        if not enrollment.completion_date:
+            enrollment.completion_date = timezone.now().date()
+        if not enrollment.completed_via:
+            enrollment.completed_via = 'admin_closure'
+        enrollment.save(update_fields=['is_active', 'completion_date', 'completed_via'])
+
+        _try_complete_membership(enrollment)
 
     return True, None
 
@@ -462,7 +465,6 @@ class CertificateImageResolver:
             '.png': 'image/png', '.gif': 'image/gif',
             '.webp': 'image/webp', '.svg': 'image/svg+xml',
         }.get(ext, 'image/png')
-
 
 class CertificateGenerator:
 

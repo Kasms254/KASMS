@@ -1085,12 +1085,14 @@ class SubjectViewSet(viewsets.ModelViewSet):
             school = get_current_school()
             if school:
                 return queryset.filter(school=school)
-            return queryset
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
         
-        if user.school:
-            return queryset.filter(school=user.school)
+        queryset = queryset.exclude(class_obj__is_closed=True)
         
-        return queryset.none()
+        return queryset
 
 
     def perform_create(self, serializer):
@@ -1550,6 +1552,8 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
+        
+        queryset = queryset.exclude(subject__class_obj__is_closed=True)
 
         return queryset
     
@@ -1719,6 +1723,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(exam__subject__instructor=user)
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
+
+        queryset = queryset.exclude(exam__subject__class_obj__is_closed=True)
 
         return queryset
 
@@ -4411,7 +4417,7 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         if self.action == 'list':
-            return CertificateTemplateListSerializer
+            return CertificateTemplateSerializer
         return CertificateTemplateSerializer
 
     def perform_create(self, serializer):
