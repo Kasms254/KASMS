@@ -10,6 +10,7 @@ import io
 import os
 import base64
 import logging
+logger = logging.getLogger(__name__)
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
@@ -342,8 +343,8 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
     overflow: hidden; box-sizing: border-box; padding: 15mm 20mm; }}
   .border-outer {{ position: absolute; top: 8mm; left: 8mm; right: 8mm; bottom: 8mm;
     border: 3px solid {primary_color}; }}
-  .border-inner {{ position: absolute; top: 11mm; left: 11mm; right: 11mm; bottom: 11mm;
-    border: 1px solid {primary_color}; }}
+    .border-inner {{ position: absolute; top: 11mm; left: 11mm; right: 11mm; bottom: 11mm;
+        border: 1px solid {secondary_color}; }}
   .content {{ position: relative; z-index: 1; text-align: center; height: 100%;
     display: flex; flex-direction: column; align-items: center; justify-content: center; }}
   .logo {{ max-height: 60px; max-width: 200px; margin-bottom: 10px; }}

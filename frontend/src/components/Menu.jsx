@@ -78,6 +78,12 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'Image',
+        label: 'Certificate Templates',
+        href: '/list/certificate-templates',
+        visible: ['admin'],
+      },
+      {
         icon: 'Award',
         label: 'My Certificates',
         href: '/list/my-certificates',

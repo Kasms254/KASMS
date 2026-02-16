@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
 export default function StudentCertificates() {
+  const toast = useToast()
   const [certificates, setCertificates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -70,6 +72,30 @@ export default function StudentCertificates() {
                     <LucideIcons.Award className="w-5 h-5 text-emerald-600" />
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">Issued</span>
+                </div>
+                <div className="p-4 sm:p-5 border-t border-neutral-100 flex items-center justify-end gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const blob = await api.downloadCertificatePdf(cert.id)
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        const safeNumber = (cert.certificate_number || cert.id).toString().replace(/\//g, '_')
+                        a.download = `certificate_${safeNumber}.pdf`
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                        URL.revokeObjectURL(url)
+                        toast?.success?.('Certificate downloaded')
+                      } catch (err) {
+                        toast?.error?.(err?.message || 'Failed to download certificate')
+                      }
+                    }}
+                    className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
+                  >
+                    Download
+                  </button>
                 </div>
 
                 <div className="mb-3">

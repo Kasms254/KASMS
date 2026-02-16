@@ -121,6 +121,29 @@ export default function Certificates() {
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued:</span><span className="text-black">{formatDate(cert.issued_at)}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_name || '—'}</span></div>
                 </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const blob = await api.downloadCertificatePdf(cert.id)
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        const safeNumber = (cert.certificate_number || cert.id).toString().replace(/\//g, '_')
+                        a.download = `certificate_${safeNumber}.pdf`
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                        URL.revokeObjectURL(url)
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }}
+                    className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
+                  >
+                    Download
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -136,6 +159,7 @@ export default function Certificates() {
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Class</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Issued Date</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Issued By</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 bg-white">
@@ -147,6 +171,32 @@ export default function Certificates() {
                     <td className="px-4 py-3 text-sm text-neutral-700">{cert.class_name || '—'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{formatDate(cert.issued_at)}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{cert.issued_by_name || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const blob = await api.downloadCertificatePdf(cert.id)
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              const safeNumber = (cert.certificate_number || cert.id).toString().replace(/\//g, '_')
+                              a.download = `certificate_${safeNumber}.pdf`
+                              document.body.appendChild(a)
+                              a.click()
+                              a.remove()
+                              URL.revokeObjectURL(url)
+                            } catch (err) {
+                              console.error(err)
+                            }
+                          }}
+                          className="px-2 py-1 rounded text-xs bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition"
+                          title="Download"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

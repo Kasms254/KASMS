@@ -281,7 +281,7 @@ export default function ClassesList(){
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No Classes Found</div> : classes.map(c => (
-            <div key={c.id} className="relative h-full">
+            <div key={c.id} className="relative h-full cursor-pointer" onClick={() => navigate(`/list/classes/${c.id}/students`)}>
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
@@ -300,7 +300,7 @@ export default function ClassesList(){
                   </div>
                   <div className="mt-2 flex gap-2">
                     {user && user.role === 'admin' && (
-                    <button onClick={async () => {
+                    <button onClick={async (e) => { e.stopPropagation();
                     // ensure instructors list is loaded for the select
                     try {
                       const ins = await getAllInstructors()
@@ -325,7 +325,7 @@ export default function ClassesList(){
                     }} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition" aria-label={`Edit ${c.name || 'class'}`}>Edit</button>
                   )}
                   {user && user.role === 'admin' && (
-                    <button onClick={() => navigate(`/list/classes/${c.id}/certificates`)} className="px-3 py-1 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition" aria-label={`Certificates for ${c.name || 'class'}`}>Certificates</button>
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/list/classes/${c.id}/certificates`) }} className="px-3 py-1 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition" aria-label={`Certificates for ${c.name || 'class'}`}>Certificates</button>
                   )}
                   </div>
                 </div>

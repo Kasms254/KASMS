@@ -60,7 +60,7 @@ router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
 router.register(r'memberships', SchoolMembershipViewSet, basename='membership' )
 
 # certificate templates
-router.register(r'certificate-templates', CertificateTemplateViewSet, basename='certificate-template')
+router.register(r'certificate_templates', CertificateTemplateViewSet, basename='certificate_template')
 
 # certificates 
 router.register(r'certificates', CertificateViewSet, basename='certificate')

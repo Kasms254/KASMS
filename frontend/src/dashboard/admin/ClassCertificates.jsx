@@ -20,6 +20,8 @@ export default function ClassCertificates() {
   const [issueReport, setIssueReport] = useState(null)
   const [closing, setClosing] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null)
 
   const loadCompletionStatus = useCallback(async () => {
     setLoading(true)
@@ -35,6 +37,20 @@ export default function ClassCertificates() {
   }, [classId])
 
   useEffect(() => { loadCompletionStatus() }, [loadCompletionStatus])
+
+  useEffect(() => {
+    let mounted = true
+    async function loadTemplates() {
+      try {
+        const res = await api.getCertificateTemplates()
+        if (mounted && res && res.results) setTemplates(res.results)
+      } catch (e) {
+        // ignore; templates optional
+      }
+    }
+    loadTemplates()
+    return () => { mounted = false }
+  }, [])
 
   async function handleBulkIssue() {
     setIssuingAll(true)
@@ -61,7 +77,7 @@ export default function ClassCertificates() {
   async function handleSingleIssue(enrollmentId, studentName) {
     setIssuingSingle(enrollmentId)
     try {
-      const result = await api.issueCertificateSingle(classId, enrollmentId)
+      const result = await api.issueCertificateSingle(classId, enrollmentId, selectedTemplateId)
       reportSuccess(`Certificate issued for ${studentName}: ${result.certificate_number}`)
       await loadCompletionStatus()
     } catch (err) {
@@ -108,15 +124,27 @@ export default function ClassCertificates() {
           </div>
         </div>
 
-        {!loading && !error && classInfo.is_closed && (
-          <button
-            onClick={handleBulkIssue}
-            disabled={issuingAll || academicallyComplete === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
-          >
-            <LucideIcons.Award className="w-4 h-4" />
-            {issuingAll ? 'Issuing...' : 'Issue All Certificates'}
-          </button>
+        {!loading && !error && (
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedTemplateId || ''}
+              onChange={(e) => setSelectedTemplateId(e.target.value || null)}
+              className="px-3 py-2 rounded-md border border-neutral-200 bg-white text-sm"
+            >
+              <option value="">Use default template</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleBulkIssue}
+              disabled={issuingAll || academicallyComplete === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
+            >
+              <LucideIcons.Award className="w-4 h-4" />
+              {issuingAll ? 'Issuing...' : 'Issue All Certificates'}
+            </button>
+          </div>
         )}
       </header>
 
@@ -131,7 +159,7 @@ export default function ClassCertificates() {
                 <LucideIcons.AlertCircle className="w-5 h-5 text-amber-600" />
               )}
               <span className={`text-sm font-medium ${classInfo.is_closed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {classInfo.is_closed ? 'Class is closed — certificates can be issued' : 'Class is still open — close the class before issuing certificates'}
+                {classInfo.is_closed ? 'Class is closed — certificates can be issued' : 'Class is still open — certificates may still be issued; close the class when ready (closing requires all eligible students to have certificates)'}
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm">
@@ -227,7 +255,7 @@ export default function ClassCertificates() {
                     {st.is_academically_complete ? 'Complete' : 'Pending'}
                   </span>
 
-                  {classInfo.is_closed && st.is_academically_complete && (
+                    {st.is_academically_complete && (
                     <button
                       onClick={() => handleSingleIssue(st.enrollment_id, st.student_name)}
                       disabled={issuingSingle === st.enrollment_id}
