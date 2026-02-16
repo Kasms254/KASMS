@@ -5,7 +5,7 @@ from .views import (
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView, CertificatePublicVerificationView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
@@ -59,7 +59,10 @@ router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
 # membership
 router.register(r'memberships', SchoolMembershipViewSet, basename='membership' )
 
-# certificate
+# certificate templates
+router.register(r'certificate-templates', CertificateTemplateViewSet, basename='certificate-template')
+
+# certificates 
 router.register(r'certificates', CertificateViewSet, basename='certificate')
 
 def home(request):

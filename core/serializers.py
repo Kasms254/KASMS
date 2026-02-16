@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -1487,23 +1487,154 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
             }
         return None
 
+class CertificateTemplateSerializer(serializers.ModelSerializer):
+
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    effective_colors = serializers.SerializerMethodField(read_only=True)
+    has_logo = serializers.SerializerMethodField(read_only=True)
+    has_signature = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = CertificateTemplate
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_effective_colors(self, obj):
+        return obj.get_effective_colors()
+
+    def get_has_logo(self, obj):
+        logo = obj.get_effective_logo()
+        return logo is not None and bool(logo.name)
+
+    def get_has_signature(self, obj):
+        return bool(obj.signature_image and obj.signature_image.name)
+
+
 class CertificateSerializer(serializers.ModelSerializer):
-    student_name = serializers.SerializerMethodField()
-    student_svc_number = serializers.CharField(
-        source='student.svc_number', read_only=True
+
+    student_name = serializers.CharField(read_only=True)
+    student_svc_number = serializers.CharField(read_only=True)
+    student_rank = serializers.CharField(read_only=True)
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    school_code = serializers.CharField(source='school.code', read_only=True)
+    class_name = serializers.CharField(read_only=True)
+    course_name = serializers.CharField(read_only=True)
+    template_name = serializers.CharField(
+        source='template.name', read_only=True, allow_null=True,
     )
-    class_name = serializers.CharField(
-        source='class_obj.name', read_only=True
-    )
-    issued_by_name = serializers.SerializerMethodField()
+    issued_by_name = serializers.SerializerMethodField(read_only=True)
+    revoked_by_name = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_valid = serializers.BooleanField(read_only=True)
+    verification_url = serializers.CharField(read_only=True)
+    download_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Certificate
         fields = '__all__'
-        read_only_fields = ('certificate_number', 'issued_at', 'school')
-
-    def get_student_name(self, obj):
-        return obj.student.get_full_name()
+        read_only_fields = [
+            'id', 'certificate_number', 'verification_code',
+            'student_name', 'student_svc_number', 'student_rank',
+            'course_name', 'class_name',
+            'created_at', 'updated_at',
+            'download_count', 'last_downloaded_at',
+            'view_count', 'last_viewed_at',
+            'file_generated_at', 'issued_at',
+        ]
 
     def get_issued_by_name(self, obj):
         return obj.issued_by.get_full_name() if obj.issued_by else None
+
+    def get_revoked_by_name(self, obj):
+        return obj.revoked_by.get_full_name() if obj.revoked_by else None
+
+    def get_download_url(self, obj):
+        if obj.certificate_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.certificate_file.url)
+            return obj.certificate_file.url
+        return None
+
+class CertificateListSerializer(serializers.ModelSerializer):
+
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_valid = serializers.BooleanField(read_only=True)
+    issued_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Certificate
+        fields = [
+            'id', 'certificate_number', 'verification_code',
+            'student_name', 'student_svc_number', 'student_rank',
+            'course_name', 'class_name',
+            'final_grade', 'final_percentage',
+            'issued_at', 'completion_date',
+            'status', 'status_display', 'is_valid',
+            'school', 'school_name',
+            'issued_by_name',
+            'download_count', 'view_count',
+        ]
+
+    def get_issued_by_name(self, obj):
+        return obj.issued_by.get_full_name() if obj.issued_by else None
+
+
+class CertificateVerificationSerializer(serializers.Serializer):
+
+    is_valid = serializers.BooleanField()
+    certificate_number = serializers.CharField()
+    student_name = serializers.CharField()
+    student_svc_number = serializers.CharField(allow_blank=True)
+    student_rank = serializers.CharField(allow_blank=True)
+    course_name = serializers.CharField()
+    class_name = serializers.CharField()
+    school_name = serializers.CharField()
+    final_grade = serializers.CharField(allow_blank=True)
+    final_percentage = serializers.DecimalField(
+        max_digits=5, decimal_places=2, allow_null=True,
+    )
+    issued_at = serializers.DateTimeField()
+    completion_date = serializers.DateField()
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    revocation_reason = serializers.CharField(allow_blank=True, required=False)
+    revoked_at = serializers.DateTimeField(allow_null=True, required=False)
+
+
+class CertificateDownloadLogSerializer(serializers.ModelSerializer):
+
+    certificate_number = serializers.CharField(
+        source='certificate.certificate_number', read_only=True,
+    )
+    downloaded_by_name = serializers.SerializerMethodField(read_only=True)
+    download_type_display = serializers.CharField(
+        source='get_download_type_display', read_only=True,
+    )
+
+    class Meta:
+        model = CertificateDownloadLog
+        fields = '__all__'
+        read_only_fields = ['id', 'downloaded_at']
+
+    def get_downloaded_by_name(self, obj):
+        return obj.downloaded_by.get_full_name() if obj.downloaded_by else 'Anonymous'
+
+
+class CertificateStatsSerializer(serializers.Serializer):
+
+    total_certificates = serializers.IntegerField()
+    issued_count = serializers.IntegerField()
+    revoked_count = serializers.IntegerField()
+    total_downloads = serializers.IntegerField()
+    total_views = serializers.IntegerField()
+    certificates_this_month = serializers.IntegerField()
+    certificates_this_year = serializers.IntegerField()
+
+
+
+
+
+
