@@ -1581,7 +1581,11 @@ class CertificateListSerializer(serializers.ModelSerializer):
     def get_issued_by_name(self, obj):
         return obj.issued_by.get_full_name() if obj.issued_by else None
 
-
+class CertificateTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CertificateTemplate
+        fields = "__all__"
+        
 class CertificateVerificationSerializer(serializers.Serializer):
 
     is_valid = serializers.BooleanField()
