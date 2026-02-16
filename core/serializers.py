@@ -501,7 +501,7 @@ class ClassListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Class
         fields = ['id', 'name', 'course', 'course_name', 'instructor', 'instructor_name', 
-                  'start_date', 'end_date', 'capacity', 'current_enrollment', 'enrollment_status', 'is_active']
+                  'start_date', 'end_date', 'capacity', 'current_enrollment', 'enrollment_status', 'is_active', 'class_code']
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
