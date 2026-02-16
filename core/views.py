@@ -630,7 +630,6 @@ class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
         read_serializer = ProfileReadSerializer(instance)
         return Response(read_serializer.data)
 
-
 class CourseViewSet(viewsets.ModelViewSet):
 
     queryset = Course.objects.all()
@@ -2123,12 +2122,21 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.now().date()
+
+        attendance_today = SessionAttendance.all_objects.filter(
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user),
+            marked_at__date=today
+        ).distinct().count()
+
         return Response({
             'total_classes': my_classes.count(),
             'total_subjects': my_subjects.count(),
             'total_students': my_students_count,
             'total_exams': my_exams.count(),
             'pending_results': pending_results,
+            'attendance_today': attendance_today,
             'classes': ClassSerializer(my_classes, many=True).data,
             'subjects': SubjectSerializer(my_subjects, many=True).data
         })
@@ -2173,12 +2181,21 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.now().date()
+
+        attendance_today = SessionAttendance.all_objects.filter(
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user),
+            marked_at__date=today
+        ).distinct().count()
+
         return Response({
             'classes': classes_count,
             'subjects': subjects_count,
             'students': students_count,
             'exams': exams_count,
-            'pending_grading': pending_grading
+            'pending_grading': pending_grading,
+            'attendance_today': attendance_today
 
         })
 
