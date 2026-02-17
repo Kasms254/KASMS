@@ -1013,19 +1013,31 @@ class ClassViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def issue_certificates(self, request, pk=None):
         class_obj = self.get_object()
-        result = bulk_issue_certificates(class_obj, request.user)
 
-        if 'error' in result:
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        result = bulk_issue_certificates(class_obj, request.user, template=template)
+
+        if 'error' in result:                         
             return Response(
                 {'error': result['error']},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        return Response({
+        return Response({                              
             'status': 'success',
             **result
         })
-
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def issue_certificate_single(self, request, pk=None):
@@ -1048,7 +1060,20 @@ class ClassViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        certificate, error = issue_certificate(enrollment, request.user)
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        certificate, error = issue_certificate(enrollment, request.user, template=template)
 
         if error:
             return Response(
