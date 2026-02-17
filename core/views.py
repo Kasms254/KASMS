@@ -3396,7 +3396,10 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             attendances = attendances.filter(marked_at__gte=start_date)
         if end_date:
             attendances = attendances.filter(marked_at__lte=end_date)
-
+        
+        attendance_status = request.query_params.get('status')
+        if attendance_status:
+            attendances = attendances.filter(status=attendance_status)
 
         serializer = self.get_serializer(attendances, many=True)
 
