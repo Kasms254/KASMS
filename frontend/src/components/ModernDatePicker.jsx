@@ -192,6 +192,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
           {/* Month/Year Header */}
           <div className="flex items-center justify-between mb-2">
             <button
+              type="button"
               onClick={goToPreviousMonth}
               className="p-1 hover:bg-gray-100 rounded transition-colors"
             >
@@ -203,6 +204,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
             </div>
 
             <button
+              type="button"
               onClick={goToNextMonth}
               className="p-1 hover:bg-gray-100 rounded transition-colors"
             >
@@ -256,6 +258,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
           {/* Footer Actions */}
           <div className="mt-2 pt-2 border-t border-gray-200 flex items-center justify-between">
             <button
+              type="button"
               onClick={goToToday}
               className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
             >
@@ -264,6 +267,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
             </button>
             {value && (
               <button
+                type="button"
                 onClick={clearDate}
                 className="text-xs text-gray-500 hover:text-gray-700 font-medium"
               >
