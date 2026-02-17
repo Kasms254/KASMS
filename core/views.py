@@ -478,7 +478,13 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def students(self, request):
-        queryset = self.get_queryset().filter(role='student', is_active=True)
+        queryset = self.get_queryset().filter(role='student')
+
+        is_active_param = request.query_params.get('is_active', None)
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
+        else:
+            queryset = queryset.filter(is_active=True)
         
         search_query = request.query_params.get('search', '').strip()
         if search_query:
