@@ -1769,14 +1769,68 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 'error': 'student_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        results = self.get_queryset().filter(
+            student_id=student_id, is_submitted=True, marks_obtained__isnull=False
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'student', 'graded_by')
         serializer = self.get_serializer(results, many=True)
 
+        subject_map = {}
+        for r in results:
+            subj = r.exam.subject
+            key = subj.id
+            if key not in subject_map:
+                subject_map[key] = {
+                    'subject_id': subj.id,
+                    'subject_name': subj.name,
+                    'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                    'total_marks_obtained': 0,
+                    'total_possible_marks': 0,
+                    'exams_taken': 0,
+                }
+            subject_map[key]['total_marks_obtained'] += float(r.marks_obtained)
+            subject_map[key]['total_possible_marks'] += r.exam.total_marks
+            subject_map[key]['exams_taken'] += 1
+
+        for subj_data in subject_map.values():
+            possible = subj_data['total_possible_marks']
+            obtained = subj_data['total_marks_obtained']
+            pct = (obtained / possible * 100) if possible > 0 else 0
+            subj_data['percentage'] = round(pct, 2)
+            subj_data['grade'] = self._calculate_overall_grade(pct)
+
+        subject_summaries = sorted(subject_map.values(), key=lambda x: x['subject_name'])
+
+        grand_total_obtained = sum(s['total_marks_obtained'] for s in subject_map.values())
+        grand_total_possible = sum(s['total_possible_marks'] for s in subject_map.values())
+        overall_percentage = (grand_total_obtained / grand_total_possible * 100) if grand_total_possible > 0 else 0
+        overall_grade = self._calculate_overall_grade(overall_percentage)
 
         return Response({
-            'count':results.count(),
-            'results':serializer.data
+            'count': results.count(),
+            'results': serializer.data,
+            'subject_summaries': subject_summaries,
+            'overall_summary': {
+                'total_marks_obtained': grand_total_obtained,
+                'total_possible_marks': grand_total_possible,
+                'overall_percentage': round(overall_percentage, 2),
+                'overall_grade': overall_grade,
+                'total_subjects': len(subject_summaries),
+                'total_exams_taken': results.count(),
+            },
         })
+
+    @staticmethod
+    def _calculate_overall_grade(percentage):
+        if percentage >= 90:
+            return 'A'
+        elif percentage >= 80:
+            return 'B'
+        elif percentage >= 70:
+            return 'C'
+        elif percentage >= 60:
+            return 'D'
+        else:
+            return 'F'
 
 
     def _create_grade_notification(self, exam_result):
@@ -1972,13 +2026,55 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 'error': 'student_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        results = self.get_queryset().filter(
+            student_id=student_id, is_submitted=True, marks_obtained__isnull=False
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'student', 'graded_by')
 
         serializer = self.get_serializer(results, many=True)
 
+        subject_map = {}
+        for r in results:
+            subj = r.exam.subject
+            key = subj.id
+            if key not in subject_map:
+                subject_map[key] = {
+                    'subject_id': subj.id,
+                    'subject_name': subj.name,
+                    'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                    'total_marks_obtained': 0,
+                    'total_possible_marks': 0,
+                    'exams_taken': 0,
+                }
+            subject_map[key]['total_marks_obtained'] += float(r.marks_obtained)
+            subject_map[key]['total_possible_marks'] += r.exam.total_marks
+            subject_map[key]['exams_taken'] += 1
+
+        for subj_data in subject_map.values():
+            possible = subj_data['total_possible_marks']
+            obtained = subj_data['total_marks_obtained']
+            pct = (obtained / possible * 100) if possible > 0 else 0
+            subj_data['percentage'] = round(pct, 2)
+            subj_data['grade'] = self._calculate_overall_grade(pct)
+
+        subject_summaries = sorted(subject_map.values(), key=lambda x: x['subject_name'])
+
+        grand_total_obtained = sum(s['total_marks_obtained'] for s in subject_map.values())
+        grand_total_possible = sum(s['total_possible_marks'] for s in subject_map.values())
+        overall_percentage = (grand_total_obtained / grand_total_possible * 100) if grand_total_possible > 0 else 0
+        overall_grade = self._calculate_overall_grade(overall_percentage)
+
         return Response({
             'count': results.count(),
-            'results':serializer.data
+            'results': serializer.data,
+            'subject_summaries': subject_summaries,
+            'overall_summary': {
+                'total_marks_obtained': grand_total_obtained,
+                'total_possible_marks': grand_total_possible,
+                'overall_percentage': round(overall_percentage, 2),
+                'overall_grade': overall_grade,
+                'total_subjects': len(subject_summaries),
+                'total_exams_taken': results.count(),
+            },
         })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
