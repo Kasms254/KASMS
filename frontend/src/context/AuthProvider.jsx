@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
                   ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
                   : null,
                 school_name: themeData.school_name || me.school_name,
+                school_short_name: themeData.school_short_name || '',
                 school_code: themeData.school_code || me.school_code,
               })
             }

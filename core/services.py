@@ -340,67 +340,105 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-  @page {{ size: A4 landscape; margin: 0; }}
+  @page {{ size: A4 portrait; margin: 0; }}
   body {{ margin: 0; padding: 0; font-family: 'Georgia', 'Times New Roman', serif; }}
-  .certificate {{ width: 297mm; height: 210mm; position: relative; background: #fff;
-    overflow: hidden; box-sizing: border-box; padding: 15mm 20mm; }}
-  .border-outer {{ position: absolute; top: 8mm; left: 8mm; right: 8mm; bottom: 8mm;
-    border: 3px solid {primary_color}; }}
-    .border-inner {{ position: absolute; top: 11mm; left: 11mm; right: 11mm; bottom: 11mm;
-        border: 1px solid {secondary_color}; }}
-  .content {{ position: relative; z-index: 1; text-align: center; height: 100%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; }}
-  .logo {{ max-height: 60px; max-width: 200px; margin-bottom: 10px; }}
-  .school-name {{ font-size: 14px; color: {secondary_color}; text-transform: uppercase;
-    letter-spacing: 2px; margin-bottom: 5px; }}
-  .header {{ font-size: 32px; color: {primary_color}; margin: 10px 0; font-weight: bold; }}
-  .certify-text {{ font-size: 14px; color: #555; margin: 8px 0; }}
-  .student-name {{ font-size: 28px; color: #222; font-weight: bold; margin: 5px 0;
-    border-bottom: 2px solid {accent_color}; display: inline-block; padding-bottom: 3px; }}
-  .rank-svc {{ font-size: 12px; color: #777; margin: 5px 0; }}
-  .course-name {{ font-size: 20px; color: {primary_color}; font-weight: bold; margin: 5px 0; }}
-  .class-name {{ font-size: 13px; color: #666; }}
-  .grade-info {{ font-size: 12px; color: #555; margin: 8px 0; }}
-  .footer-text {{ font-size: 10px; color: #888; margin-top: 8px; }}
-  .signatures {{ display: flex; justify-content: space-around; width: 80%; margin-top: 15px; }}
+  .certificate {{ width: 210mm; height: 297mm; position: relative; background: #fff;
+    overflow: hidden; box-sizing: border-box; }}
+  .border-outer {{ position: absolute; top: 3mm; left: 3mm; right: 3mm; bottom: 3mm;
+    border: 10px solid {primary_color}; }}
+  .border-inner {{ position: absolute; top: 5.5mm; left: 5.5mm; right: 5.5mm; bottom: 5.5mm;
+    border: 9px solid {secondary_color}; }}
+  .watermark {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 60%; opacity: 0.08; z-index: 0; pointer-events: none; }}
+  .content {{ position: absolute; top: 10mm; left: 10mm; right: 10mm; bottom: 10mm;
+    z-index: 1; text-align: center;
+    display: flex; flex-direction: column; align-items: center; }}
+  .top-row {{ position: relative; width: 100%; text-align: center; margin-bottom: 15px; }}
+  .cert-no {{ position: absolute; top: 0; left: 10mm; font-size: 13px;
+    font-weight: bold; color: #333; }}
+  .logo {{ max-height: 90px; max-width: 200px; }}
+  .school-name {{ font-family: 'Castellar', 'Copperplate Gothic Bold', 'Copperplate', serif;
+    font-size: 30px; color: #003366; text-transform: uppercase;
+    letter-spacing: 4px; margin: 55px 0 12px 0; font-weight: bold; }}
+  .school-sub {{ font-family: 'Castellar', 'Copperplate Gothic Bold', 'Copperplate', serif;
+    font-size: 30px; color: #003366; text-transform: uppercase;
+    letter-spacing: 4px; margin: 0 0 20px 0; font-weight: bold; }}
+  .header {{ font-family: 'Old English Text MT', 'UnifrakturMaguntia', 'Texturina', serif;
+    font-size: 64px; color: #cc0000; margin: 20px 0 35px 0; font-weight: normal;
+    line-height: 1.1; }}
+  .certify-text {{ font-size: 18px; color: #333; margin: 18px 0; }}
+  .student-name {{ font-size: 28px; color: #003366; font-weight: bold; margin: 20px 0;
+    font-style: italic; letter-spacing: 1px; }}
+  .course-name {{ font-size: 24px; color: #003366; font-weight: bold; font-style: italic;
+    margin: 18px 0 8px 0; text-transform: uppercase; }}
+  .class-name {{ font-size: 14px; color: #666; margin: 8px 0; }}
+  .date-line {{ font-size: 18px; color: #333; margin: 25px 0; }}
+  .date-value {{ color: #00b300; font-weight: bold; font-style: italic; font-size: 20px; }}
+  .spacer {{ flex: 1; }}
+  .bottom-section {{ width: 80%; margin-top: auto; margin-bottom: 25mm; }}
+  .grade-row {{ display: flex; align-items: baseline; justify-content: center;
+    margin-bottom: 8px; white-space: nowrap; }}
+  .grade-sig-line {{ width: 140px; border-top: 2px solid #333; display: inline-block;
+    vertical-align: middle; margin-right: 15px; }}
+  .grade-label {{ font-size: 22px; color: #333; font-weight: bold; margin-right: 15px; }}
+  .grade-value {{ font-size: 30px; color: #cc0000; font-weight: bold; margin-right: 15px; }}
+  .grade-sig-line-right {{ width: 140px; border-top: 2px solid #333; display: inline-block;
+    vertical-align: middle; margin-left: 15px; }}
+  .signatures {{ display: flex; justify-content: space-between; width: 100%;
+    padding: 0 15px; }}
   .signature-block {{ text-align: center; }}
-  .signature-image {{ max-height: 40px; margin-bottom: 3px; }}
-  .signature-line {{ width: 150px; border-top: 1px solid #333; margin: 0 auto 3px; }}
-  .signature-name {{ font-size: 12px; font-weight: bold; color: #333; }}
-  .signature-title {{ font-size: 10px; color: #666; }}
-  .cert-number {{ position: absolute; bottom: 15mm; left: 0; right: 0; text-align: center;
-    font-size: 8px; color: #aaa; }}
+  .signature-image {{ max-height: 50px; margin-bottom: 3px; }}
+  .signature-line {{ width: 160px; border-top: 2px solid #333; margin: 0 auto 5px; }}
+  .signature-name {{ font-size: 13px; font-weight: bold; color: #333; }}
+  .signature-title {{ font-size: 12px; color: #666; font-style: italic; }}
+  .cert-footer {{ position: absolute; bottom: 18mm; left: 20mm; right: 20mm;
+    text-align: center; font-size: 12px; color: #cc0000; font-style: italic;
+    font-weight: bold; }}
+  .cert-number {{ position: absolute; bottom: 13mm; left: 20mm; right: 20mm;
+    text-align: center; font-size: 8px; color: #aaa; }}
 </style>
 </head>
 <body>
 <div class="certificate">
   <div class="border-outer"></div>
   <div class="border-inner"></div>
+  {watermark_section}
   <div class="content">
-    {logo_section}
+    <div class="top-row">
+      <div class="cert-no">Cert No {certificate_number}</div>
+      {logo_section}
+    </div>
     <div class="school-name">{school_name}</div>
+    <div class="school-sub">{school_short_name}</div>
     <div class="header">{header_text}</div>
     <div class="certify-text">This is to certify that</div>
-    <div class="student-name">{student_name}</div>
-    <div class="rank-svc">{rank_svc_display}</div>
-    <div class="certify-text">has successfully completed the course</div>
+    <div class="student-name">{rank_svc_display} {student_name}</div>
+    <div class="certify-text">has successfully completed</div>
     <div class="course-name">{course_name}</div>
     <div class="class-name">{class_name}</div>
-    <div class="grade-info">{grade_display}</div>
-    <div class="certify-text">Completed on {completion_date_formatted}</div>
-    <div class="footer-text">{footer_text}</div>
-    <div class="signatures">
-      <div class="signature-block">
-        {signature_section}
-        <div class="signature-line"></div>
-        <div class="signature-name">{signatory_name}</div>
-        <div class="signature-title">{signatory_title}</div>
+    <div class="date-line">From <span class="date-value">{course_start_date}</span>
+      &nbsp;&nbsp;To&nbsp;&nbsp; <span class="date-value">{completion_date_formatted}</span></div>
+    <div class="spacer"></div>
+    <div class="bottom-section">
+      <div class="grade-row">
+        <span class="grade-sig-line"></span>
+        <span class="grade-label">Final Grade</span>
+        <span class="grade-value">{final_grade}</span>
+        <span class="grade-sig-line-right"></span>
       </div>
-      {secondary_signature_block}
+      <div class="signatures">
+        <div class="signature-block">
+          {signature_section}
+          <div class="signature-line"></div>
+          <div class="signature-name">{signatory_name}</div>
+          <div class="signature-title">{signatory_title}</div>
+        </div>
+        {secondary_signature_block}
+      </div>
     </div>
   </div>
-  <div class="cert-number">Certificate No: {certificate_number} |
-    Verification: {verification_code} |
+  <div class="cert-footer">This certificate is issued without any Alteration or Erasures Whatsoever</div>
+  <div class="cert-number">Verification: {verification_code} |
     Issued: {issued_at_formatted}</div>
 </div>
 </body>
@@ -516,13 +554,23 @@ class CertificateGenerator:
             f'<img src="{logo_b64}" class="logo" alt="Logo">' if logo_b64 else ''
         )
 
-        # Rank / SVC line
+        # Watermark — use ka.png from media/certificate_logos/
+        watermark_section = ''
+        watermark_path = os.path.join(settings.MEDIA_ROOT, 'certificate_logos', 'ka.png')
+        if os.path.exists(watermark_path):
+            with open(watermark_path, 'rb') as f:
+                wm_data = base64.b64encode(f.read()).decode()
+            watermark_section = (
+                f'<img src="data:image/png;base64,{wm_data}" class="watermark" alt="">'
+            )
+
+        # Rank / SVC line — output values only: svc_number rank name
         rank_parts = []
+        if cert.student_svc_number:
+            rank_parts.append(cert.student_svc_number)
         if cert.student_rank:
             rank_parts.append(cert.student_rank)
-        if cert.student_svc_number:
-            rank_parts.append(f"Service No: {cert.student_svc_number}")
-        rank_svc_display = ' | '.join(rank_parts)
+        rank_svc_display = ' '.join(rank_parts)
 
         # Grade display
         grade_parts = []
@@ -560,7 +608,11 @@ class CertificateGenerator:
 
         completion_date_formatted = ''
         if cert.completion_date:
-            completion_date_formatted = cert.completion_date.strftime('%B %d, %Y')
+            completion_date_formatted = cert.completion_date.strftime('%d %b %Y').upper()
+
+        course_start_date = ''
+        if cert.class_obj and cert.class_obj.start_date:
+            course_start_date = cert.class_obj.start_date.strftime('%d %b %Y').upper()
 
         issued_at_formatted = ''
         if cert.issued_at:
@@ -572,9 +624,12 @@ class CertificateGenerator:
             'footer_text': tpl.get('footer_text', ''),
             'signatory_name': tpl.get('signatory_name', 'Director'),
             'signatory_title': tpl.get('signatory_title', 'Director of Training'),
+            'school_short_name': self.school.short_name if self.school and self.school.short_name else '',
             'logo_section': logo_section,
+            'watermark_section': watermark_section,
             'rank_svc_display': rank_svc_display,
             'grade_display': grade_display,
+            'final_grade': cert.final_grade or '',
             'signature_section': sig_section,
             'secondary_signature_block': secondary_block,
             'certificate_number': cert.certificate_number,
@@ -582,6 +637,7 @@ class CertificateGenerator:
             'student_name': cert.student_name,
             'course_name': cert.course_name,
             'class_name': cert.class_name,
+            'course_start_date': course_start_date,
             'completion_date_formatted': completion_date_formatted,
             'issued_at_formatted': issued_at_formatted,
         }

@@ -120,7 +120,7 @@ export default function SuperadminDashboard() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-black truncate">{school.name}</p>
+                      <p className="font-medium text-black truncate">{school.short_name || school.name}</p>
                       <p className="text-sm text-neutral-500">{school.code}</p>
                     </div>
                     <span
