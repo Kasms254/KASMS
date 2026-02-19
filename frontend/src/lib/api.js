@@ -1406,6 +1406,102 @@ export async function updateProfile(data) {
   return request('/api/profile/me/', { method: 'PATCH', body: data })
 }
 
+// =====================
+// Departments API
+// =====================
+
+export async function getDepartments(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/departments/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function getDepartmentsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/departments/${qs}`)
+}
+
+export async function addDepartment(payload) {
+  return request('/api/departments/', { method: 'POST', body: payload })
+}
+
+export async function updateDepartment(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteDepartment(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/`, { method: 'DELETE' })
+}
+
+export async function getDepartmentCourses(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/courses/`)
+}
+
+export async function getDepartmentClasses(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/classes/`)
+}
+
+export async function getDepartmentStudents(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/students/`)
+}
+
+export async function getDepartmentResults(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/results/`)
+}
+
+export async function getDepartmentPendingEditRequests(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/pending-edit-requests/`)
+}
+
+// =====================
+// Department Memberships API
+// =====================
+
+export async function getDepartmentMemberships(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/department-memberships/${qs}`)
+}
+
+export async function addDepartmentMembership(payload) {
+  return request('/api/department-memberships/', { method: 'POST', body: payload })
+}
+
+export async function updateDepartmentMembership(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/department-memberships/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteDepartmentMembership(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/department-memberships/${id}/`, { method: 'DELETE' })
+}
+
+// =====================
+// Result Edit Requests API
+// =====================
+
+export async function getResultEditRequests(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/result-edit-requests/${qs}`)
+}
+
+export async function createResultEditRequest(payload) {
+  return request('/api/result-edit-requests/', { method: 'POST', body: payload })
+}
+
+export async function reviewResultEditRequest(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/result-edit-requests/${id}/review/`, { method: 'POST', body: payload })
+}
+
 export default {
   login,
   changePassword,
@@ -1560,6 +1656,26 @@ export default {
   // Profile
   getProfile,
   updateProfile,
+  // Departments
+  getDepartments,
+  getDepartmentsPaginated,
+  addDepartment,
+  updateDepartment,
+  deleteDepartment,
+  getDepartmentCourses,
+  getDepartmentClasses,
+  getDepartmentStudents,
+  getDepartmentResults,
+  getDepartmentPendingEditRequests,
+  // Department Memberships
+  getDepartmentMemberships,
+  addDepartmentMembership,
+  updateDepartmentMembership,
+  deleteDepartmentMembership,
+  // Result Edit Requests
+  getResultEditRequests,
+  createResultEditRequest,
+  reviewResultEditRequest,
   // Certificates
   getCertificates,
   getCertificate,

@@ -46,6 +46,12 @@ const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTem
 const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
+// Department & HOD components
+const Departments = lazy(() => import('./dashboard/admin/Departments'))
+const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
+const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
+const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
+
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
 const SchoolsPage = lazy(() => import('./dashboard/superadmin/SchoolsPage'))
@@ -219,6 +225,26 @@ const App = () => {
 			{/* Student Certificates */}
 			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
 				<Route index element={<StudentCertificates />} />
+			</Route>
+
+			{/* Departments (admin) */}
+			<Route path="/list/departments" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Departments />} />
+			</Route>
+
+			{/* Department Members (admin) */}
+			<Route path="/list/department-members" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<DepartmentMembers />} />
+			</Route>
+
+			{/* HOD Dashboard (instructors — HOD role checked in component) */}
+			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" />}>
+				<Route index element={<HODDashboard />} />
+			</Route>
+
+			{/* Result Edit Requests (instructors — HODs see review UI, others see their own requests) */}
+			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" />}>
+				<Route index element={<EditRequestsReview />} />
 			</Route>
 
 			{/* Superadmin routes */}

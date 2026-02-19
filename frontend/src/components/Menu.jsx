@@ -65,6 +65,30 @@ const menuItems = [
         href: '/list/assignments',
         visible: ['admin'],
       },
+      {
+        icon: 'Building',
+        label: 'Departments',
+        href: '/list/departments',
+        visible: ['admin'],
+      },
+      {
+        icon: 'UserPlus',
+        label: 'Dept. Members',
+        href: '/list/department-members',
+        visible: ['admin'],
+      },
+      {
+        icon: 'LayoutDashboard',
+        label: 'HOD Dashboard',
+        href: '/dashboard/hod',
+        visible: ['instructor'],
+      },
+      {
+        icon: 'ClipboardCheck',
+        label: 'Edit Requests',
+        href: '/list/edit-requests',
+        visible: ['instructor'],
+      },
       // {
       //   icon: 'Book',
       //   label: 'Lessons',
