@@ -1390,7 +1390,6 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         school = get_current_school() or self.request.user.school
         serializer.save(school=school, created_by=self.request.user)
 
-
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
     queryset = Enrollment.objects.select_related('student', 'class_obj', 'enrolled_by').all()
@@ -1761,7 +1760,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     ordering_fields = ['marks_obtained', 'created_at']
     ordering = ['-exam__exam_date', 'created_at']
     
-
     def get_queryset(self):
         queryset = ExamResult.all_objects.select_related('exam', 'student', 'graded_by').all()
         user = self.request.user
@@ -1787,12 +1785,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-
 
     @action(detail=False, methods=['get'])
     def student_results(self, request):
@@ -1855,17 +1851,16 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _calculate_overall_grade(percentage):
-        if percentage >= 90:
+        if percentage >= 80:
             return 'A'
-        elif percentage >= 80:
-            return 'B'
         elif percentage >= 70:
-            return 'C'
+            return 'B'
         elif percentage >= 60:
+            return 'C'
+        elif percentage >= 50:
             return 'D'
         else:
             return 'F'
-
 
     def _create_grade_notification(self, exam_result):
         try:

@@ -502,10 +502,6 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def _has_class_access(self, request, class_obj):
-        """
-        Admins, superadmins and commandants can access all classes.
-        Instructors can only access a class if they are assigned as its class instructor.
-        """
         user = request.user
         if user.role in ['admin', 'superadmin', 'commandant']:
             return True
@@ -619,23 +615,41 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
             subject_scores = []
             for subject in subjects:
                 subject_results = student_results.filter(exam__subject=subject) if student_results.exists() else ExamResult.objects.none()
+
                 if subject_results.exists():
                     subj_total = sum(r.marks_obtained for r in subject_results)
-                    subj_possible= sum(r.exam.total_marks for r in subject_results)
+                    subj_possible = sum(r.exam.total_marks for r in subject_results)
                     subj_pct = (subj_total / subj_possible * 100) if subj_possible > 0 else 0
+                else:
+                    subj_total = None
+                    subj_possible = None
+                    subj_pct = None
 
-                    subject_attendances = student_attendances.filter(session__subject=subject)
-                    subject_sessions = attendance_sessions.filter(subject=subject).count()
-                    subject_attendance_rate = (subject_attendances.count() / subject_sessions * 100) if subject_sessions > 0 else 0
+                subject_attendances_for_subj = student_attendances.filter(session__subject=subject)
+                subject_sessions = attendance_sessions.filter(subject=subject).count()
+                subject_attendance_rate = (subject_attendances_for_subj.count() / subject_sessions * 100) if subject_sessions > 0 else 0
 
-                    subject_scores.append({
-                        'subject_name': subject.name,
-                        'subject_code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
-                        'exam_percentage': round(subj_pct, 2),
-                        'attendance_rate':round(subject_attendance_rate, 2),
-                        'combined_score': round((float(subj_pct or 0) * 0.7) + (float(subject_attendance_rate or 0) * 0.3), 2)
+                subj_combined = (float(subj_pct or 0) * 0.7) + (float(subject_attendance_rate or 0) * 0.3)
 
-                    })
+                subject_scores.append({
+                    'subject_id': subject.id,
+                    'subject_name': subject.name,
+                    'subject_code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
+                    'total_marks_obtained': float(subj_total) if subj_total is not None else None,
+                    'total_possible_marks': subj_possible if subj_possible is not None else None,
+                    'exams_taken': subject_results.count(),
+                    'exam_percentage': round(subj_pct, 2) if subj_pct is not None else None,
+                    'grade': _calculate_grade(subj_pct) if subj_pct is not None else None,
+                    'attendance_rate': round(subject_attendance_rate, 2),
+                    'combined_score': round(subj_combined, 2),
+                })
+
+            if student_results.exists():
+                student_total_obtained = float(sum(r.marks_obtained for r in student_results))
+                student_total_possible = sum(r.exam.total_marks for r in student_results)
+            else:
+                student_total_obtained = None
+                student_total_possible = None
 
             student_rankings.append({
                 'student_id': student.id,
@@ -643,12 +657,15 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'svc_number': getattr(student, 'svc_number', None),
 
                 'total_exams_taken': student_results.count() if student_results.exists() else 0,
+                'total_marks_obtained': student_total_obtained,
+                'total_possible_marks': student_total_possible,
                 'exam_percentage': round(exam_percentage, 2),
+                'overall_grade': _calculate_grade(exam_percentage),
                 'total_sessions': total_sessions,
                 'sessions_attended': attended_count,
-                'attendance_rate':round(attendance_rate, 2),
+                'attendance_rate': round(attendance_rate, 2),
                 'combined_score': round(combined_score, 2),
-                'overall_grade': _calculate_grade(combined_score),
+                'combined_grade': _calculate_grade(combined_score),
                 'subject_breakdown': subject_scores,
             })
 
@@ -1128,13 +1145,13 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
         
 def _calculate_grade(percentage):
 
-    if percentage >= 90:
+    if percentage >= 80:
         return 'A'
-    elif percentage >= 80:
-        return 'B'
     elif percentage >= 70:
-        return 'C'
+        return 'B'
     elif percentage >= 60:
+        return 'C'
+    elif percentage >= 50:
         return 'D'
     
     else:
