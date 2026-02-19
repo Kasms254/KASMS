@@ -71,13 +71,14 @@ export default function AddResults() {
       const resp = await api.getMarksEntryResults(examId)
       // resp contains { exam_id, exam_title, total_marks, count, results }
       setExamInfo({ id: resp.exam_id, title: resp.exam_title, total_marks: resp.total_marks })
-      // save stats returned by backend
-      setExamStats({
-        count: resp.count || 0,
-        submitted: resp.submitted || 0,
-        pending: resp.pending || 0
-      })
       const list = Array.isArray(resp.results) ? resp.results : (resp && resp.results) ? resp.results : []
+      const total = list.length
+      const submitted = list.filter(r => r.marks_obtained != null && r.marks_obtained !== '').length
+      setExamStats({
+        count: total,
+        submitted,
+        pending: total - submitted,
+      })
       // ensure each row has editable fields and UX helpers (dirty/errors)
       const mapped = list.map(r => ({
         id: r.id,
