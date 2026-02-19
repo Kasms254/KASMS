@@ -9,7 +9,6 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 
-
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
     secondary_color = serializers.CharField()
@@ -1496,7 +1495,6 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     def get_has_signature(self, obj):
         return bool(obj.signature_image and obj.signature_image.name)
 
-
 class CertificateSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(read_only=True)
@@ -1593,7 +1591,6 @@ class CertificateVerificationSerializer(serializers.Serializer):
     revocation_reason = serializers.CharField(allow_blank=True, required=False)
     revoked_at = serializers.DateTimeField(allow_null=True, required=False)
 
-
 class CertificateDownloadLogSerializer(serializers.ModelSerializer):
 
     certificate_number = serializers.CharField(
@@ -1611,7 +1608,6 @@ class CertificateDownloadLogSerializer(serializers.ModelSerializer):
 
     def get_downloaded_by_name(self, obj):
         return obj.downloaded_by.get_full_name() if obj.downloaded_by else 'Anonymous'
-
 
 class CertificateStatsSerializer(serializers.Serializer):
 

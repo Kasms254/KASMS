@@ -1390,7 +1390,6 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         school = get_current_school() or self.request.user.school
         serializer.save(school=school, created_by=self.request.user)
 
-
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
     queryset = Enrollment.objects.select_related('student', 'class_obj', 'enrolled_by').all()
@@ -1761,7 +1760,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     ordering_fields = ['marks_obtained', 'created_at']
     ordering = ['-exam__exam_date', 'created_at']
     
-
     def get_queryset(self):
         queryset = ExamResult.all_objects.select_related('exam', 'student', 'graded_by').all()
         user = self.request.user
@@ -1787,12 +1785,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-
 
     @action(detail=False, methods=['get'])
     def student_results(self, request):
@@ -1865,7 +1861,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             return 'D'
         else:
             return 'F'
-
 
     def _create_grade_notification(self, exam_result):
         try:
@@ -4387,7 +4382,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'count':len(low_attendance_students),
             'students':low_attendance_students
         })
-        
 # personalnotification
 class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
@@ -4473,7 +4467,6 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
 
-
 class CertificateTemplateViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
@@ -4545,7 +4538,6 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
             'signatory_title': template.signatory_title,
         }
         return Response(preview_data)
-
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -4665,7 +4657,6 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 certificate, context={'request': request},
             ).data,
         })
-
 
     @action(detail=False, methods=['get'], url_path='verify/(?P<verification_code>[A-Z0-9]+)')
     def verify(self, request, verification_code=None):
