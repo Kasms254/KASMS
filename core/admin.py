@@ -2,7 +2,8 @@ from django.contrib import admin
 from .models import (
     User, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, 
+    Department, DepartmentMembership, ResultEditRequest
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -291,3 +292,22 @@ class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_filter = ['issued_by', 'school']
     ordering = ['-school', 'certificate_number']
     raw_id_fields = ['school', 'student', 'issued_by']
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'school', 'is_active', 'hod']
+    list_filter = ['school', 'is_active']
+    search_fields = ['name', 'code', 'school__code']
+
+@admin.register(DepartmentMembership)
+class DepartmentMembershipAdmin(admin.ModelAdmin):
+    list_display = ['user', 'department', 'role', 'is_active', 'assigned_at']
+    list_filter = ['role', 'is_active', 'department__school']
+    search_fields = ['user__svc_number', 'department__name']
+
+@admin.register(ResultEditRequest)
+class ResultEditRequestAdmin(admin.ModelAdmin):
+    list_display = ['requested_by', 'exam_result', 'status', 'reviewed_by', 'created_at']
+    list_filter = ['status', 'school']
+    search_fields = ['requested_by__svc_number', 'exam_result__id']
+    readonly_fields = ['created_at', 'updated_at']

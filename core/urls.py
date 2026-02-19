@@ -7,6 +7,8 @@ from .views import (
     # for the instructor
     ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView, CertificatePublicVerificationView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
+    # departments
+    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
@@ -64,6 +66,11 @@ router.register(r'certificate_templates', CertificateTemplateViewSet, basename='
 
 # certificates 
 router.register(r'certificates', CertificateViewSet, basename='certificate')
+
+# departments
+router.register(r'departments', DepartmentViewSet, basename='department')
+router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
+router.register(r'result-edit-requests', ResultEditRequestViewSet, basename='result-edit-request')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
