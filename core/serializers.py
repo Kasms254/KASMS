@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, 
     SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
 )
@@ -1496,7 +1496,6 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     def get_has_signature(self, obj):
         return bool(obj.signature_image and obj.signature_image.name)
 
-
 class CertificateSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(read_only=True)
@@ -1593,7 +1592,6 @@ class CertificateVerificationSerializer(serializers.Serializer):
     revocation_reason = serializers.CharField(allow_blank=True, required=False)
     revoked_at = serializers.DateTimeField(allow_null=True, required=False)
 
-
 class CertificateDownloadLogSerializer(serializers.ModelSerializer):
 
     certificate_number = serializers.CharField(
@@ -1612,7 +1610,6 @@ class CertificateDownloadLogSerializer(serializers.ModelSerializer):
     def get_downloaded_by_name(self, obj):
         return obj.downloaded_by.get_full_name() if obj.downloaded_by else 'Anonymous'
 
-
 class CertificateStatsSerializer(serializers.Serializer):
 
     total_certificates = serializers.IntegerField()
@@ -1623,8 +1620,161 @@ class CertificateStatsSerializer(serializers.Serializer):
     certificates_this_month = serializers.IntegerField()
     certificates_this_year = serializers.IntegerField()
 
+class InstructorMarksSerializer(serializers.ModelSerializer):
 
+    exam_title = serializers.CharField(source="exam.title", read_only=True)
+    exam_total_marks = serializers.IntegerField(source="exam.total_marks", read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
 
+    class Meta:
+        model = ExamResult
+        fields = [
+            "id",           
+            "class_index", 
+            "exam_title",
+            "exam_total_marks",
+            "marks_obtained",
+            "percentage",
+            "grade",
+            "remarks",
+            "is_submitted",
+            "graded_at",
+        ]
+        read_only_fields = [
+            "id", "class_index", "exam_title", "exam_total_marks",
+            "percentage", "grade", "graded_at",
+        ]
 
+    def get_class_index(self, obj):
+        try:
+            enrollment = Enrollment.all_objects.get(
+                student=obj.student,
+                class_obj=obj.exam.subject.class_obj,
+            )
+            return enrollment.student_index.index_number
+        except (Enrollment.DoesNotExist, AttributeError):
+            return None
+
+    def validate_marks_obtained(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Marks cannot be negative.")
+        exam_id = self.instance.exam_id if self.instance else None
+        if exam_id:
+            try:
+                exam = Exam.objects.get(pk=exam_id)
+                if value is not None and value > exam.total_marks:
+                    raise serializers.ValidationError(
+                        f"Marks ({value}) exceed total marks ({exam.total_marks})."
+                    )
+            except Exam.DoesNotExist:
+                pass
+        return value
+
+class AdminMarksSerializer(serializers.ModelSerializer):
+
+    student_full_name = serializers.SerializerMethodField()
+    student_svc_number = serializers.CharField(source="student.svc_number", read_only=True)
+    student_rank = serializers.CharField(source="student.rank", read_only=True)
+    class_index = serializers.SerializerMethodField()
+    exam_title = serializers.CharField(source="exam.title", read_only=True)
+    exam_total_marks = serializers.IntegerField(source="exam.total_marks", read_only=True)
+    subject_name = serializers.CharField(source="exam.subject.name", read_only=True)
+    class_name = serializers.CharField(source="exam.subject.class_obj.name", read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+    graded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExamResult
+        fields = [
+            "id",
+            "student",           
+            "student_full_name",
+            "student_svc_number",
+            "student_rank",
+            "class_index",
+            "exam",
+            "exam_title",
+            "exam_total_marks",
+            "subject_name",
+            "class_name",
+            "marks_obtained",
+            "percentage",
+            "grade",
+            "remarks",
+            "is_submitted",
+            "submitted_at",
+            "graded_by",
+            "graded_by_name",
+            "graded_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "percentage", "grade", "submitted_at", "graded_by",
+            "graded_at", "created_at", "updated_at",
+        ]
+
+    def get_student_full_name(self, obj):
+        return obj.student.get_full_name()
+
+    def get_class_index(self, obj):
+        try:
+            enrollment = Enrollment.all_objects.get(
+                student=obj.student,
+                class_obj=obj.exam.subject.class_obj,
+            )
+            return enrollment.student_index.index_number
+        except (Enrollment.DoesNotExist, AttributeError):
+            return None
+
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+
+    def validate_marks_obtained(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Marks cannot be negative.")
+        if self.instance and value is not None:
+            if value > self.instance.exam.total_marks:
+                raise serializers.ValidationError(
+                    f"Marks ({value}) exceed total marks "
+                    f"({self.instance.exam.total_marks})."
+                )
+        return value
+
+class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
+
+    student_full_name = serializers.SerializerMethodField()
+    student_svc_number = serializers.CharField(
+        source="enrollment.student.svc_number", read_only=True
+    )
+    student_rank = serializers.CharField(
+        source="enrollment.student.rank", read_only=True
+    )
+    class_name = serializers.CharField(source="class_obj.name", read_only=True)
+    enrollment_date = serializers.DateTimeField(
+        source="enrollment.enrollment_date", read_only=True
+    )
+    is_active = serializers.BooleanField(
+        source="enrollment.is_active", read_only=True
+    )
+
+    class Meta:
+        model = StudentIndex
+        fields = [
+            "id",
+            "index_number",
+            "class_name",
+            "student_full_name",
+            "student_svc_number",
+            "student_rank",
+            "enrollment_date",
+            "is_active",
+            "assigned_at",
+        ]
+
+    def get_student_full_name(self, obj):
+        return obj.enrollment.student.get_full_name()
 
 

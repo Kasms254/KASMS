@@ -641,7 +641,6 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'student_id': student.id,
                 'student_name': student.get_full_name(),
                 'svc_number': getattr(student, 'svc_number', None),
-
                 'total_exams_taken': student_results.count() if student_results.exists() else 0,
                 'exam_percentage': round(exam_percentage, 2),
                 'total_sessions': total_sessions,

@@ -9,13 +9,12 @@ import hashlib
 from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
 from django.core.validators import RegexValidator
-
+from django.db import models, transaction
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
         return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
       
-
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
@@ -71,7 +70,6 @@ class School(models.Model):
             'logo_url': self.logo.url if self.logo else None,
             **self.theme_config
         }
-
 #    school membership
 
 class SchoolMembership(models.Model):
@@ -177,6 +175,35 @@ class SchoolAdmin(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.school.name}"
+
+class StudentIndex(models.Model):
+    school = models.ForeignKey("School", on_delete=models.CASCADE, related_name="student_indexes", null=True, blank=True)
+    enrollment = models.OneToOneField("Enrollment", on_delete=models.CASCADE, related_name="student_indexes",)
+    class_obj = models.ForeignKey("Class", on_delete=models.CASCADE, related_name="student_indexes",)
+    index_number = models.CharField(max_length=10, validators=[RegexValidator(r"^\\d+$", "Index must be numeric digits only")],
+    help_text="Zero-padded sequential number, e.g. '001'",
+    )
+    assigned_to = models.DateTimeField(auto_now_add=True)
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = "student_indexes"
+        unique_together = [("class_obj", "index_number")]
+        ordering  = ["class_obj", "index_number"]
+        indexes = [
+            models.Index(fields=["class_obj", "index_number"]),
+            models.Index(fields=["enrollment"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.class_obj.name}] Index{self.index_number}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)
+
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -1145,7 +1172,6 @@ class CertificateTemplate(models.Model):
             'accent_color': '#FFC107',
         }
 
-
 class Certificate(models.Model):
 
     STATUS_CHOICES = [
@@ -1323,7 +1349,6 @@ class Certificate(models.Model):
     @property
     def verification_url(self):
         return f"/api/certificates/verify/{self.verification_code}/"
-
 
 class CertificateDownloadLog(models.Model):
 
