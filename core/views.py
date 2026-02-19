@@ -10,7 +10,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -19,7 +19,6 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
 from datetime import timedelta
 from dateutil import parser
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
@@ -32,7 +31,6 @@ from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
-
 
 class TenantFilterMixin:
 
@@ -480,7 +478,13 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def students(self, request):
-        queryset = self.get_queryset().filter(role='student', is_active=True)
+        queryset = self.get_queryset().filter(role='student')
+
+        is_active_param = request.query_params.get('is_active', None)
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
+        else:
+            queryset = queryset.filter(is_active=True)
         
         search_query = request.query_params.get('search', '').strip()
         if search_query:
@@ -629,7 +633,6 @@ class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
 
         read_serializer = ProfileReadSerializer(instance)
         return Response(read_serializer.data)
-
 
 class CourseViewSet(viewsets.ModelViewSet):
 
@@ -814,7 +817,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class':ClassSerializer(class_obj).data
         })
     
-
     @action(detail=False, methods=['get'])
     def without_instructor(self, request):
         classes = self.get_queryset().filter(instructor__isnull=True, is_active=True)
@@ -824,7 +826,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
     # instructor specific classes
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
     def my_classes(self, request):
@@ -992,68 +993,104 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
-class NoticeViewSet(viewsets.ModelViewSet):
-    queryset = Notice.objects.select_related('created_by').all()
-    serializer_class = NoticeSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'priority']
-    search_fields = ['title', 'description']
-    ordering = ['-created_at']
-    ordering_fields = ['created_at', 'title', 'priority']
+class NoticeActionMixin:
 
-    def get_queryset(self):
-        queryset = Notice.all_objects.select_related('created_by').all()
+    read_status_model = None
+    read_status_fk_name = None
+
+    def _not_expired_q(self):
+        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+
+    def _annotate_read_status(self, qs):
+        """Annotate queryset with the current user's read_at timestamp."""
         user = self.request.user
-
         if not user.is_authenticated:
-            return queryset.none()
+            return qs
 
-        if user.role == 'superadmin':
-            school = get_current_school()
-            if school:
-                return queryset.filter(school=school)
-            return queryset
-
-        if user.school:
-            return queryset.filter(school=user.school)
-
-        return queryset.none()
-
-    def perform_create(self, serializer):
-        school = get_current_school()
-        serializer.save(school=school, created_by=self.request.user)
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-
-            return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated()]
+        return qs.annotate(
+            _user_read_at=Subquery(
+                self.read_status_model.objects.filter(
+                    user=user,
+                    **{self.read_status_fk_name: OuterRef('pk')},
+                ).values('read_at')[:1]
+            ),
+        )
 
     @action(detail=False, methods=['get'])
     def active(self, request):
-        active_notices = self.get_queryset().filter(
-            Q(is_active=True) | 
-            Q(expiry_date__isnull=True) |
-            Q(expiry_date__gte=timezone.now())
-        )
-        serializer = self.get_serializer(active_notices, many=True)
+        qs = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(qs, many=True)
         return Response({
-            'count':active_notices.count(),
-            "results": serializer.data
+            'count': qs.count(),
+            'results': serializer.data,
         })
 
     @action(detail=False, methods=['get'])
-    def urgent(self, request):
-        urgent_notices = self.get_queryset().filter(priority='urgent', is_active=True).filter(
-            Q(expiry_date__isnull=True) |
-            Q(expiry_date__gte=timezone.now())
-
-        ).order_by('-created_at')
-        serializer = self.get_serializer(urgent_notices, many=True)
+    def expired(self, request):
+        if request.user.role not in ['admin', 'superadmin', 'instructor', 'commandant']:
+            return Response(
+                {'error': 'Insufficient permissions'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        qs = self._annotate_read_status(
+            self._get_base_queryset_unfiltered().filter(
+                expiry_date__lt=timezone.now(),
+            ).order_by('-created_at')
+        )
+        serializer = self.get_serializer(qs, many=True)
         return Response({
-            'count': urgent_notices.count(),
-            'results': serializer.data
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        read_qs = self.read_status_model.objects.filter(
+            user=request.user,
+        ).values_list(f'{self.read_status_fk_name}_id', flat=True)
+
+        qs = self.get_queryset().filter(
+            is_active=True,
+        ).filter(
+            self._not_expired_q(),
+        ).exclude(
+            id__in=read_qs,
+        ).order_by('-created_at')
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        notice = self.get_object()
+        kwargs = {
+            'user': request.user,
+            self.read_status_fk_name: notice,
+        }
+        if hasattr(notice, 'school') and notice.school:
+            kwargs['school'] = notice.school
+
+        read_status, created = self.read_status_model.objects.get_or_create(
+            **{k: v for k, v in kwargs.items() if k in ['user', self.read_status_fk_name]},
+            defaults={k: v for k, v in kwargs.items() if k not in ['user', self.read_status_fk_name]},
+        )
+        return Response({
+            'message': 'Notice marked as read' if created else 'Already marked as read',
+            'read_at': read_status.read_at,
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_as_unread(self, request, pk=None):
+        notice = self.get_object()
+        deleted_count, _ = self.read_status_model.objects.filter(
+            user=request.user,
+            **{self.read_status_fk_name: notice},
+        ).delete()
+        return Response({
+            'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read',
         })
 
     @action(detail=False, methods=['get'])
@@ -1062,83 +1099,77 @@ class NoticeViewSet(viewsets.ModelViewSet):
         if not priority_param:
             return Response(
                 {'error': 'priority parameter is required'},
-                status= status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
-        notices = self.get_queryset().filter(
-            priority = priority_param,
-            is_active = True
-        ).filter(
-            Q(expiry_date__isnull=True) |
-            Q(expiry_date__gte=timezone.now())
-        )
-        serializer = self.get_serializer(notices, many=True)
+        qs = self.get_queryset().filter(priority=priority_param, is_active=True)
+        serializer = self.get_serializer(qs, many=True)
         return Response({
-            'count': notices.count(),
-            'results': serializer.data
-        })
-    
-    @action(detail=False, methods=['get'])
-    def expired(self, request):
-        if request.user.role != 'admin':
-            return Response(
-                {'error': 'Admin access required'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        expired_notices = self.get_queryset().filter(
-            expiry_date__lt=timezone.now()
-        ).order_by('-created_at')
-        serializer = self.get_serializer(expired_notices, many=True)
-        return Response({
-            'count': expired_notices.count(),
-            'results': serializer.data
-        })
-
-    @action(detail=True, methods=['post'])
-    def mark_as_read(self, request, pk=None):
-        notice = self.get_object()
-        read_status, created = NoticeReadStatus.objects.get_or_create(
-            user=request.user,
-            notice=notice
-        )
-
-        return Response({
-            'message': 'Notice marked as read' if created else 'Already Marked as read',
-            'read_at': read_status.read_at
-        })
-
-    @action(detail=True, methods=['post'])
-    def mark_as_unread(self, request, pk=None):
-        notice = self.get_object()
-        deleted_count = NoticeReadStatus.objects.filter(
-            user=request.user,
-            notice = notice
-        ).delete()[0]
-
-        return Response({
-            'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
+            'count': qs.count(),
+            'results': serializer.data,
         })
 
     @action(detail=False, methods=['get'])
-    def unread(self, request):
-        read_notice_ids = NoticeReadStatus.objects.filter(
-            user =request.user
-        ).values_list('notice_id', flat=True)
-
-        unread_notices = self.get_queryset().filter(
-            is_active=True
-        ).exclude(
-            id__in=read_notice_ids
-        ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now()).order_by('-created_at')
-        )
-
-        serializer = self.get_serializer(unread_notices, many=True)
+    def urgent(self, request):
+        qs = self.get_queryset().filter(priority='urgent', is_active=True)
+        serializer = self.get_serializer(qs, many=True)
         return Response({
-            'count':unread_notices.count(),
-            'results':serializer.data
+            'count': qs.count(),
+            'results': serializer.data,
         })
+
+class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
+
+    serializer_class = NoticeSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'priority']
+    search_fields = ['title', 'content']
+    ordering_fields = ['created_at', 'title', 'priority']
+    ordering = ['-created_at']
+
+    read_status_model = NoticeReadStatus
+    read_status_fk_name = 'notice'
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = Notice.all_objects.select_related('created_by').filter(
+            self._not_expired_q(),
+        )
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+
+        if user.role == 'superadmin':
+            school = get_current_school()
+            qs = qs.filter(school=school) if school else qs
+        elif user.school:
+            qs = qs.filter(school=user.school)
+        else:
+            return qs.none()
+
+        return self._annotate_read_status(qs)
+
+    def _get_base_queryset_unfiltered(self):
+        qs = Notice.all_objects.select_related('created_by')
+        user = self.request.user
+
+        if user.active_role == 'superadmin':
+            school = get_current_school()
+            return qs.filter(school=school) if school else qs
+
+        if user.school:
+            return qs.filter(school=user.school)
+
+        return qs.none()
+
+    def perform_create(self, serializer):
+        school = get_current_school() or self.request.user.school
+        serializer.save(school=school, created_by=self.request.user)
+
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
@@ -1832,9 +1863,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-class ClassNoticeViewSet(viewsets.ModelViewSet):
+class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
-    queryset = ClassNotice.objects.select_related('class_obj', 'created_by').all()
     serializer_class = ClassNotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -1843,165 +1873,70 @@ class ClassNoticeViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'priority']
     ordering = ['-created_at']
 
+    read_status_model = ClassNoticeReadStatus
+    read_status_fk_name = 'class_notice'
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsAdminOrInstructor()]
         return [IsAuthenticated()]
 
-    @action(detail=False, methods=['get'])
-    def active(self, request):
-        
-        active_notices = self.get_queryset.filter(
-            is_active=True
-        ).filter(
-            Q(expiry_date__isnull=True) |
-            Q(expiry_date__gte=timezone.now())
-        )
-        serializer = self.get_serializer(active_notices, many=True)
-        return Response({
-            'count': active_notices.count(),
-            'results': serializer.data
-        })
-
-    @action(detail=False, methods=['get'])
-    def expired(self, request):
-
-        if request.user.role not in ['admin', 'instructor']:
-            return Response({
-                'error': 'Admin or instructor access required'
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        expired_notices = self.get_queryset().filter(
-            expiry_date__lt = timezone.now()
-        ).order_by('-created_at')
-
-        serializer = self.get_serializer(expired_notices, many=True)
-        return Response({
-            'count': expired_notices.count(),
-            'results': serializer.data
-        })
-
-    @action(detail=False, methods=['get'])
-    def unread(self, request):
-        read_notice_ids = ClassNoticeReadStatus.objects.filter(
-            user= request.user
-        ).values_list('class_notice_id', flat=True)
-
-        unread_notices = self.get_queryset().filter(
-            is_active=True
-        ).exclude (
-            id__in = read_notice_ids
-        ).filter(
-        Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
-        ).order_by('-created_at')
-
-        serializer = self.get_serializer(unread_notices, many=True)
-        return Response({
-            'count': unread_notices.count(),
-            'results': serializer.data
-        })
-    
     def get_queryset(self):
-        queryset = ClassNotice.all_objects.select_related('class_obj', 'created_by').all()
+        qs = ClassNotice.all_objects.select_related(
+            'class_obj', 'subject', 'created_by',
+        ).filter(
+            self._not_expired_q(),
+        )
         user = self.request.user
-
         if not user.is_authenticated:
-            return queryset.none()
+            return qs.none()
 
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
-                queryset = queryset.filter(school=school)
+                qs = qs.filter(school=school)
         elif user.school:
-            queryset = queryset.filter(school=user.school)
+            qs = qs.filter(school=user.school)
         else:
-            return queryset.none()
+            return qs.none()
 
         if user.role == 'instructor':
-            queryset = queryset.filter(
+            qs = qs.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
         elif user.role == 'student':
-            enrolled_classes = Enrollment.all_objects.filter(
-                student=user,
-                is_active=True
+            enrolled_class_ids = Enrollment.all_objects.filter(
+                student=user, is_active=True,
             ).values_list('class_obj_id', flat=True)
-            queryset = queryset.filter(class_obj_id__in=enrolled_classes, is_active=True)
+            qs = qs.filter(class_obj_id__in=enrolled_class_ids, is_active=True)
 
-        return queryset
+        return self._annotate_read_status(qs)
 
-    
+    def _get_base_queryset_unfiltered(self):
+        qs = ClassNotice.all_objects.select_related(
+            'class_obj', 'subject', 'created_by',
+        )
+        user = self.request.user
+
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                qs = qs.filter(school=school)
+        elif user.school:
+            qs = qs.filter(school=user.school)
+        else:
+            return qs.none()
+
+        if user.role == 'instructor':
+            qs = qs.filter(
+                Q(class_obj__instructor=user) | Q(subject__instructor=user)
+            )
+
+        return qs
+
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
         serializer.save(school=school, created_by=self.request.user)
-
-    @action(detail=True, methods=['post'])
-    def mark_as_read(self, request, pk=None):
-        notice = self.get_object()
-        read_status, created = ClassNoticeReadStatus.objects.get_or_create(
-            user=request.user,
-            class_notice=notice
-        )
-
-        return Response(
-            {
-                'message': 'Notice Marked as read' if created else 'Already marked as read',
-                'read_at': read_status.read_at
-            }
-        )
-
-    @action(detail=True, methods=['post'])
-    def mark_as_unread(self, request, pk=None):
-        notice = self.get_object()
-        deleted_count = ClassNoticeReadStatus.objects.filter(
-            user=request.user,
-            class_notice=notice
-        ).delete()[0]
-
-        return Response({
-            'message': 'Notice marked as unread' if deleted_count > 0 else 'Was not marked as read'
-        })
-
-    @action(detail=False, methods=['get'])
-    def by_priority(self, request):
-
-        priority_param = request.query_params.get('priority')
-        if not priority_param:
-            return Response({
-                'error': 'priority parameter is required'
-            }, status = status.HTTP_400_BAD_REQUEST)
-
-        notices = self.get_queryset().filter(
-           priority = priority_param,
-           is_active = True).filter(
-            Q(expiry_date__isnull = True) |
-            Q(expiry_date__gte=timezone.now())
-           )
-
-        serializer = self.get_serializer(notices, many=True)
-        return Response(
-            {
-                'count':notices.count(),
-                'results':serializer.data
-            }
-        )
-
-    @action(detail=False, methods=['get'])
-    def urgent(self, request):
-
-        urgent_notices = self.get_queryset().filter(
-            priority = 'urgent',
-            is_active =True
-        ).filter(
-            Q(expiry_date__isnull=True) |
-            Q(expiry_date__gte=timezone.now())
-        ).order_by('-created_at')
-
-        serializer = self.get_serializer(urgent_notices, many=True)
-        return Response({
-            'count': urgent_notices.count(),
-            'results':serializer.data
-        })
 
 class ExamReportViewSet(viewsets.ModelViewSet):
 
@@ -2123,12 +2058,21 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.now().date()
+
+        attendance_today = SessionAttendance.all_objects.filter(
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user),
+            marked_at__date=today
+        ).distinct().count()
+
         return Response({
             'total_classes': my_classes.count(),
             'total_subjects': my_subjects.count(),
             'total_students': my_students_count,
             'total_exams': my_exams.count(),
             'pending_results': pending_results,
+            'attendance_today': attendance_today,
             'classes': ClassSerializer(my_classes, many=True).data,
             'subjects': SubjectSerializer(my_subjects, many=True).data
         })
@@ -2173,12 +2117,21 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             is_submitted=False
         ).count()
 
+        today = timezone.now().date()
+
+        attendance_today = SessionAttendance.all_objects.filter(
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user),
+            marked_at__date=today
+        ).distinct().count()
+
         return Response({
             'classes': classes_count,
             'subjects': subjects_count,
             'students': students_count,
             'exams': exams_count,
-            'pending_grading': pending_grading
+            'pending_grading': pending_grading,
+            'attendance_today': attendance_today
 
         })
 
@@ -3443,7 +3396,10 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             attendances = attendances.filter(marked_at__gte=start_date)
         if end_date:
             attendances = attendances.filter(marked_at__lte=end_date)
-
+        
+        attendance_status = request.query_params.get('status')
+        if attendance_status:
+            attendances = attendances.filter(status=attendance_status)
 
         serializer = self.get_serializer(attendances, many=True)
 
