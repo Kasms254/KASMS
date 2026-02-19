@@ -1622,6 +1622,7 @@ class CertificateStatsSerializer(serializers.Serializer):
 
 class InstructorMarksSerializer(serializers.ModelSerializer):
 
+    class_index = serializers.SerializerMethodField()
     exam_title = serializers.CharField(source="exam.title", read_only=True)
     exam_total_marks = serializers.IntegerField(source="exam.total_marks", read_only=True)
     percentage = serializers.FloatField(read_only=True)
@@ -1652,7 +1653,7 @@ class InstructorMarksSerializer(serializers.ModelSerializer):
                 student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
             )
-            return enrollment.student_index.index_number
+            return enrollment.student_indexes.index_number
         except (Enrollment.DoesNotExist, AttributeError):
             return None
 
@@ -1725,7 +1726,7 @@ class AdminMarksSerializer(serializers.ModelSerializer):
                 student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
             )
-            return enrollment.student_index.index_number
+            return enrollment.student_indexes.index_number
         except (Enrollment.DoesNotExist, AttributeError):
             return None
 
@@ -1771,7 +1772,7 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
             "student_rank",
             "enrollment_date",
             "is_active",
-            "assigned_at",
+            "assigned_to",
         ]
 
     def get_student_full_name(self, obj):

@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,

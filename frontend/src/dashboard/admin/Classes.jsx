@@ -281,7 +281,7 @@ export default function ClassesList(){
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No Classes Found</div> : classes.map(c => (
-            <div key={c.id} className="relative h-full cursor-pointer" onClick={() => navigate(`/list/classes/${c.id}/students`)}>
+            <div key={c.id} className={`relative h-full${user?.role === 'admin' ? ' cursor-pointer' : ''}`} onClick={user?.role === 'admin' ? () => navigate(`/list/classes/${c.id}/students`) : undefined}>
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
