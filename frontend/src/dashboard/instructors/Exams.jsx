@@ -617,7 +617,7 @@ export default function Exams() {
                           </div>
                           <div>
                             <div className="text-xs text-neutral-500">Duration</div>
-                            <div className="text-sm font-semibold text-gray-900">{x.exam_duration ? `${x.exam_duration} min` : '—'}</div>
+                            <div className="text-sm font-semibold text-gray-900">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : '—'}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -809,7 +809,7 @@ export default function Exams() {
                                   {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
                                 </div>
                                 <div className="text-xs text-neutral-500 line-clamp-2">{x.description || 'No description added'}</div>
-                                <div className="text-xs text-neutral-600">{x.exam_duration ? `${x.exam_duration} min` : 'No duration'}</div>
+                                <div className="text-xs text-neutral-600">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : 'No duration'}</div>
                               </div>
                             </td>
                             <td className="px-4 py-4 align-top text-sm text-gray-900">{x.subject_name || x.subject?.name || '—'}</td>

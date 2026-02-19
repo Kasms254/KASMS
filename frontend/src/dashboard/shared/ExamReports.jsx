@@ -5,8 +5,18 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+
+function _gradeFromPct(pct) {
+  const p = parseFloat(pct) || 0
+  if (p >= 80) return 'A'
+  if (p >= 70) return 'B'
+  if (p >= 60) return 'C'
+  if (p >= 50) return 'D'
+  return 'F'
+}
 
 /**
  * Pagination Component
@@ -170,6 +180,11 @@ export default function ExamReports() {
   const [selectedExam, setSelectedExam] = useState(null)
   const [examResults, setExamResults] = useState([])
   const [loadingResults, setLoadingResults] = useState(false)
+
+  // Comprehensive results
+  const [showComprehensive, setShowComprehensive] = useState(false)
+  const [comprehensiveData, setComprehensiveData] = useState(null)
+  const [loadingComprehensive, setLoadingComprehensive] = useState(false)
 
   // Pagination state
   const [examListPage, setExamListPage] = useState(1)
@@ -400,6 +415,48 @@ export default function ExamReports() {
     return 'F'
   }, [])
 
+  // Reset comprehensive view when class changes
+  useEffect(() => {
+    setShowComprehensive(false)
+    setComprehensiveData(null)
+  }, [selectedClass])
+
+  // Load comprehensive results for selected class
+  const handleViewComprehensive = useCallback(async () => {
+    if (!selectedClass) return
+    setLoadingComprehensive(true)
+    try {
+      const data = await api.getClassPerformanceSummary(selectedClass)
+      // Map fields to match StudentPerformanceTable expectations
+      if (data?.all_students) {
+        data.all_students = data.all_students.map(student => {
+          // Compute total marks from subject breakdown
+          let totalObtained = 0
+          let totalPossible = 0
+          const mappedBreakdown = (student.subject_breakdown || []).map(subj => {
+            totalObtained += subj.marks_obtained ?? 0
+            totalPossible += subj.total_possible ?? 0
+            return subj
+          })
+          return {
+            ...student,
+            subject_breakdown: mappedBreakdown,
+            total_marks_obtained: student.total_marks_obtained ?? totalObtained,
+            total_marks_possible: student.total_marks_possible ?? totalPossible,
+            total_grade: student.total_grade || student.overall_grade || _gradeFromPct(student.exam_percentage),
+            total_percentage: student.total_percentage ?? student.exam_percentage ?? 0,
+          }
+        })
+      }
+      setComprehensiveData(data)
+      setShowComprehensive(true)
+    } catch {
+      toast?.showError?.('Failed to load comprehensive results')
+    } finally {
+      setLoadingComprehensive(false)
+    }
+  }, [selectedClass, toast])
+
   // Export PDF with ranked student results
   const exportResultsPDF = useCallback(() => {
     if (!selectedExam || !sortedResults.length) {
@@ -525,29 +582,81 @@ export default function ExamReports() {
           <h1 className="text-2xl font-bold text-black">Exam Reports</h1>
           <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
-        {selectedExam && (
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
+          {selectedClass && !selectedExam && !showComprehensive && (() => {
+            // Only show for admins/superadmins/commandants, or if instructor is the class instructor
+            const cls = classes.find(c => String(c.id) === selectedClass)
+            const canViewComprehensive = ['admin', 'superadmin', 'commandant'].includes(user?.role)
+              || (cls && cls.instructor === user?.id)
+            return canViewComprehensive
+          })() && (
             <button
-              onClick={exportResultsPDF}
-              disabled={!sortedResults.length}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              onClick={handleViewComprehensive}
+              disabled={loadingComprehensive || filteredExams.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              <LucideIcons.FileDown className="w-4 h-4" />
-              Export PDF
+              {loadingComprehensive ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              ) : (
+                <LucideIcons.ClipboardList className="w-4 h-4" />
+              )}
+              {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
             </button>
+          )}
+
+          {/* Back from comprehensive view */}
+          {showComprehensive && (
             <button
-              onClick={() => setSelectedExam(null)}
+              onClick={() => { setShowComprehensive(false); setComprehensiveData(null) }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
             >
               <LucideIcons.ArrowLeft className="w-4 h-4" />
-              Back to List
+              Back to Exams
             </button>
-          </div>
-        )}
+          )}
+
+          {/* Exam detail view buttons */}
+          {selectedExam && (
+            <>
+              <button
+                onClick={exportResultsPDF}
+                disabled={!sortedResults.length}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.FileDown className="w-4 h-4" />
+                Export PDF
+              </button>
+              <button
+                onClick={() => setSelectedExam(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+              >
+                <LucideIcons.ArrowLeft className="w-4 h-4" />
+                Back to List
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Filters - Only show when not viewing exam details */}
-      {!selectedExam && (
+      {/* Comprehensive Results View */}
+      {showComprehensive && comprehensiveData && (
+        <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+          <StudentPerformanceTable
+            students={comprehensiveData.all_students || []}
+            title={(() => {
+              const cls = classes.find(c => String(c.id) === selectedClass)
+              if (!cls) return 'Comprehensive Results'
+              return cls.course_name
+                ? `${cls.name} — ${cls.course_name}`
+                : cls.name
+            })()}
+          />
+        </section>
+      )}
+
+      {/* Filters - Only show when not viewing exam details or comprehensive */}
+      {!selectedExam && !showComprehensive && (
         <div className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${
           !selectedClass
             ? 'border-indigo-300 ring-2 ring-indigo-100'
@@ -671,7 +780,7 @@ export default function ExamReports() {
       )}
 
       {/* Exam List View */}
-      {!selectedExam && (
+      {!selectedExam && !showComprehensive && (
         <>
           {filteredExams.length === 0 ? (
             !selectedClass ? (
