@@ -3,9 +3,9 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView, CertificatePublicVerificationView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
@@ -55,6 +55,15 @@ router.register(r'personal-notifications', PersonalNotificationViewSet, basename
 # schools
 router.register(r'schools', SchoolViewSet, basename='school')
 router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
+
+# membership
+router.register(r'memberships', SchoolMembershipViewSet, basename='membership' )
+
+# certificate templates
+router.register(r'certificate_templates', CertificateTemplateViewSet, basename='certificate_template')
+
+# certificates 
+router.register(r'certificates', CertificateViewSet, basename='certificate')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

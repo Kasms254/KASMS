@@ -73,10 +73,21 @@ const menuItems = [
       // },
       {
         icon: 'Award',
-        label: 'Add Certificate',
-        href: '/add/certificate',
-        // Certificate creation should be admin-only; instructors no longer see this
+        label: 'Certificates',
+        href: '/list/certificates',
         visible: ['admin'],
+      },
+      {
+        icon: 'Image',
+        label: 'Certificate Templates',
+        href: '/list/certificate-templates',
+        visible: ['admin'],
+      },
+      {
+        icon: 'Award',
+        label: 'My Certificates',
+        href: '/list/my-certificates',
+        visible: ['student'],
       },
      
       {

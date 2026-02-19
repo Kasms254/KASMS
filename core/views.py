@@ -1,16 +1,16 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin,
- Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
+from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
+ SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
 from .serializers import (
-    UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+    CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -24,13 +24,15 @@ from dateutil import parser
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
+from .services import close_class,issue_certificate, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates
+from rest_framework.views import APIView
 
 class TenantFilterMixin:
 
@@ -118,16 +120,16 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
         if user.role == 'superadmin':
             return queryset.annotate(
-                student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
-                instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+                student_count=Count('memberships', filter=Q(memberships__role='student', memberships__status='active')),
+                instructor_count=Count('memberships', filter=Q(memberships__role='instructor', memberships__status='active')),
             )
-        
+
         if user.school:
             return queryset.filter(id=user.school.id).annotate(
-                student_count=Count('users', filter=Q(users__role='student', users__is_active=True)),
-                instructor_count=Count('users', filter=Q(users__role='instructor', users__is_active=True)),
+                student_count=Count('memberships', filter=Q(memberships__role='student', memberships__status='active')),
+                instructor_count=Count('memberships', filter=Q(memberships__role='instructor', memberships__status='active')),
             )
-        
+
         return queryset.none()
 
 
@@ -171,13 +173,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
         school = self.get_object()
 
-        stats ={
-            'users':{
-                'total': school.users.filter(is_active=True).count(),
-                'students': school.users.filter(role='student',is_active=True).count(),
-                'instructors': school.users.filter(role='instructor', is_active=True).count(),
-                'admins': school.users.filter(role="admin", is_active=True).count(),
-                'commandants':school.users.filter(role='commandant', is_active=True).count(),
+   
+        stats = {
+            'users': {
+                'total': school.memberships.filter(status='active').count(),
+                'students': school.memberships.filter(role='student', status='active').count(),
+                'instructors': school.memberships.filter(role='instructor', status='active').count(),
+                'admins': school.memberships.filter(role='admin', status='active').count(),
+                'commandants': school.memberships.filter(role='commandant', status='active').count(),
             },
             'academic':{
                 'courses':school.courses.filter(is_active=True).count(),
@@ -220,7 +223,12 @@ class SchoolViewSet(viewsets.ModelViewSet):
         is_primary = request.data.get('is_primary', False)
 
         try:
-            user = User.objects.get(id=user_id, school=school, role='admin')
+            user = User.all_objects.get(
+                id=user_id,
+                role='admin',
+                school_memberships__school=school,
+                school_memberships__status='active'
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'User not found or not an admin in this school'
@@ -295,6 +303,93 @@ class SchoolAdminViewSet(viewsets.ModelViewSet):
             return queryset.filter(school=user.school)
         
         return queryset.none()
+
+class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+    serializer_class = SchoolMembershipSerializer
+    queryset = SchoolMembership.all_objects.select_related(
+        'user', 'school', 'transfer_to'
+    )
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['status', 'role']
+    search_fields = [
+        'user__svc_number', 'user__first_name',
+        'user__last_name'
+    ]
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        membership = self.get_object()
+        if membership.status != 'active':
+            return Response(
+                {'error': 'Only active memberships can be completed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        membership.complete()
+        return Response(
+            SchoolMembershipSerializer(membership).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def transfer(self, request, pk=None):
+        membership = self.get_object()
+        to_school_id = request.data.get('to_school_id')
+        try:
+            to_school = School.objects.get(
+                id=to_school_id, is_active=True
+            )
+        except School.DoesNotExist:
+            return Response(
+                {'error': 'Destination school not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        new_membership = membership.transfer(to_school)
+        return Response(
+            SchoolMembershipSerializer(new_membership).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        membership = self.get_object()
+        try:
+            membership.reactivate()
+        except ValidationError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_409_CONFLICT
+            )
+        return Response(
+            SchoolMembershipSerializer(membership).data
+        )
+
+    @action(
+        detail=False, methods=['post'],
+        serializer_class=SchoolEnrollmentSerializer
+    )
+    def enroll_at_school(self, request):
+        serializer = SchoolEnrollmentSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        membership = serializer.save()
+        return Response(
+            SchoolMembershipSerializer(membership).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(
+        detail=False, methods=['get'],
+        url_path='user-history/(?P<svc_number>[^/.]+)'
+    )
+    def user_history(self, request, svc_number=None):
+        memberships = SchoolMembership.all_objects.filter(
+            user__svc_number=svc_number
+        ).select_related('school', 'transfer_to').order_by('started_at')
+        return Response(
+            SchoolMembershipSerializer(memberships, many=True).data
+        )
 
 class UserViewSetWithSchool(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
@@ -390,11 +485,17 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
-                queryset = queryset.filter(school=school)
+                queryset = queryset.filter(
+                    school_memberships__school=school,
+                    school_memberships__status='active'
+                ).distinct()
             return queryset.prefetch_related('enrollments', 'enrollments__class_obj')
 
         if user.school:
-            return queryset.filter(school=user.school).prefetch_related(
+            return queryset.filter(
+                school_memberships__school=user.school,
+                school_memberships__status='active'
+            ).distinct().prefetch_related(
                 'enrollments', 'enrollments__class_obj'
             )
 
@@ -434,15 +535,16 @@ class UserViewSet(viewsets.ModelViewSet):
         school = get_current_school() or user.school
 
         role = serializer.validated_data.get('role', 'student')
-        
+
         if role == 'superadmin' and user.role != 'superadmin':
             raise PermissionDenied("Only superadmins can create superadmin users")
-        
+
         if role == 'superadmin':
-            serializer.save(school=None)
+            serializer.save()  # No school for superadmin
         else:
             if not school:
                 raise ValidationError({"school": "School is required for non-superadmin users"})
+
             serializer.save(school=school)
     
     @action(detail=False, methods=['get'])
@@ -475,7 +577,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    
     @action(detail=False, methods=['get'])
     def students(self, request):
         queryset = self.get_queryset().filter(role='student')
@@ -717,7 +818,6 @@ class ClassViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     serializer_class = ClassSerializer
 
-
     def perform_create(self, serializer):
         school = get_current_school()
         if not school and self.request.user.school:
@@ -826,6 +926,7 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
+    
     # instructor specific classes
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
     def my_classes(self, request):
@@ -873,6 +974,123 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class':class_obj.name
         })
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    def close(self, request, pk=None):
+        
+        class_obj = self.get_object()
+        success, error = close_class(class_obj, request.user)
+
+        if not success:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            'status': 'success',
+            'message': f'Class {class_obj.name} has been closed.',
+            'class': ClassSerializer(class_obj).data
+        })
+
+    
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdmin])
+    def completion_status(self, request, pk=None):
+
+        class_obj = self.get_object()
+        results = check_class_completion_for_all_students(class_obj)
+
+        complete_count = sum(1 for r in results if r ['is_academically_complete'])
+
+        return Response({
+            'class':{
+                'id': class_obj.id,
+                'name': class_obj.name,
+                'is_closed': class_obj.is_closed,
+            },
+            'total_students':len(results),
+            'academically_complete': complete_count,
+            'pending':len(results) - complete_count,
+            'students': results
+        })
+        
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    def issue_certificates(self, request, pk=None):
+        class_obj = self.get_object()
+
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        result = bulk_issue_certificates(class_obj, request.user, template=template)
+
+        if 'error' in result:                         
+            return Response(
+                {'error': result['error']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response({                              
+            'status': 'success',
+            **result
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    def issue_certificate_single(self, request, pk=None):
+        class_obj = self.get_object()
+        enrollment_id = request.data.get('enrollment_id')
+
+        if not enrollment_id:
+            return Response(
+                {'error': 'enrollment_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            enrollment = Enrollment.all_objects.get(
+                id=enrollment_id, class_obj=class_obj
+            )
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found in this class.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        certificate, error = issue_certificate(enrollment, request.user, template=template)
+
+        if error:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            'status': 'success',
+            'certificate_number': certificate.certificate_number,
+            'student': enrollment.student.svc_number,
+        }, status=status.HTTP_201_CREATED)
+    
 class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
@@ -896,12 +1114,14 @@ class SubjectViewSet(viewsets.ModelViewSet):
             school = get_current_school()
             if school:
                 return queryset.filter(school=school)
-            return queryset
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
         
-        if user.school:
-            return queryset.filter(school=user.school)
+        queryset = queryset.exclude(class_obj__is_closed=True)
         
-        return queryset.none()
+        return queryset
 
 
     def perform_create(self, serializer):
@@ -1209,21 +1429,30 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
-     
         enrollment = self.get_object()
-        
+
         if enrollment.completion_date:
-            return Response(
-                {'error': 'Enrollment already marked as completed'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({
+                'error': 'Cannot complete an inactive enrollment. Reactivate it first.'}
+            , status=status.HTTP_400_BAD_REQUEST)
+            
         enrollment.completion_date = timezone.now().date()
-        enrollment.save()
-        
+        enrollment.is_active = False
+        enrollment.save(update_fields=['completion_date', 'is_active'])
+
+        membership = enrollment.membership
+        if membership:
+            active_enrollments = Enrollment.all_objects.filter(
+                membership=membership, is_active=True
+            ).exists()
+            if not active_enrollments:
+
+                if membership.status == 'active':
+                    membership.complete()
+
         return Response({
-            'status': 'success',
-            'message': 'Enrollment marked as completed',
+            'status': 'success', 
+            'message': 'Enrollment marked as complete',
             'enrollment': EnrollmentSerializer(enrollment).data
         })
     
@@ -1251,29 +1480,36 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def reactivate(self, request, pk=None):
      
         enrollment = self.get_object()
-        
+
         if enrollment.is_active:
-            return Response(
-                {'error': 'Enrollment is already active'},
-                status=status.HTTP_400_BAD_REQUEST
+            return Response({
+                'error': 'Enrollment is already active'
+            }, 
             )
-        
-   
+        if enrollment.completion_date:
+            return Response({
+                'error': 'Cannot reactivate a completed enrollment. Create a new enrollment'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if enrollment.membership and enrollment.membership.status != 'active':
+            return Response({
+                'error': 'Cannot reactivate enrollment - the school membership is no longer active'
+            }, status = status.HTTP_400_BAD_REQUEST)
+
         if enrollment.class_obj.current_enrollment >= enrollment.class_obj.capacity:
-            return Response(
-                {'error': 'Class is at full capacity'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        enrollment.is_active = True
+            return Response({
+                'error': 'Class is at full capacity'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment.is_active =True
         enrollment.save()
-        
+
         return Response({
             'status': 'success',
             'message': 'Enrollment reactivated',
             'enrollment': EnrollmentSerializer(enrollment).data
         })
-    
+
     @action(detail=False, methods=['get'])
     def by_student(self, request):
     
@@ -1323,6 +1559,28 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
     
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def completion_status(self, request, pk=None):
+
+        enrollment = self.get_object()
+
+        if request.user.role == 'student' and enrollment.student != request.user:
+            return Response(
+                {'error': 'You can only view your own enrollment status.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        status_data = get_class_completion_status(
+            enrollment.class_obj, enrollment.student
+        )
+
+        status_data['enrollment_id'] = enrollment.id
+        status_data['is_active'] = enrollment.is_active
+        status_data['completion_date'] = enrollment.completion_date
+        status_data['has_certificate'] = hasattr(enrollment, 'certificate')
+
+        return Response(status_data)
+
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -1353,6 +1611,8 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
+        
+        queryset = queryset.exclude(subject__class_obj__is_closed=True)
 
         return queryset
     
@@ -1411,6 +1671,13 @@ class ExamViewSet(viewsets.ModelViewSet):
     def generate_results(self, request, pk=None):
         exam = self.get_object()
         class_obj = exam.subject.class_obj
+
+        # Prevent generating results for a closed class
+        if class_obj.is_closed:
+            return Response(
+                {'error': 'Cannot generate exam results for a closed class.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         enrollments = Enrollment.objects.filter(
             class_obj=class_obj,
@@ -1516,6 +1783,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
+        queryset = queryset.exclude(exam__subject__class_obj__is_closed=True)
+
         return queryset
 
 
@@ -1534,14 +1803,68 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 'error': 'student_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        results = self.get_queryset().filter(
+            student_id=student_id, is_submitted=True, marks_obtained__isnull=False
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'student', 'graded_by')
         serializer = self.get_serializer(results, many=True)
 
+        subject_map = {}
+        for r in results:
+            subj = r.exam.subject
+            key = subj.id
+            if key not in subject_map:
+                subject_map[key] = {
+                    'subject_id': subj.id,
+                    'subject_name': subj.name,
+                    'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                    'total_marks_obtained': 0,
+                    'total_possible_marks': 0,
+                    'exams_taken': 0,
+                }
+            subject_map[key]['total_marks_obtained'] += float(r.marks_obtained)
+            subject_map[key]['total_possible_marks'] += r.exam.total_marks
+            subject_map[key]['exams_taken'] += 1
+
+        for subj_data in subject_map.values():
+            possible = subj_data['total_possible_marks']
+            obtained = subj_data['total_marks_obtained']
+            pct = (obtained / possible * 100) if possible > 0 else 0
+            subj_data['percentage'] = round(pct, 2)
+            subj_data['grade'] = self._calculate_overall_grade(pct)
+
+        subject_summaries = sorted(subject_map.values(), key=lambda x: x['subject_name'])
+
+        grand_total_obtained = sum(s['total_marks_obtained'] for s in subject_map.values())
+        grand_total_possible = sum(s['total_possible_marks'] for s in subject_map.values())
+        overall_percentage = (grand_total_obtained / grand_total_possible * 100) if grand_total_possible > 0 else 0
+        overall_grade = self._calculate_overall_grade(overall_percentage)
 
         return Response({
-            'count':results.count(),
-            'results':serializer.data
+            'count': results.count(),
+            'results': serializer.data,
+            'subject_summaries': subject_summaries,
+            'overall_summary': {
+                'total_marks_obtained': grand_total_obtained,
+                'total_possible_marks': grand_total_possible,
+                'overall_percentage': round(overall_percentage, 2),
+                'overall_grade': overall_grade,
+                'total_subjects': len(subject_summaries),
+                'total_exams_taken': results.count(),
+            },
         })
+
+    @staticmethod
+    def _calculate_overall_grade(percentage):
+        if percentage >= 90:
+            return 'A'
+        elif percentage >= 80:
+            return 'B'
+        elif percentage >= 70:
+            return 'C'
+        elif percentage >= 60:
+            return 'D'
+        else:
+            return 'F'
 
 
     def _create_grade_notification(self, exam_result):
@@ -1595,6 +1918,11 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         with transaction.atomic():
             old_instance = self.get_object()
+
+            # Prevent grading if the class is closed
+            if old_instance.exam.subject.class_obj.is_closed:
+                raise ValidationError("Cannot update exam results for a closed class.")
+
             was_graded = old_instance.is_submitted and old_instance.marks_obtained is not None
 
             instance = serializer.save()
@@ -1624,6 +1952,13 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                         id = result_data.get('id'),
                         exam__subject__instructor = request.user
                     )
+
+                    # Prevent grading if the class is closed
+                    if result.exam.subject.class_obj.is_closed:
+                        errors.append(
+                            f"Result {result_data.get('id')}: cannot grade — class is closed"
+                        )
+                        continue
 
                     result.marks_obtained = result_data['marks_obtained']
                     result.remarks = result_data.get('remarks', '')
@@ -1655,6 +1990,13 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def grade(self, request, pk=None):
         result = self.get_object()
+
+        # Prevent grading if the class is closed
+        if result.exam.subject.class_obj.is_closed:
+            return Response(
+                {'error': 'Cannot grade exams for a closed class.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if request.user.role == 'instructor':
             if result.exam.subject.instructor != request.user:
@@ -1718,13 +2060,55 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 'error': 'student_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        results = self.get_queryset().filter(student_id=student_id, is_submitted=True)
+        results = self.get_queryset().filter(
+            student_id=student_id, is_submitted=True, marks_obtained__isnull=False
+        ).select_related('exam', 'exam__subject', 'exam__subject__class_obj', 'student', 'graded_by')
 
         serializer = self.get_serializer(results, many=True)
 
+        subject_map = {}
+        for r in results:
+            subj = r.exam.subject
+            key = subj.id
+            if key not in subject_map:
+                subject_map[key] = {
+                    'subject_id': subj.id,
+                    'subject_name': subj.name,
+                    'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                    'total_marks_obtained': 0,
+                    'total_possible_marks': 0,
+                    'exams_taken': 0,
+                }
+            subject_map[key]['total_marks_obtained'] += float(r.marks_obtained)
+            subject_map[key]['total_possible_marks'] += r.exam.total_marks
+            subject_map[key]['exams_taken'] += 1
+
+        for subj_data in subject_map.values():
+            possible = subj_data['total_possible_marks']
+            obtained = subj_data['total_marks_obtained']
+            pct = (obtained / possible * 100) if possible > 0 else 0
+            subj_data['percentage'] = round(pct, 2)
+            subj_data['grade'] = self._calculate_overall_grade(pct)
+
+        subject_summaries = sorted(subject_map.values(), key=lambda x: x['subject_name'])
+
+        grand_total_obtained = sum(s['total_marks_obtained'] for s in subject_map.values())
+        grand_total_possible = sum(s['total_possible_marks'] for s in subject_map.values())
+        overall_percentage = (grand_total_obtained / grand_total_possible * 100) if grand_total_possible > 0 else 0
+        overall_grade = self._calculate_overall_grade(overall_percentage)
+
         return Response({
             'count': results.count(),
-            'results':serializer.data
+            'results': serializer.data,
+            'subject_summaries': subject_summaries,
+            'overall_summary': {
+                'total_marks_obtained': grand_total_obtained,
+                'total_possible_marks': grand_total_possible,
+                'overall_percentage': round(overall_percentage, 2),
+                'overall_grade': overall_grade,
+                'total_subjects': len(subject_summaries),
+                'total_exams_taken': results.count(),
+            },
         })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -4006,6 +4390,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
         
 # personalnotification
 class PersonalNotificationViewSet(viewsets.ModelViewSet):
+
     serializer_class = PersonalNotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -4087,3 +4472,417 @@ class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
         }
         return Response(stats)
+
+
+class CertificateTemplateViewSet(viewsets.ModelViewSet):
+
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['template_type', 'is_active', 'is_default']
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = CertificateTemplate.all_objects.select_related('school').all()
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+        if user.active_role == 'superadmin':
+            school = get_current_school()
+            return qs.filter(school=school) if school else qs
+        if user.school:
+            return qs.filter(school=user.school)
+        return qs.none()
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CertificateTemplateSerializer
+        return CertificateTemplateSerializer
+
+    def perform_create(self, serializer):
+        school = get_current_school() or self.request.user.school
+        if serializer.validated_data.get('is_default'):
+            CertificateTemplate.objects.filter(
+                school=school, is_default=True,
+            ).update(is_default=False)
+        serializer.save(school=school)
+
+    @action(detail=True, methods=['post'])
+    def set_default(self, request, pk=None):
+        template = self.get_object()
+        CertificateTemplate.objects.filter(
+            school=template.school, is_default=True,
+        ).update(is_default=False)
+        template.is_default = True
+        template.save(update_fields=['is_default', 'updated_at'])
+        return Response({
+            'status': 'success',
+            'message': f'Template "{template.name}" set as default',
+        })
+
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        template = self.get_object()
+        from .services import CertificateImageResolver
+        resolver = CertificateImageResolver(template.school)
+        branding = resolver.get_school_branding()
+        preview_data = {
+            **branding,
+            'certificate_number': 'SAMPLE-2024-00001',
+            'verification_code': 'SAMPLE123456789ABCDEF',
+            'student_name': 'John Doe',
+            'student_svc_number': 'SVC-12345',
+            'student_rank': 'Sergeant',
+            'course_name': 'Sample Course',
+            'class_name': 'Sample Class 2024',
+            'final_grade': 'A',
+            'final_percentage': 92.5,
+            'completion_date': timezone.now().date(),
+            'issued_at': timezone.now(),
+            'header_text': template.header_text,
+            'signatory_name': template.signatory_name,
+            'signatory_title': template.signatory_title,
+        }
+        return Response(preview_data)
+
+
+class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
+
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'student', 'class_obj']
+    search_fields = ['certificate_number', 'student_name', 'course_name', 'class_name']
+    ordering_fields = ['issued_at', 'created_at', 'certificate_number']
+    ordering = ['-issued_at']
+
+    def get_queryset(self):
+        qs = Certificate.all_objects.select_related(
+            'school', 'student', 'class_obj', 'enrollment',
+            'template', 'issued_by', 'revoked_by',
+        )
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+        if user.active_role == 'superadmin':
+            school = get_current_school()
+            return qs.filter(school=school) if school else qs
+        if user.active_role == 'student':
+            return qs.filter(student=user)
+        if user.school:
+            return qs.filter(school=user.school)
+        return qs.none()
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CertificateListSerializer
+        return CertificateSerializer
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        certificate = self.get_object()
+        user = request.user
+
+        if user.active_role == 'student' and certificate.student != user:
+            return Response(
+                {'error': 'You can only download your own certificates'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Generate on-demand if no file exists
+        if not certificate.certificate_file:
+            try:
+                generator = CertificateGenerator(certificate)
+                generator.save_to_model()
+                certificate.refresh_from_db()
+            except Exception as e:
+                logger.error(f"Error generating certificate: {e}", exc_info=True)
+                return Response(
+                    {'error': 'Failed to generate certificate'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        # Audit log
+        CertificateDownloadLog.objects.create(
+            school=certificate.school,
+            certificate=certificate,
+            downloaded_by=user,
+            download_type='pdf',
+            ip_address=request.META.get('REMOTE_ADDR'),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+        certificate.record_download()
+
+        response = FileResponse(
+            certificate.certificate_file.open('rb'),
+            content_type='application/pdf',
+        )
+        safe_number = certificate.certificate_number.replace('/', '_')
+        response['Content-Disposition'] = (
+            f'attachment; filename="certificate_{safe_number}.pdf"'
+        )
+        return response
+
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        certificate = self.get_object()
+        generator = CertificateGenerator(certificate)
+        html_bytes, _ = generator.generate(fmt='html')
+        certificate.record_view()
+        return HttpResponse(html_bytes, content_type='text/html')
+
+    @action(detail=True, methods=['post'])
+    def regenerate(self, request, pk=None):
+        certificate = self.get_object()
+        try:
+            generator = CertificateGenerator(certificate)
+            generator.save_to_model()
+            return Response({
+                'status': 'success',
+                'message': 'Certificate regenerated successfully',
+            })
+        except Exception as e:
+            logger.error(f"Error regenerating certificate: {e}", exc_info=True)
+            return Response(
+                {'error': 'Failed to regenerate certificate'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        certificate = self.get_object()
+        if certificate.status == 'revoked':
+            return Response(
+                {'error': 'Certificate is already revoked'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reason = request.data.get('reason', '')
+        certificate.revoke(request.user, reason)
+        return Response({
+            'status': 'success',
+            'message': 'Certificate revoked',
+            'certificate': CertificateSerializer(
+                certificate, context={'request': request},
+            ).data,
+        })
+
+
+    @action(detail=False, methods=['get'], url_path='verify/(?P<verification_code>[A-Z0-9]+)')
+    def verify(self, request, verification_code=None):
+        try:
+            certificate = Certificate.all_objects.select_related(
+                'school',
+            ).get(verification_code=verification_code.upper())
+        except Certificate.DoesNotExist:
+            return Response({
+                'is_valid': False,
+                'error': 'Certificate not found',
+                'message': 'No certificate exists with this verification code.',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        data = {
+            'is_valid': certificate.is_valid,
+            'certificate_number': certificate.certificate_number,
+            'student_name': certificate.student_name,
+            'student_svc_number': certificate.student_svc_number,
+            'student_rank': certificate.student_rank,
+            'course_name': certificate.course_name,
+            'class_name': certificate.class_name,
+            'school_name': certificate.school.name if certificate.school else '',
+            'final_grade': certificate.final_grade,
+            'final_percentage': certificate.final_percentage,
+            'issued_at': certificate.issued_at,
+            'completion_date': certificate.completion_date,
+            'status': certificate.status,
+            'status_display': certificate.get_status_display(),
+        }
+        if certificate.status == 'revoked':
+            data['revocation_reason'] = certificate.revocation_reason
+            data['revoked_at'] = certificate.revoked_at
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def my_certificates(self, request):
+        if request.user.active_role != 'student':
+            return Response(
+                {'error': 'Only students can access this endpoint'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        certificates = Certificate.objects.filter(
+            student=request.user, status='issued',
+        ).order_by('-issued_at')
+        serializer = CertificateListSerializer(
+            certificates, many=True, context={'request': request},
+        )
+        return Response({
+            'count': certificates.count(),
+            'results': serializer.data,
+        })
+
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        school = get_current_school() or request.user.school
+        qs = Certificate.all_objects.all()
+        if school:
+            qs = qs.filter(school=school)
+
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        data = {
+            'total_certificates': qs.count(),
+            'issued_count': qs.filter(status='issued').count(),
+            'revoked_count': qs.filter(status='revoked').count(),
+            'total_downloads': qs.aggregate(t=Sum('download_count'))['t'] or 0,
+            'total_views': qs.aggregate(t=Sum('view_count'))['t'] or 0,
+            'certificates_this_month': qs.filter(created_at__gte=month_start).count(),
+            'certificates_this_year': qs.filter(created_at__gte=year_start).count(),
+        }
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def download_logs(self, request):
+        school = get_current_school() or request.user.school
+        qs = CertificateDownloadLog.all_objects.select_related(
+            'certificate', 'downloaded_by',
+        ).order_by('-downloaded_at')
+        if school:
+            qs = qs.filter(school=school)
+
+        page_size = min(int(request.query_params.get('page_size', 20)), 100)
+        page = max(int(request.query_params.get('page', 1)), 1)
+        start = (page - 1) * page_size
+
+        logs = qs[start:start + page_size]
+        serializer = CertificateDownloadLogSerializer(logs, many=True)
+        return Response({
+            'count': qs.count(),
+            'page': page,
+            'page_size': page_size,
+            'results': serializer.data,
+        })
+
+class EnrollmentCertificateView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, enrollment_id):
+        try:
+            enrollment = Enrollment.all_objects.select_related(
+                'student', 'class_obj', 'class_obj__course',
+            ).get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user = request.user
+        if user.active_role == 'student' and enrollment.student != user:
+            return Response(
+                {'error': 'You can only view your own enrollment'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            certificate = Certificate.all_objects.get(enrollment=enrollment)
+            return Response({
+                'has_certificate': True,
+                'is_eligible': True,
+                'certificate': CertificateSerializer(
+                    certificate, context={'request': request},
+                ).data,
+            })
+        except Certificate.DoesNotExist:
+            pass
+
+        is_eligible = enrollment.completion_date is not None
+        return Response({
+            'has_certificate': False,
+            'is_eligible': is_eligible,
+            'enrollment_id': enrollment.id,
+            'student_name': enrollment.student.get_full_name(),
+            'course_name': enrollment.class_obj.course.name,
+            'class_name': enrollment.class_obj.name,
+            'completion_date': enrollment.completion_date,
+            'message': (
+                'Eligible for certificate' if is_eligible
+                else 'Enrollment not completed'
+            ),
+        })
+
+    def post(self, request, enrollment_id):
+        user = request.user
+        if user.active_role not in ['admin', 'superadmin', 'instructor', 'commandant']:
+            return Response(
+                {'error': 'You do not have permission to issue certificates'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            enrollment = Enrollment.all_objects.select_related(
+                'student', 'class_obj', 'class_obj__course', 'school',
+            ).get(id=enrollment_id)
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Resolve optional template from request body
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        certificate, error = issue_certificate(
+            enrollment, user, template=template,
+        )
+
+        if error:
+            return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'status': 'success',
+            'message': 'Certificate issued successfully',
+            'certificate': CertificateSerializer(
+                certificate, context={'request': request},
+            ).data,
+        }, status=status.HTTP_201_CREATED)
+
+class CertificatePublicVerificationView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, verification_code):
+        try:
+            certificate = Certificate.all_objects.select_related('school').get(
+                verification_code=verification_code.upper(),
+            )
+        except Certificate.DoesNotExist:
+            return Response({
+                'is_valid': False,
+                'error': 'Certificate not found',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'is_valid': certificate.is_valid,
+            'certificate_number': certificate.certificate_number,
+            'student_name': certificate.student_name,
+            'course_name': certificate.course_name,
+            'class_name': certificate.class_name,
+            'school_name': certificate.school.name if certificate.school else '',
+            'completion_date': certificate.completion_date,
+            'status': certificate.status,
+            'status_display': certificate.get_status_display(),
+        })

@@ -39,6 +39,11 @@ const AttendanceSessions = lazy(() => import('./dashboard/instructors/Attendance
 const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
+const Certificates = lazy(() => import('./dashboard/admin/Certificates'))
+const ClassCertificates = lazy(() => import('./dashboard/admin/ClassCertificates'))
+const StudentCertificates = lazy(() => import('./dashboard/students/StudentCertificates'))
+const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTemplates'))
+const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
 // Superadmin components
@@ -190,6 +195,30 @@ const App = () => {
 			{/* Exam Reports (admins & instructors) */}
 			<Route path="/list/exam-reports" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ExamReports />} />
+			</Route>
+
+			{/* Certificates list (admin) */}
+			<Route path="/list/certificates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Certificates />} />
+			</Route>
+
+			{/* Certificate templates (admin) */}
+			<Route path="/list/certificate-templates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<CertificateTemplates />} />
+			</Route>
+
+			{/* Class Certificates - completion status & issuance (admin) */}
+			<Route path="/list/classes/:id/certificates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<ClassCertificates />} />
+			</Route>
+			{/* Class students list (admin) */}
+			<Route path="/list/classes/:id/students" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<ClassStudents />} />
+			</Route>
+
+			{/* Student Certificates */}
+			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
+				<Route index element={<StudentCertificates />} />
 			</Route>
 
 			{/* Superadmin routes */}

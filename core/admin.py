@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     User, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -17,7 +17,10 @@ class SchoolAdminFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(school_id=self.value())
+            return queryset.filter(
+                school_memberships__school_id=self.value(),
+                school_memberships__status='active'
+            )
         return queryset
 
 class TenantAdminMixin:
@@ -31,8 +34,9 @@ class TenantAdminMixin:
     
     def save_model(self, request, obj, form, change):
         if not change and hasattr(obj, 'school') and not obj.school:
-            if hasattr(request.user, 'school') and request.user.school:
-                obj.school = request.user.school
+            admin_school = request.user.school  
+            if admin_school:
+                obj.school = admin_school
         super().save_model(request, obj, form, change)
 
 @admin.register(School)
@@ -70,17 +74,24 @@ class SchoolAdmin(admin.ModelAdmin):
         return obj.current_instructor_count
     instructor_count.short_description = 'Instructors'
     
+class SchoolMembershipInline(admin.TabularInline):
+    model = SchoolMembership
+    extra = 0
+    fields = ['school', 'role', 'status', 'started_at', 'ended_at']
+    readonly_fields = ['started_at', 'ended_at']
+
 @admin.register(User)
 class UserAdmin(TenantAdminMixin, BaseUserAdmin):
-    list_display = ['username', 'email', 'get_full_name', 'role', 'school', 'is_active']
+    list_display = ['username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
     ordering = ['-created_at']
+    inlines = [SchoolMembershipInline]
     
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'phone_number', 'svc_number')}),
-        ('School & Role', {'fields': ('school', 'role', 'rank', 'unit')}),
+        ('Role & Military', {'fields': ('role', 'rank', 'unit')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),
     )
@@ -88,11 +99,15 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'school', 'role', 'svc_number', 'phone_number'),
+            'fields': ('username', 'email', 'password1', 'password2', 'role', 'svc_number', 'phone_number'),
         }),
     )
     
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
+
+    def get_school(self, obj):
+        return obj.school.name if obj.school else 'Unaffiliated'
+    get_school.short_description = 'Current School'
 
     def get_queryset(self, request):
         return User.all_objects.all()
@@ -112,7 +127,7 @@ class CourseAdmin(admin.ModelAdmin):
         
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active', 'current_enrollment', 'enrollment_status')
+    list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active','is_closed', 'current_enrollment', 'enrollment_status')
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
     ordering = ['-created_at']
@@ -268,3 +283,12 @@ class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
         list_filter = ['is_active']
         search_fields = ['name']
         ordering = ['-name']
+
+
+@admin.register(Certificate)
+class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ['id', 'school', 'student', 'certificate_number', 'issued_by']
+    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number']
+    list_filter = ['issued_by', 'school']
+    ordering = ['-school', 'certificate_number']
+    raw_id_fields = ['school', 'student', 'issued_by']

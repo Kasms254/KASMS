@@ -39,12 +39,14 @@ class TenantAwareQuerySet(models.QuerySet):
 class TenantAwareUserManager(UserManager):
 
     def get_queryset(self):
-
         queryset = super().get_queryset()
         school = get_current_school()
-        
+
         if school is not None:
-            return queryset.filter(school=school)
+            return queryset.filter(
+                school_memberships__school=school,
+                school_memberships__status='active'
+            ).distinct()
         return queryset
     
     def get_by_natural_key(self, username):
@@ -58,39 +60,33 @@ class TenantAwareUserManager(UserManager):
         return self.model.all_objects.get(**{self.model.USERNAME_FIELD: username})
     
     def create_user(self, username, email=None, password=None, **extra_fields):
-
         extra_fields.setdefault('is_staff', False)
         extra_fields.setdefault('is_superuser', False)
-        
-        if 'school' not in extra_fields or extra_fields.get('school') is None:
-            school = get_current_school()
-            if school is not None:
-                extra_fields['school'] = school
-        
+        extra_fields.pop('school', None)
         return self._create_user(username, email, password, **extra_fields)
     
     def create_superuser(self, username, email=None, password=None, **extra_fields):
-
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', 'superadmin')
-        extra_fields['school'] = None  # Superadmins don't belong to any school
-        
+        extra_fields.pop('school', None)
+
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
-        
+
         return self._create_user(username, email, password, **extra_fields)
     
     def _create_user(self, username, email, password, **extra_fields):
-
         if not username:
             raise ValueError('The given username must be set')
-        
+
+        extra_fields.pop('school', None)
+
         email = self.normalize_email(email) if email else ''
         username = self.model.normalize_username(username)
-        
+
         user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
