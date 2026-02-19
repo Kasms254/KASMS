@@ -284,11 +284,10 @@ class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
         search_fields = ['name']
         ordering = ['-name']
 
-
 @admin.register(Certificate)
 class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ['id', 'school', 'student', 'certificate_number', 'issued_by']
-    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number']
+    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number', 'student__svc_number']
     list_filter = ['issued_by', 'school']
     ordering = ['-school', 'certificate_number']
     raw_id_fields = ['school', 'student', 'issued_by']
