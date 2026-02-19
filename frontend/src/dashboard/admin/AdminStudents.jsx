@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
@@ -72,7 +72,6 @@ export default function AdminStudents() {
   // Pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [totalCount, setTotalCount] = useState(0)
   // edit / delete UI state
   const [editingStudent, setEditingStudent] = useState(null)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, class_obj: '' })
@@ -133,106 +132,23 @@ export default function AdminStudents() {
   const [togglingId, setTogglingId] = useState(null)
 
 
-  // fetch students from API with pagination
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    const params = new URLSearchParams()
-    params.append('page', page)
-    params.append('page_size', pageSize)
-
-    api
-      .getStudentsPaginated(params.toString())
-      .then((data) => {
-        if (!mounted) return
-        // Extract results and pagination info
-        const list = data.results || []
-        setTotalCount(data.count || 0)
-        // normalize shape used by this component
-        const mapped = list.map((u) => ({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          // normalize svc_number to a string so client-side searches are consistent
-          svc_number: u.svc_number != null ? String(u.svc_number) : '',
-          email: u.email,
-          phone_number: u.phone_number,
-          rank: normalizeRank(u.rank || u.rank_display),
-          unit: u.unit || '',
-          is_active: u.is_active,
-          created_at: u.created_at,
-          // backend may include class name under different keys; fall back to 'Unassigned'
-          className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
-        }))
-        // Sort by rank: senior first
-        mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
-        setStudents(mapped)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => {
-      mounted = false
-    }
-  }, [page, pageSize])
-
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClass, setSelectedClass] = useState('all')
   const [availableClasses, setAvailableClasses] = useState([])
 
-  // Load available classes for filter
-  useEffect(() => {
-    api.getAllClasses('is_active=true')
-      .then((data) => {
-        const classList = Array.isArray(data) ? data : []
-        setAvailableClasses(classList)
-      })
-      .catch((err) => {
-      })
-  }, [])
-
-  // Update the API call to include search and class filter
+  // Fetch ALL students and classes once on mount
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    const params = new URLSearchParams()
-    params.append('page', page)
-    params.append('page_size', pageSize)
-    if (searchTerm.trim()) {
-      // When searching, include all students (even those in inactive classes)
-      params.append('search', searchTerm.trim())
-    } else {
-      // By default, only show students whose class is active
-      params.append('class_is_active', 'true')
-    }
-    // Note: Backend filtering by class would require a class_id or class query parameter
-    // If the backend doesn't support this, we'll do client-side filtering
 
-    api
-      .getStudentsPaginated(params.toString())
-      .then((data) => {
+    Promise.all([
+      api.getAllStudents(),
+      api.getAllClasses('is_active=true'),
+    ])
+      .then(([studentsData, classesData]) => {
         if (!mounted) return
-        // Extract results and pagination info
-        let list = data.results || []
-
-        // Client-side filtering by class if a class is selected
-        if (selectedClass !== 'all') {
-          list = list.filter((u) => {
-            const userClassName = u.class_name || u.class || u.class_obj_name || u.className || ''
-            const selectedClassName = availableClasses.find(c => c.id === parseInt(selectedClass))?.name || ''
-            return userClassName === selectedClassName
-          })
-        }
-
-        setTotalCount(selectedClass !== 'all' ? list.length : data.count || 0)
+        const list = Array.isArray(studentsData) ? studentsData : []
         // normalize shape used by this component
         const mapped = list.map((u) => ({
           id: u.id,
@@ -240,7 +156,6 @@ export default function AdminStudents() {
           last_name: u.last_name,
           full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
           name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          // normalize svc_number to a string so client-side searches are consistent
           svc_number: u.svc_number != null ? String(u.svc_number) : '',
           email: u.email,
           phone_number: u.phone_number,
@@ -248,12 +163,10 @@ export default function AdminStudents() {
           unit: u.unit || '',
           is_active: u.is_active,
           created_at: u.created_at,
-          // backend may include class name under different keys; fall back to 'Unassigned'
           className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
         }))
-        // Sort by rank: senior first
-        mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         setStudents(mapped)
+        setAvailableClasses(Array.isArray(classesData) ? classesData : [])
       })
       .catch((err) => {
         if (!mounted) return
@@ -263,10 +176,43 @@ export default function AdminStudents() {
         if (!mounted) return
         setLoading(false)
       })
-    return () => {
-      mounted = false
+    return () => { mounted = false }
+  }, [])
+
+  // Filter and sort students client-side
+  const filteredStudents = useMemo(() => {
+    let filtered = students
+
+    // Filter by class
+    if (selectedClass !== 'all') {
+      const selectedClassName = availableClasses.find(c => c.id === parseInt(selectedClass))?.name || ''
+      filtered = filtered.filter((u) => u.className === selectedClassName)
     }
-  }, [page, pageSize, searchTerm, selectedClass, availableClasses])
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      filtered = filtered.filter((u) =>
+        (u.name || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.svc_number || '').toLowerCase().includes(q) ||
+        (u.rank || '').toLowerCase().includes(q) ||
+        (u.className || '').toLowerCase().includes(q)
+      )
+    }
+
+    // Sort by rank: senior first
+    filtered.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
+    return filtered
+  }, [students, selectedClass, availableClasses, searchTerm])
+
+  // Client-side pagination
+  const totalCount = filteredStudents.length
+  const totalPages = Math.ceil(totalCount / pageSize)
+  const paginatedStudents = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredStudents.slice(start, start + pageSize)
+  }, [filteredStudents, page, pageSize])
 
 
 
@@ -274,7 +220,7 @@ export default function AdminStudents() {
     // Export Service No first, then Rank, Name, Unit, Class, Email, Phone, Active
     const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Class', 'Email', 'Phone', 'Active']]
 
-    students.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
+    filteredStudents.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
 
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -657,7 +603,7 @@ export default function AdminStudents() {
               <div className="relative flex-1">
                 <input
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
                   placeholder="Search students..."
                   className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 />
@@ -752,7 +698,7 @@ export default function AdminStudents() {
               variant="minimal"
             />
           </div>
-        ) : students.length === 0 ? (
+        ) : paginatedStudents.length === 0 ? (
           <div className="bg-white rounded-xl border border-neutral-200">
             <EmptyState
               icon="Users"
@@ -766,7 +712,7 @@ export default function AdminStudents() {
           <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
             {/* Mobile Card View */}
             <div className="lg:hidden p-4 space-y-3">
-              {students.map((st) => (
+              {paginatedStudents.map((st) => (
                 <div key={st.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -815,7 +761,7 @@ export default function AdminStudents() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 bg-white">
-                  {students.map((st) => (
+                  {paginatedStudents.map((st) => (
                     <tr key={st.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>

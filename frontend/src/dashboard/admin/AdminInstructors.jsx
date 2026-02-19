@@ -73,7 +73,6 @@ export default function AdminInstructors() {
   // pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [totalCount, setTotalCount] = useState(0)
   // filter state
   const [selectedClass, setSelectedClass] = useState('all')
   // edit/delete UI state
@@ -132,56 +131,19 @@ export default function AdminInstructors() {
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
 
-  // Load classes list once
-  useEffect(() => {
-    api.getAllClasses()
-      .then((classesData) => {
-        const classes = Array.isArray(classesData) ? classesData : []
-        setClassesList(classes)
-      })
-      .catch(() => {
-        // Silently handle class load error
-      })
-  }, [])
-
-  // Load subjects list once
-  useEffect(() => {
-    api.getAllSubjects()
-      .then((subjectsData) => {
-        const subjects = Array.isArray(subjectsData) ? subjectsData : []
-        setSubjectsList(subjects)
-      })
-      .catch((err) => {
-        // Silently handle subject load error
-      })
-  }, [])
-
-  // fetch instructors with pagination
+  // Fetch ALL instructors, classes, and subjects once on mount
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    const params = new URLSearchParams()
-    params.append('page', page)
-    params.append('page_size', pageSize)
-    if (searchTerm.trim()) {
-      params.append('search', searchTerm.trim())
-    }
 
-    api
-      .getInstructorsPaginated(params.toString())
-      .then((data) => {
+    Promise.all([
+      api.getAllInstructors(),
+      api.getAllClasses(),
+      api.getAllSubjects(),
+    ])
+      .then(([instructorsData, classesData, subjectsData]) => {
         if (!mounted) return
-        let list = data.results || []
-
-        // Client-side filtering by class if a class is selected
-        if (selectedClass !== 'all') {
-          list = list.filter((it) => {
-            // Check if this instructor teaches the selected class
-            const instructorClasses = getInstructorClasses(it.id)
-            return instructorClasses.some(c => String(c.id) === String(selectedClass))
-          })
-        }
-
+        const list = Array.isArray(instructorsData) ? instructorsData : []
         const normalized = list.map((it) => ({
           id: it.id,
           first_name: it.first_name,
@@ -197,10 +159,9 @@ export default function AdminInstructors() {
           is_active: it.is_active,
           created_at: it.created_at,
         }))
-        // Sort by rank: senior first
-        normalized.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
         setInstructors(normalized)
-        setTotalCount(selectedClass !== 'all' ? normalized.length : data.count || 0)
+        setClassesList(Array.isArray(classesData) ? classesData : [])
+        setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
         setError(null)
       })
       .catch((err) => {
@@ -211,10 +172,45 @@ export default function AdminInstructors() {
         if (!mounted) return
         setLoading(false)
       })
-    return () => {
-      mounted = false
+    return () => { mounted = false }
+  }, [])
+
+  // Filter and sort instructors client-side
+  const filteredInstructors = useMemo(() => {
+    let filtered = instructors
+
+    // Filter by class
+    if (selectedClass !== 'all') {
+      filtered = filtered.filter((it) => {
+        const instructorClasses = getInstructorClasses(it.id)
+        return instructorClasses.some(c => String(c.id) === String(selectedClass))
+      })
     }
-  }, [page, pageSize, searchTerm, selectedClass, classesList])
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      filtered = filtered.filter((it) =>
+        (it.full_name || '').toLowerCase().includes(q) ||
+        (it.email || '').toLowerCase().includes(q) ||
+        (it.svc_number || '').toLowerCase().includes(q) ||
+        (it.rank || '').toLowerCase().includes(q) ||
+        (it.unit || '').toLowerCase().includes(q)
+      )
+    }
+
+    // Sort by rank: senior first
+    filtered.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
+    return filtered
+  }, [instructors, selectedClass, classesList, searchTerm])
+
+  // Client-side pagination
+  const totalCount = filteredInstructors.length
+  const totalPages = Math.ceil(totalCount / pageSize)
+  const paginatedInstructors = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredInstructors.slice(start, start + pageSize)
+  }, [filteredInstructors, page, pageSize])
 
   function handleDelete(it) {
     setConfirmDelete(it)
@@ -474,7 +470,7 @@ export default function AdminInstructors() {
   function downloadCSV() {
     // Service No first, then Rank, Name, Unit, then the rest
     const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone', 'Role', 'Active', 'Created']]
-    instructors.forEach((it) => {
+    filteredInstructors.forEach((it) => {
       const svc = it.svc_number || ''
       const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
       const email = it.email || ''
@@ -609,7 +605,7 @@ export default function AdminInstructors() {
         <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
       ) : loading ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading instructors…</div>
-      ) : instructors.length === 0 ? (
+      ) : paginatedInstructors.length === 0 ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
         <>
@@ -629,7 +625,7 @@ export default function AdminInstructors() {
                 </tr>
               </thead>
               <tbody>
-                {instructors.map((it) => (
+                {paginatedInstructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
@@ -699,7 +695,7 @@ export default function AdminInstructors() {
                   </tr>
                 </thead>
                 <tbody>
-                  {instructors.map((it) => (
+                  {paginatedInstructors.map((it) => (
                     <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                       <td className="px-3 py-3">
                         <div className="min-w-0">
@@ -755,7 +751,7 @@ export default function AdminInstructors() {
 
           {/* Mobile Card View (small screens) */}
           <div className="md:hidden space-y-4">
-            {instructors.map((it) => (
+            {paginatedInstructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                 {/* Header with name */}
                 <div className="mb-4">

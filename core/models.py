@@ -323,6 +323,7 @@ class Class(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     capacity = models.IntegerField(validators=[MinValueValidator(1)], default=30)
+    class_code = models.CharField(max_length=20, null=True, blank=True, unique=True)
     is_active = models.BooleanField(default=True)
     is_closed = models.BooleanField(default=False)
     closed_at = models.DateTimeField(null=True, blank=True)
@@ -332,6 +333,7 @@ class Class(models.Model):
     
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
+    
 
     class Meta:
         db_table = 'classes'
@@ -368,19 +370,33 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.class_obj.name})"
-    
+
 class Notice(models.Model):
 
-    PRIORITY_CHOICES = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High'), ('urgent', 'Urgent')]
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='notices', null=True, blank=True)
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='notices', null=True, blank=True,
+    )
+    priority = models.CharField(
+        max_length=10, choices=PRIORITY_CHOICES, default='medium',
+    )
     title = models.CharField(max_length=200)
     content = models.TextField()
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='notices_created',
+    )
+    is_active = models.BooleanField(default=True)
+    expiry_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)
-    expiry_date = models.DateField(null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notices_created')
 
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
@@ -391,6 +407,17 @@ class Notice(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
+
+    def save(self, *args, **kwargs):
+        if self.expiry_date and self.expiry_date < timezone.now():
+            self.is_active = False
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        if not self.expiry_date:
+            return False
+        return self.expiry_date < timezone.now()
 
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
@@ -567,31 +594,6 @@ class Attendance(models.Model):
     def __str__(self):
         return f"{self.student.get_full_name()} - {self.date} - {self.status}"
     
-class ClassNotice(models.Model):
-
-    PRIORITY_CHOICES = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='class_notices', null=True, blank=True)
-    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='class_notices')
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='class_notices', null=True, blank=True)
-    title = models.CharField(max_length=200)
-    content = models.TextField()
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='class_notices_created')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)
-    expiry_date = models.DateTimeField(null=True, blank=True)
-
-    objects = TenantAwareManager()
-    all_objects = models.Manager()
-
-    class Meta:
-        db_table = 'class_notices'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.title} - {self.class_obj.name}"
-
 class ExamReport(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exam_reports', null=True, blank=True)
@@ -638,8 +640,66 @@ class NoticeReadStatus(models.Model):
         db_table = 'notice_read_statuses'
         unique_together = ['user', 'notice']
 
-        def __str__(self):
-            return f"{self.user.username} read {self.notice.title}"
+    def __str__(self):
+        return f"{self.user.username} read {self.notice.title}"
+
+class ClassNotice(models.Model):
+
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='class_notices', null=True, blank=True,
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='class_notices',
+    )
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE,
+        related_name='class_notices', null=True, blank=True,
+    )
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    priority = models.CharField(
+        max_length=10, choices=PRIORITY_CHOICES, default='medium',
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='class_notices_created',
+    )
+    is_active = models.BooleanField(default=True)
+    expiry_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'class_notices'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} — {self.class_obj.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        if self.expiry_date and self.expiry_date < timezone.now():
+            self.is_active = False
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        if not self.expiry_date:
+            return False
+        return self.expiry_date < timezone.now()
 
 class ClassNoticeReadStatus(models.Model):
 
