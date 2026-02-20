@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Card from '../../components/Card'
-import { getCoursesPaginated, addCourse, updateCourse, deleteCourse, getClasses } from '../../lib/api'
+import { getCoursesPaginated, addCourse, updateCourse, deleteCourse, getClasses, getDepartments } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
@@ -22,10 +22,11 @@ export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [courses, setCourses] = useState([])
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [newCourse, setNewCourse] = useState({ name: '', code: '', description: '' })
+  const [newCourse, setNewCourse] = useState({ name: '', code: '', description: '', department: '' })
   const [editingCourse, setEditingCourse] = useState(null)
   const [editCourseModalOpen, setEditCourseModalOpen] = useState(false)
-  const [editCourseForm, setEditCourseForm] = useState({ name: '', code: '', description: '', is_active: true })
+  const [editCourseForm, setEditCourseForm] = useState({ name: '', code: '', description: '', is_active: true, department: '' })
+  const [departments, setDepartments] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
@@ -49,6 +50,10 @@ export default function Courses() {
   // delete confirmation modal state
   const [confirmDeleteCourse, setConfirmDeleteCourse] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    getDepartments().then(setDepartments).catch(() => {})
+  }, [])
 
   useEffect(() => {
     // load courses on mount and fetch active class counts per course
@@ -122,9 +127,9 @@ export default function Courses() {
     setCourseErrors({})
     if (!newCourse.name) return reportError('Course Name Is Required')
     try {
-      await addCourse(newCourse)
+      await addCourse({ ...newCourse, department: newCourse.department || null })
       reportSuccess('Course Added')
-      setNewCourse({ name: '', code: '', description: '' })
+      setNewCourse({ name: '', code: '', description: '', department: '' })
       setAddModalOpen(false)
       load()
     } catch (err) {
@@ -220,6 +225,21 @@ export default function Courses() {
                     />
                     {courseErrors.description && <div className="text-xs text-rose-600 mt-1">{courseErrors.description}</div>}
                   </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Department</label>
+                    <select
+                      className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={newCourse.department}
+                      onChange={(e) => setNewCourse({ ...newCourse, department: e.target.value })}
+                    >
+                      <option value="">— No Department —</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                      ))}
+                    </select>
+                    {courseErrors.department && <div className="text-xs text-rose-600 mt-1">{courseErrors.department}</div>}
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
@@ -256,7 +276,7 @@ export default function Courses() {
                 e.preventDefault()
                 if (!editingCourse) return
                 try {
-                  const payload = { name: editCourseForm.name, code: editCourseForm.code, description: editCourseForm.description }
+                  const payload = { name: editCourseForm.name, code: editCourseForm.code, description: editCourseForm.description, department: editCourseForm.department || null }
                   await updateCourse(editingCourse.id, payload)
                   reportSuccess('Course Updated')
                   setEditCourseModalOpen(false)
@@ -279,6 +299,20 @@ export default function Courses() {
                   <div className="sm:col-span-2">
                     <label className="text-sm text-neutral-600 mb-1 block">Description</label>
                     <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short description of the course" value={editCourseForm.description} maxLength={150} onChange={(e) => setEditCourseForm({ ...editCourseForm, description: sanitizeInput(e.target.value).slice(0, 150) })} />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-sm text-neutral-600 mb-1 block">Department</label>
+                    <select
+                      className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                      value={editCourseForm.department}
+                      onChange={(e) => setEditCourseForm({ ...editCourseForm, department: e.target.value })}
+                    >
+                      <option value="">— No Department —</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -369,7 +403,8 @@ export default function Courses() {
                             name: course.name || '',
                             code: course.code || '',
                             description: course.description || '',
-                            is_active: !!course.is_active
+                            is_active: !!course.is_active,
+                            department: course.department || '',
                           });
                           setEditCourseModalOpen(true);
                         }}

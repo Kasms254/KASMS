@@ -356,26 +356,25 @@ export default function Departments() {
               <Card
                 title={dept.code || dept.name || 'Untitled'}
                 value={dept.name}
-                badge={dept.is_active ? 'Active' : 'Inactive'}
+                badge={`${dept.course_count ?? 0} Courses • ${dept.class_count ?? 0} Classes`}
                 icon="Building"
                 accent={dept.is_active ? 'bg-indigo-600' : 'bg-neutral-400'}
                 colored={true}
               >
                 <div className="space-y-1.5">
                   {dept.hod_name && (
-                    <div className="text-xs text-neutral-500">
+                    <div className="text-xs text-neutral-500 truncate">
                       <span className="font-medium">HOD:</span> {dept.hod_name}
                       {dept.hod_svc_number && <span className="text-neutral-400 ml-1">({dept.hod_svc_number})</span>}
                     </div>
                   )}
-                  <div className="flex items-center gap-3 text-xs text-neutral-500">
-                    <span>{dept.course_count ?? 0} Courses</span>
-                    <span>{dept.class_count ?? 0} Classes</span>
-                  </div>
                   {dept.description && (
                     <div className="line-clamp-2 text-xs text-neutral-400" title={dept.description}>{dept.description}</div>
                   )}
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between mt-1">
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                      {dept.is_active ? 'Active' : 'Inactive'}
+                    </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()

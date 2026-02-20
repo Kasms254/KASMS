@@ -237,13 +237,13 @@ const App = () => {
 				<Route index element={<DepartmentMembers />} />
 			</Route>
 
-			{/* HOD Dashboard (instructors — HOD role checked in component) */}
-			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" />}>
+			{/* HOD Dashboard — HODs only */}
+			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" hodOnly />}>
 				<Route index element={<HODDashboard />} />
 			</Route>
 
-			{/* Result Edit Requests (instructors — HODs see review UI, others see their own requests) */}
-			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" />}>
+			{/* Result Edit Requests — HODs only */}
+			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" hodOnly />}>
 				<Route index element={<EditRequestsReview />} />
 			</Route>
 

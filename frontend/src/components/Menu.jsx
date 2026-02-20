@@ -82,12 +82,14 @@ const menuItems = [
         label: 'HOD Dashboard',
         href: '/dashboard/hod',
         visible: ['instructor'],
+        hodOnly: true,
       },
       {
         icon: 'ClipboardCheck',
         label: 'Edit Requests',
         href: '/list/edit-requests',
         visible: ['instructor'],
+        hodOnly: true,
       },
       // {
       //   icon: 'Book',
@@ -214,6 +216,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
           <span className={`${collapsed ? 'hidden' : 'text-gray-300 font-medium my-3 hidden lg:block'}`}>{section.title}</span>
           {section.items.map((item) => {
             if (!item.visible.includes(role)) return null
+            if (item.hodOnly && !auth.user?.is_hod) return null
 
             // collapsed view: show icon only inside a Tooltip
             if (collapsed) {
