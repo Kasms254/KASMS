@@ -10,7 +10,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action

@@ -356,7 +356,7 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
   .top-row {{ position: relative; width: 100%; text-align: center; margin-bottom: 15px; }}
   .cert-no {{ position: absolute; top: 0; left: 10mm; font-size: 13px;
     font-weight: bold; color: #333; }}
-  .logo {{ max-height: 90px; max-width: 200px; }}
+  .logo {{ max-height: 90px; max-width: 200px; margin-top: 20px; }}
   .school-name {{ font-family: 'Castellar', 'Copperplate Gothic Bold', 'Copperplate', serif;
     font-size: 30px; color: #003366; text-transform: uppercase;
     letter-spacing: 4px; margin: 55px 0 12px 0; font-weight: bold; }}
@@ -380,8 +380,8 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
     margin-bottom: 8px; white-space: nowrap; }}
   .grade-sig-line {{ width: 140px; border-top: 2px solid #333; display: inline-block;
     vertical-align: middle; margin-right: 15px; }}
-  .grade-label {{ font-size: 22px; color: #333; font-weight: bold; margin-right: 15px; }}
-  .grade-value {{ font-size: 30px; color: #cc0000; font-weight: bold; margin-right: 15px; }}
+  .grade-label {{ font-size: 22px; color: #333; font-weight: bold; margin-right: 12px; }}
+  .grade-value {{ font-size: 30px; color: #cc0000; font-weight: bold; margin-right: -11px; }}
   .grade-sig-line-right {{ width: 140px; border-top: 2px solid #333; display: inline-block;
     vertical-align: middle; margin-left: 15px; }}
   .signatures {{ display: flex; justify-content: space-between; width: 100%;
