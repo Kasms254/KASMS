@@ -356,7 +356,7 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
   .top-row {{ position: relative; width: 100%; text-align: center; margin-bottom: 15px; }}
   .cert-no {{ position: absolute; top: 0; left: 10mm; font-size: 13px;
     font-weight: bold; color: #333; }}
-  .logo {{ max-height: 90px; max-width: 200px; }}
+  .logo {{ max-height: 90px; max-width: 200px; margin-top: 20px; }}
   .school-name {{ font-family: 'Castellar', 'Copperplate Gothic Bold', 'Copperplate', serif;
     font-size: 30px; color: #003366; text-transform: uppercase;
     letter-spacing: 4px; margin: 55px 0 12px 0; font-weight: bold; }}
