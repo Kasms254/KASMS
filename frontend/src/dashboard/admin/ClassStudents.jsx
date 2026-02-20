@@ -58,31 +58,45 @@ export default function ClassStudents() {
   const navigate = useNavigate()
   const toast = useToast()
   const [students, setStudents] = useState([])
+  const [className, setClassName] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
+  function mapRoster(data) {
+    if (data.class_name) setClassName(data.class_name)
+    const list = Array.isArray(data.roster) ? data.roster : []
+    const mapped = list.map((u) => ({
+      id: u.id,
+      index_number: u.index_number || '',
+      name: u.student_full_name || '',
+      svc_number: u.student_svc_number != null ? String(u.student_svc_number) : '',
+      rank: normalizeRank(u.student_rank),
+      enrollment_date: u.enrollment_date || '',
+      is_active: u.is_active,
+    }))
+    mapped.sort((a, b) => {
+      const idxA = parseInt(a.index_number, 10) || 0
+      const idxB = parseInt(b.index_number, 10) || 0
+      return idxA - idxB
+    })
+    return mapped
+  }
+
   useEffect(() => {
     let mounted = true
     setLoading(true)
     setError(null)
-    api.getClassEnrolledStudents(id).then((data) => {
+    async function load() {
+      // Assign indexes to any un-indexed students first, then fetch roster
+      try { await api.assignClassIndexes(id) } catch {}
+      const data = await api.getClassRoster(id)
       if (!mounted) return
-      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-      const mapped = list.map((u) => ({
-        id: u.id,
-        name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-        svc_number: u.svc_number != null ? String(u.svc_number) : '',
-        email: u.email,
-        phone_number: u.phone_number,
-        rank: normalizeRank(u.rank || u.rank_display),
-        unit: u.unit || '',
-      }))
-      mapped.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
-      setStudents(mapped)
-    }).catch((err) => {
+      setStudents(mapRoster(data))
+    }
+    load().catch((err) => {
       if (!mounted) return
       setError(err)
       toast?.error?.('Failed to load students for class')
@@ -94,9 +108,9 @@ export default function ClassStudents() {
     if (!searchTerm.trim()) return true
     const term = searchTerm.toLowerCase()
     return (
+      (s.index_number && s.index_number.toLowerCase().includes(term)) ||
       (s.name && s.name.toLowerCase().includes(term)) ||
       (s.svc_number && s.svc_number.toLowerCase().includes(term)) ||
-      (s.email && s.email.toLowerCase().includes(term)) ||
       (s.rank && getRankDisplay(s.rank).toLowerCase().includes(term))
     )
   })
@@ -109,9 +123,9 @@ export default function ClassStudents() {
   useEffect(() => { setPage(1) }, [searchTerm])
 
   const downloadCSV = useCallback(() => {
-    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone']]
+    const rows = [['Index No', 'Service No', 'Rank', 'Name']]
     filtered.forEach((st) => rows.push([
-      st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.email || '', st.phone_number || ''
+      st.index_number || '', st.svc_number || '', getRankDisplay(st.rank) || '', st.name || ''
     ]))
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -132,7 +146,7 @@ export default function ClassStudents() {
             <button onClick={() => navigate('/list/classes')} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Back to classes">
               <LucideIcons.ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">Class Students</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-black">{className ? `${className} — Students` : 'Class Students'}</h2>
           </div>
           <p className="text-xs sm:text-sm text-neutral-500">Students enrolled in this class ({filtered.length}{searchTerm ? ` of ${students.length}` : ''})</p>
         </div>
@@ -154,7 +168,7 @@ export default function ClassStudents() {
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, service number, email, or rank..."
+              placeholder="Search by index number, name, service number, or rank..."
               className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
@@ -194,18 +208,13 @@ export default function ClassStudents() {
               <div key={st.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
                 <div className="flex items-start gap-2 sm:gap-3">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
-                    {initials(st.name || st.svc_number)}
+                    {st.index_number || initials(st.name || st.svc_number)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm sm:text-base text-black truncate">{st.name || '-'}</div>
                     <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
                     {st.rank && <div className="text-xs text-neutral-500">{getRankDisplay(st.rank)}</div>}
-                    {st.unit && <div className="text-xs text-neutral-400">{st.unit}</div>}
                   </div>
-                </div>
-                <div className="space-y-1.5 text-xs sm:text-sm mt-3 pt-3 border-t border-neutral-200">
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600 flex-shrink-0">Email:</span><span className="text-black truncate">{st.email || '-'}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Phone:</span><span className="text-black truncate">{st.phone_number || '-'}</span></div>
                 </div>
               </div>
             ))}
@@ -216,17 +225,16 @@ export default function ClassStudents() {
             <table className="min-w-full table-auto">
               <thead className="bg-neutral-50">
                 <tr className="text-left">
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Index No</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Service No</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Unit</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Email</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Phone</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 bg-white">
                 {paginatedStudents.map((st) => (
                   <tr key={st.id} className="hover:bg-neutral-50 transition">
+                    <td className="px-4 py-3 text-sm font-medium text-indigo-700 whitespace-nowrap">{st.index_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
                     <td className="px-4 py-3">
@@ -237,9 +245,6 @@ export default function ClassStudents() {
                         <div className="font-medium text-sm text-black">{st.name || '-'}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{st.unit || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 truncate max-w-[200px]">{st.email || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.phone_number || '-'}</td>
                   </tr>
                 ))}
               </tbody>
