@@ -380,8 +380,8 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
     margin-bottom: 8px; white-space: nowrap; }}
   .grade-sig-line {{ width: 140px; border-top: 2px solid #333; display: inline-block;
     vertical-align: middle; margin-right: 15px; }}
-  .grade-label {{ font-size: 22px; color: #333; font-weight: bold; margin-right: 15px; }}
-  .grade-value {{ font-size: 30px; color: #cc0000; font-weight: bold; margin-right: 15px; }}
+  .grade-label {{ font-size: 22px; color: #333; font-weight: bold; margin-right: 12px; }}
+  .grade-value {{ font-size: 30px; color: #cc0000; font-weight: bold; margin-right: -11px; }}
   .grade-sig-line-right {{ width: 140px; border-top: 2px solid #333; display: inline-block;
     vertical-align: middle; margin-left: 15px; }}
   .signatures {{ display: flex; justify-content: space-between; width: 100%;
