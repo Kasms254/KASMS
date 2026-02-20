@@ -2385,6 +2385,7 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             student_data.append({
                 'student_id':enrollment.student.id,
                 'student_name':enrollment.student.get_full_name(),
+                'student_rank': enrollment.student.rank,
                 'svc_number': enrollment.student.svc_number,
                 'total_marks': total_marks,
                 'total_possible': total_possible,
