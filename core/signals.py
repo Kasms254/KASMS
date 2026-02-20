@@ -4,6 +4,8 @@ from django.dispatch import receiver
 from django.conf import settings
 from .services import get_class_completion_status
 from .models import PersonalNotification, User, Enrollment
+from core.models import Enrollment as Enroll, StudentIndex
+from django.db import transaction as tx
 import logging
 
 logger = logging.getLogger(__name__)
@@ -63,18 +65,51 @@ def check_academic_completion_on_grade(sender, instance, **kwargs):
 @receiver(post_save, sender=Enrollment)
 def auto_assign_student_index(sender, instance, created, **kwargs):
 
-    if created and not hasattr(instance, "student_index"):
+    if not created:
+        return
+
+    def _assign():
+
+
         try:
-            idx = assign_student_index(instance)
-            logger.info(
-                f"Assigned index {idx.index_number} to student "
-                f"{instance.student_id} in class {instance.class_obj.name}"
-            )
+            enrollment = Enroll.all_objects.select_related(
+                'class_obj', 'school'
+            ).get(pk=instance.pk)
+        except Enroll.DoesNotExist:
+            return
+
+        if StudentIndex.all_objects.filter(enrollment=enrollment).exists():
+            return
+
+        class_obj = enrollment.class_obj
+
+        try:
+            with tx.atomic():
+                existing = (
+                    StudentIndex.all_objects
+                    .select_for_update()
+                    .filter(class_obj=class_obj)
+                )
+                next_number = existing.count() + 1
+                next_index = class_obj.format_index(next_number)
+
+                StudentIndex.objects.create(
+                    enrollment=enrollment,
+                    class_obj=class_obj,
+                    index_number=next_index,
+                    school=enrollment.school,
+                )
+                logger.info(
+                    "StudentIndex '%s' assigned to enrollment %s in class '%s'",
+                    next_index, enrollment.id, class_obj.name,
+                )
         except Exception as e:
             logger.error(
-                f"Failed to assign index for enrollment {instance.id}: {e}"
+                "Failed to assign StudentIndex for enrollment %s: %s",
+                instance.pk, e, exc_info=True,
             )
 
+    transaction.on_commit(_assign)
 
 
 

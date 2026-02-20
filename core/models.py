@@ -357,6 +357,7 @@ class Class(models.Model):
     closed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
     )
+    index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
     
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
@@ -376,7 +377,15 @@ class Class(models.Model):
     @property
     def enrollment_status(self):
         return f"{self.current_enrollment} / {self.capacity}"
-    
+
+    def format_index(self, number: int) -> str:
+        return f"{self.index_prefix}{number}"
+
+    @property
+    def next_index_preview(self):
+        count = self.student_indexes.count()
+        return self.format_index(count +1)
+            
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects', null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
@@ -1063,7 +1072,6 @@ class PersonalNotification(models.Model):
         indexes = [models.Index(fields=['user', 'is_read']), models.Index(fields=['user', 'created_at']), models.Index(fields=['notification_type'])]
 
 # certificate
-
 class CertificateTemplate(models.Model):
 
     TEMPLATE_TYPE_CHOICES = [
