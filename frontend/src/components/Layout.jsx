@@ -51,7 +51,7 @@ export default function Layout() {
               className="w-8 h-8 rounded object-contain bg-white/10"
             />
             <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>
-              {theme.school_name || 'KASMS'}
+              {theme.school_short_name || theme.school_name || 'KASMS'}
             </span>
           </Link>
           <Menu role={role} collapsed={collapsed} onMobileMenuClick={() => setMobileMenuOpen(false)} />

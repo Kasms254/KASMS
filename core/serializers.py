@@ -9,7 +9,6 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 
-
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
     secondary_color = serializers.CharField()
@@ -935,6 +934,7 @@ class ExamSerializer(serializers.ModelSerializer):
 class ExamResultSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    student_rank = serializers.SerializerMethodField(read_only=True)
     exam_title = serializers.CharField(source='exam.title', read_only=True)
     exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
     graded_by_name = serializers.SerializerMethodField(read_only=True)
@@ -960,7 +960,12 @@ class ExamResultSerializer(serializers.ModelSerializer):
     
     def get_graded_by_name(self, obj):
         return obj.graded_by.get_full_name() if obj.graded_by else None
-    
+
+    def get_student_rank(self, obj):
+        if obj.student and obj.student.rank:
+            return obj.student.get_rank_display()
+        return None
+
     def validate_marks_obtained(self, value):
         if value is not None:
             exam = self.instance.exam if self.instance else None

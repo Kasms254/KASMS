@@ -107,7 +107,7 @@ class  ReadOnlyForCommandant(permissions.BasePermission):
 
 
     message = "You do not have permission to perform this action"
- 
+
 class BelongsToSameSchool(BasePermission):
 
     message = "You can only access resources from your school."

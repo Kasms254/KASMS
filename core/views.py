@@ -1762,7 +1762,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     ordering_fields = ['marks_obtained', 'created_at']
     ordering = ['-exam__exam_date', 'created_at']
     
-
     def get_queryset(self):
         queryset = ExamResult.all_objects.select_related('exam', 'student', 'graded_by').all()
         user = self.request.user
@@ -1788,12 +1787,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-
 
     @action(detail=False, methods=['get'])
     def student_results(self, request):
@@ -1866,7 +1863,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             return 'D'
         else:
             return 'F'
-
 
     def _create_grade_notification(self, exam_result):
         try:
@@ -2391,6 +2387,7 @@ class ExamReportViewSet(viewsets.ModelViewSet):
             student_data.append({
                 'student_id':enrollment.student.id,
                 'student_name':enrollment.student.get_full_name(),
+                'student_rank': enrollment.student.rank,
                 'svc_number': enrollment.student.svc_number,
                 'total_marks': total_marks,
                 'total_possible': total_possible,
@@ -4388,7 +4385,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'count':len(low_attendance_students),
             'students':low_attendance_students
         })
-        
 # personalnotification
 class PersonalNotificationViewSet(viewsets.ModelViewSet):
 
@@ -4664,7 +4660,6 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 certificate, context={'request': request},
             ).data,
         })
-
 
     @action(detail=False, methods=['get'], url_path='verify/(?P<verification_code>[A-Z0-9]+)')
     def verify(self, request, verification_code=None):

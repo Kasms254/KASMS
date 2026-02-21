@@ -68,6 +68,8 @@ class School(models.Model):
             'secondary_color': self.secondary_color,
             'accent_color': self.accent_color,
             'logo_url': self.logo.url if self.logo else None,
+            'school_name': self.name,
+            'school_short_name': self.short_name or '',
             **self.theme_config
         }
 #    school membership

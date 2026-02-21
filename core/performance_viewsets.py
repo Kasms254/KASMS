@@ -603,6 +603,8 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 student_possible = sum(r.exam.total_marks for r in student_results)
                 exam_percentage = (student_total / student_possible * 100) if student_possible > 0 else 0
             else:
+                student_total = 0
+                student_possible = 0
                 exam_percentage = 0
 
             student_attendances = all_session_attendances.filter(student=student)
@@ -631,6 +633,8 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                     subject_scores.append({
                         'subject_name': subject.name,
                         'subject_code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
+                        'marks_obtained': float(subj_total),
+                        'total_possible': float(subj_possible),
                         'exam_percentage': round(subj_pct, 2),
                         'attendance_rate':round(subject_attendance_rate, 2),
                         'combined_score': round((float(subj_pct or 0) * 0.7) + (float(subject_attendance_rate or 0) * 0.3), 2)
@@ -642,12 +646,14 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'student_name': student.get_full_name(),
                 'svc_number': getattr(student, 'svc_number', None),
                 'total_exams_taken': student_results.count() if student_results.exists() else 0,
+                'total_marks_obtained': float(student_total),
+                'total_marks_possible': float(student_possible),
                 'exam_percentage': round(exam_percentage, 2),
                 'total_sessions': total_sessions,
                 'sessions_attended': attended_count,
                 'attendance_rate':round(attendance_rate, 2),
                 'combined_score': round(combined_score, 2),
-                'overall_grade': _calculate_grade(combined_score),
+                'overall_grade': _calculate_grade(exam_percentage),
                 'subject_breakdown': subject_scores,
             })
 
@@ -1127,15 +1133,14 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
         
 def _calculate_grade(percentage):
 
-    if percentage >= 90:
+    if percentage >= 80:
         return 'A'
-    elif percentage >= 80:
-        return 'B'
     elif percentage >= 70:
-        return 'C'
+        return 'B'
     elif percentage >= 60:
+        return 'C'
+    elif percentage >= 50:
         return 'D'
-    
     else:
         return 'F'
 

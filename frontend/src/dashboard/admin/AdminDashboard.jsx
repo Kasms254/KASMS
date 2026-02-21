@@ -147,7 +147,9 @@ export default function AdminDashboard() {
         <Link to="/list/subjects" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
           <UserCard type="subject" count={metrics.subjects} />
         </Link>
-        <Card title="Active Classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
+        <Link to="/list/classes" className="block focus:outline-none focus:ring-2 focus:ring-pink-200 rounded-lg">
+          <Card title="Active Classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
+        </Link>
       </section>
 
       {/* removed admin actions (Add user) per design change */}
