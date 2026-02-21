@@ -7,7 +7,7 @@ import os
 import uuid
 import hashlib
 from datetime import timedelta
-from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
+from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager, DepartmentMembershipManager
 from django.core.validators import RegexValidator
 
 def school_logo_upload_path(instance, filename):
@@ -219,7 +219,7 @@ class DepartmentMembership(models.Model):
     assigned_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    objects = TenantAwareManager()
+    objects = DepartmentMembershipManager()
     all_objects = models.Manager()
 
     class Meta:

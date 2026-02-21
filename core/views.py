@@ -36,6 +36,8 @@ from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates
 from rest_framework.views import APIView
+from django.db.models.functions import Concat
+from django.db.models import CharField
 
 class TenantFilterMixin:
 
@@ -4891,14 +4893,67 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Department.objects.select_related('school').prefetch_related(
-            'department_memberships__user'
+
+        hod_qs = (
+            DepartmentMembership.all_objects
+            .filter(
+                department=OuterRef('pk'),
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
+            )
         )
-        if user.role in ('instructor',):
+
+        qs = (
+            Department.objects
+            .select_related('school')
+            .annotate(
+                _hod_name=Subquery(
+                    hod_qs.annotate(
+                        full_name=Concat(
+                            'user__first_name', Value(' '), 'user__last_name',
+                            output_field=CharField(),
+                        )
+                    ).values('full_name')[:1]
+                ),
+                _hod_svc_number=Subquery(
+                    hod_qs.values('user__svc_number')[:1]
+                ),
+                _course_count=Subquery(
+                    Course.all_objects
+                    .filter(department=OuterRef('pk'), is_active=True)
+                    .order_by()
+                    .values('department')
+                    .annotate(cnt=Count('id'))
+                    .values('cnt'),
+                    output_field=IntegerField(),
+                ),
+                _class_count=Subquery(
+                    Class.all_objects
+                    .filter(department=OuterRef('pk'), is_active=True)
+                    .order_by()
+                    .values('department')
+                    .annotate(cnt=Count('id'))
+                    .values('cnt'),
+                    output_field=IntegerField(),
+                ),
+                _member_count=Subquery(
+                    DepartmentMembership.all_objects
+                    .filter(department=OuterRef('pk'), is_active=True)
+                    .order_by()
+                    .values('department')
+                    .annotate(cnt=Count('id'))
+                    .values('cnt'),
+                    output_field=IntegerField(),
+                ),
+            )
+        )
+
+        if user.role == 'instructor':
             qs = qs.filter(
                 department_memberships__user=user,
                 department_memberships__is_active=True,
             ).distinct()
+
         return qs
 
     def get_permissions(self):
@@ -4924,7 +4979,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
         from .serializers import ClassSerializer
-        classes = dept.classes.filter(is_active=True).select_related('course', 'instructor')
+        classes = (
+            dept.classes
+            .filter(is_active=True)
+            .select_related('course', 'instructor')
+        )
         return Response(ClassSerializer(classes, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='students',
@@ -4934,10 +4993,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         self._assert_hod_of_dept(request.user, dept)
         from .models import Enrollment
         from .serializers import EnrollmentSerializer
-        enrollments = Enrollment.objects.filter(
-            class_obj__department=dept,
-            is_active=True
-        ).select_related('student', 'class_obj')
+        enrollments = (
+            Enrollment.objects
+            .filter(class_obj__department=dept, is_active=True)
+            .select_related('student', 'class_obj')
+        )
         return Response(EnrollmentSerializer(enrollments, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='results',
@@ -4945,10 +5005,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def results(self, request, pk=None):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
-        results = ExamResult.objects.filter(
-            exam__class_obj__department=dept,
-            is_submitted=True
-        ).select_related('student', 'exam', 'exam__subject')
+        results = (
+            ExamResult.objects
+            .filter(exam__class_obj__department=dept, is_submitted=True)
+            .select_related('student', 'exam', 'exam__subject')
+        )
         from .serializers import ExamResultSerializer
         return Response(ExamResultSerializer(results, many=True).data)
 
@@ -4957,11 +5018,17 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def pending_edit_requests(self, request, pk=None):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
-        requests = ResultEditRequest.objects.filter(
-            exam_result__exam__class_obj__department=dept,
-            status=ResultEditRequest.Status.PENDING,
-        ).select_related('exam_result__exam', 'requested_by')
-        return Response(ResultEditRequestSerializer(requests, many=True).data)
+        edit_requests = (
+            ResultEditRequest.objects
+            .filter(
+                exam_result__exam__class_obj__department=dept,
+                status=ResultEditRequest.Status.PENDING,
+            )
+            .select_related('exam_result__exam', 'requested_by')
+        )
+        return Response(
+            ResultEditRequestSerializer(edit_requests, many=True).data
+        )
 
     def _assert_hod_of_dept(self, user, dept):
         if user.role in ('admin', 'superadmin'):
@@ -5009,13 +5076,23 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         )
         if user.role in ('admin', 'superadmin'):
             return base
-        hod_depts = DepartmentMembership.objects.filter(
-            user=user, role=DepartmentMembership.Role.HOD, is_active=True
-        ).values_list('department_id', flat=True)
-        if hod_depts.exists():
-            return base.filter(
-                exam_result__exam__class_obj__department__in=hod_depts
+
+        hod_dept_ids = list(
+            DepartmentMembership.objects
+            .filter(
+                user=user,
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
             )
+            .values_list('department_id', flat=True)
+        )
+
+        if hod_dept_ids:
+            return base.filter(
+                Q(exam_result__exam__class_obj__department__in=hod_dept_ids)
+                | Q(requested_by=user)
+            ).distinct()
+
         return base.filter(requested_by=user)
 
     def get_permissions(self):
@@ -5122,16 +5199,26 @@ class ExamResultViewSetPatch:
         if request.user.role == 'instructor' and not (is_class_instructor or is_subject_instructor):
             return Response({'detail': 'You are not the instructor for this exam.'}, status=403)
 
+        student_ids = [item.get('student') for item in results_data if item.get('student')]
+        students_by_id = {
+            str(s.pk): s
+            for s in UserModel.all_objects.filter(
+                pk__in=student_ids,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            ).distinct()
+        }
+
         created, updated, errors = [], [], []
+        now = timezone.now()
 
         with transaction.atomic():
             for item in results_data:
                 student_id = item.get('student')
                 marks = item.get('marks_obtained')
 
-                try:
-                    student = UserModel.objects.get(pk=student_id, school=request.user.school)
-                except UserModel.DoesNotExist:
+                student = students_by_id.get(str(student_id))
+                if student is None:
                     errors.append({'student': student_id, 'error': 'Student not found.'})
                     continue
 
@@ -5151,10 +5238,10 @@ class ExamResultViewSetPatch:
                 result.marks_obtained = marks
                 result.remarks = item.get('remarks', result.remarks)
                 result.is_submitted = True
-                result.submitted_at = timezone.now()
+                result.submitted_at = now
                 result.graded_by = request.user
-                result.graded_at = timezone.now()
-                result.is_locked = True  
+                result.graded_at = now
+                result.is_locked = True
                 result.save()
 
                 if is_new:

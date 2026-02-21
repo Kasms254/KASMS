@@ -1631,29 +1631,49 @@ class DepartmentSerializer(serializers.ModelSerializer):
     hod_svc_number = serializers.SerializerMethodField()
     course_count = serializers.SerializerMethodField()
     class_count = serializers.SerializerMethodField()
+    member_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Department
         fields = [
             'id', 'school', 'name', 'code', 'description', 'is_active',
-            'hod_name', 'hod_svc_number', 'course_count', 'class_count',
+            'hod_name', 'hod_svc_number',
+            'course_count', 'class_count', 'member_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'school', 'created_at', 'updated_at']
 
     def get_hod_name(self, obj):
+        val = getattr(obj, '_hod_name', None)
+        if val is not None:
+            return val
         hod = obj.hod
         return hod.get_full_name() if hod else None
 
     def get_hod_svc_number(self, obj):
+        val = getattr(obj, '_hod_svc_number', None)
+        if val is not None:
+            return val
         hod = obj.hod
         return hod.svc_number if hod else None
 
     def get_course_count(self, obj):
+        val = getattr(obj, '_course_count', None)
+        if val is not None:
+            return val
         return obj.courses.filter(is_active=True).count()
 
     def get_class_count(self, obj):
+        val = getattr(obj, '_class_count', None)
+        if val is not None:
+            return val
         return obj.classes.filter(is_active=True).count()
+
+    def get_member_count(self, obj):
+        val = getattr(obj, '_member_count', None)
+        if val is not None:
+            return val
+        return obj.department_memberships.filter(is_active=True).count()
 
 class DepartmentMembershipSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)

@@ -144,3 +144,15 @@ class TenantAwareManager(models.Manager):
 #         return super().create(**kwargs)
 
 SimpleTenantAwareManager = TenantAwareManager
+
+
+class DepartmentMembershipManager(models.Manager):
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        school = get_current_school()
+        if school:
+            return queryset.filter(department__school=school)
+        return queryset
+
+    def for_school(self, school):
+        return super().get_queryset().filter(department__school=school)
