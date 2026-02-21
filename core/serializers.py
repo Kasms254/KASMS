@@ -1658,8 +1658,9 @@ class InstructorMarksSerializer(serializers.ModelSerializer):
                 student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
             )
-            return enrollment.student_indexes.index_number
-        except (Enrollment.DoesNotExist, AttributeError):
+            index_number = enrollment.student_indexes.index_number
+            return obj.exam.subject.class_obj.format_index(int(index_number))
+        except (Enrollment.DoesNotExist, AttributeError, ValueError, TypeError):
             return None
 
     def validate_marks_obtained(self, value):
@@ -1731,8 +1732,9 @@ class AdminMarksSerializer(serializers.ModelSerializer):
                 student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
             )
-            return enrollment.student_indexes.index_number
-        except (Enrollment.DoesNotExist, AttributeError):
+            index_number = enrollment.student_indexes.index_number
+            return obj.exam.subject.class_obj.format_index(int(index_number))
+        except (Enrollment.DoesNotExist, AttributeError, ValueError, TypeError):
             return None
 
     def get_graded_by_name(self, obj):

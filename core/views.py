@@ -5029,7 +5029,7 @@ class AdminRosterViewSet(viewsets.ViewSet):
         indexes = StudentIndex.objects.filter(
             class_obj=class_obj,
         ).select_related(
-            "enrollment", "enrollment__student",
+            "enrollment", "enrollment__student", "class_obj",
         ).order_by("index_number")
 
         serializer = AdminStudentIndexRosterSerializer(indexes, many=True)
@@ -5037,6 +5037,7 @@ class AdminRosterViewSet(viewsets.ViewSet):
         return Response({
             "class_id": class_obj.id,
             "class_name": class_obj.name,
+            "index_prefix": class_obj.index_prefix or "",
             "total_students": indexes.count(),
             "roster": serializer.data,
         })

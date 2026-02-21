@@ -1412,9 +1412,12 @@ export async function getClassRoster(classId) {
   return request(`/api/admin/roster/${classId}/`)
 }
 
-export async function assignClassIndexes(classId) {
+export async function assignClassIndexes(classId, startFrom = null) {
   if (!classId) throw new Error('classId is required')
-  return request(`/api/admin/roster/${classId}/assign/`, { method: 'POST' })
+  return request(`/api/admin/roster/${classId}/assign/`, {
+    method: 'POST',
+    body: startFrom ? { start_from: startFrom } : undefined,
+  })
 }
 
 // Marks Entry

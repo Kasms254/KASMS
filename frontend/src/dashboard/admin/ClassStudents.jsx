@@ -4,7 +4,6 @@ import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
-import { getRankSortIndex } from '../../lib/rankOrder'
 
 const RANK_OPTIONS = [
   { value: 'general', label: 'General' },
@@ -65,12 +64,22 @@ export default function ClassStudents() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
+  function buildFormattedIndex(rawNumber, prefix, serverFormatted) {
+    if (serverFormatted) return serverFormatted
+    const num = parseInt(rawNumber, 10)
+    if (isNaN(num)) return rawNumber || ''
+    const padded = String(num).padStart(3, '0')
+    return prefix ? `${prefix}/${padded}` : padded
+  }
+
   function mapRoster(data) {
     if (data.class_name) setClassName(data.class_name)
+    const prefix = data.index_prefix || ''
     const list = Array.isArray(data.roster) ? data.roster : []
     const mapped = list.map((u) => ({
       id: u.id,
       index_number: u.index_number || '',
+      formatted_index: buildFormattedIndex(u.index_number, prefix, u.formatted_index),
       name: u.student_full_name || '',
       svc_number: u.student_svc_number != null ? String(u.student_svc_number) : '',
       rank: normalizeRank(u.student_rank),
@@ -125,7 +134,7 @@ export default function ClassStudents() {
   const downloadCSV = useCallback(() => {
     const rows = [['Index No', 'Service No', 'Rank', 'Name']]
     filtered.forEach((st) => rows.push([
-      st.index_number || '', st.svc_number || '', getRankDisplay(st.rank) || '', st.name || ''
+      st.formatted_index || '', st.svc_number || '', getRankDisplay(st.rank) || '', st.name || ''
     ]))
     const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -208,10 +217,15 @@ export default function ClassStudents() {
               <div key={st.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
                 <div className="flex items-start gap-2 sm:gap-3">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
-                    {st.index_number || initials(st.name || st.svc_number)}
+                    {initials(st.name || st.svc_number)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm sm:text-base text-black truncate">{st.name || '-'}</div>
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <div className="font-medium text-sm sm:text-base text-black truncate">{st.name || '-'}</div>
+                      {st.formatted_index && (
+                        <span className="inline-block bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">{st.formatted_index}</span>
+                      )}
+                    </div>
                     <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
                     {st.rank && <div className="text-xs text-neutral-500">{getRankDisplay(st.rank)}</div>}
                   </div>
@@ -234,7 +248,7 @@ export default function ClassStudents() {
               <tbody className="divide-y divide-neutral-200 bg-white">
                 {paginatedStudents.map((st) => (
                   <tr key={st.id} className="hover:bg-neutral-50 transition">
-                    <td className="px-4 py-3 text-sm font-medium text-indigo-700 whitespace-nowrap">{st.index_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-indigo-700 whitespace-nowrap">{st.formatted_index || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
                     <td className="px-4 py-3">
