@@ -1690,6 +1690,14 @@ class DepartmentMembershipSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
 
+    def run_validators(self, value):
+
+        if self.instance and self.partial:
+            for field_name in ('department', 'user', 'is_active', 'role'):
+                if field_name not in value and hasattr(self.instance, field_name):
+                    value[field_name] = getattr(self.instance, field_name)
+        super().run_validators(value)
+
     def validate(self, attrs):
         department = attrs.get('department') or (self.instance and self.instance.department)
         user = attrs.get('user') or (self.instance and self.instance.user)
@@ -1764,7 +1772,7 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             exam = exam_result.exam
             is_grader = exam_result.graded_by == request.user
             is_class_instructor = exam.subject.instructor == request.user
-            is_class_owner = exam.class_obj.instructor == request.user
+            is_class_owner = exam.subject.class_obj.instructor == request.user
 
             if not (is_grader or is_class_instructor or is_class_owner):
                 raise serializers.ValidationError(

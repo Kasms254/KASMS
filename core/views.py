@@ -1856,14 +1856,22 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _calculate_overall_grade(percentage):
-        if percentage >= 90:
+        if percentage >= 91:
             return 'A'
-        elif percentage >= 80:
+        elif percentage >= 86:
+            return 'A-'
+        elif percentage >= 81:
+            return 'B+'
+        elif percentage >= 76:
             return 'B'
-        elif percentage >= 70:
-            return 'C'
+        elif percentage >= 71:
+            return 'B-'
+        elif percentage >= 65:
+            return 'C+'
         elif percentage >= 60:
-            return 'D'
+            return 'C'
+        elif percentage >= 50:
+            return 'C-'
         else:
             return 'F'
 
@@ -1871,14 +1879,22 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         try:
             percentage = (exam_result.marks_obtained / exam_result.exam.total_marks * 100) if exam_result.exam.total_marks > 0 else 0
 
-            if percentage >= 90:
+            if percentage >= 91:
                 grade_letter = 'A'
-            elif percentage >= 80:
+            elif percentage >= 86:
+                grade_letter = 'A-'
+            elif percentage >= 81:
+                grade_letter = 'B+'
+            elif percentage >= 76:
                 grade_letter = 'B'
-            elif percentage >= 70:
-                grade_letter = 'C'
+            elif percentage >= 71:
+                grade_letter = 'B-'
+            elif percentage >= 65:
+                grade_letter = 'C+'
             elif percentage >= 60:
-                grade_letter = 'D'
+                grade_letter = 'C'
+            elif percentage >= 50:
+                grade_letter = 'C-'
             else:
                 grade_letter = 'F'
 
@@ -1919,7 +1935,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             old_instance = self.get_object()
 
-            # Prevent grading if the class is closed
             if old_instance.exam.subject.class_obj.is_closed:
                 raise ValidationError("Cannot update exam results for a closed class.")
 
@@ -1991,7 +2006,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def grade(self, request, pk=None):
         result = self.get_object()
 
-        # Prevent grading if the class is closed
         if result.exam.subject.class_obj.is_closed:
             return Response(
                 {'error': 'Cannot grade exams for a closed class.'},
@@ -2857,16 +2871,22 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 total_possible = sum(r.exam.total_marks for r in active_class_results)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
-                if average_percentage >=90:
+                if average_percentage >=91:
                     grade_letter = 'A'
-                elif average_percentage >=80:
-                    grade_letter = 'A'
-                elif average_percentage >= 70:
+                elif average_percentage >=86:
+                    grade_letter = 'A-'
+                elif average_percentage >=81:
+                    grade_letter = 'B+'
+                elif average_percentage >= 76:
                     grade_letter = 'B'
+                elif average_percentage >= 71:
+                    grade_letter = 'B-'
+                elif average_percentage >= 65:
+                    grade_letter = 'C+'
                 elif average_percentage >= 60:
                     grade_letter = 'C'
                 elif average_percentage >= 50:
-                    grade_letter = "D"
+                    grade_letter = 'C-'
                 else:
                     grade_letter = 'F'
 

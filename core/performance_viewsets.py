@@ -94,9 +94,13 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
 
         grade_distribution = {
             'A': sum(1 for r in all_results if r.grade =='A'),
+            'A-': sum(1 for r in all_results if r.grade == 'A-'),
+            'B+': sum(1 for r in all_results if r.grade == 'B+'),
             'B': sum(1 for r in all_results if r.grade == 'B'),
+            'B-': sum(1 for r in all_results if r.grade == 'B-'),
+            'C+': sum(1 for r in all_results if r.grade == 'C+'),
             'C': sum(1 for r in all_results if r.grade == 'C'),
-            'D': sum(1 for r in all_results if r.grade == 'D'),
+            'C-': sum(1 for r in all_results if r.grade == 'C-'),
             'F': sum(1 for r in all_results if r.grade == 'F'),
         }
 
@@ -1133,15 +1137,22 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
         })
         
 def _calculate_grade(percentage):
-
-    if percentage >= 80:
+    if percentage >= 91:
         return 'A'
-    elif percentage >= 70:
+    elif percentage >= 86:
+        return 'A-'
+    elif percentage >= 81:
+        return 'B+'
+    elif percentage >= 76:
         return 'B'
+    elif percentage >= 71:
+        return 'B-'
+    elif percentage >= 65:
+        return 'C+'
     elif percentage >= 60:
         return 'C'
     elif percentage >= 50:
-        return 'D'
+        return 'C-'
     else:
         return 'F'
 

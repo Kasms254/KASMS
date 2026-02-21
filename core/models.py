@@ -741,10 +741,14 @@ class ExamResult(models.Model):
     @property
     def grade(self):
         pct = self.percentage
-        if pct >= 80: return 'A'
-        if pct >= 70: return 'B'
+        if pct >= 91: return 'A'
+        if pct >= 86: return 'A-'
+        if pct >= 81: return 'B+'
+        if pct >= 76: return 'B'
+        if pct >= 71: return 'B-'
+        if pct >= 65: return 'C+'
         if pct >= 60: return 'C'
-        if pct >= 50: return 'D'
+        if pct >= 50: return 'C-'
         return 'F'
     
 class Attendance(models.Model):
