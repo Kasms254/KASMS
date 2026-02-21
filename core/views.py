@@ -1649,7 +1649,6 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         serializer.save()
         
-
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
         exam = self.get_object()
@@ -1669,7 +1668,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             'pending': stats['pending'],
             'results': serializer.data
         })
-
 
     @action(detail=True, methods=['post'])
     def generate_results(self, request, pk=None):

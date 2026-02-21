@@ -14,8 +14,7 @@ AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, Atte
 from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 from .performance_viewsets import(
-    SubjectPerformanceViewSet, ClassPerformanceViewSet
-)
+    SubjectPerformanceViewSet, ClassPerformanceViewSet)
 
 router = DefaultRouter()
 
