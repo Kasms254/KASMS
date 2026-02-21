@@ -89,9 +89,13 @@ def auto_assign_student_index(sender, instance, created, **kwargs):
                     StudentIndex.all_objects
                     .select_for_update()
                     .filter(class_obj=class_obj)
+                    .order_by("-index_number")
                 )
-                next_number = existing.count() + 1
-                next_index = class_obj.format_index(next_number)
+                if existing.exists():
+                    last_num = int(existing.first().index_number)
+                    next_number = last_num + 1
+                else:
+                    next_number = 1
 
                 StudentIndex.objects.create(
                     enrollment=enrollment,
