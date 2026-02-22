@@ -586,17 +586,16 @@ export default function AddResults() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                        r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                        r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
-                        r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
-                        r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
+                        r.grade === 'A' || r.grade === 'A-' ? 'bg-green-100 text-green-800' :
+                        r.grade === 'B+' || r.grade === 'B' || r.grade === 'B-' ? 'bg-blue-100 text-blue-800' :
+                        r.grade === 'C+' || r.grade === 'C' || r.grade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
                         r.grade === 'F' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {r.grade || '-'}
                       </span>
                       <span className={`text-sm font-semibold ${
-                        Number(r.percentage) >= 70 ? 'text-green-600' :
+                        Number(r.percentage) >= 76 ? 'text-green-600' :
                         Number(r.percentage) >= 50 ? 'text-yellow-600' :
                         'text-red-600'
                       }`}>
@@ -776,7 +775,7 @@ export default function AddResults() {
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                           <span className={`font-medium ${
-                            Number(r.percentage) >= 70 ? 'text-green-600' :
+                            Number(r.percentage) >= 76 ? 'text-green-600' :
                             Number(r.percentage) >= 50 ? 'text-yellow-600' :
                             'text-red-600'
                           }`}>
@@ -785,10 +784,9 @@ export default function AddResults() {
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                            r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
-                            r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
-                            r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
+                            r.grade === 'A' || r.grade === 'A-' ? 'bg-green-100 text-green-800' :
+                            r.grade === 'B+' || r.grade === 'B' || r.grade === 'B-' ? 'bg-blue-100 text-blue-800' :
+                            r.grade === 'C+' || r.grade === 'C' || r.grade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
                             r.grade === 'F' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>

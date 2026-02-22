@@ -337,16 +337,15 @@ export default function StudentsDashboard() {
             // Use letter if present, otherwise base color on numeric average
             const studentLetter = dashboardStats?.average_grade_letter
             if (studentLetter) {
-              if (studentLetter === 'A') return 'bg-emerald-500'
-              if (studentLetter === 'B') return 'bg-amber-500'
-              if (studentLetter === 'C') return 'bg-sky-500'
-              if (studentLetter === 'D') return 'bg-pink-500'
+              if (studentLetter === 'A' || studentLetter === 'A-') return 'bg-emerald-500'
+              if (studentLetter.startsWith('B')) return 'bg-amber-500'
+              if (studentLetter.startsWith('C')) return 'bg-sky-500'
               return 'bg-rose-500'
             }
             const avg = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
             if (avg == null || Number.isNaN(avg)) return 'bg-amber-500'
-            if (avg >= 80) return 'bg-emerald-500'
-            if (avg >= 70) return 'bg-amber-500'
+            if (avg >= 91) return 'bg-emerald-500'
+            if (avg >= 76) return 'bg-amber-500'
             if (avg >= 60) return 'bg-sky-500'
             if (avg >= 50) return 'bg-pink-500'
             return 'bg-rose-500'

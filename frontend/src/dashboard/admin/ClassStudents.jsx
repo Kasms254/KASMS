@@ -129,7 +129,7 @@ export default function ClassStudents() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <button onClick={() => navigate('/list/classes')} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Back to classes">
+            <button onClick={() => navigate(-1)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Back">
               <LucideIcons.ArrowLeft className="w-5 h-5" />
             </button>
             <h2 className="text-xl sm:text-2xl font-semibold text-black">Class Students</h2>

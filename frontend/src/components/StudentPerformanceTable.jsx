@@ -11,18 +11,16 @@ function SortIcon({ columnKey, sortConfig }) {
 }
 
 function gradeColor(grade) {
-  if (grade === 'A') return 'text-emerald-600'
-  if (grade === 'B') return 'text-sky-600'
-  if (grade === 'C') return 'text-amber-600'
-  if (grade === 'D') return 'text-orange-600'
+  if (grade === 'A' || grade === 'A-') return 'text-emerald-600'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'text-sky-600'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'text-amber-600'
   return 'text-red-600'
 }
 
 function gradeBg(grade) {
-  if (grade === 'A') return 'bg-emerald-50'
-  if (grade === 'B') return 'bg-sky-50'
-  if (grade === 'C') return 'bg-amber-50'
-  if (grade === 'D') return 'bg-orange-50'
+  if (grade === 'A' || grade === 'A-') return 'bg-emerald-50'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-sky-50'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-amber-50'
   return 'bg-red-50'
 }
 
@@ -88,11 +86,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     // Summary stats
     const total       = sortedStudents.length
-    const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 }
+    const gradeCounts = { A: 0, B: 0, C: 0, F: 0 }
     let   totalPct    = 0
     sortedStudents.forEach(s => {
       const g = s.total_grade || 'F'
-      gradeCounts[g] = (gradeCounts[g] || 0) + 1
+      if (g === 'A' || g === 'A-') gradeCounts.A++
+      else if (g.startsWith('B')) gradeCounts.B++
+      else if (g.startsWith('C')) gradeCounts.C++
+      else gradeCounts.F++
       totalPct += s.total_percentage ?? 0
     })
     const classAvg = total > 0 ? (totalPct / total).toFixed(1) : '0.0'
@@ -148,10 +149,9 @@ export default function StudentPerformanceTable({ students, title = "All Student
       { label: 'Total Students', value: String(total) },
       { label: 'Class Average',  value: `${classAvg}%` },
       { label: 'Pass Rate',      value: `${passRate}%` },
-      { label: 'Grade A',        value: String(gradeCounts.A) },
-      { label: 'Grade B',        value: String(gradeCounts.B) },
-      { label: 'Grade C',        value: String(gradeCounts.C) },
-      { label: 'Grade D',        value: String(gradeCounts.D) },
+      { label: 'Grade A (A/A-)', value: String(gradeCounts.A) },
+      { label: 'Grade B (B+–B-)', value: String(gradeCounts.B) },
+      { label: 'Grade C (C+–C-)', value: String(gradeCounts.C) },
       { label: 'Grade F',        value: String(gradeCounts.F) },
     ]
     const colW = (pageW - margin * 2) / summaryItems.length
@@ -186,7 +186,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
       ...subjectList.map(s => ({ content: `${s.name}\n(Obtained / Total)`, styles: { halign: 'center' } })),
       { content: 'Total Marks\n(Obtained / Possible)', styles: { halign: 'center' } },
       { content: 'Grade',      styles: { halign: 'center' } },
-      { content: 'Attendance', styles: { halign: 'center' } },
     ]]
 
     const body = sortedStudents.map((student, idx) => [
@@ -203,7 +202,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
         styles: { halign: 'center', fontStyle: 'bold' },
       },
       { content: student.total_grade ?? '—', styles: { halign: 'center', fontStyle: 'bold' } },
-      { content: `${student.attendance_rate?.toFixed(1) ?? 0}%`, styles: { halign: 'center' } },
     ])
 
     autoTable(doc, {
@@ -232,7 +230,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
         2: { cellWidth: 42 },
         [3 + subjectList.length]:     { cellWidth: 30 },
         [3 + subjectList.length + 1]: { cellWidth: 14 },
-        [3 + subjectList.length + 2]: { cellWidth: 20 },
       },
       didDrawPage: () => {
         const pg  = doc.internal.getCurrentPageInfo().pageNumber
@@ -272,12 +269,12 @@ export default function StudentPerformanceTable({ students, title = "All Student
     // Title row
     const titleCell = ws.addRow([`${className}${courseName ? ' — ' + courseName : ''}`])
     titleCell.font = { bold: true, size: 16 }
-    ws.mergeCells(1, 1, 1, 3 + subjectList.length + 3)
+    ws.mergeCells(1, 1, 1, 3 + subjectList.length + 2)
 
     // Date row
     const dateRow = ws.addRow([`Generated: ${new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}`])
     dateRow.font = { italic: true, size: 10, color: { argb: '666666' } }
-    ws.mergeCells(2, 1, 2, 3 + subjectList.length + 3)
+    ws.mergeCells(2, 1, 2, 3 + subjectList.length + 2)
 
     // Blank row
     ws.addRow([])
@@ -286,7 +283,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     const headerLabels = [
       'S/No', 'SVC No.', 'Student Name',
       ...subjectList.map(s => s.name),
-      'Total Marks', 'Grade', 'Attendance %'
+      'Total Marks', 'Grade',
     ]
     const headerRow = ws.addRow(headerLabels)
     headerRow.eachCell((cell) => {
@@ -314,7 +311,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
         student.total_marks_possible > 0
           ? `${student.total_marks_obtained ?? 0} / ${student.total_marks_possible ?? 0}` : '—',
         student.total_grade ?? '—',
-        student.attendance_rate != null ? parseFloat(student.attendance_rate.toFixed(1)) : 0,
       ])
 
       // Alternate row shading
@@ -339,7 +335,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
       else if (i >= 3 && i < 3 + subjectList.length) col.width = 16 // Subjects
       else if (i === 3 + subjectList.length) col.width = 18 // Total
       else if (i === 3 + subjectList.length + 1) col.width = 8 // Grade
-      else col.width = 12 // Attendance
     })
 
     // Freeze header + left columns (S/No, SVC, Name)
@@ -470,9 +465,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
               <th onClick={() => handleSort('total_grade')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
                 <div className="flex items-center justify-center gap-1">Grade <SortIcon columnKey="total_grade" sortConfig={sortConfig} /></div>
               </th>
-              <th onClick={() => handleSort('attendance_rate')} className="text-center py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l border-gray-200">
-                <div className="flex items-center justify-center gap-1">Attendance <SortIcon columnKey="attendance_rate" sortConfig={sortConfig} /></div>
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -543,14 +535,10 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   ) : <span className="text-gray-400">—</span>}
                 </td>
 
-                {/* Attendance */}
-                <td className="py-2 px-3 text-center text-gray-600 border-l border-gray-200">
-                  {student.attendance_rate?.toFixed(1) ?? 0}%
-                </td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={3 + subjectList.length + 3} className="py-8 text-center text-gray-500">
+                <td colSpan={3 + subjectList.length + 2} className="py-8 text-center text-gray-500">
                   <Icons.Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No students match your search criteria</p>
                 </td>
@@ -602,10 +590,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
               </div>
             )}
 
-            <div className="flex items-center justify-between text-sm text-gray-500 border-t border-gray-100 pt-2">
-              <span>Attendance</span>
-              <span className="font-medium text-gray-700">{student.attendance_rate?.toFixed(1) ?? 0}%</span>
-            </div>
           </div>
         )) : (
           <div className="text-center py-8 bg-white rounded-lg border border-gray-200">

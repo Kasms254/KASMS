@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload }) {
           <div className="flex justify-between items-center">
             <span className="text-xs text-gray-600">Average Score:</span>
             <span className={`text-sm font-bold ${
-              data.average_percentage >= 70 ? 'text-emerald-600' :
+              data.average_percentage >= 76 ? 'text-emerald-600' :
               data.average_percentage >= 50 ? 'text-amber-600' :
               'text-red-600'
             }`}>
@@ -114,9 +114,9 @@ export default function ClassPerformanceBarChart({ classes }) {
   // Determine bar color based on performance
   const getBarColor = (value, index) => {
     if (metric === 'average_percentage' || metric === 'pass_rate') {
-      if (value >= 70) return '#10b981' // emerald-500
-      if (value >= 50) return '#f59e0b' // amber-500
-      return '#ef4444' // red-500
+      if (value >= 76) return '#10b981' // emerald-500 (B grade or above)
+      if (value >= 50) return '#f59e0b' // amber-500 (passing C- and above)
+      return '#ef4444' // red-500 (F - failing)
     }
     return COLORS[index % COLORS.length]
   }
@@ -251,11 +251,11 @@ export default function ClassPerformanceBarChart({ classes }) {
                   <div className="flex items-center justify-center gap-4 text-xs text-gray-600 mt-4">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded bg-emerald-500" />
-                      <span>Excellent (≥70%)</span>
+                      <span>Good (≥76%)</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded bg-amber-500" />
-                      <span>Good (50-69%)</span>
+                      <span>Passing (50-75%)</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded bg-red-500" />

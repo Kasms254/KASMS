@@ -165,13 +165,17 @@ function BarChart({ data, labelKey, valueKey, maxValue, colorClass = 'bg-indigo-
 function GradeDistribution({ distribution }) {
   if (!distribution) return null
 
-  const grades = ['A', 'B', 'C', 'D', 'F']
+  const grades = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'F']
   const colors = {
-    A: { bg: 'bg-emerald-500', text: 'text-emerald-700', light: 'bg-emerald-50' },
-    B: { bg: 'bg-sky-500', text: 'text-sky-700', light: 'bg-sky-50' },
-    C: { bg: 'bg-amber-500', text: 'text-amber-700', light: 'bg-amber-50' },
-    D: { bg: 'bg-orange-500', text: 'text-orange-700', light: 'bg-orange-50' },
-    F: { bg: 'bg-red-500', text: 'text-red-700', light: 'bg-red-50' }
+    'A':  { bg: 'bg-emerald-600', text: 'text-emerald-700', light: 'bg-emerald-50' },
+    'A-': { bg: 'bg-emerald-400', text: 'text-emerald-600', light: 'bg-emerald-50' },
+    'B+': { bg: 'bg-sky-600',     text: 'text-sky-700',     light: 'bg-sky-50' },
+    'B':  { bg: 'bg-sky-500',     text: 'text-sky-700',     light: 'bg-sky-50' },
+    'B-': { bg: 'bg-sky-400',     text: 'text-sky-600',     light: 'bg-sky-50' },
+    'C+': { bg: 'bg-amber-600',   text: 'text-amber-700',   light: 'bg-amber-50' },
+    'C':  { bg: 'bg-amber-500',   text: 'text-amber-700',   light: 'bg-amber-50' },
+    'C-': { bg: 'bg-amber-400',   text: 'text-amber-600',   light: 'bg-amber-50' },
+    'F':  { bg: 'bg-red-500',     text: 'text-red-700',     light: 'bg-red-50' },
   }
   const total = grades.reduce((sum, g) => sum + (distribution[g] || 0), 0)
 
@@ -197,7 +201,7 @@ function GradeDistribution({ distribution }) {
       </div>
 
       {/* Legend */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-5 sm:grid-cols-9 gap-1 md:gap-2">
         {grades.map(grade => {
           const count = distribution[grade] || 0
           const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0
@@ -263,7 +267,7 @@ function TopPerformersList({ performers }) {
                 {(() => {
                   const score = p.exam_percentage !== undefined ? p.exam_percentage : 0;
                   let color = 'text-red-600';
-                  if (score >= 70) color = 'text-emerald-600';
+                  if (score >= 76) color = 'text-emerald-600';
                   else if (score >= 50) color = 'text-amber-600';
                   return (
                     <span className={`font-semibold text-xs md:text-sm ${color}`}>
@@ -394,12 +398,12 @@ function SubjectComparison({ subjects }) {
                   {idx + 1}
                 </div>
                 <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
-                  subj.average_percentage >= 70 ? 'bg-emerald-100' :
+                  subj.average_percentage >= 76 ? 'bg-emerald-100' :
                   subj.average_percentage >= 50 ? 'bg-amber-100' :
                   'bg-red-100'
                 }`}>
                   <Icons.BookOpen className={`w-4 h-4 md:w-5 md:h-5 ${
-                    subj.average_percentage >= 70 ? 'text-emerald-600' :
+                    subj.average_percentage >= 76 ? 'text-emerald-600' :
                     subj.average_percentage >= 50 ? 'text-amber-600' :
                     'text-red-600'
                   }`} />
@@ -419,7 +423,7 @@ function SubjectComparison({ subjects }) {
               </div>
               <div className="text-left sm:text-right shrink-0">
                 <div className={`text-xl md:text-2xl font-bold ${
-                  subj.average_percentage >= 70 ? 'text-emerald-600' :
+                  subj.average_percentage >= 76 ? 'text-emerald-600' :
                   subj.average_percentage >= 50 ? 'text-amber-600' :
                   'text-red-600'
                 }`}>
@@ -451,7 +455,7 @@ function SubjectComparison({ subjects }) {
             <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  subj.average_percentage >= 70 ? 'bg-emerald-500' :
+                  subj.average_percentage >= 76 ? 'bg-emerald-500' :
                   subj.average_percentage >= 50 ? 'bg-amber-500' :
                   'bg-red-500'
                 }`}
@@ -1084,7 +1088,7 @@ export default function PerformanceAnalytics() {
                           {item.type === 'exam' ? 'Exam' : 'Attendance'}
                         </span>
                         <div className={`text-lg font-bold ${
-                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 70 ? 'text-emerald-600' :
+                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 76 ? 'text-emerald-600' :
                           (item.average_percentage ?? item.attendance_rate ?? 0) >= 50 ? 'text-amber-600' :
                           'text-red-600'
                         }`}>
