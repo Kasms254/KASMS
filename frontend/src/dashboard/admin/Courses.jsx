@@ -381,43 +381,43 @@ export default function Courses() {
         ) : (
           // ensure courses is an array before mapping
           (Array.isArray(courses) ? courses : []).map((course) => (
-            <div key={course.id}>
-              <div className="flex items-start gap-2">
-                <div className="flex-1">
-                <Card
-                  title={course.code || course.name || 'Untitled'}
-                  value={course.name}
-                  badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
-                  icon="BookOpen"
-                  accent="bg-indigo-600"
-                  colored={true}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="line-clamp-2 text-xs text-neutral-500 flex-1 min-w-0" title={course.description}>{course.description}</div>
-                    <div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingCourse(course);
-                          setEditCourseForm({
-                            name: course.name || '',
-                            code: course.code || '',
-                            description: course.description || '',
-                            is_active: !!course.is_active,
-                            department: course.department || '',
-                          });
-                          setEditCourseModalOpen(true);
-                        }}
-                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
-                        aria-label={`Edit ${course.name || course.code || 'course'}`}
-                      >
-                        Edit
-                      </button>
-                    </div>
+            <div
+              key={course.id}
+              onClick={() => openCourseModal(course)}
+              className="cursor-pointer group"
+            >
+              <Card
+                title={course.code || course.name || 'Untitled'}
+                value={course.name}
+                badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
+                icon="BookOpen"
+                accent="bg-indigo-600"
+                colored={true}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="line-clamp-2 text-xs text-neutral-500 flex-1 min-w-0" title={course.description}>{course.description}</div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCourse(course);
+                        setEditCourseForm({
+                          name: course.name || '',
+                          code: course.code || '',
+                          description: course.description || '',
+                          is_active: !!course.is_active,
+                          department: course.department || '',
+                        });
+                        setEditCourseModalOpen(true);
+                      }}
+                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
+                      aria-label={`Edit ${course.name || course.code || 'course'}`}
+                    >
+                      Edit
+                    </button>
                   </div>
-                </Card>
                 </div>
-              </div>
+              </Card>
             </div>
           ))
         )}
