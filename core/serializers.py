@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import (
     Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog)
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
+)
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
@@ -518,6 +519,9 @@ class UserListSerializer(serializers.ModelSerializer):
     class_name = serializers.SerializerMethodField()
     has_active_enrollment = serializers.SerializerMethodField(read_only=True)
 
+    is_hod = serializers.SerializerMethodField(read_only=True)
+    hod_department = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = User
         exclude = ['password']
@@ -561,13 +565,26 @@ class UserListSerializer(serializers.ModelSerializer):
             return obj.school.get_theme
         return None
 
-    def get_has_active_enrollment(self, obj):
-        if obj.role != 'student':
-            return None
-        return Enrollment.all_objects.filter(
-            student=obj,
-            is_active=True
+    def get_is_hod(self, obj):
+        return DepartmentMembership.objects.filter(
+            user=obj,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
         ).exists()
+
+    def get_hod_department(self, obj):
+        membership = DepartmentMembership.objects.filter(
+            user=obj,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).select_related('department').first()
+        if membership:
+            return {
+                'id': str(membership.department.id),
+                'name': membership.department.name,
+                'membership_id': str(membership.id),
+            }
+        return None
 
 class ProfileReadSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
@@ -1690,7 +1707,6 @@ class DepartmentMembershipSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
 
     def run_validators(self, value):
-
         if self.instance and self.partial:
             for field_name in ('department', 'user', 'is_active', 'role'):
                 if field_name not in value and hasattr(self.instance, field_name):

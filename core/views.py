@@ -1649,6 +1649,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         serializer.save()
         
+
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
         exam = self.get_object()
@@ -1668,6 +1669,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             'pending': stats['pending'],
             'results': serializer.data
         })
+
 
     @action(detail=True, methods=['post'])
     def generate_results(self, request, pk=None):
@@ -1933,6 +1935,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             old_instance = self.get_object()
 
+            # Prevent grading if the class is closed
             if old_instance.exam.subject.class_obj.is_closed:
                 raise ValidationError("Cannot update exam results for a closed class.")
 
@@ -2004,6 +2007,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def grade(self, request, pk=None):
         result = self.get_object()
 
+        # Prevent grading if the class is closed
         if result.exam.subject.class_obj.is_closed:
             return Response(
                 {'error': 'Cannot grade exams for a closed class.'},
@@ -3676,7 +3680,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         session = serializer.validated_data['session']
         student = request.user
 
-
         if not Enrollment.objects.filter(
             student=student,
             class_obj=session.class_obj,
@@ -3690,7 +3693,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             return Response({
                 'error': 'You have already marked attendance for this session.'
             }, status=status.HTTP_400_BAD_REQUEST)
-
 
         attendance_time = timezone.now()
         attendance_status = session.get_attendance_status_for_time(attendance_time)
@@ -3706,7 +3708,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             ip_address = request.META.get('REMOTE_ADDR'),
             user_agent= request.META.get('HTTP_USER_AGENT', '')
 
-
         )
 
         return Response({
@@ -3720,7 +3721,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
 
         session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
         records = serializer.validated_data['attendance_records']
@@ -4077,7 +4077,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'error': 'Student not found'
             }, status = status.HTTP_404_NOT_FOUND)
 
-
         enrolled_classes = Class.objects.filter(
             enrollments__student = student,
             enrollments__is_active = True
@@ -4089,7 +4088,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             attendances_qs = attendances_qs.filter(marked_at__gte=start_date)
         if end_date:
             attendances_qs = attendances_qs.filter(marked_at__lte=end_date)
-
 
         attendances  =attendances_qs.select_related('session', 'session__class_obj', 'session__subject')
 
@@ -4135,10 +4133,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'absent':total_class_sessions - attended,
                 'attendance_rate':round(attendance_rate, 2)
             })
-        # recent attendances across all classes (most recent 20)
         recent = attendances.order_by('-marked_at')[:20]
 
-        # Build by_class mapping expected by frontend: { class_name: { rate, present, late, absent } }
         by_class = {}
         total_sessions_all = 0
         for cb in class_breakdown:
@@ -4151,7 +4147,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }
             total_sessions_all += cb.get('total_sessions', 0)
 
-        # Derive top-level counts expected by frontend
         present_count = status_breakdown.get('present', 0)
         late_count = status_breakdown.get('late', 0)
         absent_count = status_breakdown.get('absent', 0)
@@ -5087,8 +5082,7 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = ResultEditRequest.objects.select_related(
-            'exam_result__exam__subject',
-            'exam_result__exam__class_obj__department',
+            'exam_result__exam__subject__class_obj__department',
             'exam_result__student',
             'requested_by', 'reviewed_by',
         )
@@ -5107,7 +5101,7 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
 
         if hod_dept_ids:
             return base.filter(
-                Q(exam_result__exam__class_obj__department__in=hod_dept_ids)
+                Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids)
                 | Q(requested_by=user)
             ).distinct()
 
