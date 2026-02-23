@@ -4,6 +4,20 @@ import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 
+function gradeFromPct(pct) {
+  const p = parseFloat(pct)
+  if (isNaN(p) || pct == null) return '—'
+  if (p >= 91) return 'A'
+  if (p >= 86) return 'A-'
+  if (p >= 81) return 'B+'
+  if (p >= 76) return 'B'
+  if (p >= 71) return 'B-'
+  if (p >= 65) return 'C+'
+  if (p >= 60) return 'C'
+  if (p >= 50) return 'C-'
+  return 'F'
+}
+
 export default function AddResults() {
   const { user } = useAuth()
   const toast = useToast()
@@ -17,8 +31,6 @@ export default function AddResults() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [savedSnapshot, setSavedSnapshot] = useState([])
-  const [showRemarksModal, setShowRemarksModal] = useState(false)
-  const [remarksInput, setRemarksInput] = useState('')
 
   // Edit request state for locked results
   const [editRequestModal, setEditRequestModal] = useState(false)
@@ -92,7 +104,7 @@ export default function AddResults() {
         student_id: r.student || r.student_id || (r.student && r.student.id),
         student_name: r.student_full_name || r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
         svc_number: r.student_svc_number || (r.student && r.student.svc_number) || '',
-        class_index: r.class_index || '',
+        class_index: r.class_index || r.index_number || '',
         marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
         remarks: r.remarks || '',
         percentage: r.percentage,
@@ -139,12 +151,6 @@ export default function AddResults() {
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam])
-
-  function handleConfirmApplyRemarks() {
-    applyRemarksToAll(remarksInput)
-    setShowRemarksModal(false)
-    toast.success('Remarks applied to all students')
-  }
 
   function updateRow(idx, key, value) {
     // mark the row dirty and run inline validation for marks
@@ -248,11 +254,6 @@ export default function AddResults() {
     } catch (err) {
       toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : 'Failed to save results')
     } finally { setSaving(false) }
-  }
-
-  // Bulk actions
-  function applyRemarksToAll(value) {
-    setResults(prev => prev.map(r => ({ ...r, remarks: value, dirty: true })))
   }
 
   // Undo functionality
@@ -550,15 +551,6 @@ export default function AddResults() {
               {/* Bulk Actions */}
               <div className="flex gap-2 flex-wrap">
                 <button
-                  onClick={() => {
-                    setRemarksInput('')
-                    setShowRemarksModal(true)
-                  }}
-                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
-                >
-                  Apply Remarks
-                </button>
-                <button
                   onClick={handleUndo}
                   disabled={!hasChanges}
                   className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
@@ -584,21 +576,21 @@ export default function AddResults() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                         )}
-                        <div className="font-semibold text-gray-900 text-base truncate">{r.student_name || '-'}</div>
+                        <div className="text-sm font-medium text-indigo-700">#{r.class_index || '-'}</div>
                       </div>
-                      <div className="text-sm text-gray-500 mt-0.5">SVC: {r.svc_number || '-'}</div>
-                      <div className="text-sm font-medium text-indigo-700 mt-0.5">#{r.class_index || '-'}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {(() => { const g = gradeFromPct(r.percentage); return (
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                        r.grade === 'A' || r.grade === 'A-' ? 'bg-green-100 text-green-800' :
-                        r.grade === 'B+' || r.grade === 'B' || r.grade === 'B-' ? 'bg-blue-100 text-blue-800' :
-                        r.grade === 'C+' || r.grade === 'C' || r.grade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                        r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                        g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                        g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                        g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                        g === 'F' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {r.grade || '-'}
+                        {g}
                       </span>
+                      ); })()}
                       <span className={`text-sm font-semibold ${
                         Number(r.percentage) >= 76 ? 'text-green-600' :
                         Number(r.percentage) >= 50 ? 'text-yellow-600' :
@@ -686,9 +678,6 @@ export default function AddResults() {
                         )}
                       </div>
                     </th>
-                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                      Student
-                    </th>
                     <th
                       onClick={() => handleSort('marks_obtained')}
                       className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
@@ -737,19 +726,6 @@ export default function AddResults() {
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
                           {r.class_index || '-'}
                         </td>
-                        <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
-                          <div className="flex items-center gap-1.5">
-                            {r.is_locked && (
-                              <svg className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                              </svg>
-                            )}
-                            <div>
-                              <div className="font-medium">{r.student_name || '-'}</div>
-                              <div className="text-xs text-gray-500">{r.svc_number || ''}</div>
-                            </div>
-                          </div>
-                        </td>
                         <td className="px-3 lg:px-4 py-3">
                           <div>
                             <input
@@ -787,15 +763,17 @@ export default function AddResults() {
                           </span>
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                          {(() => { const g = gradeFromPct(r.percentage); return (
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            r.grade === 'A' || r.grade === 'A-' ? 'bg-green-100 text-green-800' :
-                            r.grade === 'B+' || r.grade === 'B' || r.grade === 'B-' ? 'bg-blue-100 text-blue-800' :
-                            r.grade === 'C+' || r.grade === 'C' || r.grade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                            r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                            g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                            g === 'F' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {r.grade || '-'}
+                            {g}
                           </span>
+                          ); })()}
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <input
@@ -948,33 +926,6 @@ export default function AddResults() {
                   'Save All Grades'
                 )}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Apply Remarks to All */}
-      {showRemarksModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Apply remarks to all students</h3>
-                <p className="text-gray-700 mb-4">Enter the remarks text to apply to all result rows for this exam.</p>
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    value={remarksInput}
-                    onChange={e => setRemarksInput(e.target.value)}
-                    placeholder="Remarks (optional)"
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button onClick={() => setShowRemarksModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
-                  <button onClick={handleConfirmApplyRemarks} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Apply</button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
