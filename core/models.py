@@ -558,6 +558,13 @@ class Class(models.Model):
         last = self.student_indexes.order_by("-index_number").first()
         next_num = int(last.index_number) + 1 if last else self.index_start_from
         return self.format_index(next_num)
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.course:
+            self.school = self.course.school
+        if not self.department and self.course and self.course.department:
+            self.department = self.course.department
+        super().save(*args, **kwargs)
             
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects', null=True, blank=True)
@@ -580,6 +587,13 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.class_obj.name})"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        if not self.department and self.class_obj and self.class_obj.department:
+            self.department = self.class_obj.department
+        super().save(*args, **kwargs)
 
 class Notice(models.Model):
 

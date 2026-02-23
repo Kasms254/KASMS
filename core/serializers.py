@@ -956,6 +956,7 @@ class ExamResultSerializer(serializers.ModelSerializer):
     graded_by_name = serializers.SerializerMethodField(read_only=True)
     percentage = serializers.FloatField(read_only=True)
     grade = serializers.CharField(read_only=True)
+    index_number = serializers.SerializerMethodField(read_only=True)
 
     subject_id = serializers.IntegerField(source='exam.subject.id', read_only=True)
     subject_name = serializers.CharField(source='exam.subject.name', read_only=True)
@@ -980,6 +981,19 @@ class ExamResultSerializer(serializers.ModelSerializer):
     def get_student_rank(self, obj):
         if obj.student and obj.student.rank:
             return obj.student.get_rank_display()
+        return None
+
+    def get_index_number(self, obj):
+        try:
+            from .models import StudentIndex
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=obj.exam.subject.class_obj,
+            ).first()
+            if index:
+                return index.class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
         return None
 
     def validate_marks_obtained(self, value):
