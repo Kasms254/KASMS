@@ -170,6 +170,7 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
+
 class ForcePasswordChangePermission(BasePermission):
 
     def has_permission(self, request, view):
@@ -184,6 +185,11 @@ class ForcePasswordChangePermission(BasePermission):
             "logout_view",
             "verify_token_view",
             "token_refresh_view",
+
+            "login_view",
+            "verify_2fa_view",
+            "resend_2fa_view",
+            "csrf_token_view",
         ]
 
         if user.must_change_password:

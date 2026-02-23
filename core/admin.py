@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, 
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, TwoFactorCode,
     Department, DepartmentMembership, ResultEditRequest
     )
 from django.utils import timezone
@@ -335,3 +335,11 @@ class ResultEditRequestAdmin(admin.ModelAdmin):
     list_filter = ['status', 'school']
     search_fields = ['requested_by__svc_number', 'exam_result__id']
     readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(TwoFactorCode)
+class TwoFactorCodeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'code', 'is_used', 'attempts', 'expires_at', 'created_at')
+    list_filter = ('is_used',)
+    search_fields = ('user__svc_number', 'user__email')
+    readonly_fields = ('id', 'code', 'created_at')
+    ordering = ('-created_at',)
