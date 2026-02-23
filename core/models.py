@@ -360,7 +360,8 @@ class Class(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
     )
     index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
-    
+    index_start_from = models.PositiveIntegerField(default=1, help_text="First index number assigned to new students (e.g. 50 → first student gets 050).")
+
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
     
@@ -389,7 +390,7 @@ class Class(models.Model):
     @property
     def next_index_preview(self):
         last = self.student_indexes.order_by("-index_number").first()
-        next_num = int(last.index_number) + 1 if last else 1
+        next_num = int(last.index_number) + 1 if last else self.index_start_from
         return self.format_index(next_num)
             
 class Subject(models.Model):

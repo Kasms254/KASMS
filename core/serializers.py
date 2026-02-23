@@ -1773,10 +1773,12 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "index_number",
+            "formatted_index",
             "class_name",
             "student_full_name",
             "student_svc_number",
             "student_rank",
+            "enrollment_id",
             "enrollment_date",
             "is_active",
             "assigned_to",
@@ -1786,3 +1788,8 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
         return obj.enrollment.student.get_full_name()
 
 
+    def get_formatted_index(self, obj):                                  
+            try:
+                return obj.class_obj.format_index(int(obj.index_number))
+            except (ValueError, TypeError):
+                return obj.index_number

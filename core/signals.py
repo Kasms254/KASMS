@@ -95,17 +95,19 @@ def auto_assign_student_index(sender, instance, created, **kwargs):
                     last_num = int(existing.first().index_number)
                     next_number = last_num + 1
                 else:
-                    next_number = 1
+                    next_number = class_obj.index_start_from
+
+                index_str = str(next_number).zfill(3)
 
                 StudentIndex.objects.create(
                     enrollment=enrollment,
                     class_obj=class_obj,
-                    index_number=next_index,
+                    index_number=index_str,
                     school=enrollment.school,
                 )
-                logger.info(
+                logger.info(                                  
                     "StudentIndex '%s' assigned to enrollment %s in class '%s'",
-                    next_index, enrollment.id, class_obj.name,
+                    class_obj.format_index(next_number), enrollment.id, class_obj.name,
                 )
         except Exception as e:
             logger.error(

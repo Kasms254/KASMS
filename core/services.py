@@ -351,7 +351,7 @@ def assign_student_index(enrollment: Enrollment) -> StudentIndex:
             last_num = int(existing.first().index_number)
             next_num = last_num + 1
         else:
-            next_num = 1
+            next_num = enrollment.class_obj.index_start_from
 
         index_str =  str(next_num).zfill(3)
 
@@ -383,7 +383,7 @@ def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
             .order_by("-index_number")
             .first()
         )
-        next_num = int(last.index_number) + 1 if last else 1
+        next_num = int(last.index_number) + 1 if last else class_obj.index_start_from
 
         created = []
         for enrollment in un_indexed:

@@ -5038,6 +5038,8 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "class_id": class_obj.id,
             "class_name": class_obj.name,
             "index_prefix": class_obj.index_prefix or "",
+            "index_start_from": class_obj.index_start_from,      
+            "next_index_preview": class_obj.next_index_preview,
             "total_students": indexes.count(),
             "roster": serializer.data,
         })
@@ -5054,3 +5056,46 @@ class AdminRosterViewSet(viewsets.ViewSet):
                 for idx in created
             ],
         }, status=status.HTTP_201_CREATED)
+
+
+    @action(detail=True, methods=["patch"], url_path="update-index/(?P<index_id>[^/.]+)")
+    def update_index(self, request, pk=None, index_id=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        student_index = get_object_or_404(
+            StudentIndex, pk=index_id, class_obj=class_obj
+        )
+
+        new_number = request.data.get("index_number")
+        if not new_number:
+            return Response(
+                {"error": "index_number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_number = str(new_number).strip().zfill(3)
+        if not new_number.isdigit():
+            return Response(
+                {"error": "Index number must contain only digits."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    
+        if (
+            StudentIndex.all_objects.filter(class_obj=class_obj, index_number=new_number)
+            .exclude(pk=student_index.pk)
+            .exists()
+        ):
+            return Response(
+                {"error": f"Index {class_obj.format_index(int(new_number))} is already assigned to another student in this class."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        student_index.index_number = new_number
+        student_index.save(update_fields=["index_number"])
+
+        return Response({
+            "message": f"Index updated to {class_obj.format_index(int(new_number))}.",
+            "id": str(student_index.pk),
+            "index_number": student_index.index_number,
+            "formatted_index": class_obj.format_index(int(new_number)),
+        })
