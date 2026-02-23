@@ -56,7 +56,7 @@ export default function ClassesList(){
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
   const [editingClass, setEditingClass] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [classForm, setClassForm] = useState({ name: '', class_code: '', index_prefix: '', index_start: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [instructors, setInstructors] = useState([])
   const [classErrors, setClassErrors] = useState({})
   const [classErrorsFromValidation, setClassErrorsFromValidation] = useState(false)
@@ -192,7 +192,7 @@ export default function ClassesList(){
     }
     setClassErrors({})
     setClassErrorsFromValidation(false)
-    setClassForm({ name: '', class_code: '', index_prefix: '', index_start: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+    setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
     setAddModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
   }
@@ -316,7 +316,7 @@ export default function ClassesList(){
                       name: c.name || '',
                       class_code: c.class_code || '',
                       index_prefix: c.index_prefix || '',
-                      index_start: c.index_start || 1,
+                      index_start_from: c.index_start_from || 1,
                       instructor: c.instructor || c.instructor_id || '',
                       start_date: normalizeDate(c.start_date),
                       end_date: normalizeDate(c.end_date),
@@ -400,7 +400,7 @@ export default function ClassesList(){
                     name: classForm.name,
                     class_code: classForm.class_code || undefined,
                     index_prefix: classForm.index_prefix.trim().toUpperCase() || '',
-                    index_start: Number(classForm.index_start) || 1,
+                    index_start_from: Number(classForm.index_start_from) || 1,
                     instructor: classForm.instructor ? Number(classForm.instructor) : null,
                     start_date: classForm.start_date || null,
                     end_date: classForm.end_date || null,
@@ -465,7 +465,7 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
-                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start} onChange={(e) => setClassForm({ ...classForm, index_start: e.target.value })} placeholder="1" />
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start_from} onChange={(e) => setClassForm({ ...classForm, index_start_from: e.target.value })} placeholder="1" />
                     <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 
@@ -634,7 +634,7 @@ export default function ClassesList(){
                     name: classForm.name,
                     class_code: classForm.class_code || undefined,
                     index_prefix: classForm.index_prefix.trim().toUpperCase() || '',
-                    index_start: Number(classForm.index_start) || 1,
+                    index_start_from: Number(classForm.index_start_from) || 1,
                     course: Number(classForm.course),
                     instructor: Number(classForm.instructor),
                     start_date: classForm.start_date || null,
@@ -646,7 +646,7 @@ export default function ClassesList(){
                   if (toast?.success) toast.success('Class Created')
                   else if (toast?.showToast) toast.showToast('Class Created', { type: 'success' })
                   setAddModalOpen(false)
-                  setClassForm({ name: '', class_code: '', index_prefix: '', index_start: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+                  setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
                   setClassErrors({})
                   setClassErrorsFromValidation(false)
                   await loadClasses()
@@ -701,7 +701,7 @@ export default function ClassesList(){
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
-                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start} onChange={(e) => setClassForm({ ...classForm, index_start: e.target.value })} placeholder="1" />
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start_from} onChange={(e) => setClassForm({ ...classForm, index_start_from: e.target.value })} placeholder="1" />
                     <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 

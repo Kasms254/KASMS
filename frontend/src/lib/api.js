@@ -1420,6 +1420,15 @@ export async function assignClassIndexes(classId, startFrom = null) {
   })
 }
 
+export async function updateStudentIndex(classId, indexId, indexNumber) {
+  if (!classId) throw new Error('classId is required')
+  if (!indexId) throw new Error('indexId is required')
+  return request(`/api/admin/roster/${classId}/update-index/${indexId}/`, {
+    method: 'PATCH',
+    body: { index_number: indexNumber },
+  })
+}
+
 // Marks Entry
 export async function getMarksEntryResults(examId) {
   if (!examId) throw new Error('examId is required')

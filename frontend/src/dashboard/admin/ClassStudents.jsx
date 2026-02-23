@@ -58,11 +58,16 @@ export default function ClassStudents() {
   const toast = useToast()
   const [students, setStudents] = useState([])
   const [className, setClassName] = useState('')
+  const [indexPrefix, setIndexPrefix] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [editingStudent, setEditingStudent] = useState(null)
+  const [editIndexValue, setEditIndexValue] = useState('')
+  const [editIndexSaving, setEditIndexSaving] = useState(false)
+  const [editIndexError, setEditIndexError] = useState('')
 
   function buildFormattedIndex(rawNumber, prefix, serverFormatted) {
     if (serverFormatted) return serverFormatted
@@ -75,6 +80,7 @@ export default function ClassStudents() {
   function mapRoster(data) {
     if (data.class_name) setClassName(data.class_name)
     const prefix = data.index_prefix || ''
+    setIndexPrefix(prefix)
     const list = Array.isArray(data.roster) ? data.roster : []
     const mapped = list.map((u) => ({
       id: u.id,
@@ -130,6 +136,40 @@ export default function ClassStudents() {
 
   // Reset to page 1 when search changes
   useEffect(() => { setPage(1) }, [searchTerm])
+
+  function openEditIndex(st) {
+    setEditingStudent(st)
+    setEditIndexValue(st.index_number || '')
+    setEditIndexError('')
+  }
+
+  async function handleEditIndexSubmit(e) {
+    e.preventDefault()
+    const num = editIndexValue.trim()
+    if (!num || isNaN(Number(num)) || Number(num) < 1) {
+      setEditIndexError('Enter a valid positive number')
+      return
+    }
+    setEditIndexSaving(true)
+    setEditIndexError('')
+    try {
+      const result = await api.updateStudentIndex(id, editingStudent.id, num)
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === editingStudent.id
+            ? { ...s, index_number: result.index_number, formatted_index: result.formatted_index }
+            : s
+        )
+      )
+      toast?.success?.('Index updated')
+      setEditingStudent(null)
+    } catch (err) {
+      const msg = err?.data?.error || err?.message || 'Failed to update index'
+      setEditIndexError(msg)
+    } finally {
+      setEditIndexSaving(false)
+    }
+  }
 
   const downloadCSV = useCallback(() => {
     const rows = [['Index No', 'Service No', 'Rank', 'Name']]
@@ -229,6 +269,13 @@ export default function ClassStudents() {
                     <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
                     {st.rank && <div className="text-xs text-neutral-500">{getRankDisplay(st.rank)}</div>}
                   </div>
+                  <button
+                    onClick={() => openEditIndex(st)}
+                    className="p-1.5 rounded-md text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition flex-shrink-0"
+                    title="Edit index number"
+                  >
+                    <LucideIcons.Pencil className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -243,6 +290,7 @@ export default function ClassStudents() {
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Service No</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 bg-white">
@@ -259,6 +307,15 @@ export default function ClassStudents() {
                         <div className="font-medium text-sm text-black">{st.name || '-'}</div>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => openEditIndex(st)}
+                        className="p-1.5 rounded-md text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                        title="Edit index number"
+                      >
+                        <LucideIcons.Pencil className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -268,7 +325,7 @@ export default function ClassStudents() {
       )}
 
       {/* Pagination */}
-      {!loading && totalCount > 0 && totalPages > 1 && (
+      {!loading && totalCount > 0 && (
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-neutral-600">
@@ -277,53 +334,57 @@ export default function ClassStudents() {
               <span className="font-semibold text-black">{totalCount}</span> students
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                aria-label="Previous page"
-              >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
-              </button>
+              {totalPages > 1 && (
+                <>
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    aria-label="Previous page"
+                  >
+                    <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                  </button>
 
-              <div className="flex items-center gap-1">
-                {(() => {
-                  const pages = []
-                  const maxVisible = 5
-                  let startPage = Math.max(1, page - Math.floor(maxVisible / 2))
-                  let endPage = Math.min(totalPages, startPage + maxVisible - 1)
-                  if (endPage - startPage < maxVisible - 1) {
-                    startPage = Math.max(1, endPage - maxVisible + 1)
-                  }
-                  if (startPage > 1) {
-                    pages.push(
-                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">1</button>
-                    )
-                    if (startPage > 2) pages.push(<span key="e1" className="px-2 text-neutral-400">...</span>)
-                  }
-                  for (let i = startPage; i <= endPage; i++) {
-                    pages.push(
-                      <button key={i} onClick={() => setPage(i)} className={`px-3 py-1.5 text-sm rounded-lg transition ${page === i ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}>{i}</button>
-                    )
-                  }
-                  if (endPage < totalPages) {
-                    if (endPage < totalPages - 1) pages.push(<span key="e2" className="px-2 text-neutral-400">...</span>)
-                    pages.push(
-                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">{totalPages}</button>
-                    )
-                  }
-                  return pages
-                })()}
-              </div>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const pages = []
+                      const maxVisible = 5
+                      let startPage = Math.max(1, page - Math.floor(maxVisible / 2))
+                      let endPage = Math.min(totalPages, startPage + maxVisible - 1)
+                      if (endPage - startPage < maxVisible - 1) {
+                        startPage = Math.max(1, endPage - maxVisible + 1)
+                      }
+                      if (startPage > 1) {
+                        pages.push(
+                          <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">1</button>
+                        )
+                        if (startPage > 2) pages.push(<span key="e1" className="px-2 text-neutral-400">...</span>)
+                      }
+                      for (let i = startPage; i <= endPage; i++) {
+                        pages.push(
+                          <button key={i} onClick={() => setPage(i)} className={`px-3 py-1.5 text-sm rounded-lg transition ${page === i ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}>{i}</button>
+                        )
+                      }
+                      if (endPage < totalPages) {
+                        if (endPage < totalPages - 1) pages.push(<span key="e2" className="px-2 text-neutral-400">...</span>)
+                        pages.push(
+                          <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">{totalPages}</button>
+                        )
+                      }
+                      return pages
+                    })()}
+                  </div>
 
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                aria-label="Next page"
-              >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
-              </button>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    aria-label="Next page"
+                  >
+                    <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                  </button>
+                </>
+              )}
 
               <div className="ml-2 flex items-center gap-2">
                 <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
@@ -338,6 +399,45 @@ export default function ClassStudents() {
                   <option value={100}>100</option>
                 </select>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Index Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingStudent(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-sm">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h4 className="text-base font-medium text-black">Edit Index Number</h4>
+                  <p className="text-sm text-neutral-500 mt-0.5">{editingStudent.name || editingStudent.svc_number}</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setEditingStudent(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              </div>
+              <form onSubmit={handleEditIndexSubmit}>
+                <label className="text-sm text-neutral-600 mb-1 block">
+                  New index number
+                  {indexPrefix && <span className="ml-1 text-neutral-400">(will display as {indexPrefix}/NNN)</span>}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  autoFocus
+                  value={editIndexValue}
+                  onChange={(e) => { setEditIndexValue(e.target.value); setEditIndexError('') }}
+                  className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editIndexError ? 'border-rose-500' : 'border-neutral-200'}`}
+                  placeholder="e.g. 5"
+                />
+                {editIndexError && <p className="text-xs text-rose-600 mt-1">{editIndexError}</p>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => setEditingStudent(null)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="submit" disabled={editIndexSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    {editIndexSaving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
