@@ -9,6 +9,7 @@ import hashlib
 from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager, DepartmentMembershipManager
 from django.core.validators import RegexValidator
+from django.db import models, transaction
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -71,7 +72,6 @@ class School(models.Model):
             'school_short_name': self.short_name or '',
             **self.theme_config
         }
-
 #    school membership
 class SchoolMembership(models.Model):
 
@@ -343,6 +343,35 @@ class SchoolAdmin(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.school.name}"
 
+class StudentIndex(models.Model):
+    school = models.ForeignKey("School", on_delete=models.CASCADE, related_name="student_indexes", null=True, blank=True)
+    enrollment = models.OneToOneField("Enrollment", on_delete=models.CASCADE, related_name="student_indexes",)
+    class_obj = models.ForeignKey("Class", on_delete=models.CASCADE, related_name="student_indexes",)
+    index_number = models.CharField(max_length=10, validators=[RegexValidator(r"^\d+$", "Index must be numeric digits only")],
+    help_text="Zero-padded sequential number, e.g. '001'",
+    )
+    assigned_to = models.DateTimeField(auto_now_add=True)
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = "student_indexes"
+        unique_together = [("class_obj", "index_number")]
+        ordering  = ["class_obj", "index_number"]
+        indexes = [
+            models.Index(fields=["class_obj", "index_number"]),
+            models.Index(fields=["enrollment"]),
+        ]
+
+    def __str__(self):
+      return f"[{self.class_obj.name}] {self.class_obj.format_index(int(self.index_number))}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)
+
+
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('superadmin', 'Super Admin'),
@@ -495,8 +524,10 @@ class Class(models.Model):
     closed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
     )
+    index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
+    index_start_from = models.PositiveIntegerField(default=1, help_text="First index number assigned to new students (e.g. 50 → first student gets 050).")
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes')
-    
+
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
     
@@ -515,7 +546,19 @@ class Class(models.Model):
     @property
     def enrollment_status(self):
         return f"{self.current_enrollment} / {self.capacity}"
-    
+
+    def format_index(self, number: int) -> str:
+        padded = str(number).zfill(3)
+        if self.index_prefix:
+            return f"{self.index_prefix}/{padded}"
+        return padded
+
+    @property
+    def next_index_preview(self):
+        last = self.student_indexes.order_by("-index_number").first()
+        next_num = int(last.index_number) + 1 if last else self.index_start_from
+        return self.format_index(next_num)
+            
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects', null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')

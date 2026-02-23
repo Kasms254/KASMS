@@ -50,7 +50,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-//const API_BASE = import.meta.env.VITE_API_URL;
+
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -698,6 +698,7 @@ export async function getExamResults(examId) {
   if (!examId) throw new Error('examId is required')
   return request(`/api/exams/${examId}/results/`)
 }
+
 // student get myexam_results
 export async function getMyResults(params = {}) {
   const qs = new URLSearchParams(params).toString()
@@ -744,11 +745,7 @@ export async function deleteClassNotice(id) {
 
 export async function getClassNotices(params = '') {
   const qs = params ? `?${params}` : ''
-  // Return raw response so callers can access pagination metadata
-  // (count, next, previous, results). Components that only need the
-  // list can read `response.results` or use helper logic.
-  const qs2 = params ? `?${params}` : ''
-  return request(`/api/class-notices/${qs2}`)
+  return request(`/api/class-notices/${qs}`)
 }
 
 // Get class notices scoped to the current user. The backend's get_queryset
@@ -920,9 +917,8 @@ export async function exportClassReport(classId, format = 'summary') {
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
-  const API = API_BASE
   const token = authStore.getToken()
-  const url = `${API}/api/exam-attachments/`
+  const url = `${API_BASE}/api/exam-attachments/`
   const form = new FormData()
   form.append('exam', String(examId))
   form.append('file', file)
@@ -974,9 +970,6 @@ export async function partialUpdateSubject(id, payload) {
 export async function deleteSubject(id) {
   return request(`/api/subjects/${id}/`, { method: 'DELETE' })
 }
-
-
-
 
 export async function assignInstructorToSubject(subjectId, instructorId) {
   return request(`/api/subjects/${subjectId}/assign_instructor/`, { method: 'POST', body: { instructor_id: instructorId } })
@@ -1122,9 +1115,8 @@ export async function getMySchoolTheme() {
 
 // Upload school logo (multipart/form-data)
 export async function uploadSchoolLogo(schoolId, file) {
-  const API = API_BASE
   const token = authStore.getToken()
-  const url = `${API}/api/schools/${schoolId}/upload_logo/`
+  const url = `${API_BASE}/api/schools/${schoolId}/upload_logo/`
   const form = new FormData()
   form.append('logo', file)
 
@@ -1502,6 +1494,50 @@ export async function reviewResultEditRequest(id, payload) {
   return request(`/api/result-edit-requests/${id}/review/`, { method: 'POST', body: payload })
 }
 
+// =====================
+// Student Index / Roster
+// =====================
+
+export async function getClassRoster(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/`)
+}
+
+export async function assignClassIndexes(classId, startFrom = null) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/assign/`, {
+    method: 'POST',
+    body: startFrom ? { start_from: startFrom } : undefined,
+  })
+}
+
+export async function updateStudentIndex(classId, indexId, indexNumber) {
+  if (!classId) throw new Error('classId is required')
+  if (!indexId) throw new Error('indexId is required')
+  return request(`/api/admin/roster/${classId}/update-index/${indexId}/`, {
+    method: 'PATCH',
+    body: { index_number: indexNumber },
+  })
+}
+
+// =====================
+// Marks Entry
+// =====================
+
+export async function getMarksEntryResults(examId) {
+  if (!examId) throw new Error('examId is required')
+  return request(`/api/marks-entry/exam/${examId}/`)
+}
+
+export async function updateMarksEntry(resultId, payload) {
+  if (!resultId) throw new Error('resultId is required')
+  return request(`/api/marks-entry/${resultId}/`, { method: 'PATCH', body: payload })
+}
+
+export async function bulkSubmitMarks(payload) {
+  return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
+}
+
 export default {
   login,
   changePassword,
@@ -1701,4 +1737,12 @@ export default {
   bulkCreateCertificates,
   getCertificateDownloadLogs,
   verifyCertificate,
+  // Student Index / Roster
+  getClassRoster,
+  assignClassIndexes,
+  updateStudentIndex,
+  // Marks Entry
+  getMarksEntryResults,
+  updateMarksEntry,
+  bulkSubmitMarks,
 }

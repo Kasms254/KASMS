@@ -191,6 +191,30 @@ class ForcePasswordChangePermission(BasePermission):
 
         return True
 
+class IsInstructorOfSubject(BasePermission):
+    
+    message = "You can only enter the marks for subjects assigned to you"
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ["instructor", "admin", "superadmin"]
+        )
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.role in ["admin", "superadmin"]:
+            return True
+        return obj.exam.subject.instructor == request.user
+        
+        
+class IsAdminOnly(BasePermission):
+    message = "Only administrators can access this resource."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ["admin", "superadmin"]
+        )
 # department permission
 
 class IsHOD(BasePermission):
@@ -238,5 +262,5 @@ class IsHODOrAdmin(BasePermission):
             is_active=True,
         ).exists()
 
-
+        
 

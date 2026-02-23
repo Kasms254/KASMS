@@ -56,7 +56,7 @@ export default function ClassesList(){
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
   const [editingClass, setEditingClass] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [classForm, setClassForm] = useState({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [instructors, setInstructors] = useState([])
   const [classErrors, setClassErrors] = useState({})
   const [classErrorsFromValidation, setClassErrorsFromValidation] = useState(false)
@@ -192,7 +192,7 @@ export default function ClassesList(){
     }
     setClassErrors({})
     setClassErrorsFromValidation(false)
-    setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+    setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
     setAddModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
   }
@@ -281,7 +281,7 @@ export default function ClassesList(){
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? <div className="text-sm text-neutral-400">Loading...</div> : (
           classes.length === 0 ? <div className="text-sm text-neutral-400">No Classes Found</div> : classes.map(c => (
-            <div key={c.id} className="relative h-full cursor-pointer" onClick={() => navigate(`/list/classes/${c.id}/students`)}>
+            <div key={c.id} className={`relative h-full${user?.role === 'admin' ? ' cursor-pointer' : ''}`} onClick={user?.role === 'admin' ? () => navigate(`/list/classes/${c.id}/students`) : undefined}>
               <Card
                 title={c.class_code || c.name}
                 value={c.name}
@@ -315,6 +315,8 @@ export default function ClassesList(){
                     setClassForm({
                       name: c.name || '',
                       class_code: c.class_code || '',
+                      index_prefix: c.index_prefix || '',
+                      index_start_from: c.index_start_from || 1,
                       instructor: c.instructor || c.instructor_id || '',
                       start_date: normalizeDate(c.start_date),
                       end_date: normalizeDate(c.end_date),
@@ -397,6 +399,8 @@ export default function ClassesList(){
                   const payload = {
                     name: classForm.name,
                     class_code: classForm.class_code || undefined,
+                    index_prefix: classForm.index_prefix.trim().toUpperCase() || '',
+                    index_start_from: Number(classForm.index_start_from) || 1,
                     instructor: classForm.instructor ? Number(classForm.instructor) : null,
                     start_date: classForm.start_date || null,
                     end_date: classForm.end_date || null,
@@ -451,6 +455,18 @@ export default function ClassesList(){
                     <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
                     <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} maxLength={20} onChange={(e) => setClassForm({ ...classForm, class_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. CLS-001" />
                     {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index prefix</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 uppercase" value={classForm.index_prefix} maxLength={20} onBeforeInput={(e) => { if (e.data && !/^[A-Za-z0-9]+$/.test(e.data)) e.preventDefault() }} onChange={(e) => setClassForm({ ...classForm, index_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="e.g. INF" />
+                    <p className="text-xs text-neutral-400 mt-1">Optional. Student indexes will display as PREFIX/001 (e.g. INF/001).</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start_from} onChange={(e) => setClassForm({ ...classForm, index_start_from: e.target.value })} placeholder="1" />
+                    <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 
                   <div>
@@ -617,6 +633,8 @@ export default function ClassesList(){
                   const payload = {
                     name: classForm.name,
                     class_code: classForm.class_code || undefined,
+                    index_prefix: classForm.index_prefix.trim().toUpperCase() || '',
+                    index_start_from: Number(classForm.index_start_from) || 1,
                     course: Number(classForm.course),
                     instructor: Number(classForm.instructor),
                     start_date: classForm.start_date || null,
@@ -628,7 +646,7 @@ export default function ClassesList(){
                   if (toast?.success) toast.success('Class Created')
                   else if (toast?.showToast) toast.showToast('Class Created', { type: 'success' })
                   setAddModalOpen(false)
-                  setClassForm({ name: '', class_code: '', course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+                  setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
                   setClassErrors({})
                   setClassErrorsFromValidation(false)
                   await loadClasses()
@@ -673,6 +691,18 @@ export default function ClassesList(){
                     <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
                     <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} maxLength={20} onChange={(e) => { setClassForm({ ...classForm, class_code: sanitizeInput(e.target.value).slice(0, 20) }); setClassErrors(prev => ({ ...prev, class_code: undefined })); }} placeholder="e.g. CLS-001" />
                     {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index prefix</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 uppercase" value={classForm.index_prefix} maxLength={20} onBeforeInput={(e) => { if (e.data && !/^[A-Za-z0-9]+$/.test(e.data)) e.preventDefault() }} onChange={(e) => setClassForm({ ...classForm, index_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="e.g. INF" />
+                    <p className="text-xs text-neutral-400 mt-1">Optional. Student indexes will display as PREFIX/001 (e.g. INF/001).</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start_from} onChange={(e) => setClassForm({ ...classForm, index_start_from: e.target.value })} placeholder="1" />
+                    <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 
                   <div>
