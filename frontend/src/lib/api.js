@@ -1406,6 +1406,7 @@ export async function updateProfile(data) {
   return request('/api/profile/me/', { method: 'PATCH', body: data })
 }
 
+<<<<<<< HEAD
 // =====================
 // Departments API
 // =====================
@@ -1500,6 +1501,44 @@ export async function createResultEditRequest(payload) {
 export async function reviewResultEditRequest(id, payload) {
   if (!id) throw new Error('id is required')
   return request(`/api/result-edit-requests/${id}/review/`, { method: 'POST', body: payload })
+=======
+// Student Index / Roster
+export async function getClassRoster(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/`)
+}
+
+export async function assignClassIndexes(classId, startFrom = null) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/assign/`, {
+    method: 'POST',
+    body: startFrom ? { start_from: startFrom } : undefined,
+  })
+}
+
+export async function updateStudentIndex(classId, indexId, indexNumber) {
+  if (!classId) throw new Error('classId is required')
+  if (!indexId) throw new Error('indexId is required')
+  return request(`/api/admin/roster/${classId}/update-index/${indexId}/`, {
+    method: 'PATCH',
+    body: { index_number: indexNumber },
+  })
+}
+
+// Marks Entry
+export async function getMarksEntryResults(examId) {
+  if (!examId) throw new Error('examId is required')
+  return request(`/api/marks-entry/exam/${examId}/`)
+}
+
+export async function updateMarksEntry(resultId, payload) {
+  if (!resultId) throw new Error('resultId is required')
+  return request(`/api/marks-entry/${resultId}/`, { method: 'PATCH', body: payload })
+}
+
+export async function bulkSubmitMarks(payload) {
+  return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
+>>>>>>> indexes
 }
 
 export default {
@@ -1701,4 +1740,11 @@ export default {
   bulkCreateCertificates,
   getCertificateDownloadLogs,
   verifyCertificate,
+  // Student Index / Roster
+  getClassRoster,
+  assignClassIndexes,
+  // Marks Entry
+  getMarksEntryResults,
+  updateMarksEntry,
+  bulkSubmitMarks,
 }

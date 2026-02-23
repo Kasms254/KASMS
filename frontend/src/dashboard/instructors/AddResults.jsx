@@ -75,23 +75,25 @@ export default function AddResults() {
     if (!examId) return
     if (!skipSpinner) setLoading(true)
     try {
-      const resp = await api.getExamResults(examId)
-      // resp contains { exam, count, submitted, pending, results }
-      setExamInfo(resp.exam || null)
-      // save stats returned by backend
-      setExamStats({
-        count: resp.count || 0,
-        submitted: resp.submitted || 0,
-        pending: resp.pending || 0
-      })
+      const resp = await api.getMarksEntryResults(examId)
+      // resp contains { exam_id, exam_title, total_marks, count, results }
+      setExamInfo({ id: resp.exam_id, title: resp.exam_title, total_marks: resp.total_marks })
       const list = Array.isArray(resp.results) ? resp.results : (resp && resp.results) ? resp.results : []
+      const total = list.length
+      const submitted = list.filter(r => r.marks_obtained != null && r.marks_obtained !== '').length
+      setExamStats({
+        count: total,
+        submitted,
+        pending: total - submitted,
+      })
       // ensure each row has editable fields and UX helpers (dirty/errors)
       const mapped = list.map(r => ({
         id: r.id,
         student_id: r.student || r.student_id || (r.student && r.student.id),
-        student_name: r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
+        student_name: r.student_full_name || r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
         svc_number: r.student_svc_number || (r.student && r.student.svc_number) || '',
-  marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
+        class_index: r.class_index || '',
+        marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
         remarks: r.remarks || '',
         percentage: r.percentage,
         grade: r.grade,
@@ -210,12 +212,12 @@ export default function AddResults() {
     }
 
     // build payload only for changed rows
-    const payload = { results: changedRows.map(r => ({ id: r.id, student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
+    const payload = { exam_id: selectedExam, results: changedRows.map(r => ({ id: r.id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
     setSaving(true)
     try {
-      const res = await api.bulkGradeResults(payload)
+      const res = await api.bulkSubmitMarks(payload)
 
-      // backend returns { status, updated, errors }
+      // backend returns { updated_count, error_count, results, errors }
       if (res.errors && Array.isArray(res.errors) && res.errors.length > 0) {
         // attempt to attach errors to the changed rows by extracting ids from messages
         const errMap = {}
@@ -236,8 +238,9 @@ export default function AddResults() {
         toast.error(`${res.errors.length} error(s) occurred while saving`) 
       }
 
-      if (res.updated && res.updated > 0) {
-        toast.success(`${res.updated} result(s) saved`)
+      const updatedCount = res.updated_count ?? res.updated ?? 0
+      if (updatedCount > 0) {
+        toast.success(`${updatedCount} result(s) saved`)
         // reload to fetch computed fields (percentage/grade)
         await loadResults(selectedExam)
       }
@@ -323,10 +326,7 @@ export default function AddResults() {
     let filtered = results.filter(r => {
       if (!searchTerm) return true
       const term = searchTerm.toLowerCase()
-      return (
-        (r.student_name || '').toLowerCase().includes(term) ||
-        (r.svc_number || '').toLowerCase().includes(term)
-      )
+      return (r.class_index || '').toLowerCase().includes(term)
     })
 
     if (sortConfig.key) {
@@ -523,7 +523,7 @@ export default function AddResults() {
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Search by student name or service number..."
+                    placeholder="Search by index number..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -578,11 +578,15 @@ export default function AddResults() {
                   {/* Student Info Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex-1 min-w-0">
+<<<<<<< HEAD
                       <div className="flex items-center gap-1.5">
                         {r.is_locked && <svg className="h-4 w-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
                         <div className="font-semibold text-gray-900 text-base truncate">{r.student_name || '-'}</div>
                       </div>
                       <div className="text-sm text-gray-500 mt-0.5">SVC: {r.svc_number || '-'}</div>
+=======
+                      <div className="font-semibold text-indigo-700 text-base">#{r.class_index || '-'}</div>
+>>>>>>> indexes
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
@@ -671,23 +675,12 @@ export default function AddResults() {
                 <thead className="bg-gray-100">
                   <tr>
                     <th
-                      onClick={() => handleSort('svc_number')}
+                      onClick={() => handleSort('class_index')}
                       className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        Svc No
-                        {sortConfig.key === 'svc_number' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </th>
-                    <th
-                      onClick={() => handleSort('student_name')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                    >
-                      <div className="flex items-center gap-1">
-                        Student Name
-                        {sortConfig.key === 'student_name' && (
+                        Index
+                        {sortConfig.key === 'class_index' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </div>
@@ -736,6 +729,7 @@ export default function AddResults() {
                   {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     return (
+<<<<<<< HEAD
                       <tr key={r.id} className={`hover:bg-gray-50 transition ${r.is_locked ? 'bg-orange-50/40' : r.dirty ? 'bg-yellow-50' : ''}`}>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-1">
@@ -745,6 +739,11 @@ export default function AddResults() {
                         </td>
                         <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
                           {r.student_name || '-'}
+=======
+                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
+                          {r.class_index || '-'}
+>>>>>>> indexes
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <div>

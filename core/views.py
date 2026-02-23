@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
+from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
@@ -8,7 +8,7 @@ from .serializers import (
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
-    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -33,9 +33,11 @@ from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
-from rest_framework.viewsets import GenericViewSet
-from .services import close_class,issue_certificate, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates
+from rest_framework.viewsets import GenericViewSet 
+from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
 
 class TenantFilterMixin:
 
@@ -4956,6 +4958,225 @@ class CertificatePublicVerificationView(APIView):
             'status_display': certificate.get_status_display(),
         })
 
+# student indexes
+
+class MarksEntryViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def _get_serializer_class(self, request):
+        if request.user.role in ["admin", "superadmin"]:
+            return AdminMarksSerializer
+        return InstructorMarksSerializer
+
+    @action(detail=False, methods=["get"], url_path="exam/(?P<exam_id>[^/.]+)")
+    def exam_results(self, request, exam_id=None):
+
+        exam = get_object_or_404(Exam, pk=exam_id, is_active=True)
+
+        if request.user.role == "instructor":
+            if exam.subject.instructor != request.user:
+                return Response(
+                    {"error": "You are not the instructor for this subject."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        results = ExamResult.objects.filter(
+            exam=exam,
+            school=request.user.school,
+        ).select_related(
+            "exam", "exam__subject", "exam__subject__class_obj",
+            "student", "graded_by",
+        ).order_by("id")
+
+        serializer_class = self._get_serializer_class(request)
+        serializer = serializer_class(results, many=True, context={"request": request})
+
+        return Response({
+            "exam_id": exam.id,
+            "exam_title": exam.title,
+            "total_marks": exam.total_marks,
+            "count": results.count(),
+            "results": serializer.data,
+        })
+
+    def partial_update(self, request, pk=None):
+
+        result = get_object_or_404(
+            ExamResult,
+            pk=pk,
+            school=request.user.school,
+        )
+
+        if request.user.role == "instructor":
+            if result.exam.subject.instructor != request.user:
+                return Response(
+                    {"error": "You can only grade results for your own subjects."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        serializer_class = self._get_serializer_class(request)
+        serializer = serializer_class(
+            result,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        instance = serializer.save(
+            graded_by=request.user,
+            graded_at=timezone.now(),
+        )
+
+        return Response(
+            serializer_class(instance, context={"request": request}).data
+        )
+
+    @action(detail=False, methods=["post"], url_path="bulk-submit")
+    def bulk_submit(self, request):
+        exam_id = request.data.get("exam_id")
+        results_data = request.data.get("results", [])
+
+        if not exam_id:
+            return Response(
+                {"error": "exam_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        exam = get_object_or_404(Exam, pk=exam_id, school=request.user.school)
+
+        if request.user.role == "instructor":
+            if exam.subject.instructor != request.user:
+                return Response(
+                    {"error": "You are not the instructor for this exam."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        serializer_class = self._get_serializer_class(request)
+        updated = []
+        errors = []
+
+        with transaction.atomic():
+            for item in results_data:
+                result_id = item.get("id")
+                try:
+                    result = ExamResult.objects.select_for_update().get(
+                        pk=result_id,
+                        exam=exam,
+                        school=request.user.school,
+                    )
+                except ExamResult.DoesNotExist:
+                    errors.append({"id": result_id, "error": "Result not found."})
+                    continue
+
+                serializer = serializer_class(
+                    result,
+                    data=item,
+                    partial=True,
+                    context={"request": request},
+                )
+                if serializer.is_valid():
+                    instance = serializer.save(
+                        is_submitted=True,
+                        submitted_at=timezone.now(),
+                        graded_by=request.user,
+                        graded_at=timezone.now(),
+                    )
+                    updated.append(
+                        serializer_class(instance, context={"request": request}).data
+                    )
+                else:
+                    errors.append({"id": result_id, "errors": serializer.errors})
+
+        return Response({
+            "updated_count": len(updated),
+            "error_count": len(errors),
+            "results": updated,
+            "errors": errors,
+        }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
+
+
+class AdminRosterViewSet(viewsets.ViewSet):
+
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+
+    def retrieve(self, request, pk=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+
+        indexes = StudentIndex.objects.filter(
+            class_obj=class_obj,
+            enrollment__is_active=True,
+        ).select_related(
+            "enrollment", "enrollment__student", "class_obj",
+        ).order_by("index_number")
+
+        serializer = AdminStudentIndexRosterSerializer(indexes, many=True)
+
+        return Response({
+            "class_id": class_obj.id,
+            "class_name": class_obj.name,
+            "index_prefix": class_obj.index_prefix or "",
+            "index_start_from": class_obj.index_start_from,      
+            "next_index_preview": class_obj.next_index_preview,
+            "total_students": indexes.count(),
+            "roster": serializer.data,
+        })
+
+    @action(detail=True, methods=["post"], url_path="assign")
+    def assign_indexes(self, request, pk=None):
+
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        created = bulk_assign_indexes(class_obj)
+        return Response({
+            "message": f"Assigned {len(created)} new indexes in {class_obj.name}.",
+            "newly_indexed": [
+                {"index_number": idx.index_number, "enrollment_id": str(idx.enrollment_id)}
+                for idx in created
+            ],
+        }, status=status.HTTP_201_CREATED)
+
+
+    @action(detail=True, methods=["patch"], url_path="update-index/(?P<index_id>[^/.]+)")
+    def update_index(self, request, pk=None, index_id=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        student_index = get_object_or_404(
+            StudentIndex, pk=index_id, class_obj=class_obj
+        )
+
+        new_number = request.data.get("index_number")
+        if not new_number:
+            return Response(
+                {"error": "index_number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_number = str(new_number).strip().zfill(3)
+        if not new_number.isdigit():
+            return Response(
+                {"error": "Index number must contain only digits."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    
+        if (
+            StudentIndex.all_objects.filter(class_obj=class_obj, index_number=new_number)
+            .exclude(pk=student_index.pk)
+            .exists()
+        ):
+            return Response(
+                {"error": f"Index {class_obj.format_index(int(new_number))} is already assigned to another student in this class."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        student_index.index_number = new_number
+        student_index.save(update_fields=["index_number"])
+
+        return Response({
+            "message": f"Index updated to {class_obj.format_index(int(new_number))}.",
+            "id": str(student_index.pk),
+            "index_number": student_index.index_number,
+            "formatted_index": class_obj.format_index(int(new_number)),
+        })
 # Departments
 
 class DepartmentViewSet(viewsets.ModelViewSet):

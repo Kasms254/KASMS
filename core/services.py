@@ -1,9 +1,10 @@
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
-    AttendanceSession, SessionAttendance)
+    AttendanceSession, SessionAttendance, StudentIndex)
 from django.conf import settings
 import io
 import os
@@ -342,6 +343,69 @@ def _try_complete_membership(enrollment):
             if active_membership:
                 active_membership.complete()
 
+def assign_student_index(enrollment: Enrollment) -> StudentIndex:
+
+    if hasattr(enrollment, "student_index"):
+        raise ValueError(
+            f"Enrollment {enrollment.id} already has an index"
+            f"{enrollment.student_index.index_number}"
+        )
+
+    with transaction.atomic():
+        existing = (
+            StudentIndex.all_objects.select_for_update().filter(class_obj=enrollment.class_obj).order_by("-index_number")
+        )
+        if existing.exists():
+            last_num = int(existing.first().index_number)
+            next_num = last_num + 1
+        else:
+            next_num = enrollment.class_obj.index_start_from
+
+        index_str =  str(next_num).zfill(3)
+
+        student_index = StudentIndex.objects.create(
+            enrollment = enrollment,
+            class_obj = enrollment.class_obj,
+            index_number = index_str,
+            school = enrollment.school,
+        )
+    return student_index
+
+def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
+    
+    with transaction.atomic():
+        existing_enrollment_ids = StudentIndex.all_objects.filter(
+            class_obj = class_obj
+        ).values_list("enrollment_id", flat=True)
+
+        un_indexed = Enrollment.all_objects.filter(
+            class_obj=class_obj,
+            is_active=True,
+        ).exclude(
+            id__in=existing_enrollment_ids
+        ).select_for_update().order_by("enrollment_date", "id")
+
+        last = (
+            StudentIndex.all_objects
+            .filter(class_obj=class_obj)
+            .order_by("-index_number")
+            .first()
+        )
+        next_num = int(last.index_number) + 1 if last else class_obj.index_start_from
+
+        created = []
+        for enrollment in un_indexed:
+            idx = StudentIndex(
+                enrollment=enrollment,
+                class_obj=class_obj,
+                index_number=str(next_num).zfill(3),
+                school=class_obj.school,
+            )
+            idx.save()
+            created.append(idx)
+            next_num += 1
+
+    return created
 
 CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html>

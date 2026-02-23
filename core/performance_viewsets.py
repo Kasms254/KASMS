@@ -649,7 +649,6 @@ class ClassPerformanceViewSet(viewsets.ViewSet):
                 'student_id': student.id,
                 'student_name': student.get_full_name(),
                 'svc_number': getattr(student, 'svc_number', None),
-
                 'total_exams_taken': student_results.count() if student_results.exists() else 0,
                 'total_marks_obtained': float(student_total),
                 'total_marks_possible': float(student_possible),

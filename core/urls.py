@@ -3,7 +3,7 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet,AdminRosterViewSet,
     # for the instructor
     ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView, CertificatePublicVerificationView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
@@ -66,6 +66,11 @@ router.register(r'certificate_templates', CertificateTemplateViewSet, basename='
 # certificates 
 router.register(r'certificates', CertificateViewSet, basename='certificate')
 
+# indexes
+router.register(r"marks-entry", MarksEntryViewSet, basename="marks-entry")
+router.register(r"admin/roster", AdminRosterViewSet, basename="admin-roster")
+
+
 # departments
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
@@ -86,5 +91,6 @@ urlpatterns = [
 
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),
+
 ]
 
