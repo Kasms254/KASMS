@@ -5028,6 +5028,7 @@ class AdminRosterViewSet(viewsets.ViewSet):
 
         indexes = StudentIndex.objects.filter(
             class_obj=class_obj,
+            enrollment__is_active=True,
         ).select_related(
             "enrollment", "enrollment__student", "class_obj",
         ).order_by("index_number")
