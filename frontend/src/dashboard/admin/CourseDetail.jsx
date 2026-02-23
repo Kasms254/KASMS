@@ -45,14 +45,15 @@ export default function CourseDetail() {
 
   // Add class modal
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [classForm, setClassForm] = useState({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
+  const [classForm, setClassForm] = useState({ name: '', class_code: '', index_prefix: '', index_start_from: 1, instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
   const [classErrors, setClassErrors] = useState({})
+  const [classErrorsFromValidation, setClassErrorsFromValidation] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Edit class modal
   const [editingClass, setEditingClass] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [editClassForm, setEditClassForm] = useState({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
+  const [editClassForm, setEditClassForm] = useState({ name: '', class_code: '', index_prefix: '', index_start_from: 1, instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
   const [editClassErrors, setEditClassErrors] = useState({})
 
   // Delete confirmation
@@ -151,7 +152,8 @@ export default function CourseDetail() {
       setInstructors([])
     }
     setClassErrors({})
-    setClassForm({ name: '', class_code: '', instructor: '', start_date: '', end_date: '', capacity: 30, is_active: true })
+    setClassErrorsFromValidation(false)
+    setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
     setAddModalOpen(true)
     setTimeout(() => { modalRef.current?.querySelector('input,select,button')?.focus() }, 20)
   }
@@ -159,40 +161,67 @@ export default function CourseDetail() {
   async function handleAddClass(e) {
     e.preventDefault()
     setClassErrors({})
+    setClassErrorsFromValidation(false)
     const errors = {}
-    if (!classForm.name?.trim()) errors.name = 'Class name is required'
-    if (!classForm.instructor) errors.instructor = 'Please select an instructor'
+    if (!classForm.name?.trim()) errors.name = 'Class Name Required'
+    if (!classForm.instructor) errors.instructor = 'Please Select an Instructor'
+    if (classForm.start_date) {
+      const start = new Date(classForm.start_date)
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      if (start < today) errors.start_date = 'Start Date Cannot Be in the Past'
+    }
     if (classForm.start_date && classForm.end_date && new Date(classForm.end_date) < new Date(classForm.start_date)) {
-      errors.end_date = 'End date must be after start date'
+      errors.end_date = 'End Date Must Be After Start Date'
     }
     if (classForm.capacity && (isNaN(Number(classForm.capacity)) || Number(classForm.capacity) < 1)) {
-      errors.capacity = 'Capacity must be a positive number'
+      errors.capacity = 'Capacity Must Be a Positive Number'
     }
-    if (Object.keys(errors).length) { setClassErrors(errors); reportError('Please fix the highlighted errors'); return }
+    if (Object.keys(errors).length) {
+      setClassErrors(errors)
+      setClassErrorsFromValidation(true)
+      reportError('Please Check the Highlighted Fields')
+      return
+    }
 
     setIsSaving(true)
     try {
       await addClass({
         name: classForm.name.trim(),
         class_code: classForm.class_code?.trim() || undefined,
+        index_prefix: classForm.index_prefix.trim().toUpperCase() || '',
+        index_start_from: Number(classForm.index_start_from) || 1,
         course: id,
         instructor: Number(classForm.instructor),
         start_date: classForm.start_date || null,
         end_date: classForm.end_date || null,
-        capacity: Number(classForm.capacity) || 30,
+        capacity: classForm.capacity ? Number(classForm.capacity) : undefined,
         is_active: classForm.is_active,
       })
-      reportSuccess('Class added successfully')
+      reportSuccess('Class Created')
       setAddModalOpen(false)
+      setClassErrors({})
+      setClassErrorsFromValidation(false)
       await loadClasses()
     } catch (err) {
       const d = err?.data
       if (d && typeof d === 'object') {
-        const fieldErrors = {}
-        Object.keys(d).forEach(k => { fieldErrors[k] = Array.isArray(d[k]) ? d[k].join(' ') : String(d[k]) })
-        if (Object.keys(fieldErrors).length) { setClassErrors(fieldErrors); return }
+        const friendlyErrors = { ...d }
+        const dateFields = ['start_date', 'end_date']
+        dateFields.forEach(field => {
+          if (friendlyErrors[field]) {
+            const errStr = Array.isArray(friendlyErrors[field]) ? friendlyErrors[field].join(' ') : String(friendlyErrors[field])
+            if (errStr.toLowerCase().includes('may not be null') || errStr.toLowerCase().includes('required')) {
+              friendlyErrors[field] = 'Please Select the Date'
+            }
+          }
+        })
+        setClassErrors(friendlyErrors)
+        setClassErrorsFromValidation(false)
+        const nonField = d.non_field_errors || d.detail || d.message || d.error
+        if (nonField) reportError(Array.isArray(nonField) ? nonField.join(' ') : String(nonField))
+      } else {
+        reportError(err?.message || 'Failed to add class')
       }
-      reportError(err?.message || 'Failed to add class')
     } finally {
       setIsSaving(false)
     }
@@ -260,6 +289,8 @@ export default function CourseDetail() {
                         setEditClassForm({
                           name: c.name || '',
                           class_code: c.class_code || '',
+                          index_prefix: c.index_prefix || '',
+                          index_start_from: c.index_start_from || 1,
                           instructor: c.instructor || c.instructor_id || '',
                           start_date: normalizeDate(c.start_date),
                           end_date: normalizeDate(c.end_date),
@@ -321,6 +352,8 @@ export default function CourseDetail() {
                   await updateClass(editingClass.id, {
                     name: editClassForm.name,
                     class_code: editClassForm.class_code || undefined,
+                    index_prefix: editClassForm.index_prefix.trim().toUpperCase() || '',
+                    index_start_from: Number(editClassForm.index_start_from) || 1,
                     instructor: editClassForm.instructor ? Number(editClassForm.instructor) : null,
                     start_date: editClassForm.start_date || null,
                     end_date: editClassForm.end_date || null,
@@ -353,6 +386,18 @@ export default function CourseDetail() {
                     <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
                     <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editClassErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={editClassForm.class_code} maxLength={20} onChange={(e) => setEditClassForm({ ...editClassForm, class_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. CLS-001" />
                     {editClassErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(editClassErrors.class_code) ? editClassErrors.class_code.join(' ') : String(editClassErrors.class_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index prefix</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 uppercase" value={editClassForm.index_prefix} maxLength={20} onBeforeInput={(e) => { if (e.data && !/^[A-Za-z0-9]+$/.test(e.data)) e.preventDefault() }} onChange={(e) => setEditClassForm({ ...editClassForm, index_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="e.g. INF" />
+                    <p className="text-xs text-neutral-400 mt-1">Optional. Student indexes will display as PREFIX/001 (e.g. INF/001).</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={editClassForm.index_start_from} onChange={(e) => setEditClassForm({ ...editClassForm, index_start_from: e.target.value })} placeholder="1" />
+                    <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 
                   <div>
@@ -452,7 +497,7 @@ export default function CourseDetail() {
       {/* Add Class Modal */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isSaving) setAddModalOpen(false) }} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!isSaving) { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false) } }} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
             <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between gap-4 mb-4">
@@ -460,93 +505,93 @@ export default function CourseDetail() {
                   <h4 className="text-lg text-black font-medium">Add Class</h4>
                   <p className="text-sm text-neutral-500">Create a new class under {course?.name || 'this course'}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => { if (!isSaving) setAddModalOpen(false) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => { if (!isSaving) { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false) } }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
               </div>
 
               <form onSubmit={handleAddClass}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Class Name *</label>
-                    <input
-                      placeholder="e.g. Class A"
-                      value={classForm.name}
-                      onChange={(e) => { setClassForm({ ...classForm, name: e.target.value }); setClassErrors(prev => ({ ...prev, name: undefined })) }}
-                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-red-500' : 'border-neutral-200'}`}
-                    />
-                    {classErrors.name && <p className="text-red-500 text-xs mt-1">{classErrors.name}</p>}
+                    <label className="text-sm text-neutral-600 mb-1 block">Class name *</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.name ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.name} maxLength={50} onChange={(e) => { setClassForm({ ...classForm, name: sanitizeInput(e.target.value).slice(0, 50) }); setClassErrors(prev => ({ ...prev, name: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, name: undefined }).length > 0) }} placeholder="e.g. Class A" />
+                    {classErrors.name && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.name) ? classErrors.name.join(' ') : String(classErrors.name)}</div>}
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Class Code</label>
-                    <input
-                      placeholder="e.g. CLS-001"
-                      value={classForm.class_code}
-                      onChange={(e) => { setClassForm({ ...classForm, class_code: e.target.value }); setClassErrors(prev => ({ ...prev, class_code: undefined })) }}
-                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-red-500' : 'border-neutral-200'}`}
-                    />
-                    {classErrors.class_code && <p className="text-red-500 text-xs mt-1">{classErrors.class_code}</p>}
+                    <label className="text-sm text-neutral-600 mb-1 block">Class code</label>
+                    <input className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.class_code ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.class_code} maxLength={20} onChange={(e) => { setClassForm({ ...classForm, class_code: sanitizeInput(e.target.value).slice(0, 20) }); setClassErrors(prev => ({ ...prev, class_code: undefined })) }} placeholder="e.g. CLS-001" />
+                    {classErrors.class_code && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.class_code) ? classErrors.class_code.join(' ') : String(classErrors.class_code)}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index prefix</label>
+                    <input className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 uppercase" value={classForm.index_prefix} maxLength={20} onBeforeInput={(e) => { if (e.data && !/^[A-Za-z0-9]+$/.test(e.data)) e.preventDefault() }} onChange={(e) => setClassForm({ ...classForm, index_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="e.g. INF" />
+                    <p className="text-xs text-neutral-400 mt-1">Optional. Student indexes will display as PREFIX/001 (e.g. INF/001).</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Index starts from</label>
+                    <input type="number" min={1} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" value={classForm.index_start_from} onChange={(e) => setClassForm({ ...classForm, index_start_from: e.target.value })} placeholder="1" />
+                    <p className="text-xs text-neutral-400 mt-1">First index number assigned to new students (e.g. 50 → first student gets 050).</p>
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
                     <SearchableSelect
                       value={classForm.instructor}
-                      onChange={(val) => { setClassForm({ ...classForm, instructor: val }); setClassErrors(prev => ({ ...prev, instructor: undefined })) }}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      onChange={(val) => { setClassForm({ ...classForm, instructor: val }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0) }}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!classErrors.instructor}
                     />
-                    {classErrors.instructor && <p className="text-red-500 text-xs mt-1">{classErrors.instructor}</p>}
+                    {classErrors.instructor && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.instructor) ? classErrors.instructor.join(' ') : String(classErrors.instructor)}</div>}
                   </div>
 
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Capacity</label>
-                    <input
-                      type="number" min={1}
-                      placeholder="e.g. 30"
-                      value={classForm.capacity}
-                      onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })) }}
-                      className={`w-full p-2.5 rounded-lg text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-red-500' : 'border-neutral-200'}`}
-                    />
-                    {classErrors.capacity && <p className="text-red-500 text-xs mt-1">{classErrors.capacity}</p>}
+                    <input type="number" min="1" className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${classErrors.capacity ? 'border-rose-500' : 'border-neutral-200'}`} value={classForm.capacity} onChange={(e) => { setClassForm({ ...classForm, capacity: e.target.value }); setClassErrors(prev => ({ ...prev, capacity: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, capacity: undefined }).length > 0) }} placeholder="e.g. 30" />
+                    {classErrors.capacity && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.capacity) ? classErrors.capacity.join(' ') : String(classErrors.capacity)}</div>}
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Start Date</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">Start date</label>
                     <ModernDatePicker
                       value={classForm.start_date}
                       onChange={(date) => { setClassForm({ ...classForm, start_date: date }); setClassErrors(prev => ({ ...prev, start_date: undefined, end_date: undefined })) }}
                       placeholder="Select start date"
                       minDate={new Date().toISOString().split('T')[0]}
                     />
-                    {classErrors.start_date && <p className="text-red-500 text-xs mt-1">{classErrors.start_date}</p>}
+                    {classErrors.start_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.start_date) ? classErrors.start_date.join(' ') : String(classErrors.start_date)}</div>}
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">End Date</label>
+                    <label className="text-sm text-neutral-600 mb-1 block">End date</label>
                     <ModernDatePicker
                       value={classForm.end_date}
-                      onChange={(date) => { setClassForm({ ...classForm, end_date: date }); setClassErrors(prev => ({ ...prev, end_date: undefined })) }}
+                      onChange={(date) => { setClassForm({ ...classForm, end_date: date }); setClassErrors(prev => ({ ...prev, end_date: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, end_date: undefined }).length > 0) }}
                       placeholder="Select end date"
                       minDate={classForm.start_date || new Date().toISOString().split('T')[0]}
                     />
-                    {classErrors.end_date && <p className="text-red-500 text-xs mt-1">{classErrors.end_date}</p>}
+                    {classErrors.end_date && <div className="text-xs text-rose-600 mt-1">{Array.isArray(classErrors.end_date) ? classErrors.end_date.join(' ') : String(classErrors.end_date)}</div>}
                   </div>
                 </div>
 
+                {classErrorsFromValidation && Object.keys(classErrors).length > 0 && (
+                  <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                    <p className="text-sm text-rose-700">Please fix the highlighted errors before submitting.</p>
+                  </div>
+                )}
+
                 <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
-                    <span className="text-sm text-neutral-600">Class is active</span>
+                  <label className="inline-flex items-center gap-2">
+                    <input type="checkbox" checked={!!classForm.is_active} onChange={(e) => setClassForm({ ...classForm, is_active: e.target.checked })} />
+                    <span className="text-sm text-neutral-600">Active</span>
                   </label>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { if (!isSaving) setAddModalOpen(false) }} disabled={isSaving} className="px-4 py-2 rounded-lg text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition disabled:opacity-50">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {isSaving ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>Adding...</>) : 'Add Class'}
-                  </button>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button type="button" onClick={() => { if (!isSaving) { setAddModalOpen(false); setClassErrors({}); setClassErrorsFromValidation(false) } }} disabled={isSaving} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add Class'}</button>
                 </div>
               </form>
             </div>

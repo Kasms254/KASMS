@@ -86,7 +86,7 @@ export default function ClassStudents() {
       id: u.id,
       index_number: u.index_number || '',
       formatted_index: buildFormattedIndex(u.index_number, prefix, u.formatted_index),
-      name: u.student_full_name || '',
+      name: u.student_full_name || u.student_name || '',
       svc_number: u.student_svc_number != null ? String(u.student_svc_number) : '',
       rank: normalizeRank(u.student_rank),
       enrollment_date: u.enrollment_date || '',
