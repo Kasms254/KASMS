@@ -578,15 +578,16 @@ export default function AddResults() {
                   {/* Student Info Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex-1 min-w-0">
-<<<<<<< HEAD
                       <div className="flex items-center gap-1.5">
-                        {r.is_locked && <svg className="h-4 w-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
+                        {r.is_locked && (
+                          <svg className="h-4 w-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        )}
                         <div className="font-semibold text-gray-900 text-base truncate">{r.student_name || '-'}</div>
                       </div>
                       <div className="text-sm text-gray-500 mt-0.5">SVC: {r.svc_number || '-'}</div>
-=======
-                      <div className="font-semibold text-indigo-700 text-base">#{r.class_index || '-'}</div>
->>>>>>> indexes
+                      <div className="text-sm font-medium text-indigo-700 mt-0.5">#{r.class_index || '-'}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
@@ -685,6 +686,9 @@ export default function AddResults() {
                         )}
                       </div>
                     </th>
+                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Student
+                    </th>
                     <th
                       onClick={() => handleSort('marks_obtained')}
                       className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
@@ -729,21 +733,22 @@ export default function AddResults() {
                   {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     return (
-<<<<<<< HEAD
                       <tr key={r.id} className={`hover:bg-gray-50 transition ${r.is_locked ? 'bg-orange-50/40' : r.dirty ? 'bg-yellow-50' : ''}`}>
-                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex items-center gap-1">
-                            {r.is_locked && <svg className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
-                            {r.svc_number || '-'}
-                          </div>
-                        </td>
-                        <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
-                          {r.student_name || '-'}
-=======
-                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
                           {r.class_index || '-'}
->>>>>>> indexes
+                        </td>
+                        <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
+                          <div className="flex items-center gap-1.5">
+                            {r.is_locked && (
+                              <svg className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                            )}
+                            <div>
+                              <div className="font-medium">{r.student_name || '-'}</div>
+                              <div className="text-xs text-gray-500">{r.svc_number || ''}</div>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <div>

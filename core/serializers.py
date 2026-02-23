@@ -1642,7 +1642,483 @@ class CertificateStatsSerializer(serializers.Serializer):
     certificates_this_year = serializers.IntegerField()
 
 
+class DepartmentSerializer(serializers.ModelSerializer):
+    hod_name = serializers.SerializerMethodField()
+    hod_svc_number = serializers.SerializerMethodField()
+    course_count = serializers.SerializerMethodField()
+    class_count = serializers.SerializerMethodField()
+    member_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'school', 'name', 'code', 'description', 'is_active',
+            'hod_name', 'hod_svc_number',
+            'course_count', 'class_count', 'member_count',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'school', 'created_at', 'updated_at']
+
+    def get_hod_name(self, obj):
+        val = getattr(obj, '_hod_name', None)
+        if val is not None:
+            return val
+        hod = obj.hod
+        return hod.get_full_name() if hod else None
+
+    def get_hod_svc_number(self, obj):
+        val = getattr(obj, '_hod_svc_number', None)
+        if val is not None:
+            return val
+        hod = obj.hod
+        return hod.svc_number if hod else None
+
+    def get_course_count(self, obj):
+        val = getattr(obj, '_course_count', None)
+        if val is not None:
+            return val
+        return obj.courses.filter(is_active=True).count()
+
+    def get_class_count(self, obj):
+        val = getattr(obj, '_class_count', None)
+        if val is not None:
+            return val
+        return obj.classes.filter(is_active=True).count()
+
+    def get_member_count(self, obj):
+        val = getattr(obj, '_member_count', None)
+        if val is not None:
+            return val
+        return obj.department_memberships.filter(is_active=True).count()
+
+class DepartmentMembershipSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    user_svc_number = serializers.CharField(source='user.svc_number', read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True)
+
+    class Meta:
+        model = DepartmentMembership
+        fields = [
+            'id', 'department', 'department_name',
+            'user', 'user_name', 'user_svc_number',
+            'role', 'is_active', 'assigned_by',
+            'assigned_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
+
+    def run_validators(self, value):
+        if self.instance and self.partial:
+            for field_name in ('department', 'user', 'is_active', 'role'):
+                if field_name not in value and hasattr(self.instance, field_name):
+                    value[field_name] = getattr(self.instance, field_name)
+        super().run_validators(value)
+
+    def validate(self, attrs):
+        department = attrs.get('department') or (self.instance and self.instance.department)
+        user = attrs.get('user') or (self.instance and self.instance.user)
+        role = attrs.get('role') or (self.instance and self.instance.role)
+
+        if department and user:
+            if user.school != department.school:
+                raise serializers.ValidationError(
+                    "User does not belong to the same school as the department."
+                )
+
+        if user and user.role == 'student':
+            raise serializers.ValidationError("Students cannot be department members.")
+
+        return attrs
+
+class ResultEditRequestSerializer(serializers.ModelSerializer):
+    requested_by_name = serializers.CharField(
+        source='requested_by.get_full_name', read_only=True
+    )
+    reviewed_by_name = serializers.CharField(
+        source='reviewed_by.get_full_name', read_only=True
+    )
+    exam_result_detail = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ResultEditRequest
+        fields = [
+            'id', 'school', 'exam_result', 'exam_result_detail',
+            'requested_by', 'requested_by_name',
+            'reason', 'proposed_marks', 'proposed_remarks',
+            'status', 'reviewed_by', 'reviewed_by_name',
+            'reviewed_at', 'review_note',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'requested_by', 'status',
+            'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
+        ]
+
+    def get_exam_result_detail(self, obj):
+        r = obj.exam_result
+        return {
+            'id': str(r.id),
+            'exam': str(r.exam_id),
+            'exam_title': r.exam.title,
+            'student': str(r.student_id),
+            'student_name': r.student.get_full_name(),
+            'marks_obtained': str(r.marks_obtained),
+            'is_locked': r.is_locked,
+        }
+
+    def validate_exam_result(self, value):
+        if not value.is_locked:
+            raise serializers.ValidationError(
+                "This result is not locked. You can edit it directly."
+            )
+        if ResultEditRequest.all_objects.filter(
+            exam_result=value, status=ResultEditRequest.Status.PENDING
+        ).exists():
+            raise serializers.ValidationError(
+                "There is already a pending edit request for this result."
+            )
+        return value
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        exam_result = attrs.get('exam_result')
+
+        if request and exam_result:
+
+            exam = exam_result.exam
+            is_grader = exam_result.graded_by == request.user
+            is_class_instructor = exam.subject.instructor == request.user
+            is_class_owner = exam.subject.class_obj.instructor == request.user
+
+            if not (is_grader or is_class_instructor or is_class_owner):
+                raise serializers.ValidationError(
+                    "You can only request edits for results you graded or in classes you instruct."
+                )
+
+        return attrs
+
+class ResultEditRequestReviewSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=['approve', 'reject'])
+    note = serializers.CharField(required=False, allow_blank=True, default='')
 
 
+class InstructorMarksSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    student_rank = serializers.SerializerMethodField(read_only=True)
+    exam_title = serializers.CharField(source='exam.title', read_only=True)
+    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
+    exam_type = serializers.CharField(source='exam.exam_type', read_only=True)
+    subject_name = serializers.CharField(source='exam.subject.name', read_only=True)
+    subject_code = serializers.CharField(source='exam.subject.subject_code', read_only=True)
+    class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
+    graded_by_name = serializers.SerializerMethodField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+
+    index_number = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ExamResult
+        fields = [
+            'id',
+            'exam',
+            'exam_title',
+            'exam_total_marks',
+            'exam_type',
+            'subject_name',
+            'subject_code',
+            'class_name',
+            'student',
+            'student_name',
+            'student_svc_number',
+            'student_rank',
+            'index_number',
+            'marks_obtained',
+            'remarks',
+            'is_submitted',
+            'submitted_at',
+            'graded_by',
+            'graded_by_name',
+            'graded_at',
+            'percentage',
+            'grade',
+            'is_locked',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'exam', 'student',
+            'is_submitted', 'submitted_at',
+            'graded_by', 'graded_at',
+            'percentage', 'grade',
+            'is_locked',
+            'created_at', 'updated_at',
+        ]
+
+    def get_student_rank(self, obj):
+        if obj.student and obj.student.rank:
+            return obj.student.get_rank_display()
+        return None
+
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+
+    def get_index_number(self, obj):
+
+        try:
+            from .models import StudentIndex
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=obj.exam.subject.class_obj,
+            ).first()
+            if index:
+                return index.class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return None
+
+    def validate_marks_obtained(self, value):
+        if value is None:
+            return value
+        instance = self.instance
+        exam = instance.exam if instance else None
+        if not exam:
+            exam_id = self.initial_data.get('exam')
+            if exam_id:
+                try:
+                    from .models import Exam
+                    exam = Exam.objects.get(pk=exam_id)
+                except Exception:
+                    pass
+        if exam and value > exam.total_marks:
+            raise serializers.ValidationError(
+                f"Marks obtained ({value}) cannot exceed total marks ({exam.total_marks})."
+            )
+        if value < 0:
+            raise serializers.ValidationError("Marks obtained cannot be negative.")
+        return value
+
+    def validate(self, attrs):
+        if self.instance and self.instance.is_locked:
+            raise serializers.ValidationError(
+                "This result is locked. Submit a ResultEditRequest and "
+                "wait for HOD approval before editing."
+            )
+        return attrs
 
 
+class AdminMarksSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    student_rank = serializers.SerializerMethodField(read_only=True)
+    exam_title = serializers.CharField(source='exam.title', read_only=True)
+    exam_total_marks = serializers.IntegerField(source='exam.total_marks', read_only=True)
+    exam_type = serializers.CharField(source='exam.exam_type', read_only=True)
+    subject_name = serializers.CharField(source='exam.subject.name', read_only=True)
+    subject_code = serializers.CharField(source='exam.subject.subject_code', read_only=True)
+    class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
+    class_id = serializers.IntegerField(source='exam.subject.class_obj.id', read_only=True)
+    course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
+    graded_by_name = serializers.SerializerMethodField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+    grade = serializers.CharField(read_only=True)
+    index_number = serializers.SerializerMethodField(read_only=True)
+
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    department_name = serializers.SerializerMethodField(read_only=True)
+
+    pending_edit_request = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ExamResult
+        fields = [
+            'id',
+            'school',
+            'school_name',
+            'exam',
+            'exam_title',
+            'exam_total_marks',
+            'exam_type',
+            'subject_name',
+            'subject_code',
+            'class_id',
+            'class_name',
+            'course_name',
+            'department_name',
+            'student',
+            'student_name',
+            'student_svc_number',
+            'student_rank',
+            'index_number',
+            'marks_obtained',
+            'remarks',
+            'is_submitted',
+            'submitted_at',
+            'graded_by',
+            'graded_by_name',
+            'graded_at',
+            'percentage',
+            'grade',
+            'is_locked',           # writable for admin
+            'pending_edit_request',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'exam', 'student',
+            'is_submitted', 'submitted_at',
+            'graded_by', 'graded_at',
+            'percentage', 'grade',
+            'created_at', 'updated_at',
+        ]
+
+    def get_student_rank(self, obj):
+        if obj.student and obj.student.rank:
+            return obj.student.get_rank_display()
+        return None
+
+    def get_graded_by_name(self, obj):
+        return obj.graded_by.get_full_name() if obj.graded_by else None
+
+    def get_index_number(self, obj):
+        try:
+            from .models import StudentIndex
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=obj.exam.subject.class_obj,
+            ).first()
+            if index:
+                return index.class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return None
+
+    def get_department_name(self, obj):
+        try:
+            dept = obj.exam.subject.class_obj.department
+            return dept.name if dept else None
+        except Exception:
+            return None
+
+    def get_pending_edit_request(self, obj):
+
+        try:
+            from .models import ResultEditRequest
+            req = ResultEditRequest.all_objects.filter(
+                exam_result=obj,
+                status=ResultEditRequest.Status.PENDING,
+            ).select_related('requested_by').first()
+            if req:
+                return {
+                    'id': str(req.id),
+                    'requested_by': req.requested_by.get_full_name(),
+                    'requested_by_svc': req.requested_by.svc_number,
+                    'reason': req.reason,
+                    'proposed_marks': str(req.proposed_marks) if req.proposed_marks else None,
+                    'created_at': req.created_at,
+                }
+        except Exception:
+            pass
+        return None
+
+    def validate_marks_obtained(self, value):
+        if value is None:
+            return value
+        instance = self.instance
+        exam = instance.exam if instance else None
+        if not exam:
+            exam_id = self.initial_data.get('exam')
+            if exam_id:
+                try:
+                    from .models import Exam
+                    exam = Exam.objects.get(pk=exam_id)
+                except Exception:
+                    pass
+        if exam and value > exam.total_marks:
+            raise serializers.ValidationError(
+                f"Marks obtained ({value}) cannot exceed total marks ({exam.total_marks})."
+            )
+        if value < 0:
+            raise serializers.ValidationError("Marks obtained cannot be negative.")
+        return value
+
+    def validate(self, attrs):
+
+        return attrs
+
+    
+class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
+
+    formatted_index = serializers.SerializerMethodField(read_only=True)
+
+    student_id = serializers.IntegerField(
+        source='enrollment.student.id', read_only=True
+    )
+    student_name = serializers.SerializerMethodField(read_only=True)
+    student_svc_number = serializers.CharField(
+        source='enrollment.student.svc_number', read_only=True
+    )
+    student_rank = serializers.SerializerMethodField(read_only=True)
+    student_email = serializers.CharField(
+        source='enrollment.student.email', read_only=True
+    )
+    student_unit = serializers.CharField(
+        source='enrollment.student.unit', read_only=True
+    )
+    student_is_active = serializers.BooleanField(
+        source='enrollment.student.is_active', read_only=True
+    )
+
+    enrollment_id = serializers.UUIDField(
+        source='enrollment.id', read_only=True
+    )
+    enrollment_date = serializers.DateTimeField(
+        source='enrollment.enrollment_date', read_only=True
+    )
+    enrollment_is_active = serializers.BooleanField(
+        source='enrollment.is_active', read_only=True
+    )
+    completion_date = serializers.DateField(
+        source='enrollment.completion_date', read_only=True
+    )
+
+    class Meta:
+        model = StudentIndex
+        fields = [
+            'id',
+            'index_number',
+            'formatted_index',
+            'assigned_to',
+
+            'student_id',
+            'student_name',
+            'student_svc_number',
+            'student_rank',
+            'student_email',
+            'student_unit',
+            'student_is_active',
+
+            'enrollment_id',
+            'enrollment_date',
+            'enrollment_is_active',
+            'completion_date',
+        ]
+        read_only_fields = fields
+
+    def get_formatted_index(self, obj):
+        try:
+            return obj.class_obj.format_index(int(obj.index_number))
+        except (ValueError, TypeError):
+            return obj.index_number
+
+    def get_student_name(self, obj):
+        s = obj.enrollment.student
+        return s.get_full_name()
+
+    def get_student_rank(self, obj):
+        s = obj.enrollment.student
+        if s.rank:
+            return s.get_rank_display()
+        return None
