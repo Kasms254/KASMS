@@ -92,7 +92,7 @@ export default function AddResults() {
         student_id: r.student || r.student_id || (r.student && r.student.id),
         student_name: r.student_full_name || r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
         svc_number: r.student_svc_number || (r.student && r.student.svc_number) || '',
-        class_index: r.class_index || '',
+        class_index: r.class_index || r.index_number || '',
         marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
         remarks: r.remarks || '',
         percentage: r.percentage,
