@@ -36,8 +36,6 @@ from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates
 from rest_framework.views import APIView
-from django.db.models.functions import Concat
-from django.db.models import CharField
 
 class TenantFilterMixin:
 
@@ -1856,22 +1854,14 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _calculate_overall_grade(percentage):
-        if percentage >= 91:
+        if percentage >= 90:
             return 'A'
-        elif percentage >= 86:
-            return 'A-'
-        elif percentage >= 81:
-            return 'B+'
-        elif percentage >= 76:
+        elif percentage >= 80:
             return 'B'
-        elif percentage >= 71:
-            return 'B-'
-        elif percentage >= 65:
-            return 'C+'
-        elif percentage >= 60:
+        elif percentage >= 70:
             return 'C'
-        elif percentage >= 50:
-            return 'C-'
+        elif percentage >= 60:
+            return 'D'
         else:
             return 'F'
 
@@ -1879,22 +1869,14 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         try:
             percentage = (exam_result.marks_obtained / exam_result.exam.total_marks * 100) if exam_result.exam.total_marks > 0 else 0
 
-            if percentage >= 91:
+            if percentage >= 90:
                 grade_letter = 'A'
-            elif percentage >= 86:
-                grade_letter = 'A-'
-            elif percentage >= 81:
-                grade_letter = 'B+'
-            elif percentage >= 76:
+            elif percentage >= 80:
                 grade_letter = 'B'
-            elif percentage >= 71:
-                grade_letter = 'B-'
-            elif percentage >= 65:
-                grade_letter = 'C+'
-            elif percentage >= 60:
+            elif percentage >= 70:
                 grade_letter = 'C'
-            elif percentage >= 50:
-                grade_letter = 'C-'
+            elif percentage >= 60:
+                grade_letter = 'D'
             else:
                 grade_letter = 'F'
 
@@ -2429,18 +2411,36 @@ class InstructorDashboardViewset(viewsets.ViewSet):
 
         user = request.user
         school = user.school
+        hod_dept_ids = list(
+            DepartmentMembership.objects.filter(
+                user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+            ).values_list('department_id', flat=True)
+        )
+
+        class_q = Q(instructor=user) | Q(subjects__instructor=user)
+        subject_q = Q(instructor=user)
+        exam_q = Q(subject__instructor=user)
+        attendance_q = (
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user)
+        )
+        if hod_dept_ids:
+            class_q |= Q(department__in=hod_dept_ids)
+            subject_q |= Q(class_obj__department__in=hod_dept_ids)
+            exam_q |= Q(subject__class_obj__department__in=hod_dept_ids)
+            attendance_q |= Q(session__class_obj__department__in=hod_dept_ids)
 
         my_classes = Class.all_objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             school=school,
             is_active=True
         ).distinct()
 
         my_subjects = Subject.all_objects.filter(
-            instructor=user,
+            subject_q,
             school=school,
             is_active=True
-        )
+        ).distinct()
 
         my_students_count = Enrollment.all_objects.filter(
             class_obj__in=my_classes,
@@ -2448,10 +2448,10 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).values('student').distinct().count()
 
         my_exams = Exam.all_objects.filter(
-            subject__instructor=user,
+            exam_q,
             school=school,
             is_active=True
-        )
+        ).distinct()
 
         pending_results = ExamResult.all_objects.filter(
             exam__subject__instructor=user,
@@ -2462,10 +2462,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         today = timezone.now().date()
 
         attendance_today = SessionAttendance.all_objects.filter(
-            Q(session__class_obj__instructor=user) |
-            Q(session__subject__instructor=user),
+            attendance_q,
             marked_at__date=today
         ).distinct().count()
+
+        pending_edit_requests_count = 0
+        if hod_dept_ids:
+            pending_edit_requests_count = ResultEditRequest.objects.filter(
+                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                status=ResultEditRequest.Status.PENDING,
+            ).count()
 
         return Response({
             'total_classes': my_classes.count(),
@@ -2474,12 +2480,15 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'total_exams': my_exams.count(),
             'pending_results': pending_results,
             'attendance_today': attendance_today,
+            'pending_edit_requests': pending_edit_requests_count,
+            'is_hod': bool(hod_dept_ids),
+            'hod_departments': hod_dept_ids,
             'classes': ClassSerializer(my_classes, many=True).data,
             'subjects': SubjectSerializer(my_subjects, many=True).data
         })
 
     @action(detail=False, methods=['get'])
-    def summary(slef, request):
+    def summary(self, request):
         if request.user.role != 'instructor':
             return Response(
                 {'error': 'Only instructors can access the dashboard.'},
@@ -2487,19 +2496,37 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             )
         
         user= request.user
+        hod_dept_ids = list(
+            DepartmentMembership.objects.filter(
+                user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+            ).values_list('department_id', flat=True)
+        )
+
+        class_q = Q(instructor=user) | Q(subjects__instructor=user)
+        subject_q = Q(instructor=user)
+        exam_q = Q(subject__instructor=user)
+        attendance_q = (
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user)
+        )
+        if hod_dept_ids:
+            class_q |= Q(department__in=hod_dept_ids)
+            subject_q |= Q(class_obj__department__in=hod_dept_ids)
+            exam_q |= Q(subject__class_obj__department__in=hod_dept_ids)
+            attendance_q |= Q(session__class_obj__department__in=hod_dept_ids)
 
         classes_count = Class.objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             is_active=True
         ).distinct().count()
 
         subjects_count = Subject.objects.filter(
-            instructor=user,
+            subject_q,
             is_active=True
-        ).count()
+        ).distinct().count()
 
         instructor_class_ids = Class.objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             is_active=True
         ).distinct().values_list('id', flat=True)
 
@@ -2509,9 +2536,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).values('student').distinct().count()
 
         exams_count = Exam.objects.filter(
-            subject__instructor=user,
+            exam_q,
             is_active=True
-        ).count()
+        ).distinct().count()
 
         pending_grading = ExamResult.objects.filter(
             exam__subject__instructor=user,
@@ -2521,10 +2548,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         today = timezone.now().date()
 
         attendance_today = SessionAttendance.all_objects.filter(
-            Q(session__class_obj__instructor=user) |
-            Q(session__subject__instructor=user),
+            attendance_q,
             marked_at__date=today
         ).distinct().count()
+
+        pending_edit_requests_count = 0
+        if hod_dept_ids:
+            pending_edit_requests_count = ResultEditRequest.objects.filter(
+                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                status=ResultEditRequest.Status.PENDING,
+            ).count()
 
         return Response({
             'classes': classes_count,
@@ -2532,8 +2565,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'students': students_count,
             'exams': exams_count,
             'pending_grading': pending_grading,
-            'attendance_today': attendance_today
-
+            'attendance_today': attendance_today,
+            'pending_edit_requests': pending_edit_requests_count,
+            'is_hod': bool(hod_dept_ids),
         })
 
 # students
@@ -2873,22 +2907,16 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 total_possible = sum(r.exam.total_marks for r in active_class_results)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
-                if average_percentage >=91:
+                if average_percentage >=90:
                     grade_letter = 'A'
-                elif average_percentage >=86:
-                    grade_letter = 'A-'
-                elif average_percentage >=81:
-                    grade_letter = 'B+'
-                elif average_percentage >= 76:
+                elif average_percentage >=80:
+                    grade_letter = 'A'
+                elif average_percentage >= 70:
                     grade_letter = 'B'
-                elif average_percentage >= 71:
-                    grade_letter = 'B-'
-                elif average_percentage >= 65:
-                    grade_letter = 'C+'
                 elif average_percentage >= 60:
                     grade_letter = 'C'
                 elif average_percentage >= 50:
-                    grade_letter = 'C-'
+                    grade_letter = "D"
                 else:
                     grade_letter = 'F'
 
@@ -3680,6 +3708,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         session = serializer.validated_data['session']
         student = request.user
 
+
         if not Enrollment.objects.filter(
             student=student,
             class_obj=session.class_obj,
@@ -3693,6 +3722,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             return Response({
                 'error': 'You have already marked attendance for this session.'
             }, status=status.HTTP_400_BAD_REQUEST)
+
 
         attendance_time = timezone.now()
         attendance_status = session.get_attendance_status_for_time(attendance_time)
@@ -3708,6 +3738,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
             ip_address = request.META.get('REMOTE_ADDR'),
             user_agent= request.META.get('HTTP_USER_AGENT', '')
 
+
         )
 
         return Response({
@@ -3721,6 +3752,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
 
         session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
         records = serializer.validated_data['attendance_records']
@@ -4077,6 +4109,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'error': 'Student not found'
             }, status = status.HTTP_404_NOT_FOUND)
 
+
         enrolled_classes = Class.objects.filter(
             enrollments__student = student,
             enrollments__is_active = True
@@ -4088,6 +4121,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             attendances_qs = attendances_qs.filter(marked_at__gte=start_date)
         if end_date:
             attendances_qs = attendances_qs.filter(marked_at__lte=end_date)
+
 
         attendances  =attendances_qs.select_related('session', 'session__class_obj', 'session__subject')
 
@@ -4133,8 +4167,10 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 'absent':total_class_sessions - attended,
                 'attendance_rate':round(attendance_rate, 2)
             })
+        # recent attendances across all classes (most recent 20)
         recent = attendances.order_by('-marked_at')[:20]
 
+        # Build by_class mapping expected by frontend: { class_name: { rate, present, late, absent } }
         by_class = {}
         total_sessions_all = 0
         for cb in class_breakdown:
@@ -4147,6 +4183,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }
             total_sessions_all += cb.get('total_sessions', 0)
 
+        # Derive top-level counts expected by frontend
         present_count = status_breakdown.get('present', 0)
         late_count = status_breakdown.get('late', 0)
         absent_count = status_breakdown.get('absent', 0)
@@ -4906,67 +4943,14 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-
-        hod_qs = (
-            DepartmentMembership.all_objects
-            .filter(
-                department=OuterRef('pk'),
-                role=DepartmentMembership.Role.HOD,
-                is_active=True,
-            )
+        qs = Department.objects.select_related('school').prefetch_related(
+            'department_memberships__user'
         )
-
-        qs = (
-            Department.objects
-            .select_related('school')
-            .annotate(
-                _hod_name=Subquery(
-                    hod_qs.annotate(
-                        full_name=Concat(
-                            'user__first_name', Value(' '), 'user__last_name',
-                            output_field=CharField(),
-                        )
-                    ).values('full_name')[:1]
-                ),
-                _hod_svc_number=Subquery(
-                    hod_qs.values('user__svc_number')[:1]
-                ),
-                _course_count=Subquery(
-                    Course.all_objects
-                    .filter(department=OuterRef('pk'), is_active=True)
-                    .order_by()
-                    .values('department')
-                    .annotate(cnt=Count('id'))
-                    .values('cnt'),
-                    output_field=IntegerField(),
-                ),
-                _class_count=Subquery(
-                    Class.all_objects
-                    .filter(department=OuterRef('pk'), is_active=True)
-                    .order_by()
-                    .values('department')
-                    .annotate(cnt=Count('id'))
-                    .values('cnt'),
-                    output_field=IntegerField(),
-                ),
-                _member_count=Subquery(
-                    DepartmentMembership.all_objects
-                    .filter(department=OuterRef('pk'), is_active=True)
-                    .order_by()
-                    .values('department')
-                    .annotate(cnt=Count('id'))
-                    .values('cnt'),
-                    output_field=IntegerField(),
-                ),
-            )
-        )
-
-        if user.role == 'instructor':
+        if user.role in ('instructor',):
             qs = qs.filter(
                 department_memberships__user=user,
                 department_memberships__is_active=True,
             ).distinct()
-
         return qs
 
     def get_permissions(self):
@@ -4992,11 +4976,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
         from .serializers import ClassSerializer
-        classes = (
-            dept.classes
-            .filter(is_active=True)
-            .select_related('course', 'instructor')
-        )
+        classes = dept.classes.filter(is_active=True).select_related('course', 'instructor')
         return Response(ClassSerializer(classes, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='students',
@@ -5006,11 +4986,10 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         self._assert_hod_of_dept(request.user, dept)
         from .models import Enrollment
         from .serializers import EnrollmentSerializer
-        enrollments = (
-            Enrollment.objects
-            .filter(class_obj__department=dept, is_active=True)
-            .select_related('student', 'class_obj')
-        )
+        enrollments = Enrollment.objects.filter(
+            class_obj__department=dept,
+            is_active=True
+        ).select_related('student', 'class_obj')
         return Response(EnrollmentSerializer(enrollments, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='results',
@@ -5018,11 +4997,10 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def results(self, request, pk=None):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
-        results = (
-            ExamResult.objects
-            .filter(exam__class_obj__department=dept, is_submitted=True)
-            .select_related('student', 'exam', 'exam__subject')
-        )
+        results = ExamResult.objects.filter(
+            exam__subject__class_obj__department=dept,
+            is_submitted=True
+        ).select_related('student', 'exam', 'exam__subject')
         from .serializers import ExamResultSerializer
         return Response(ExamResultSerializer(results, many=True).data)
 
@@ -5031,17 +5009,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def pending_edit_requests(self, request, pk=None):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
-        edit_requests = (
-            ResultEditRequest.objects
-            .filter(
-                exam_result__exam__class_obj__department=dept,
-                status=ResultEditRequest.Status.PENDING,
-            )
-            .select_related('exam_result__exam', 'requested_by')
-        )
-        return Response(
-            ResultEditRequestSerializer(edit_requests, many=True).data
-        )
+        requests = ResultEditRequest.objects.filter(
+            exam_result__exam__subject__class_obj__department=dept,
+            status=ResultEditRequest.Status.PENDING,
+        ).select_related('exam_result__exam', 'requested_by')
+        return Response(ResultEditRequestSerializer(requests, many=True).data)
 
     def _assert_hod_of_dept(self, user, dept):
         if user.role in ('admin', 'superadmin'):
@@ -5082,29 +5054,20 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = ResultEditRequest.objects.select_related(
+            'exam_result__exam__subject',
             'exam_result__exam__subject__class_obj__department',
             'exam_result__student',
             'requested_by', 'reviewed_by',
         )
         if user.role in ('admin', 'superadmin'):
             return base
-
-        hod_dept_ids = list(
-            DepartmentMembership.objects
-            .filter(
-                user=user,
-                role=DepartmentMembership.Role.HOD,
-                is_active=True,
-            )
-            .values_list('department_id', flat=True)
-        )
-
-        if hod_dept_ids:
+        hod_depts = DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True
+        ).values_list('department_id', flat=True)
+        if hod_depts.exists():
             return base.filter(
-                Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids)
-                | Q(requested_by=user)
-            ).distinct()
-
+                exam_result__exam__subject__class_obj__department__in=hod_depts
+            )
         return base.filter(requested_by=user)
 
     def get_permissions(self):
@@ -5142,7 +5105,7 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         action_choice = serializer.validated_data['action']
         note = serializer.validated_data.get('note', '')
 
-        dept = edit_request.exam_result.exam.class_obj.department
+        dept = edit_request.exam_result.exam.subject.class_obj.department
         if request.user.role not in ('admin', 'superadmin') and dept:
             is_hod = DepartmentMembership.objects.filter(
                 department=dept,
@@ -5206,31 +5169,21 @@ class ExamResultViewSetPatch:
 
         exam = get_object_or_404(Exam, pk=exam_id, school=request.user.school)
 
-        is_class_instructor = exam.class_obj.instructor == request.user
+        is_class_instructor = exam.subject.class_obj.instructor == request.user
         is_subject_instructor = exam.subject.instructor == request.user
         if request.user.role == 'instructor' and not (is_class_instructor or is_subject_instructor):
             return Response({'detail': 'You are not the instructor for this exam.'}, status=403)
 
-        student_ids = [item.get('student') for item in results_data if item.get('student')]
-        students_by_id = {
-            str(s.pk): s
-            for s in UserModel.all_objects.filter(
-                pk__in=student_ids,
-                school_memberships__school=request.user.school,
-                school_memberships__status='active',
-            ).distinct()
-        }
-
         created, updated, errors = [], [], []
-        now = timezone.now()
 
         with transaction.atomic():
             for item in results_data:
                 student_id = item.get('student')
                 marks = item.get('marks_obtained')
 
-                student = students_by_id.get(str(student_id))
-                if student is None:
+                try:
+                    student = UserModel.objects.get(pk=student_id, school=request.user.school)
+                except UserModel.DoesNotExist:
                     errors.append({'student': student_id, 'error': 'Student not found.'})
                     continue
 
@@ -5250,10 +5203,10 @@ class ExamResultViewSetPatch:
                 result.marks_obtained = marks
                 result.remarks = item.get('remarks', result.remarks)
                 result.is_submitted = True
-                result.submitted_at = now
+                result.submitted_at = timezone.now()
                 result.graded_by = request.user
-                result.graded_at = now
-                result.is_locked = True
+                result.graded_at = timezone.now()
+                result.is_locked = True  
                 result.save()
 
                 if is_new:
