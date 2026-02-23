@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { getResultEditRequests, reviewResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
@@ -211,7 +211,7 @@ export default function EditRequestsReview() {
           <thead>
             <tr className="text-left bg-neutral-50">
               <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Requested By</th>
-              <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Student</th>
+              <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Index No.</th>
               <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Exam</th>
               <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Current Marks</th>
               <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Proposed Marks</th>
@@ -228,8 +228,11 @@ export default function EditRequestsReview() {
               <tr><td colSpan={9} className="px-4 py-6 text-center text-sm text-neutral-400">No edit requests found</td></tr>
             ) : requests.map((req) => (
               <tr key={req.id} className="border-t last:border-b hover:bg-neutral-50">
-                <td className="px-4 py-3 text-sm text-neutral-700">{req.requested_by_name || 'Unknown'}</td>
-                <td className="px-4 py-3 text-sm text-neutral-700">{req.exam_result_detail?.student_name || '-'}</td>
+                <td className="px-4 py-3 text-sm text-neutral-700">
+                  <div>{req.requested_by_name || 'Unknown'}</div>
+                  {req.requested_by_rank && <div className="text-xs text-neutral-500">{req.requested_by_rank}</div>}
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-700">{req.exam_result_detail?.index_number || '-'}</td>
                 <td className="px-4 py-3 text-sm text-neutral-700">{req.exam_result_detail?.exam_title || '-'}</td>
                 <td className="px-4 py-3 text-sm text-neutral-700">
                   {req.exam_result_detail?.marks_obtained ?? '-'}
@@ -275,9 +278,9 @@ export default function EditRequestsReview() {
           <div key={req.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
             <div className="flex items-start justify-between gap-2 mb-2">
               <div>
-                <div className="font-medium text-sm text-black">{req.requested_by_name || 'Unknown'}</div>
+                <div className="font-medium text-sm text-black">{req.requested_by_name || 'Unknown'}{req.requested_by_rank && <span className="text-xs font-normal text-neutral-500 ml-1">({req.requested_by_rank})</span>}</div>
                 <div className="text-xs text-neutral-500 mt-0.5">
-                  {req.exam_result_detail?.exam_title || 'Exam'} - {req.exam_result_detail?.student_name || 'Student'}
+                  {req.exam_result_detail?.exam_title || 'Exam'} - {req.exam_result_detail?.index_number || '-'}
                 </div>
               </div>
               {statusBadge(req.status)}
