@@ -217,8 +217,8 @@ const App = () => {
 			<Route path="/list/classes/:id/certificates" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<ClassCertificates />} />
 			</Route>
-			{/* Class students list (admin) */}
-			<Route path="/list/classes/:id/students" element={<RoleProtectedLayout role="admin" />}>
+			{/* Class students list (admin & instructor) */}
+			<Route path="/list/classes/:id/students" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ClassStudents />} />
 			</Route>
 
