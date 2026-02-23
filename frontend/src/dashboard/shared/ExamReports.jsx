@@ -454,13 +454,16 @@ export default function ExamReports() {
             totalPossible += subj.total_possible ?? 0
             return subj
           })
+          const finalObtained = student.total_marks_obtained ?? totalObtained
+          const finalPossible = student.total_marks_possible ?? totalPossible
+          const overallPct = finalPossible > 0 ? (finalObtained / finalPossible) * 100 : 0
           return {
             ...student,
             subject_breakdown: mappedBreakdown,
-            total_marks_obtained: student.total_marks_obtained ?? totalObtained,
-            total_marks_possible: student.total_marks_possible ?? totalPossible,
-            total_grade: student.total_grade || student.overall_grade || _gradeFromPct(student.exam_percentage),
-            total_percentage: student.total_percentage ?? student.exam_percentage ?? 0,
+            total_marks_obtained: finalObtained,
+            total_marks_possible: finalPossible,
+            total_grade: _gradeFromPct(overallPct),
+            total_percentage: overallPct,
           }
         })
       }
