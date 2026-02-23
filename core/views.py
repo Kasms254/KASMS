@@ -2487,7 +2487,8 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         pending_edit_requests_count = 0
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
-                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
+                Q(exam_result__exam__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -2573,7 +2574,8 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         pending_edit_requests_count = 0
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
-                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
+                Q(exam_result__exam__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -5253,7 +5255,8 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         dept = self.get_object()
         self._assert_hod_of_dept(request.user, dept)
         requests = ResultEditRequest.objects.filter(
-            exam_result__exam__subject__class_obj__department=dept,
+            Q(exam_result__exam__subject__class_obj__department=dept) |
+            Q(exam_result__exam__subject__department=dept),
             status=ResultEditRequest.Status.PENDING,
         ).select_related('exam_result__exam', 'requested_by')
         return Response(ResultEditRequestSerializer(requests, many=True).data)
@@ -5309,7 +5312,8 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         ).values_list('department_id', flat=True)
         if hod_depts.exists():
             return base.filter(
-                exam_result__exam__subject__class_obj__department__in=hod_depts
+                Q(exam_result__exam__subject__class_obj__department__in=hod_depts) |
+                Q(exam_result__exam__subject__department__in=hod_depts)
             )
         return base.filter(requested_by=user)
 
