@@ -4,6 +4,20 @@ import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_IMAGE_SIZE_MB = 2
+
+function validateImageFile(file) {
+  if (!file) return null
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return `Invalid file type "${file.type}". Only JPEG, PNG, WebP, and GIF are allowed.`
+  }
+  if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+    return `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_IMAGE_SIZE_MB} MB.`
+  }
+  return null
+}
+
 const TEMPLATE_TYPES = [
   { value: 'completion', label: 'Course Completion' },
   { value: 'achievement', label: 'Achievement' },
@@ -27,6 +41,10 @@ const INITIAL_FORM = {
   custom_logo: null,
   signature_image: null,
   secondary_signature_image: null,
+  // Existing image URLs for display only (not sent to API)
+  _custom_logo_url: null,
+  _signature_image_url: null,
+  _secondary_signature_image_url: null,
 }
 
 export default function CertificateTemplates() {
@@ -83,6 +101,9 @@ export default function CertificateTemplates() {
       custom_logo: null,
       signature_image: null,
       secondary_signature_image: null,
+      _custom_logo_url: template.custom_logo || null,
+      _signature_image_url: template.signature_image || null,
+      _secondary_signature_image_url: template.secondary_signature_image || null,
     })
     setEditingId(template.id)
     setShowForm(true)
@@ -96,11 +117,17 @@ export default function CertificateTemplates() {
     }
     setSubmitting(true)
     try {
+      // Strip display-only URL fields before sending
+      const { _custom_logo_url, _signature_image_url, _secondary_signature_image_url, ...payload } = form
       if (editingId) {
-        await api.updateCertificateTemplate(editingId, form)
+        // Don't send null image fields on PATCH — null would clear existing images
+        if (!payload.custom_logo) delete payload.custom_logo
+        if (!payload.signature_image) delete payload.signature_image
+        if (!payload.secondary_signature_image) delete payload.secondary_signature_image
+        await api.updateCertificateTemplate(editingId, payload)
         toast?.success?.('Template updated')
       } else {
-        await api.createCertificateTemplate(form)
+        await api.createCertificateTemplate(payload)
         toast?.success?.('Template created')
       }
       resetForm()
@@ -474,7 +501,18 @@ export default function CertificateTemplates() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border border-neutral-200 rounded-lg bg-neutral-50">
                         <div>
                           <label className="block text-xs font-medium text-neutral-600 mb-1">Custom Logo</label>
-                          <input type="file" accept="image/*" onChange={(e) => setForm({ ...form, custom_logo: e.target.files[0] || null })} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                          {form._custom_logo_url && !form.custom_logo && (
+                            <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
+                              <img src={form._custom_logo_url} alt="Current logo" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
+                              <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                            </div>
+                          )}
+                          <input type="file" accept="image/*" onChange={(e) => {
+                            const file = e.target.files[0] || null
+                            const err = validateImageFile(file)
+                            if (err) { toast?.error?.(err); e.target.value = ''; return }
+                            setForm({ ...form, custom_logo: file })
+                          }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
                         </div>
                         <div />
                       </div>
@@ -483,11 +521,33 @@ export default function CertificateTemplates() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-neutral-600 mb-1">Primary Signature Image</label>
-                        <input type="file" accept="image/*" onChange={(e) => setForm({ ...form, signature_image: e.target.files[0] || null })} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                        {form._signature_image_url && !form.signature_image && (
+                          <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
+                            <img src={form._signature_image_url} alt="Current signature" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
+                            <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" onChange={(e) => {
+                          const file = e.target.files[0] || null
+                          const err = validateImageFile(file)
+                          if (err) { toast?.error?.(err); e.target.value = ''; return }
+                          setForm({ ...form, signature_image: file })
+                        }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-neutral-600 mb-1">Secondary Signature Image</label>
-                        <input type="file" accept="image/*" onChange={(e) => setForm({ ...form, secondary_signature_image: e.target.files[0] || null })} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                        {form._secondary_signature_image_url && !form.secondary_signature_image && (
+                          <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
+                            <img src={form._secondary_signature_image_url} alt="Current secondary signature" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
+                            <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" onChange={(e) => {
+                          const file = e.target.files[0] || null
+                          const err = validateImageFile(file)
+                          if (err) { toast?.error?.(err); e.target.value = ''; return }
+                          setForm({ ...form, secondary_signature_image: file })
+                        }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
                       </div>
                     </div>
                   </div>

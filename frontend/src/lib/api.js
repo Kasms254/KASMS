@@ -36,6 +36,7 @@ const SENTENCE_CASE_CONFIG = {
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
+    'template_type', // Preserve certificate template type choice values
   ]
 }
 
@@ -1344,6 +1345,22 @@ export async function createCertificateTemplate(payload) {
 
 export async function updateCertificateTemplate(id, payload) {
   if (!id) throw new Error('id is required')
+  const hasFile = payload && (
+    payload.custom_logo instanceof File ||
+    payload.signature_image instanceof File ||
+    payload.secondary_signature_image instanceof File
+  )
+  if (hasFile) {
+    const fd = new FormData()
+    Object.keys(payload || {}).forEach(k => {
+      const v = payload[k]
+      if (v === undefined || v === null) return
+      if (v instanceof File) fd.append(k, v)
+      else if (typeof v === 'object') fd.append(k, JSON.stringify(v))
+      else fd.append(k, String(v))
+    })
+    return requestMultipart(`/api/certificate_templates/${id}/`, { method: 'PATCH', formData: fd })
+  }
   return request(`/api/certificate_templates/${id}/`, { method: 'PATCH', body: payload })
 }
 

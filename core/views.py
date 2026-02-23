@@ -34,7 +34,7 @@ from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet 
-from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
+from .services import close_class, issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students, get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
@@ -4616,8 +4616,13 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
             'completion_date': timezone.now().date(),
             'issued_at': timezone.now(),
             'header_text': template.header_text,
+            'footer_text': template.footer_text,
             'signatory_name': template.signatory_name,
             'signatory_title': template.signatory_title,
+            'secondary_signatory_name': template.secondary_signatory_name,
+            'secondary_signatory_title': template.secondary_signatory_title,
+            'signature_image': resolver.get_as_base64(template.signature_image),
+            'secondary_signature_image': resolver.get_as_base64(template.secondary_signature_image),
         }
         return Response(preview_data)
 
