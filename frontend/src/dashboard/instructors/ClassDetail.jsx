@@ -157,7 +157,7 @@ export default function ClassDetail() {
           const percent = r.percentage != null
             ? Number(r.percentage)
             : (marks != null && total > 0) ? (marks / total) * 100 : null
-          const derivedGrade = r.grade || gradeFromPercent(percent)
+          const derivedGrade = percent != null ? gradeFromPercent(percent) : (r.grade || null)
           studentStats[studentId] = {
             percent: percent != null && !Number.isNaN(percent) ? percent : null,
             grade: derivedGrade || null,
@@ -290,7 +290,7 @@ export default function ClassDetail() {
                   : paginatedStudents.map(st => {
                       const stats = subjectMarks[subjectId]?.[st.id]
                       const marks = stats?.percent != null ? toPercent(stats.percent) : null
-                      const grade = stats?.grade || (marks != null ? gradeFromPercent(marks) || '—' : '—')
+                      const grade = marks != null ? (gradeFromPercent(marks) || '—') : '—'
                       const badgeClass = grade
                         ? (grade === 'A' || grade === 'A-' || grade.startsWith('B'))
                           ? 'bg-green-50 text-green-700 border-green-200'
