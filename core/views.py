@@ -1,12 +1,14 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from .models import (User, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
- SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus)
+ SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
+ Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
-    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
+    BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -14,7 +16,8 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsStudent,IsInstructorOfClassOrAdmin
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -2408,18 +2411,36 @@ class InstructorDashboardViewset(viewsets.ViewSet):
 
         user = request.user
         school = user.school
+        hod_dept_ids = list(
+            DepartmentMembership.objects.filter(
+                user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+            ).values_list('department_id', flat=True)
+        )
+
+        class_q = Q(instructor=user) | Q(subjects__instructor=user)
+        subject_q = Q(instructor=user)
+        exam_q = Q(subject__instructor=user)
+        attendance_q = (
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user)
+        )
+        if hod_dept_ids:
+            class_q |= Q(department__in=hod_dept_ids)
+            subject_q |= Q(class_obj__department__in=hod_dept_ids)
+            exam_q |= Q(subject__class_obj__department__in=hod_dept_ids)
+            attendance_q |= Q(session__class_obj__department__in=hod_dept_ids)
 
         my_classes = Class.all_objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             school=school,
             is_active=True
         ).distinct()
 
         my_subjects = Subject.all_objects.filter(
-            instructor=user,
+            subject_q,
             school=school,
             is_active=True
-        )
+        ).distinct()
 
         my_students_count = Enrollment.all_objects.filter(
             class_obj__in=my_classes,
@@ -2427,10 +2448,10 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).values('student').distinct().count()
 
         my_exams = Exam.all_objects.filter(
-            subject__instructor=user,
+            exam_q,
             school=school,
             is_active=True
-        )
+        ).distinct()
 
         pending_results = ExamResult.all_objects.filter(
             exam__subject__instructor=user,
@@ -2441,10 +2462,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         today = timezone.now().date()
 
         attendance_today = SessionAttendance.all_objects.filter(
-            Q(session__class_obj__instructor=user) |
-            Q(session__subject__instructor=user),
+            attendance_q,
             marked_at__date=today
         ).distinct().count()
+
+        pending_edit_requests_count = 0
+        if hod_dept_ids:
+            pending_edit_requests_count = ResultEditRequest.objects.filter(
+                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                status=ResultEditRequest.Status.PENDING,
+            ).count()
 
         return Response({
             'total_classes': my_classes.count(),
@@ -2453,12 +2480,15 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'total_exams': my_exams.count(),
             'pending_results': pending_results,
             'attendance_today': attendance_today,
+            'pending_edit_requests': pending_edit_requests_count,
+            'is_hod': bool(hod_dept_ids),
+            'hod_departments': hod_dept_ids,
             'classes': ClassSerializer(my_classes, many=True).data,
             'subjects': SubjectSerializer(my_subjects, many=True).data
         })
 
     @action(detail=False, methods=['get'])
-    def summary(slef, request):
+    def summary(self, request):
         if request.user.role != 'instructor':
             return Response(
                 {'error': 'Only instructors can access the dashboard.'},
@@ -2466,19 +2496,37 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             )
         
         user= request.user
+        hod_dept_ids = list(
+            DepartmentMembership.objects.filter(
+                user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+            ).values_list('department_id', flat=True)
+        )
+
+        class_q = Q(instructor=user) | Q(subjects__instructor=user)
+        subject_q = Q(instructor=user)
+        exam_q = Q(subject__instructor=user)
+        attendance_q = (
+            Q(session__class_obj__instructor=user) |
+            Q(session__subject__instructor=user)
+        )
+        if hod_dept_ids:
+            class_q |= Q(department__in=hod_dept_ids)
+            subject_q |= Q(class_obj__department__in=hod_dept_ids)
+            exam_q |= Q(subject__class_obj__department__in=hod_dept_ids)
+            attendance_q |= Q(session__class_obj__department__in=hod_dept_ids)
 
         classes_count = Class.objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             is_active=True
         ).distinct().count()
 
         subjects_count = Subject.objects.filter(
-            instructor=user,
+            subject_q,
             is_active=True
-        ).count()
+        ).distinct().count()
 
         instructor_class_ids = Class.objects.filter(
-            Q(instructor=user) | Q(subjects__instructor=user),
+            class_q,
             is_active=True
         ).distinct().values_list('id', flat=True)
 
@@ -2488,9 +2536,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         ).values('student').distinct().count()
 
         exams_count = Exam.objects.filter(
-            subject__instructor=user,
+            exam_q,
             is_active=True
-        ).count()
+        ).distinct().count()
 
         pending_grading = ExamResult.objects.filter(
             exam__subject__instructor=user,
@@ -2500,10 +2548,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         today = timezone.now().date()
 
         attendance_today = SessionAttendance.all_objects.filter(
-            Q(session__class_obj__instructor=user) |
-            Q(session__subject__instructor=user),
+            attendance_q,
             marked_at__date=today
         ).distinct().count()
+
+        pending_edit_requests_count = 0
+        if hod_dept_ids:
+            pending_edit_requests_count = ResultEditRequest.objects.filter(
+                exam_result__exam__subject__class_obj__department__in=hod_dept_ids,
+                status=ResultEditRequest.Status.PENDING,
+            ).count()
 
         return Response({
             'classes': classes_count,
@@ -2511,8 +2565,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'students': students_count,
             'exams': exams_count,
             'pending_grading': pending_grading,
-            'attendance_today': attendance_today
-
+            'attendance_today': attendance_today,
+            'pending_edit_requests': pending_edit_requests_count,
+            'is_hod': bool(hod_dept_ids),
         })
 
 # students
@@ -4878,3 +4933,289 @@ class CertificatePublicVerificationView(APIView):
             'status': certificate.status,
             'status_display': certificate.get_status_display(),
         })
+
+# Departments
+
+class DepartmentViewSet(viewsets.ModelViewSet):
+
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Department.objects.select_related('school').prefetch_related(
+            'department_memberships__user'
+        )
+        if user.role in ('instructor',):
+            qs = qs.filter(
+                department_memberships__user=user,
+                department_memberships__is_active=True,
+            ).distinct()
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated(), BelongsToSameSchool()]
+
+    def perform_create(self, serializer):
+        serializer.save(school=self.request.user.school)
+
+    @action(detail=True, methods=['get'], url_path='courses',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def courses(self, request, pk=None):
+        dept = self.get_object()
+        self._assert_hod_of_dept(request.user, dept)
+        from .serializers import CourseSerializer
+        courses = dept.courses.filter(is_active=True)
+        return Response(CourseSerializer(courses, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='classes',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def classes(self, request, pk=None):
+        dept = self.get_object()
+        self._assert_hod_of_dept(request.user, dept)
+        from .serializers import ClassSerializer
+        classes = dept.classes.filter(is_active=True).select_related('course', 'instructor')
+        return Response(ClassSerializer(classes, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='students',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def students(self, request, pk=None):
+        dept = self.get_object()
+        self._assert_hod_of_dept(request.user, dept)
+        from .models import Enrollment
+        from .serializers import EnrollmentSerializer
+        enrollments = Enrollment.objects.filter(
+            class_obj__department=dept,
+            is_active=True
+        ).select_related('student', 'class_obj')
+        return Response(EnrollmentSerializer(enrollments, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='results',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def results(self, request, pk=None):
+        dept = self.get_object()
+        self._assert_hod_of_dept(request.user, dept)
+        results = ExamResult.objects.filter(
+            exam__subject__class_obj__department=dept,
+            is_submitted=True
+        ).select_related('student', 'exam', 'exam__subject')
+        from .serializers import ExamResultSerializer
+        return Response(ExamResultSerializer(results, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='pending-edit-requests',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def pending_edit_requests(self, request, pk=None):
+        dept = self.get_object()
+        self._assert_hod_of_dept(request.user, dept)
+        requests = ResultEditRequest.objects.filter(
+            exam_result__exam__subject__class_obj__department=dept,
+            status=ResultEditRequest.Status.PENDING,
+        ).select_related('exam_result__exam', 'requested_by')
+        return Response(ResultEditRequestSerializer(requests, many=True).data)
+
+    def _assert_hod_of_dept(self, user, dept):
+        if user.role in ('admin', 'superadmin'):
+            return
+        is_hod = DepartmentMembership.objects.filter(
+            department=dept,
+            user=user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+        if not is_hod:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You are not the HOD of this department.")
+
+class DepartmentMembershipViewSet(viewsets.ModelViewSet):
+
+    serializer_class = DepartmentMembershipSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get_queryset(self):
+        return DepartmentMembership.objects.select_related(
+            'department', 'user', 'assigned_by'
+        ).filter(is_active=True)
+
+    def perform_create(self, serializer):
+        serializer.save(assigned_by=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=['is_active', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class ResultEditRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = ResultEditRequestSerializer
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
+
+    def get_queryset(self):
+        user = self.request.user
+        base = ResultEditRequest.objects.select_related(
+            'exam_result__exam__subject',
+            'exam_result__exam__subject__class_obj__department',
+            'exam_result__student',
+            'requested_by', 'reviewed_by',
+        )
+        if user.role in ('admin', 'superadmin'):
+            return base
+        hod_depts = DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True
+        ).values_list('department_id', flat=True)
+        if hod_depts.exists():
+            return base.filter(
+                exam_result__exam__subject__class_obj__department__in=hod_depts
+            )
+        return base.filter(requested_by=user)
+
+    def get_permissions(self):
+        if self.action == 'review':
+            return [IsAuthenticated(), IsHODOrAdmin()]
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated(), BelongsToSameSchool()]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role not in ('instructor', 'admin', 'superadmin'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only instructors can request result edits.")
+        serializer.save(
+            requested_by=user,
+            school=user.school,
+        )
+
+    @action(detail=True, methods=['post'], url_path='review',
+            permission_classes=[IsAuthenticated, IsHODOrAdmin])
+    def review(self, request, pk=None):
+
+        edit_request = self.get_object()
+
+        if edit_request.status != ResultEditRequest.Status.PENDING:
+            return Response(
+                {'detail': f'Request is already {edit_request.status}.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = ResultEditRequestReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        action_choice = serializer.validated_data['action']
+        note = serializer.validated_data.get('note', '')
+
+        dept = edit_request.exam_result.exam.subject.class_obj.department
+        if request.user.role not in ('admin', 'superadmin') and dept:
+            is_hod = DepartmentMembership.objects.filter(
+                department=dept,
+                user=request.user,
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
+            ).exists()
+            if not is_hod:
+                return Response(
+                    {'detail': 'You are not the HOD of this department.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        with transaction.atomic():
+            if action_choice == 'approve':
+                edit_request.approve(hod_user=request.user, note=note)
+                msg = 'Request approved. The result is now unlocked for editing.'
+            else:
+                edit_request.reject(hod_user=request.user, note=note)
+                msg = 'Request rejected.'
+
+        return Response(
+            {
+                'detail': msg,
+                'request': ResultEditRequestSerializer(edit_request).data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+class ExamResultViewSetPatch:
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_locked:
+            return Response(
+                {
+                    'detail': (
+                        'This result is locked. Submit a ResultEditRequest '
+                        'and wait for HOD approval before editing.'
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    @action(detail=False, methods=['post'], url_path='submit')
+    def submit(self, request):
+
+        from .models import Exam, ExamResult, User as UserModel
+        from .serializers import ExamResultSerializer
+
+        exam_id = request.data.get('exam')
+        results_data = request.data.get('results', [])
+
+        if not exam_id:
+            return Response({'detail': 'exam field is required.'}, status=400)
+
+        exam = get_object_or_404(Exam, pk=exam_id, school=request.user.school)
+
+        is_class_instructor = exam.subject.class_obj.instructor == request.user
+        is_subject_instructor = exam.subject.instructor == request.user
+        if request.user.role == 'instructor' and not (is_class_instructor or is_subject_instructor):
+            return Response({'detail': 'You are not the instructor for this exam.'}, status=403)
+
+        created, updated, errors = [], [], []
+
+        with transaction.atomic():
+            for item in results_data:
+                student_id = item.get('student')
+                marks = item.get('marks_obtained')
+
+                try:
+                    student = UserModel.objects.get(pk=student_id, school=request.user.school)
+                except UserModel.DoesNotExist:
+                    errors.append({'student': student_id, 'error': 'Student not found.'})
+                    continue
+
+                result, is_new = ExamResult.all_objects.get_or_create(
+                    exam=exam,
+                    student=student,
+                    defaults={'school': exam.school},
+                )
+
+                if result.is_locked:
+                    errors.append({
+                        'student': student_id,
+                        'error': 'Result is locked. Request HOD approval to edit.',
+                    })
+                    continue
+
+                result.marks_obtained = marks
+                result.remarks = item.get('remarks', result.remarks)
+                result.is_submitted = True
+                result.submitted_at = timezone.now()
+                result.graded_by = request.user
+                result.graded_at = timezone.now()
+                result.is_locked = True  
+                result.save()
+
+                if is_new:
+                    created.append(str(result.pk))
+                else:
+                    updated.append(str(result.pk))
+
+        return Response({
+            'created': created,
+            'updated': updated,
+            'errors': errors,
+        }, status=status.HTTP_200_OK)

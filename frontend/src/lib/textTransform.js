@@ -102,7 +102,8 @@ export function transformToSentenceCase(data, options = {}) {
     if (
       /^(https?:\/\/|\/media\/|\/static\/)/.test(data) ||
       /\.\w{2,4}$/.test(data) ||
-      /^\d{4}-\d{2}-\d{2}/.test(data)
+      /^\d{4}-\d{2}-\d{2}/.test(data) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)
     ) {
       return data
     }

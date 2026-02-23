@@ -11,11 +11,14 @@ function toPercent(n) {
 
 function gradeFromPercent(p) {
   if (p == null || Number.isNaN(Number(p))) return null
-  if (p >= 80) return 'A'
-  if (p >= 70) return 'B'
+  if (p >= 91) return 'A'
+  if (p >= 86) return 'A-'
+  if (p >= 81) return 'B+'
+  if (p >= 76) return 'B'
+  if (p >= 71) return 'B-'
+  if (p >= 65) return 'C+'
   if (p >= 60) return 'C'
-  if (p >= 50) return 'D'
-  if (p >= 40) return 'E'
+  if (p >= 50) return 'C-'
   return 'F'
 }
 
@@ -289,9 +292,9 @@ export default function ClassDetail() {
                       const marks = stats?.percent != null ? toPercent(stats.percent) : null
                       const grade = stats?.grade || (marks != null ? gradeFromPercent(marks) || '—' : '—')
                       const badgeClass = grade
-                        ? grade === 'A' || grade === 'B'
+                        ? (grade === 'A' || grade === 'A-' || grade.startsWith('B'))
                           ? 'bg-green-50 text-green-700 border-green-200'
-                          : grade === 'C' || grade === 'D'
+                          : grade.startsWith('C')
                           ? 'bg-amber-50 text-amber-700 border-amber-200'
                           : 'bg-red-50 text-red-700 border-red-200'
                         : 'bg-gray-50 text-gray-500 border-gray-200'

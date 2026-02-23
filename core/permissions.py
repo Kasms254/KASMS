@@ -2,6 +2,8 @@ from rest_framework.permissions import BasePermission
 from rest_framework import permissions
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .managers import get_current_school
+from .models import DepartmentMembership
+
 
 class IsSuperAdmin(BasePermission):
 
@@ -189,6 +191,52 @@ class ForcePasswordChangePermission(BasePermission):
 
         return True
 
+# department permission
+
+class IsHOD(BasePermission):
+
+    message = "Only a Head of Department can perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return DepartmentMembership.objects.filter(
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+
+class IsHODOfDepartment(BasePermission):
+
+    message = "You are not the HOD of this department."
+
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.role in ('admin', 'superadmin'):
+            return True
+        department = getattr(obj, 'department', None)
+        if department is None:
+            return False
+        return DepartmentMembership.objects.filter(
+            department=department,
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+
+class IsHODOrAdmin(BasePermission):
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.role in ('admin', 'superadmin'):
+            return True
+        return DepartmentMembership.objects.filter(
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
 
 
 

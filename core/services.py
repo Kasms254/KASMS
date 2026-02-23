@@ -135,14 +135,22 @@ def calculate_student_grade(class_obj, student) -> Dict[str, Any]:
 
     pct = (total_marks / total_possible) * 100
 
-    if pct >= 80:
+    if pct >= 91:
         grade = 'A'
-    elif pct >= 70:
+    elif pct >= 86:
+        grade = 'A-'
+    elif pct >= 81:
+        grade = 'B+'
+    elif pct >= 76:
         grade = 'B'
+    elif pct >= 71:
+        grade = 'B-'
+    elif pct >= 65:
+        grade = 'C+'
     elif pct >= 60:
         grade = 'C'
     elif pct >= 50:
-        grade = 'D'
+        grade = 'C-'
     else:
         grade = 'F'
 
