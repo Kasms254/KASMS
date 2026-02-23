@@ -1757,6 +1757,7 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
     student_svc_number = serializers.CharField(
         source="enrollment.student.svc_number", read_only=True
     )
+    formatted_index = serializers.SerializerMethodField()
     student_rank = serializers.CharField(
         source="enrollment.student.rank", read_only=True
     )

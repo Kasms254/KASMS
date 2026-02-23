@@ -17,7 +17,6 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 
-
 def check_student_can_login(user):
 
     if user.role != 'student':
@@ -33,7 +32,6 @@ def check_student_can_login(user):
         return False, "Your enrollment is not active. Please contact your school administrator."
     
     return True, None
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -108,7 +106,6 @@ def logout_view(request):
         return Response({
             'error': 'Invalid token or token already blacklisted'
         }, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
