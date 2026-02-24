@@ -60,7 +60,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   }
   if (token) h['Authorization'] = `Bearer ${token}`
 
-  const opts = { method, headers: h }
+  // credentials: 'include' sends HTTP-only cookies on every request (cookie-based JWT auth)
+  const opts = { method, headers: h, credentials: 'include' }
   if (body !== undefined) opts.body = JSON.stringify(body)
 
   // Helper to parse response body safely
@@ -77,33 +78,43 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   let res = await fetch(url, opts)
   let data = await parseResponse(res)
 
-  // If unauthorized, try to refresh the access token (if we have a refresh token)
+  // If unauthorized, try to refresh the access token.
+  // Works for both localStorage Bearer tokens and HTTP-only cookie sessions.
   if (res.status === 401) {
     const refreshToken = authStore.getRefreshToken && authStore.getRefreshToken()
-    if (refreshToken) {
+    const hasCookieSession = authStore.isSessionActive && authStore.isSessionActive()
+    if (refreshToken || hasCookieSession) {
       try {
+        const refreshBody = refreshToken ? JSON.stringify({ refresh: refreshToken }) : undefined
         const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
           method: 'POST',
+          credentials: 'include', // send cookie-based refresh token if present
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh: refreshToken }),
+          ...(refreshBody ? { body: refreshBody } : {}),
         })
         const refreshData = await parseResponse(refreshRes)
-        if (refreshRes.ok && refreshData && (refreshData.access || refreshData.token)) {
-          const newAccess = refreshData.access || refreshData.token
-          const newRefresh = refreshData.refresh || refreshData.refresh_token || null
-          // update refresh token when server rotates it
-          if (newRefresh && authStore.setRefresh) authStore.setRefresh(newRefresh)
-          // update in-memory token
-          if (authStore.setAccess) authStore.setAccess(newAccess)
-          // retry original request once with new token
-          const retryHeaders = { ...h, Authorization: `Bearer ${newAccess}` }
-          const retryOpts = { method, headers: retryHeaders }
-          if (body !== undefined) retryOpts.body = JSON.stringify(body)
-          res = await fetch(url, retryOpts)
-          data = await parseResponse(res)
-        } else {
-          // refresh failed; fall through to error handling below
+        if (refreshRes.ok) {
+          // Bearer token mode: update localStorage with new tokens
+          if (refreshData?.access || refreshData?.token) {
+            const newAccess = refreshData.access || refreshData.token
+            const newRefresh = refreshData.refresh || refreshData.refresh_token || null
+            if (newRefresh && authStore.setRefresh) authStore.setRefresh(newRefresh)
+            if (authStore.setAccess) authStore.setAccess(newAccess)
+            // Retry with new Bearer token
+            const retryHeaders = { ...h, Authorization: `Bearer ${newAccess}` }
+            const retryOpts = { method, headers: retryHeaders, credentials: 'include' }
+            if (body !== undefined) retryOpts.body = JSON.stringify(body)
+            res = await fetch(url, retryOpts)
+            data = await parseResponse(res)
+          } else {
+            // Cookie mode: new cookies set by backend; retry sends them automatically
+            const retryOpts = { method, headers: h, credentials: 'include' }
+            if (body !== undefined) retryOpts.body = JSON.stringify(body)
+            res = await fetch(url, retryOpts)
+            data = await parseResponse(res)
+          }
         }
+        // else: refresh failed; fall through to error handling below
       } catch {
         // ignore refresh errors and fall through to error handling
       }
@@ -182,7 +193,7 @@ async function requestMultipart(path, { method = 'POST', formData, headers = {} 
   const h = { ...headers }
   if (token) h['Authorization'] = `Bearer ${token}`
 
-  const opts = { method, headers: h, body: formData }
+  const opts = { method, headers: h, body: formData, credentials: 'include' }
 
   const res = await fetch(url, opts)
   if (!res.ok) {
@@ -208,6 +219,25 @@ export async function login(svc_number, password) {
       svc_number: sanitizedSvcNumber,
       password: sanitizedPassword
     }
+  })
+}
+
+export async function verify2FA(svc_number, password, code) {
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  const sanitizedCode = sanitizeInput(code)
+  return request('/api/auth/verify-2fa/', {
+    method: 'POST',
+    body: { svc_number: sanitizedSvcNumber, password: sanitizedPassword, code: sanitizedCode }
+  })
+}
+
+export async function resend2FA(svc_number, password) {
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  return request('/api/auth/resend-2fa/', {
+    method: 'POST',
+    body: { svc_number: sanitizedSvcNumber, password: sanitizedPassword }
   })
 }
 
