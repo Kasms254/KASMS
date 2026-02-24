@@ -172,9 +172,9 @@ SIMPLE_JWT = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'core.cookie_auth.CookieJWTAuthentication',
-        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-        
+        # SessionAuthentication removed: it enforces CSRF on requests that carry
+        # a Django session cookie, which causes 403s when the frontend sends
+        # credentials:'include'. JWT cookie auth does not require session auth.
     ],
     # 'DEFAULT_PERMISSION_CLASSES': [
     #     'rest_framework.permissions.IsAuthenticated',

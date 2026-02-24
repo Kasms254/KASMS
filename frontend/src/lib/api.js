@@ -1,5 +1,6 @@
-// Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
-import * as authStore from './auth'
+// API client for the frontend.
+// Authentication is handled via HTTP-only cookies set by the server.
+// All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
@@ -49,17 +50,30 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-//const API_BASE = import.meta.env.VITE_API_URL;
+// Read the CSRF token from the csrftoken cookie (not HTTP-only, readable by JS)
+function getCsrfToken() {
+  return document.cookie
+    .split('; ')
+    .find(row => row.startsWith('csrftoken='))
+    ?.split('=')[1] ?? ''
+}
+
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
-  const token = authStore.getToken()
   const h = {
     'Content-Type': 'application/json',
     ...headers,
   }
-  if (token) h['Authorization'] = `Bearer ${token}`
 
-  const opts = { method, headers: h }
+  // Include CSRF token for state-changing requests (Django reads X-CSRFToken header)
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())
+  if (mutating) {
+    const csrf = getCsrfToken()
+    if (csrf) h['X-CSRFToken'] = csrf
+  }
+
+  // credentials:'include' sends the HTTP-only auth cookies with every request
+  const opts = { method, headers: h, credentials: 'include' }
   if (body !== undefined) opts.body = JSON.stringify(body)
 
   // Helper to parse response body safely
@@ -76,36 +90,25 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   let res = await fetch(url, opts)
   let data = await parseResponse(res)
 
-  // If unauthorized, try to refresh the access token (if we have a refresh token)
-  if (res.status === 401) {
-    const refreshToken = authStore.getRefreshToken && authStore.getRefreshToken()
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh: refreshToken }),
-        })
-        const refreshData = await parseResponse(refreshRes)
-        if (refreshRes.ok && refreshData && (refreshData.access || refreshData.token)) {
-          const newAccess = refreshData.access || refreshData.token
-          const newRefresh = refreshData.refresh || refreshData.refresh_token || null
-          // update refresh token when server rotates it
-          if (newRefresh && authStore.setRefresh) authStore.setRefresh(newRefresh)
-          // update in-memory token
-          if (authStore.setAccess) authStore.setAccess(newAccess)
-          // retry original request once with new token
-          const retryHeaders = { ...h, Authorization: `Bearer ${newAccess}` }
-          const retryOpts = { method, headers: retryHeaders }
-          if (body !== undefined) retryOpts.body = JSON.stringify(body)
-          res = await fetch(url, retryOpts)
-          data = await parseResponse(res)
-        } else {
-          // refresh failed; fall through to error handling below
-        }
-      } catch {
-        // ignore refresh errors and fall through to error handling
+  // If unauthorized, attempt a silent token refresh via the refresh cookie,
+  // then retry the original request once with the new access cookie.
+  // Skip for /login — a 401 there means wrong credentials, not an expired
+  // session, so a refresh attempt would always fail unnecessarily.
+  if (res.status === 401 && !path.includes('/login')) {
+    try {
+      const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {}) },
+        credentials: 'include',
+        // No body needed — the server reads the refresh_token cookie
+      })
+      if (refreshRes.ok) {
+        // New access_token cookie has been set; retry the original request
+        res = await fetch(url, opts)
+        data = await parseResponse(res)
       }
+    } catch {
+      // ignore refresh errors and fall through to error handling
     }
   }
 
@@ -187,8 +190,9 @@ export async function login(svc_number, password) {
   })
 }
 
-export async function logout(refresh) {
-  return request('/api/auth/logout/', { method: 'POST', body: { refresh } })
+export async function logout() {
+  // No body needed — server reads the refresh_token cookie, blacklists it, and clears both cookies
+  return request('/api/auth/logout/', { method: 'POST' })
 }
 
 export async function changePassword(oldPassword, newPassword, newPassword2) {
@@ -199,12 +203,7 @@ export async function changePassword(oldPassword, newPassword, newPassword2) {
 }
 
 export async function getCurrentUser() {
-  // Try common endpoints used by different backends
-  try {
-    return await request('/api/auth/me/')
-  } catch {
-    return await request('/api/users/me/')
-  }
+  return request('/api/auth/me/')
 }
 
 export async function getStudents() {
@@ -465,11 +464,8 @@ export async function exportSessionAttendance(sessionId) {
 
   // Handle CSV export specially - don't parse as JSON
   const url = `${API_BASE}/api/attendance-sessions/${sessionId}/export_csv/`
-  const token = authStore.getToken()
-  const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const response = await fetch(url, { headers })
+  const response = await fetch(url, { credentials: 'include' })
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -896,17 +892,16 @@ export async function exportClassReport(classId, format = 'summary') {
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
-  const API = API_BASE
-  const token = authStore.getToken()
-  const url = `${API}/api/exam-attachments/`
+  const url = `${API_BASE}/api/exam-attachments/`
   const form = new FormData()
   form.append('exam', String(examId))
   form.append('file', file)
 
   const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRFToken'] = csrf
 
-  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const res = await fetch(url, { method: 'POST', headers, body: form, credentials: 'include' })
 
   if (!res.ok) {
     let text = await res.text()
@@ -1098,16 +1093,15 @@ export async function getMySchoolTheme() {
 
 // Upload school logo (multipart/form-data)
 export async function uploadSchoolLogo(schoolId, file) {
-  const API = API_BASE
-  const token = authStore.getToken()
-  const url = `${API}/api/schools/${schoolId}/upload_logo/`
+  const url = `${API_BASE}/api/schools/${schoolId}/upload_logo/`
   const form = new FormData()
   form.append('logo', file)
 
   const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRFToken'] = csrf
 
-  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const res = await fetch(url, { method: 'POST', headers, body: form, credentials: 'include' })
 
   if (!res.ok) {
     let text = await res.text()

@@ -19,7 +19,7 @@ def is_production() -> bool:
 
 def get_cookie_settings() -> dict:
 
-    production = _is_production()
+    production = is_production()
 
     cross_site = getattr(settings, "COOKIE_CROSS_SITE", True)
 
@@ -39,7 +39,7 @@ def get_cookie_settings() -> dict:
 
 
 def set_access_cookie(response, access_token: str):
-    apts = get_cookie_settings()
+    opts = get_cookie_settings()
     response.set_cookie(
         key = ACCESS_COOKIE_NAME,
         value = access_token,

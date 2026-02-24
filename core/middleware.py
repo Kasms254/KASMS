@@ -2,7 +2,7 @@ from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
 from .models import School, User, Enrollment
 from .managers import set_current_school, get_current_school,clear_current_school
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from .cookie_utils import ACCESS_COOKIE_NAME
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
@@ -27,12 +27,13 @@ def get_user_from_jwt(request):
         user_id = access_token.get("user_id")
 
         if user_id:
-            user = User.all_objects.filter(id=user_id, is_active=True). first()
+            user = User.all_objects.filter(id=user_id, is_active=True).first()
             if user:
-                logger.debug(f"JWT validated -User: {user.username}, School: {user.school}")
+                logger.debug(f"JWT validated - User: {user.username}, School: {user.school}")
+                return user
             else:
                 logger.warning(f"No active user found for user_id: {user_id}")
-                return user
+                return None
         else:
             logger.warning("No user_id in token payload")
             return None

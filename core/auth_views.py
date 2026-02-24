@@ -5,6 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from .serializers import UserSerializer, UserListSerializer
 from .models import Enrollment
@@ -56,7 +58,7 @@ def login_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = authenticate(request, svc_number=svc_number, paswword=password)
+    user = authenticate(request, svc_number=svc_number, password=password)
 
     if user is None:
         return Response({
@@ -70,35 +72,36 @@ def login_view(request):
         status=status.HTTP_403_FORBIDDEN,
         )
 
-    if user.role != "superadmin" and user.school:
-        if not user.school.is_active:
+    # Non-superadmin users need school and enrollment checks
+    if user.role != "superadmin":
+        if user.school and not user.school.is_active:
             return Response(
-                {"error": "Your school account is currently inactive. Please contact suppoer"},
+                {"error": "Your school account is currently inactive. Please contact support"},
                 status=status.HTTP_403_FORBIDDEN
             )
         can_login, error_message = check_student_can_login(user)
-
         if not can_login:
             return Response({
                 "error": error_message
             }, status=status.HTTP_403_FORBIDDEN)
-        tokens = get_tokens_for_user(user)
-        user_data = UserListSerializer(user).data
 
-        response =  Response(
-            {
-                "message": "Login successful",
-                "must_change_password": user.must_change_password,
-                "user": user_data,
-            },
-            status=status.HTTP_200_OK
-        )
+    # All user types (including superadmin) reach here
+    tokens = get_tokens_for_user(user)
+    user_data = UserListSerializer(user).data
 
-        set_auth_cookies(response, tokens["access"], tokens["refresh"])
+    response = Response(
+        {
+            "message": "Login successful",
+            "must_change_password": user.must_change_password,
+            "user": user_data,
+        },
+        status=status.HTTP_200_OK
+    )
 
-        get_csrf_token(request)
+    set_auth_cookies(response, tokens["access"], tokens["refresh"])
+    get_csrf_token(request)
 
-        return response
+    return response
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -123,6 +126,8 @@ def logout_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh_view(request):
+
+    raw_refresh = request.COOKIES.get(REFRESH_COOKIE_NAME)
 
     if not raw_refresh:
         return Response(

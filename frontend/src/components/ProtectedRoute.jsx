@@ -3,29 +3,26 @@ import { Navigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import AccessDenied from './AccessDenied'
 
-export default function ProtectedRoute({ children, role = null }) {
-  const { user, token, loading, mustChangePassword } = useAuth()
+export default function ProtectedRoute({ children, role = null, skipMustChangeRedirect = false }) {
+  const { user, loading, mustChangePassword } = useAuth()
 
-  // while validating token (if you add async validation) avoid rendering
+  // Wait while AuthProvider checks for an existing cookie session on mount
   if (loading) return null
 
-  // If we have a token but user hasn't been loaded yet, wait to avoid
-  // a premature redirect while the auth provider fetches the current user.
-  if (token && !user) return null
-
-  // Defensive: require either a user object or a token to allow access
-  if (!user && !token) {
+  // No authenticated user — redirect to login
+  if (!user) {
     return <Navigate to="/" replace />
   }
 
-  // Force password change before allowing access to protected routes
-  if (mustChangePassword) {
+  // Force password change before allowing access to other protected routes.
+  // skipMustChangeRedirect is set on the /change-password route itself to avoid
+  // an infinite redirect loop.
+  if (!skipMustChangeRedirect && mustChangePassword) {
     return <Navigate to="/change-password" replace />
   }
 
   // Role-based access control: show access denied page instead of redirecting
-  // This prevents users from bypassing authorization by manipulating URLs
-  if (role && (!user || user.role !== role)) {
+  if (role && user.role !== role) {
     return <AccessDenied />
   }
 

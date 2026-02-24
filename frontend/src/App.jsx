@@ -59,10 +59,9 @@ const LoadingFallback = () => (
 )
 
 const ProtectedLogin = () => {
-	const { token } = useAuth()
-	// Don't check loading here - let the Login component handle its own loading state
-	// This prevents the white screen when login fails
-	if (token) return <Navigate to="/dashboard" replace />
+	const { user, loading } = useAuth()
+	if (loading) return null
+	if (user) return <Navigate to="/dashboard" replace />
 	return <Login />
 }
 
@@ -77,8 +76,8 @@ const App = () => {
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />
 
-			{/* Change password page (outside dashboard layout since other endpoints are blocked) */}
-		<Route path="/change-password" element={<ChangePassword />} />
+			{/* Change password page — requires auth but skips the mustChangePassword redirect to avoid loops */}
+		<Route path="/change-password" element={<ProtectedRoute skipMustChangeRedirect><ChangePassword /></ProtectedRoute>} />
 
 		{/* Profile page (all authenticated users, inside Layout with sidebar/navbar) */}
 		<Route path="/profile" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

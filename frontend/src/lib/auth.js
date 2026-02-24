@@ -1,51 +1,26 @@
-// Auth token store using localStorage.
-// Tokens are persisted in localStorage for convenience across page reloads.
-
-const ACCESS_TOKEN_KEY = 'auth_access_token'
-const REFRESH_TOKEN_KEY = 'auth_refresh_token'
+// Auth module for HTTP-only cookie backend.
+// Tokens are managed entirely by the server as HTTP-only cookies.
+// JavaScript cannot read them — no localStorage storage needed.
+// This module is a compatibility shim so existing imports don't break.
 
 export function isAuthenticated() {
-  return !!getToken()
+  // Cannot check HTTP-only cookies from JS.
+  // Auth state is derived from the user object in AuthContext.
+  return false
 }
 
-export function login({ access = null, refresh = null } = {}) {
-  if (access) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, access)
-  } else {
-    localStorage.removeItem(ACCESS_TOKEN_KEY)
-  }
-  if (refresh) {
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
-  } else {
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-  }
-}
-
-export function setAccess(token) {
-  if (token) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token)
-  } else {
-    localStorage.removeItem(ACCESS_TOKEN_KEY)
-  }
-}
-
-export function setRefresh(token) {
-  if (token) {
-    localStorage.setItem(REFRESH_TOKEN_KEY, token)
-  } else {
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-  }
-}
-
-export function logout() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(REFRESH_TOKEN_KEY)
-}
+// No-ops: tokens are set/cleared by the server via Set-Cookie headers.
+export function login() {}
+export function logout() {}
+export function setAccess() {}
+export function setRefresh() {}
 
 export function getToken() {
-  return localStorage.getItem(ACCESS_TOKEN_KEY)
+  // HTTP-only cookies are not accessible from JavaScript.
+  return null
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_TOKEN_KEY)
+  // HTTP-only cookies are not accessible from JavaScript.
+  return null
 }
