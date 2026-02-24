@@ -1742,6 +1742,7 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
     requested_by_name = serializers.CharField(
         source='requested_by.get_full_name', read_only=True
     )
+    requested_by_rank = serializers.SerializerMethodField()
     reviewed_by_name = serializers.CharField(
         source='reviewed_by.get_full_name', read_only=True
     )
@@ -1751,7 +1752,7 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         model = ResultEditRequest
         fields = [
             'id', 'school', 'exam_result', 'exam_result_detail',
-            'requested_by', 'requested_by_name',
+            'requested_by', 'requested_by_name', 'requested_by_rank',
             'reason', 'proposed_marks', 'proposed_remarks',
             'status', 'reviewed_by', 'reviewed_by_name',
             'reviewed_at', 'review_note',
@@ -1762,15 +1763,33 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
         ]
 
+    def get_requested_by_rank(self, obj):
+        user = obj.requested_by
+        if user and user.rank:
+            return user.get_rank_display()
+        return None
+
     def get_exam_result_detail(self, obj):
         r = obj.exam_result
+        index_number = None
+        try:
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=r.student,
+                class_obj=r.exam.subject.class_obj,
+            ).first()
+            if index:
+                index_number = r.exam.subject.class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
         return {
             'id': str(r.id),
             'exam': str(r.exam_id),
             'exam_title': r.exam.title,
             'student': str(r.student_id),
             'student_name': r.student.get_full_name(),
+            'index_number': index_number,
             'marks_obtained': str(r.marks_obtained),
+            'exam_total_marks': str(r.exam.total_marks) if r.exam.total_marks is not None else None,
             'is_locked': r.is_locked,
         }
 
