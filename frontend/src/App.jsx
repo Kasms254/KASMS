@@ -46,6 +46,12 @@ const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTem
 const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
+// Department & HOD components
+const Departments = lazy(() => import('./dashboard/admin/Departments'))
+const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
+const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
+const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
+
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
 const SchoolsPage = lazy(() => import('./dashboard/superadmin/SchoolsPage'))
@@ -211,14 +217,34 @@ const App = () => {
 			<Route path="/list/classes/:id/certificates" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<ClassCertificates />} />
 			</Route>
-			{/* Class students list (admin) */}
-			<Route path="/list/classes/:id/students" element={<RoleProtectedLayout role="admin" />}>
+			{/* Class students list (admin & instructor) */}
+			<Route path="/list/classes/:id/students" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ClassStudents />} />
 			</Route>
 
 			{/* Student Certificates */}
 			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
 				<Route index element={<StudentCertificates />} />
+			</Route>
+
+			{/* Departments (admin) */}
+			<Route path="/list/departments" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Departments />} />
+			</Route>
+
+			{/* Department Members (admin) */}
+			<Route path="/list/department-members" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<DepartmentMembers />} />
+			</Route>
+
+			{/* HOD Dashboard — HODs only */}
+			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" hodOnly />}>
+				<Route index element={<HODDashboard />} />
+			</Route>
+
+			{/* Result Edit Requests — HODs only */}
+			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" hodOnly />}>
+				<Route index element={<EditRequestsReview />} />
 			</Route>
 
 			{/* Superadmin routes */}

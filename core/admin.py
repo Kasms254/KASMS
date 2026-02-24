@@ -1,8 +1,9 @@
 from django.contrib import admin
 from .models import (
-    User, Course, Class, Enrollment, Subject, Notice, Exam, 
+    User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
-    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate
+    ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, 
+    Department, DepartmentMembership, ResultEditRequest
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -153,7 +154,7 @@ class EnrollmentAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at', 'subject_code')
+    list_display = ('name', 'created_at', 'updated_at', 'subject_code', 'instructor')
     list_filter = ('created_at',)
     search_fields = ['name']
     readonly_fields = ('created_at', 'updated_at')
@@ -284,11 +285,53 @@ class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
         search_fields = ['name']
         ordering = ['-name']
 
-
 @admin.register(Certificate)
 class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ['id', 'school', 'student', 'certificate_number', 'issued_by']
-    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number']
+    search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number', 'student__svc_number']
     list_filter = ['issued_by', 'school']
     ordering = ['-school', 'certificate_number']
     raw_id_fields = ['school', 'student', 'issued_by']
+
+@admin.register(StudentIndex)
+class StudentIndexAdmin(admin.ModelAdmin):
+    list_display = [
+        "index_number", "class_obj", "get_student_name",
+        "get_svc_number"
+    ]
+    list_filter = ["class_obj", "school"]
+    search_fields = [
+        "index_number",
+        "enrollment__student__first_name",
+        "enrollment__student__last_name",
+        "enrollment__student__svc_number",
+    ]
+
+    ordering = ["class_obj", "index_number"]
+
+    def get_student_name(self, obj):
+        return obj.enrollment.student.get_full_name()
+    get_student_name.short_description = "Student Name"
+
+    def get_svc_number(self, obj):
+        return obj.enrollment.student.svc_number
+    get_svc_number.short_description = "Svc Number"
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'school', 'is_active', 'hod']
+    list_filter = ['school', 'is_active']
+    search_fields = ['name', 'code', 'school__code']
+
+@admin.register(DepartmentMembership)
+class DepartmentMembershipAdmin(admin.ModelAdmin):
+    list_display = ['user', 'department', 'role', 'is_active', 'assigned_at']
+    list_filter = ['role', 'is_active', 'department__school']
+    search_fields = ['user__svc_number', 'department__name']
+
+@admin.register(ResultEditRequest)
+class ResultEditRequestAdmin(admin.ModelAdmin):
+    list_display = ['requested_by', 'exam_result', 'status', 'reviewed_by', 'created_at']
+    list_filter = ['status', 'school']
+    search_fields = ['requested_by__svc_number', 'exam_result__id']
+    readonly_fields = ['created_at', 'updated_at']

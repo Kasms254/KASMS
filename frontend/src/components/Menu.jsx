@@ -65,31 +65,46 @@ const menuItems = [
         href: '/list/assignments',
         visible: ['admin'],
       },
+      {
+        groupKey: 'departments',
+        icon: 'Building',
+        label: 'Departments',
+        visible: ['admin'],
+        children: [
+          {
+            icon: 'Building',
+            label: 'Departments',
+            href: '/list/departments',
+            visible: ['admin'],
+          },
+          {
+            icon: 'UserPlus',
+            label: 'Dept. Members',
+            href: '/list/department-members',
+            visible: ['admin'],
+          },
+        ],
+      },
+      {
+        icon: 'LayoutDashboard',
+        label: 'HOD Dashboard',
+        href: '/dashboard/hod',
+        visible: ['instructor'],
+        hodOnly: true,
+      },
+      {
+        icon: 'ClipboardCheck',
+        label: 'Edit Requests',
+        href: '/list/edit-requests',
+        visible: ['instructor'],
+        hodOnly: true,
+      },
       // {
       //   icon: 'Book',
       //   label: 'Lessons',
       //   href: '/list/lessons',
       //   visible: ['instructor'],
       // },
-      {
-        icon: 'Award',
-        label: 'Certificates',
-        href: '/list/certificates',
-        visible: ['admin'],
-      },
-      {
-        icon: 'Image',
-        label: 'Certificate Templates',
-        href: '/list/certificate-templates',
-        visible: ['admin'],
-      },
-      {
-        icon: 'Award',
-        label: 'My Certificates',
-        href: '/list/my-certificates',
-        visible: ['student'],
-      },
-     
       {
         icon: 'Clipboard',
         label: 'Exams',
@@ -128,10 +143,36 @@ const menuItems = [
         visible: ['student'],
       },
       {
+        icon: 'Award',
+        label: 'My Certificates',
+        href: '/list/my-certificates',
+        visible: ['student'],
+      },
+      {
         icon: 'BarChart',
         label: 'Attendance Reports',
         href: '/list/attendance-reports',
         visible: ['admin', 'instructor'],
+      },
+      {
+        groupKey: 'certificates',
+        icon: 'Award',
+        label: 'Certificates',
+        visible: ['admin'],
+        children: [
+          {
+            icon: 'Award',
+            label: 'Certificates',
+            href: '/list/certificates',
+            visible: ['admin'],
+          },
+          {
+            icon: 'Image',
+            label: 'Certificate Templates',
+            href: '/list/certificate-templates',
+            visible: ['admin'],
+          },
+        ],
       },
       
       {
@@ -173,6 +214,10 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
   const navigate = useNavigate()
   const auth = useAuth()
   const [logoutModalOpen, setLogoutModalOpen] = React.useState(false)
+  const [openGroups, setOpenGroups] = React.useState({
+    departments: location.pathname === '/list/departments' || location.pathname === '/list/department-members',
+    certificates: location.pathname === '/list/certificates' || location.pathname === '/list/certificate-templates',
+  })
 
   async function handleLogout() {
     setLogoutModalOpen(false)
@@ -183,13 +228,77 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
     if (onMobileMenuClick) onMobileMenuClick()
   }
 
+  const toggleGroup = (groupKey) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }))
+  }
+
   return (
     <nav className="mt-4 text-sm">
       {menuItems.map((section) => (
         <div className="flex flex-col gap-2" key={section.title}>
           <span className={`${collapsed ? 'hidden' : 'text-gray-300 font-medium my-3 hidden lg:block'}`}>{section.title}</span>
-          {section.items.map((item) => {
+          {(collapsed ? section.items.flatMap((item) => item.children || [item]) : section.items).map((item) => {
             if (!item.visible.includes(role)) return null
+            if (item.hodOnly && !auth.user?.is_hod) return null
+
+            if (!collapsed && item.children) {
+              const groupChildren = item.children.filter((child) => {
+                if (!child.visible.includes(role)) return false
+                if (child.hodOnly && !auth.user?.is_hod) return false
+                return true
+              })
+              if (!groupChildren.length) return null
+
+              const groupIsActive = groupChildren.some((child) => location.pathname === child.href)
+              const groupIsOpen = openGroups[item.groupKey]
+              const GroupIcon = LucideIcons[item.icon] || LucideIcons.FileText
+
+              return (
+                <div key={item.groupKey} className="flex flex-col">
+                  <button
+                    type="button"
+                    title={item.label}
+                    aria-label={item.label}
+                    onClick={() => toggleGroup(item.groupKey)}
+                    className={`group relative flex items-center justify-between gap-3 text-white py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
+                      groupIsActive ? 'bg-white/10 ring-1 ring-white/20' : ''
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <GroupIcon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                      <span className="block">{item.label}</span>
+                    </span>
+                    {groupIsOpen ? (
+                      <LucideIcons.ChevronDown className="w-4 h-4 text-white/80" strokeWidth={2} />
+                    ) : (
+                      <LucideIcons.ChevronRight className="w-4 h-4 text-white/80" strokeWidth={2} />
+                    )}
+                  </button>
+
+                  {groupIsOpen && groupChildren.map((child) => {
+                    const ChildIcon = LucideIcons[child.icon] || LucideIcons.FileText
+                    return (
+                      <Link
+                        to={child.href}
+                        key={child.label}
+                        title={child.label}
+                        aria-label={child.label}
+                        onClick={() => { if (onMobileMenuClick) onMobileMenuClick() }}
+                        className={`group relative ml-6 flex items-center justify-start gap-3 text-white py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-white/10 no-underline ${
+                          location.pathname === child.href ? 'bg-white/10 ring-1 ring-white/20' : ''
+                        }`}
+                      >
+                        <ChildIcon className="w-5 h-5 text-white" strokeWidth={1.5} />
+                        <span className="block">{child.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )
+            }
 
             // collapsed view: show icon only inside a Tooltip
             if (collapsed) {

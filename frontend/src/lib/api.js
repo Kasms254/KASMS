@@ -36,6 +36,7 @@ const SENTENCE_CASE_CONFIG = {
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
+    'template_type', // Preserve certificate template type choice values
   ]
 }
 
@@ -50,7 +51,7 @@ function sanitizeInput(value) {
     .replace(/\0/g, '')
     .trim()
 }
-//const API_BASE = import.meta.env.VITE_API_URL;
+
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
   const token = authStore.getToken()
@@ -698,6 +699,7 @@ export async function getExamResults(examId) {
   if (!examId) throw new Error('examId is required')
   return request(`/api/exams/${examId}/results/`)
 }
+
 // student get myexam_results
 export async function getMyResults(params = {}) {
   const qs = new URLSearchParams(params).toString()
@@ -744,11 +746,7 @@ export async function deleteClassNotice(id) {
 
 export async function getClassNotices(params = '') {
   const qs = params ? `?${params}` : ''
-  // Return raw response so callers can access pagination metadata
-  // (count, next, previous, results). Components that only need the
-  // list can read `response.results` or use helper logic.
-  const qs2 = params ? `?${params}` : ''
-  return request(`/api/class-notices/${qs2}`)
+  return request(`/api/class-notices/${qs}`)
 }
 
 // Get class notices scoped to the current user. The backend's get_queryset
@@ -920,9 +918,8 @@ export async function exportClassReport(classId, format = 'summary') {
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
-  const API = API_BASE
   const token = authStore.getToken()
-  const url = `${API}/api/exam-attachments/`
+  const url = `${API_BASE}/api/exam-attachments/`
   const form = new FormData()
   form.append('exam', String(examId))
   form.append('file', file)
@@ -974,9 +971,6 @@ export async function partialUpdateSubject(id, payload) {
 export async function deleteSubject(id) {
   return request(`/api/subjects/${id}/`, { method: 'DELETE' })
 }
-
-
-
 
 export async function assignInstructorToSubject(subjectId, instructorId) {
   return request(`/api/subjects/${subjectId}/assign_instructor/`, { method: 'POST', body: { instructor_id: instructorId } })
@@ -1122,9 +1116,8 @@ export async function getMySchoolTheme() {
 
 // Upload school logo (multipart/form-data)
 export async function uploadSchoolLogo(schoolId, file) {
-  const API = API_BASE
   const token = authStore.getToken()
-  const url = `${API}/api/schools/${schoolId}/upload_logo/`
+  const url = `${API_BASE}/api/schools/${schoolId}/upload_logo/`
   const form = new FormData()
   form.append('logo', file)
 
@@ -1352,6 +1345,22 @@ export async function createCertificateTemplate(payload) {
 
 export async function updateCertificateTemplate(id, payload) {
   if (!id) throw new Error('id is required')
+  const hasFile = payload && (
+    payload.custom_logo instanceof File ||
+    payload.signature_image instanceof File ||
+    payload.secondary_signature_image instanceof File
+  )
+  if (hasFile) {
+    const fd = new FormData()
+    Object.keys(payload || {}).forEach(k => {
+      const v = payload[k]
+      if (v === undefined || v === null) return
+      if (v instanceof File) fd.append(k, v)
+      else if (typeof v === 'object') fd.append(k, JSON.stringify(v))
+      else fd.append(k, String(v))
+    })
+    return requestMultipart(`/api/certificate_templates/${id}/`, { method: 'PATCH', formData: fd })
+  }
   return request(`/api/certificate_templates/${id}/`, { method: 'PATCH', body: payload })
 }
 
@@ -1404,6 +1413,146 @@ export async function getProfile() {
 // Update current user's profile (username, bio)
 export async function updateProfile(data) {
   return request('/api/profile/me/', { method: 'PATCH', body: data })
+}
+
+// =====================
+// Departments API
+// =====================
+
+export async function getDepartments(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/departments/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return data
+}
+
+export async function getDepartmentsPaginated(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/departments/${qs}`)
+}
+
+export async function addDepartment(payload) {
+  return request('/api/departments/', { method: 'POST', body: payload })
+}
+
+export async function updateDepartment(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteDepartment(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/`, { method: 'DELETE' })
+}
+
+export async function getDepartmentCourses(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/courses/`)
+}
+
+export async function getDepartmentClasses(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/classes/`)
+}
+
+export async function getDepartmentStudents(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/students/`)
+}
+
+export async function getDepartmentResults(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/results/`)
+}
+
+export async function getDepartmentPendingEditRequests(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/departments/${id}/pending-edit-requests/`)
+}
+
+// =====================
+// Department Memberships API
+// =====================
+
+export async function getDepartmentMemberships(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/department-memberships/${qs}`)
+}
+
+export async function addDepartmentMembership(payload) {
+  return request('/api/department-memberships/', { method: 'POST', body: payload })
+}
+
+export async function updateDepartmentMembership(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/department-memberships/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteDepartmentMembership(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/department-memberships/${id}/`, { method: 'DELETE' })
+}
+
+// =====================
+// Result Edit Requests API
+// =====================
+
+export async function getResultEditRequests(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/result-edit-requests/${qs}`)
+}
+
+export async function createResultEditRequest(payload) {
+  return request('/api/result-edit-requests/', { method: 'POST', body: payload })
+}
+
+export async function reviewResultEditRequest(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/result-edit-requests/${id}/review/`, { method: 'POST', body: payload })
+}
+
+// =====================
+// Student Index / Roster
+// =====================
+
+export async function getClassRoster(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/`)
+}
+
+export async function assignClassIndexes(classId, startFrom = null) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/assign/`, {
+    method: 'POST',
+    body: startFrom ? { start_from: startFrom } : undefined,
+  })
+}
+
+export async function updateStudentIndex(classId, indexId, indexNumber) {
+  if (!classId) throw new Error('classId is required')
+  if (!indexId) throw new Error('indexId is required')
+  return request(`/api/admin/roster/${classId}/update-index/${indexId}/`, {
+    method: 'PATCH',
+    body: { index_number: indexNumber },
+  })
+}
+
+// =====================
+// Marks Entry
+// =====================
+
+export async function getMarksEntryResults(examId) {
+  if (!examId) throw new Error('examId is required')
+  return request(`/api/marks-entry/exam/${examId}/`)
+}
+
+export async function updateMarksEntry(resultId, payload) {
+  if (!resultId) throw new Error('resultId is required')
+  return request(`/api/marks-entry/${resultId}/`, { method: 'PATCH', body: payload })
+}
+
+export async function bulkSubmitMarks(payload) {
+  return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
 }
 
 export default {
@@ -1560,6 +1709,26 @@ export default {
   // Profile
   getProfile,
   updateProfile,
+  // Departments
+  getDepartments,
+  getDepartmentsPaginated,
+  addDepartment,
+  updateDepartment,
+  deleteDepartment,
+  getDepartmentCourses,
+  getDepartmentClasses,
+  getDepartmentStudents,
+  getDepartmentResults,
+  getDepartmentPendingEditRequests,
+  // Department Memberships
+  getDepartmentMemberships,
+  addDepartmentMembership,
+  updateDepartmentMembership,
+  deleteDepartmentMembership,
+  // Result Edit Requests
+  getResultEditRequests,
+  createResultEditRequest,
+  reviewResultEditRequest,
   // Certificates
   getCertificates,
   getCertificate,
@@ -1585,4 +1754,12 @@ export default {
   bulkCreateCertificates,
   getCertificateDownloadLogs,
   verifyCertificate,
+  // Student Index / Roster
+  getClassRoster,
+  assignClassIndexes,
+  updateStudentIndex,
+  // Marks Entry
+  getMarksEntryResults,
+  updateMarksEntry,
+  bulkSubmitMarks,
 }

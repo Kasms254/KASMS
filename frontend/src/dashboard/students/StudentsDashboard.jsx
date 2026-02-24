@@ -4,6 +4,21 @@ import Calendar from '../../components/Calendar'
 import useAuth from '../../hooks/useAuth'
 import * as api from '../../lib/api'
 
+// Mirrors backend ExamResult.grade / _calculate_grade exactly
+function gradeFromPct(pct) {
+  const p = parseFloat(pct)
+  if (isNaN(p) || pct == null) return null
+  if (p >= 91) return 'A'
+  if (p >= 86) return 'A-'
+  if (p >= 81) return 'B+'
+  if (p >= 76) return 'B'
+  if (p >= 71) return 'B-'
+  if (p >= 65) return 'C+'
+  if (p >= 60) return 'C'
+  if (p >= 50) return 'C-'
+  return 'F'
+}
+
 export default function StudentsDashboard() {
   const { user } = useAuth()
   const [classesCount, setClassesCount] = useState(null)
@@ -324,31 +339,21 @@ export default function StudentsDashboard() {
           })()}
           value={(() => {
             if (loadingMetrics) return '…'
-            // Big metric: prefer the student's grade letter provided by server
-            const studentLetter = dashboardStats?.average_grade_letter
-            if (studentLetter) return studentLetter
-            // Fallback to a numeric grade (use dashboard average or user's gpa)
-            const gradeNum = dashboardStats?.average_grade != null ? `${dashboardStats.average_grade}%` : (gpa != null ? `${gpa}%` : null)
-            return gradeNum ?? '—'
+            // Compute grade directly from percentage — same scale as backend ExamResult.grade
+            const pct = dashboardStats?.average_grade ?? (gpa != null ? Number(gpa) : null)
+            const letter = gradeFromPct(pct)
+            if (letter) return letter
+            return '—'
           })()}
           icon="BarChart2"
           badge={null}
           accent={(() => {
-            // Use letter if present, otherwise base color on numeric average
-            const studentLetter = dashboardStats?.average_grade_letter
-            if (studentLetter) {
-              if (studentLetter === 'A') return 'bg-emerald-500'
-              if (studentLetter === 'B') return 'bg-amber-500'
-              if (studentLetter === 'C') return 'bg-sky-500'
-              if (studentLetter === 'D') return 'bg-pink-500'
-              return 'bg-rose-500'
-            }
-            const avg = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
-            if (avg == null || Number.isNaN(avg)) return 'bg-amber-500'
-            if (avg >= 80) return 'bg-emerald-500'
-            if (avg >= 70) return 'bg-amber-500'
-            if (avg >= 60) return 'bg-sky-500'
-            if (avg >= 50) return 'bg-pink-500'
+            const pct = dashboardStats?.average_grade ?? (gpa != null ? Number(gpa) : null)
+            const letter = gradeFromPct(pct)
+            if (!letter) return 'bg-amber-500'
+            if (letter === 'A' || letter === 'A-') return 'bg-emerald-500'
+            if (letter.startsWith('B')) return 'bg-amber-500'
+            if (letter.startsWith('C')) return 'bg-sky-500'
             return 'bg-rose-500'
           })()}
           colored={true}

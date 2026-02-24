@@ -1,8 +1,22 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import api from '../../lib/api'
+import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+
+function gradeFromPct(pct) {
+  const p = parseFloat(pct)
+  if (isNaN(p) || pct == null) return '—'
+  if (p >= 91) return 'A'
+  if (p >= 86) return 'A-'
+  if (p >= 81) return 'B+'
+  if (p >= 76) return 'B'
+  if (p >= 71) return 'B-'
+  if (p >= 65) return 'C+'
+  if (p >= 60) return 'C'
+  if (p >= 50) return 'C-'
+  return 'F'
+}
 
 export default function AddResults() {
   const { user } = useAuth()
@@ -17,8 +31,13 @@ export default function AddResults() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [savedSnapshot, setSavedSnapshot] = useState([])
-  const [showRemarksModal, setShowRemarksModal] = useState(false)
-  const [remarksInput, setRemarksInput] = useState('')
+
+  // Edit request state for locked results
+  const [editRequestModal, setEditRequestModal] = useState(false)
+  const [editRequestRow, setEditRequestRow] = useState(null)
+  const [editRequestForm, setEditRequestForm] = useState({ reason: '', proposed_marks: '', proposed_remarks: '' })
+  const [editRequestErrors, setEditRequestErrors] = useState({})
+  const [editRequestSaving, setEditRequestSaving] = useState(false)
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -68,26 +87,29 @@ export default function AddResults() {
     if (!examId) return
     if (!skipSpinner) setLoading(true)
     try {
-      const resp = await api.getExamResults(examId)
-      // resp contains { exam, count, submitted, pending, results }
-      setExamInfo(resp.exam || null)
-      // save stats returned by backend
-      setExamStats({
-        count: resp.count || 0,
-        submitted: resp.submitted || 0,
-        pending: resp.pending || 0
-      })
+      const resp = await api.getMarksEntryResults(examId)
+      // resp contains { exam_id, exam_title, total_marks, count, results }
+      setExamInfo({ id: resp.exam_id, title: resp.exam_title, total_marks: resp.total_marks })
       const list = Array.isArray(resp.results) ? resp.results : (resp && resp.results) ? resp.results : []
+      const total = list.length
+      const submitted = list.filter(r => r.marks_obtained != null && r.marks_obtained !== '').length
+      setExamStats({
+        count: total,
+        submitted,
+        pending: total - submitted,
+      })
       // ensure each row has editable fields and UX helpers (dirty/errors)
       const mapped = list.map(r => ({
         id: r.id,
         student_id: r.student || r.student_id || (r.student && r.student.id),
-        student_name: r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
+        student_name: r.student_full_name || r.student_name || (r.student && `${r.student.first_name || ''} ${r.student.last_name || ''}`.trim()),
         svc_number: r.student_svc_number || (r.student && r.student.svc_number) || '',
-  marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
+        class_index: r.class_index || r.index_number || '',
+        marks_obtained: r.marks_obtained == null ? '' : normalizeNumberForInput(r.marks_obtained),
         remarks: r.remarks || '',
         percentage: r.percentage,
         grade: r.grade,
+        is_locked: !!r.is_locked,
         dirty: false,
         errors: {}
       }))
@@ -129,12 +151,6 @@ export default function AddResults() {
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam])
-
-  function handleConfirmApplyRemarks() {
-    applyRemarksToAll(remarksInput)
-    setShowRemarksModal(false)
-    toast.success('Remarks applied to all students')
-  }
 
   function updateRow(idx, key, value) {
     // mark the row dirty and run inline validation for marks
@@ -202,12 +218,12 @@ export default function AddResults() {
     }
 
     // build payload only for changed rows
-    const payload = { results: changedRows.map(r => ({ id: r.id, student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
+    const payload = { exam_id: selectedExam, results: changedRows.map(r => ({ id: r.id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks })) }
     setSaving(true)
     try {
-      const res = await api.bulkGradeResults(payload)
+      const res = await api.bulkSubmitMarks(payload)
 
-      // backend returns { status, updated, errors }
+      // backend returns { updated_count, error_count, results, errors }
       if (res.errors && Array.isArray(res.errors) && res.errors.length > 0) {
         // attempt to attach errors to the changed rows by extracting ids from messages
         const errMap = {}
@@ -228,8 +244,9 @@ export default function AddResults() {
         toast.error(`${res.errors.length} error(s) occurred while saving`) 
       }
 
-      if (res.updated && res.updated > 0) {
-        toast.success(`${res.updated} result(s) saved`)
+      const updatedCount = res.updated_count ?? res.updated ?? 0
+      if (updatedCount > 0) {
+        toast.success(`${updatedCount} result(s) saved`)
         // reload to fetch computed fields (percentage/grade)
         await loadResults(selectedExam)
       }
@@ -239,15 +256,64 @@ export default function AddResults() {
     } finally { setSaving(false) }
   }
 
-  // Bulk actions
-  function applyRemarksToAll(value) {
-    setResults(prev => prev.map(r => ({ ...r, remarks: value, dirty: true })))
-  }
-
   // Undo functionality
   function handleUndo() {
     setResults(JSON.parse(JSON.stringify(savedSnapshot)))
     toast.success('Changes reverted')
+  }
+
+  // Open edit request modal for a locked row
+  function openEditRequest(row) {
+    setEditRequestRow(row)
+    setEditRequestForm({ reason: '', proposed_marks: '', proposed_remarks: '' })
+    setEditRequestErrors({})
+    setEditRequestModal(true)
+  }
+
+  async function handleSubmitEditRequest(e) {
+    e.preventDefault()
+    const errs = {}
+    if (!editRequestForm.reason.trim()) errs.reason = 'Reason is required'
+    if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
+      const n = Number(editRequestForm.proposed_marks)
+      const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
+      if (!Number.isFinite(n) || n < 0) errs.proposed_marks = 'Invalid number'
+      else if (max != null && n > max) errs.proposed_marks = `Cannot exceed ${max}`
+    }
+    if (Object.keys(errs).length) { setEditRequestErrors(errs); return }
+
+    setEditRequestSaving(true)
+    try {
+      const payload = {
+        exam_result: editRequestRow.id,
+        reason: editRequestForm.reason.trim(),
+      }
+      if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
+        payload.proposed_marks = Number(editRequestForm.proposed_marks)
+      }
+      if (editRequestForm.proposed_remarks.trim()) {
+        payload.proposed_remarks = editRequestForm.proposed_remarks.trim()
+      }
+      await createResultEditRequest(payload)
+      toast.success('Edit request submitted — awaiting HOD approval')
+      setEditRequestModal(false)
+      setEditRequestRow(null)
+    } catch (err) {
+      if (err?.data && typeof err.data === 'object') {
+        const d = err.data
+        const fieldErrors = {}
+        Object.keys(d).forEach((k) => {
+          if (Array.isArray(d[k])) fieldErrors[k] = d[k].join(' ')
+          else if (typeof d[k] === 'string') fieldErrors[k] = d[k]
+        })
+        if (fieldErrors.non_field_errors) { toast.error(fieldErrors.non_field_errors); return }
+        if (fieldErrors.detail) { toast.error(fieldErrors.detail); return }
+        if (Object.keys(fieldErrors).length) { setEditRequestErrors(fieldErrors); return }
+      }
+      toast.error(err?.message || 'Failed to submit edit request')
+    } finally {
+      setEditRequestSaving(false)
+    }
   }
 
   // Sorting
@@ -261,10 +327,7 @@ export default function AddResults() {
     let filtered = results.filter(r => {
       if (!searchTerm) return true
       const term = searchTerm.toLowerCase()
-      return (
-        (r.student_name || '').toLowerCase().includes(term) ||
-        (r.svc_number || '').toLowerCase().includes(term)
-      )
+      return (r.class_index || '').toLowerCase().includes(term)
     })
 
     if (sortConfig.key) {
@@ -461,7 +524,7 @@ export default function AddResults() {
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Search by student name or service number..."
+                    placeholder="Search by index number..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -488,15 +551,6 @@ export default function AddResults() {
               {/* Bulk Actions */}
               <div className="flex gap-2 flex-wrap">
                 <button
-                  onClick={() => {
-                    setRemarksInput('')
-                    setShowRemarksModal(true)
-                  }}
-                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
-                >
-                  Apply Remarks
-                </button>
-                <button
                   onClick={handleUndo}
                   disabled={!hasChanges}
                   className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
@@ -512,26 +566,33 @@ export default function AddResults() {
             {paginatedResults.map((r) => {
               const actualIdx = results.findIndex(row => row.id === r.id);
               return (
-                <div key={r.id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                <div key={r.id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.is_locked ? 'border-orange-300 bg-orange-50/30' : r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
                   {/* Student Info Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-900 text-base truncate">{r.student_name || '-'}</div>
-                      <div className="text-sm text-gray-500 mt-0.5">SVC: {r.svc_number || '-'}</div>
+                      <div className="flex items-center gap-1.5">
+                        {r.is_locked && (
+                          <svg className="h-4 w-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        )}
+                        <div className="text-sm font-medium text-indigo-700">#{r.class_index || '-'}</div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {(() => { const g = gradeFromPct(r.percentage); return (
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                        r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                        r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
-                        r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
-                        r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
-                        r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                        g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                        g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                        g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                        g === 'F' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {r.grade || '-'}
+                        {g}
                       </span>
+                      ); })()}
                       <span className={`text-sm font-semibold ${
-                        Number(r.percentage) >= 70 ? 'text-green-600' :
+                        Number(r.percentage) >= 76 ? 'text-green-600' :
                         Number(r.percentage) >= 50 ? 'text-yellow-600' :
                         'text-red-600'
                       }`}>
@@ -558,8 +619,11 @@ export default function AddResults() {
                         data-idx={actualIdx}
                         data-field="marks_obtained"
                         placeholder="Enter marks"
+                        disabled={r.is_locked}
                         className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
-                          r.errors?.marks_obtained
+                          r.is_locked
+                            ? 'border-orange-300 bg-orange-50 text-orange-700 cursor-not-allowed'
+                            : r.errors?.marks_obtained
                             ? 'border-red-500 focus:ring-red-500 bg-red-50'
                             : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
                         } focus:ring-2 focus:outline-none transition`}
@@ -578,9 +642,19 @@ export default function AddResults() {
                         data-idx={actualIdx}
                         data-field="remarks"
                         placeholder="Optional remarks"
-                        className="w-full px-4 py-3 text-base rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition"
+                        disabled={r.is_locked}
+                        className={`w-full px-4 py-3 text-base rounded-lg border-2 ${r.is_locked ? 'border-orange-300 bg-orange-50 cursor-not-allowed' : 'border-gray-300'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition`}
                       />
                     </div>
+                    {r.is_locked && (
+                      <button
+                        type="button"
+                        onClick={() => openEditRequest(r)}
+                        className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                      >
+                        Request Edit
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -594,23 +668,12 @@ export default function AddResults() {
                 <thead className="bg-gray-100">
                   <tr>
                     <th
-                      onClick={() => handleSort('svc_number')}
+                      onClick={() => handleSort('class_index')}
                       className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
                     >
                       <div className="flex items-center gap-1">
-                        Svc No
-                        {sortConfig.key === 'svc_number' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </th>
-                    <th
-                      onClick={() => handleSort('student_name')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
-                    >
-                      <div className="flex items-center gap-1">
-                        Student Name
-                        {sortConfig.key === 'student_name' && (
+                        Index
+                        {sortConfig.key === 'class_index' && (
                           <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </div>
@@ -651,18 +714,17 @@ export default function AddResults() {
                     <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Remarks
                     </th>
+                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20">
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     return (
-                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
-                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {r.svc_number || '-'}
-                        </td>
-                        <td className="px-3 lg:px-4 py-3 text-sm text-gray-900">
-                          {r.student_name || '-'}
+                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.is_locked ? 'bg-orange-50/40' : r.dirty ? 'bg-yellow-50' : ''}`}>
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
+                          {r.class_index || '-'}
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <div>
@@ -677,8 +739,11 @@ export default function AddResults() {
                               data-idx={actualIdx}
                               data-field="marks_obtained"
                               placeholder="Marks"
+                              disabled={r.is_locked}
                               className={`w-full px-2 py-1.5 text-sm rounded-md border ${
-                                r.errors?.marks_obtained
+                                r.is_locked
+                                  ? 'border-orange-300 bg-orange-50 text-orange-700 cursor-not-allowed'
+                                  : r.errors?.marks_obtained
                                   ? 'border-red-500 focus:ring-red-500'
                                   : 'border-gray-300 focus:ring-indigo-500'
                               } focus:ring-2 focus:border-transparent`}
@@ -690,7 +755,7 @@ export default function AddResults() {
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                           <span className={`font-medium ${
-                            Number(r.percentage) >= 70 ? 'text-green-600' :
+                            Number(r.percentage) >= 76 ? 'text-green-600' :
                             Number(r.percentage) >= 50 ? 'text-yellow-600' :
                             'text-red-600'
                           }`}>
@@ -698,16 +763,17 @@ export default function AddResults() {
                           </span>
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                          {(() => { const g = gradeFromPct(r.percentage); return (
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            r.grade === 'A' || r.grade === 'A+' ? 'bg-green-100 text-green-800' :
-                            r.grade === 'B' || r.grade === 'B+' ? 'bg-blue-100 text-blue-800' :
-                            r.grade === 'C' || r.grade === 'C+' ? 'bg-yellow-100 text-yellow-800' :
-                            r.grade === 'D' || r.grade === 'E' ? 'bg-orange-100 text-orange-800' :
-                            r.grade === 'F' ? 'bg-red-100 text-red-800' :
+                            g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                            g === 'F' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {r.grade || '-'}
+                            {g}
                           </span>
+                          ); })()}
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <input
@@ -718,8 +784,20 @@ export default function AddResults() {
                             data-idx={actualIdx}
                             data-field="remarks"
                             placeholder="Remarks"
-                            className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            disabled={r.is_locked}
+                            className={`w-full px-2 py-1.5 text-sm rounded-md border ${r.is_locked ? 'border-orange-300 bg-orange-50 cursor-not-allowed' : 'border-gray-300'} focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
                           />
+                        </td>
+                        <td className="px-3 lg:px-4 py-3">
+                          {r.is_locked && (
+                            <button
+                              type="button"
+                              onClick={() => openEditRequest(r)}
+                              className="px-2 py-1 rounded-md bg-orange-600 text-white text-xs hover:bg-orange-700 transition whitespace-nowrap"
+                            >
+                              Request Edit
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -853,29 +931,69 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* Modal: Apply Remarks to All */}
-      {showRemarksModal && (
+      {/* Modal: Request Edit for Locked Result */}
+      {editRequestModal && editRequestRow && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Apply remarks to all students</h3>
-                <p className="text-gray-700 mb-4">Enter the remarks text to apply to all result rows for this exam.</p>
-                <div className="mb-3">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 ring-1 ring-black/5">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h4 className="text-lg text-black font-medium">Request Result Edit</h4>
+                <p className="text-sm text-neutral-500">
+                  {editRequestRow.student_name} — Current marks: {editRequestRow.marks_obtained}/{examInfo?.total_marks || '?'}
+                </p>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setEditRequestModal(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-800">
+              This result is locked after grading. Submit an edit request for HOD approval.
+            </div>
+            <form onSubmit={handleSubmitEditRequest}>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Reason for Edit *</label>
+                  <textarea
+                    value={editRequestForm.reason}
+                    onChange={(e) => setEditRequestForm({ ...editRequestForm, reason: e.target.value.slice(0, 500) })}
+                    placeholder="Explain why this result needs to be edited..."
+                    rows={3}
+                    maxLength={500}
+                    className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.reason ? 'border-rose-500' : 'border-neutral-200'}`}
+                  />
+                  {editRequestErrors.reason && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.reason}</div>}
+                </div>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Proposed Marks (optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={examInfo?.total_marks || undefined}
+                    step="any"
+                    value={editRequestForm.proposed_marks}
+                    onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_marks: e.target.value })}
+                    placeholder={`New marks (max ${examInfo?.total_marks || '?'})`}
+                    className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.proposed_marks ? 'border-rose-500' : 'border-neutral-200'}`}
+                  />
+                  {editRequestErrors.proposed_marks && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.proposed_marks}</div>}
+                </div>
+                <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Proposed Remarks (optional)</label>
                   <input
                     type="text"
-                    value={remarksInput}
-                    onChange={e => setRemarksInput(e.target.value)}
-                    placeholder="Remarks (optional)"
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                    value={editRequestForm.proposed_remarks}
+                    onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_remarks: e.target.value.slice(0, 300) })}
+                    placeholder="New remarks"
+                    maxLength={300}
+                    className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   />
                 </div>
-                <div className="flex gap-3 justify-end">
-                  <button onClick={() => setShowRemarksModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">Cancel</button>
-                  <button onClick={handleConfirmApplyRemarks} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Apply</button>
-                </div>
               </div>
-            </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setEditRequestModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" disabled={editRequestSaving} className="px-4 py-2 rounded-md bg-orange-600 text-white text-sm hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  {editRequestSaving ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

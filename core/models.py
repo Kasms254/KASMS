@@ -7,15 +7,14 @@ import os
 import uuid
 import hashlib
 from datetime import timedelta
-from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager
+from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager, DepartmentMembershipManager
 from django.core.validators import RegexValidator
-
+from django.db import models, transaction
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
         return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
       
-
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
@@ -73,9 +72,7 @@ class School(models.Model):
             'school_short_name': self.short_name or '',
             **self.theme_config
         }
-
 #    school membership
-
 class SchoolMembership(models.Model):
 
     class Status(models.TextChoices):
@@ -166,6 +163,172 @@ class SchoolMembership(models.Model):
         self.ended_at = None
         self.save(update_fields=['status', 'ended_at', 'updated_at'])
 
+#departments of schools
+class Department(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE, related_name='departments'
+    )
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=20)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = SimpleTenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'departments'
+        unique_together = [('school', 'code')]
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.code}) — {self.school.code}"
+
+    @property
+    def hod(self):
+        membership = self.department_memberships.filter(
+            role=DepartmentMembership.Role.HOD,
+            is_active=True
+        ).select_related('user').first()
+        return membership.user if membership else None
+
+class DepartmentMembership(models.Model):
+    class Role(models.TextChoices):
+        HOD    = 'hod',    'Head of Department'
+        MEMBER = 'member', 'Member'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, related_name='department_memberships'
+    )
+    user = models.ForeignKey(
+        'User', on_delete=models.CASCADE, related_name='department_memberships'
+    )
+    role = models.CharField(
+        max_length=10, choices=Role.choices, default=Role.MEMBER
+    )
+    is_active = models.BooleanField(default=True)
+    assigned_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='department_assignments_made'
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = DepartmentMembershipManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'department_memberships'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['department'],
+                condition=models.Q(role='hod', is_active=True),
+                name='unique_active_hod_per_department'
+            ),
+            models.UniqueConstraint(
+                fields=['department', 'user'],
+                condition=models.Q(is_active=True),
+                name='unique_active_user_per_department'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'role', 'is_active']),
+            models.Index(fields=['department', 'role', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.svc_number} — {self.get_role_display()} of {self.department}"
+
+class ResultEditRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING  = 'pending',  'Pending'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE, related_name='result_edit_requests'
+    )
+    exam_result = models.ForeignKey(
+        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests'
+    )
+    requested_by = models.ForeignKey(
+        'User', on_delete=models.CASCADE, related_name='result_edit_requests_made'
+    )
+    reason = models.TextField(
+        help_text='Instructor must explain why the result needs to be changed.'
+    )
+    proposed_marks = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    proposed_remarks = models.TextField(blank=True)
+
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    reviewed_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='result_edit_requests_reviewed'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(
+        blank=True,
+        help_text='HOD feedback on the decision.'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'result_edit_requests'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['exam_result', 'status']),
+            models.Index(fields=['requested_by', 'status']),
+            models.Index(fields=['school', 'status']),
+        ]
+        constraints = [
+
+            models.UniqueConstraint(
+                fields=['exam_result'],
+                condition=models.Q(status='pending'),
+                name='unique_pending_edit_request_per_result'
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"EditRequest({self.status}) by {self.requested_by.svc_number} "
+            f"for Result#{self.exam_result_id}"
+        )
+
+    def approve(self, hod_user, note=''):
+
+        self.status = self.Status.APPROVED
+        self.reviewed_by = hod_user
+        self.reviewed_at = timezone.now()
+        self.review_note = note
+        self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note', 'updated_at'])
+
+        # Unlock the result
+        self.exam_result.is_locked = False
+        self.exam_result.save(update_fields=['is_locked', 'updated_at'])
+
+    def reject(self, hod_user, note=''):
+        self.status = self.Status.REJECTED
+        self.reviewed_by = hod_user
+        self.reviewed_at = timezone.now()
+        self.review_note = note
+        self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note', 'updated_at'])
+
 class SchoolAdmin(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='school_admins')
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='managed_schools')
@@ -179,6 +342,35 @@ class SchoolAdmin(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.school.name}"
+
+class StudentIndex(models.Model):
+    school = models.ForeignKey("School", on_delete=models.CASCADE, related_name="student_indexes", null=True, blank=True)
+    enrollment = models.OneToOneField("Enrollment", on_delete=models.CASCADE, related_name="student_indexes",)
+    class_obj = models.ForeignKey("Class", on_delete=models.CASCADE, related_name="student_indexes",)
+    index_number = models.CharField(max_length=10, validators=[RegexValidator(r"^\d+$", "Index must be numeric digits only")],
+    help_text="Zero-padded sequential number, e.g. '001'",
+    )
+    assigned_to = models.DateTimeField(auto_now_add=True)
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = "student_indexes"
+        unique_together = [("class_obj", "index_number")]
+        ordering  = ["class_obj", "index_number"]
+        indexes = [
+            models.Index(fields=["class_obj", "index_number"]),
+            models.Index(fields=["enrollment"]),
+        ]
+
+    def __str__(self):
+      return f"[{self.class_obj.name}] {self.class_obj.format_index(int(self.index_number))}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)
+
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -304,7 +496,7 @@ class Course(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='courses')
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
@@ -332,7 +524,10 @@ class Class(models.Model):
     closed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
     )
-    
+    index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
+    index_start_from = models.PositiveIntegerField(default=1, help_text="First index number assigned to new students (e.g. 50 → first student gets 050).")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes')
+
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
     
@@ -351,7 +546,26 @@ class Class(models.Model):
     @property
     def enrollment_status(self):
         return f"{self.current_enrollment} / {self.capacity}"
-    
+
+    def format_index(self, number: int) -> str:
+        padded = str(number).zfill(3)
+        if self.index_prefix:
+            return f"{self.index_prefix}/{padded}"
+        return padded
+
+    @property
+    def next_index_preview(self):
+        last = self.student_indexes.order_by("-index_number").first()
+        next_num = int(last.index_number) + 1 if last else self.index_start_from
+        return self.format_index(next_num)
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.course:
+            self.school = self.course.school
+        if not self.department and self.course and self.course.department:
+            self.department = self.course.department
+        super().save(*args, **kwargs)
+            
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects', null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
@@ -362,6 +576,7 @@ class Subject(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'instructor'}, related_name='subjects')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='subjects')
 
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
@@ -372,6 +587,13 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.class_obj.name})"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        if not self.department and self.class_obj and self.class_obj.department:
+            self.department = self.class_obj.department
+        super().save(*args, **kwargs)
 
 class Notice(models.Model):
 
@@ -542,6 +764,9 @@ class ExamResult(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='results_graded')
     graded_at = models.DateTimeField(null=True, blank=True)
+    is_locked = models.BooleanField(default=False, help_text=('Set to True when the Instructor submits results'
+                                                                'Prevents further edits until an HOD approves a ResultEditRequest.'      
+                                                            ),)          
 
     objects = TenantAwareManager()
     all_objects = models.Manager()
@@ -553,6 +778,15 @@ class ExamResult(models.Model):
     def save(self, *args, **kwargs):
         if not self.school and self.exam:
             self.school = self.exam.school
+
+        if self.pk and 'update_fields' not in kwargs:
+            try:
+                old = ExamResult.all_objects.get(pk=self.pk)
+                if old.is_locked is False and self.marks_obtained != old.marks_obtained:
+                    self.is_locked = True   
+            except ExamResult.DoesNotExist:
+                pass
+
         super().save(*args, **kwargs)
 
     @property
@@ -564,10 +798,14 @@ class ExamResult(models.Model):
     @property
     def grade(self):
         pct = self.percentage
-        if pct >= 80: return 'A'
-        if pct >= 70: return 'B'
+        if pct >= 91: return 'A'
+        if pct >= 86: return 'A-'
+        if pct >= 81: return 'B+'
+        if pct >= 76: return 'B'
+        if pct >= 71: return 'B-'
+        if pct >= 65: return 'C+'
         if pct >= 60: return 'C'
-        if pct >= 50: return 'D'
+        if pct >= 50: return 'C-'
         return 'F'
     
 class Attendance(models.Model):
@@ -1038,7 +1276,6 @@ class PersonalNotification(models.Model):
         indexes = [models.Index(fields=['user', 'is_read']), models.Index(fields=['user', 'created_at']), models.Index(fields=['notification_type'])]
 
 # certificate
-
 class CertificateTemplate(models.Model):
 
     TEMPLATE_TYPE_CHOICES = [
@@ -1146,7 +1383,6 @@ class CertificateTemplate(models.Model):
             'secondary_color': '#424242',
             'accent_color': '#FFC107',
         }
-
 
 class Certificate(models.Model):
 
@@ -1326,7 +1562,6 @@ class Certificate(models.Model):
     def verification_url(self):
         return f"/api/certificates/verify/{self.verification_code}/"
 
-
 class CertificateDownloadLog(models.Model):
 
     DOWNLOAD_TYPE_CHOICES = [
@@ -1363,12 +1598,6 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
-
-
-
-
-
-
     DOWNLOAD_TYPE_CHOICES = [
         ('pdf', 'PDF Download'),
         ('html', 'HTML Preview'),
@@ -1402,3 +1631,8 @@ class CertificateDownloadLog(models.Model):
     class Meta:
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
+
+
+
+ 
+
