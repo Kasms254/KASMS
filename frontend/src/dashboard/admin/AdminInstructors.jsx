@@ -1,5 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import { getRankSortIndex } from '../../lib/rankOrder'
@@ -58,17 +60,47 @@ function getRankDisplay(raw) {
 
 export default function AdminInstructors() {
   const toast = useToast()
+  const queryClient = useQueryClient()
   const reportError = (msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
     // Error already shown via toast
   }
-  const [instructors, setInstructors] = useState([])
-  const [classesList, setClassesList] = useState([])
-  const [subjectsList, setSubjectsList] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+
+  const { data: instructors = [], isLoading: loading, error } = useQuery({
+    queryKey: QK.instructors(),
+    queryFn: async () => {
+      const list = await api.getAllInstructors()
+      const raw = Array.isArray(list) ? list : []
+      return raw.map((it) => ({
+        id: it.id,
+        first_name: it.first_name,
+        last_name: it.last_name,
+        full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+        svc_number: it.svc_number,
+        email: it.email,
+        phone_number: it.phone_number,
+        rank: normalizeRank(it.rank || it.rank_display),
+        unit: it.unit || '',
+        role: it.role,
+        role_display: it.role_display,
+        is_active: it.is_active,
+        created_at: it.created_at,
+      }))
+    },
+  })
+
+  const { data: classesList = [] } = useQuery({
+    queryKey: QK.classes(),
+    queryFn: () => api.getAllClasses(),
+  })
+
+  const { data: subjectsList = [] } = useQuery({
+    queryKey: QK.subjects(),
+    queryFn: () => api.getAllSubjects(),
+  })
+
   const [searchTerm, setSearchTerm] = useState('')
   // pagination state
   const [page, setPage] = useState(1)
@@ -133,50 +165,6 @@ export default function AdminInstructors() {
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
 
-  // Fetch ALL instructors, classes, and subjects once on mount
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-
-    Promise.all([
-      api.getAllInstructors(),
-      api.getAllClasses(),
-      api.getAllSubjects(),
-    ])
-      .then(([instructorsData, classesData, subjectsData]) => {
-        if (!mounted) return
-        const list = Array.isArray(instructorsData) ? instructorsData : []
-        const normalized = list.map((it) => ({
-          id: it.id,
-          first_name: it.first_name,
-          last_name: it.last_name,
-          full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
-          svc_number: it.svc_number,
-          email: it.email,
-          phone_number: it.phone_number,
-          rank: normalizeRank(it.rank || it.rank_display),
-          unit: it.unit || '',
-          role: it.role,
-          role_display: it.role_display,
-          is_active: it.is_active,
-          created_at: it.created_at,
-        }))
-        setInstructors(normalized)
-        setClassesList(Array.isArray(classesData) ? classesData : [])
-        setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
-        setError(null)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
-
   // Filter and sort instructors client-side
   const filteredInstructors = useMemo(() => {
     let filtered = instructors
@@ -223,13 +211,12 @@ export default function AdminInstructors() {
     setDeletingId(it.id)
     try {
       await api.deleteUser(it.id)
-      setInstructors((s) => s.filter((x) => x.id !== it.id))
+      queryClient.setQueryData(QK.instructors(), (old) => (old || []).filter((x) => x.id !== it.id))
       // close confirm modal and edit modal if open
       setConfirmDelete(null)
       closeEdit()
       toast?.success?.('Instructor deleted successfully') || toast?.showToast?.('Instructor deleted successfully', { type: 'success' })
     } catch (err) {
-      setError(err)
       reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
@@ -242,11 +229,11 @@ export default function AdminInstructors() {
     try {
       if (it.is_active) {
         await api.deactivateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: false } : x))
+        queryClient.setQueryData(QK.instructors(), (old) => (old || []).map((x) => x.id === it.id ? { ...x, is_active: false } : x))
         toast?.success?.('Instructor deactivated successfully') || toast?.showToast?.('Instructor deactivated successfully', { type: 'success' })
       } else {
         await api.activateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: true } : x))
+        queryClient.setQueryData(QK.instructors(), (old) => (old || []).map((x) => x.id === it.id ? { ...x, is_active: true } : x))
         toast?.success?.('Instructor activated successfully') || toast?.showToast?.('Instructor activated successfully', { type: 'success' })
       }
     } catch (err) {
@@ -435,7 +422,7 @@ export default function AdminInstructors() {
         is_active: updated.is_active,
         created_at: updated.created_at,
       }
-      setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
+      queryClient.setQueryData(QK.instructors(), (old) => (old || []).map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
       closeEdit()
       toast?.success?.('Instructor updated successfully') || toast?.showToast?.('Instructor updated successfully', { type: 'success' })
     } catch (err) {

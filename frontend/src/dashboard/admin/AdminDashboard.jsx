@@ -1,23 +1,19 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import UserCard from '../../components/UserCard'
 import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import * as Icons from 'lucide-react'
 import * as api from '../../lib/api'
-// useAuth not required in this view
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 
 export default function AdminDashboard() {
-  // user context not required here
-  // admin actions removed; replaced by Recent activity panel
-  const [metrics, setMetrics] = useState({ students: null, instructors: null, admins: null, subjects: null, active_classes: null })
-  const [calendarEvents, setCalendarEvents] = useState({})
-  const [recentItems, setRecentItems] = useState([])
-  const [recentLoading, setRecentLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  async function loadMetrics() {
-    try {
-      // Use paginated endpoints to get accurate counts without fetching all data
+  const { data: metrics = { students: null, instructors: null, admins: null, subjects: null, active_classes: null } } = useQuery({
+    queryKey: QK.adminDashboard(),
+    queryFn: async () => {
       const [studentsResp, instructorsResp, usersResp, subjectsResp, classesResp] = await Promise.all([
         api.getStudentsPaginated('page=1&page_size=1').catch(() => null),
         api.getInstructorsPaginated('page=1&page_size=1').catch(() => null),
@@ -30,102 +26,76 @@ export default function AdminDashboard() {
       const adminsCount = usersResp ? (Array.isArray(usersResp.results) ? usersResp.results.filter(u => u.role === 'admin').length : null) : null
       const subjectsCount = subjectsResp?.count ?? null
       const activeClassesCount = classesResp?.count ?? null
-      setMetrics({
+      return {
         students: studentsCount,
         instructors: instructorsCount,
         admins: adminsCount,
         subjects: subjectsCount,
         active_classes: activeClassesCount,
-      })
-    } catch {
-      // ignore
-    }
-  }
-
-  useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      if (!mounted) return
-      await loadMetrics()
-    })()
-    return () => { mounted = false }
-  }, [])
-
-  // Load recent activity: recent users, notices and exams
-  useEffect(() => {
-    let mounted = true
-    async function loadRecent() {
-      setRecentLoading(true)
-      try {
-        const [usersResp, noticesResp, examsResp] = await Promise.allSettled([
-          api.getUsers().catch(() => []),
-          api.getNotices().catch(() => []),
-          api.getExams().catch(() => []),
-        ])
-
-        const users = usersResp.status === 'fulfilled' ? (Array.isArray(usersResp.value) ? usersResp.value : (usersResp.value && Array.isArray(usersResp.value.results) ? usersResp.value.results : [])) : []
-        const notices = noticesResp.status === 'fulfilled' ? (Array.isArray(noticesResp.value) ? noticesResp.value : (noticesResp.value && Array.isArray(noticesResp.value.results) ? noticesResp.value.results : [])) : []
-        const exams = examsResp.status === 'fulfilled' ? (Array.isArray(examsResp.value) ? examsResp.value : (examsResp.value && Array.isArray(examsResp.value.results) ? examsResp.value.results : [])) : []
-
-        const uItems = users.map(u => ({ kind: 'user', id: u.id, title: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.svc_number || 'User', date: u.date_joined || u.created_at || u.created || null, meta: u }))
-        const nItems = notices.map(n => ({ kind: 'notice', id: n.id, title: n.title || 'Notice', date: n.created_at || n.created || n.start_date || n.expiry_date || null, meta: n }))
-        const eItems = exams.map(e => ({ kind: 'exam', id: e.id, title: e.title || 'Exam', date: e.exam_date || e.date || e.created_at || null, meta: e }))
-
-        const merged = [...uItems, ...nItems, ...eItems]
-        const normalized = merged.map(i => ({ ...i, _date: i.date ? new Date(i.date) : null })).filter(i => i._date && !Number.isNaN(i._date.getTime()))
-        normalized.sort((a, b) => b._date - a._date)
-        if (mounted) setRecentItems(normalized.slice(0, 8))
-      } catch (err) {
-      } finally {
-        if (mounted) setRecentLoading(false)
       }
-    }
-    loadRecent()
-    return () => { mounted = false }
-  }, [])
+    },
+  })
 
-  // Load active notices and map to calendar events so admin sees notices on the calendar.
-  useEffect(() => {
-    let mounted = true
+  const { data: recentItems = [], isLoading: recentLoading } = useQuery({
+    queryKey: QK.notices(),
+    queryFn: async () => {
+      const [usersResp, noticesResp, examsResp] = await Promise.allSettled([
+        api.getUsers().catch(() => []),
+        api.getNotices().catch(() => []),
+        api.getExams().catch(() => []),
+      ])
 
-    const pad = (n) => String(n).padStart(2, '0')
-    const toISO = (d) => {
-      try {
-        const dt = new Date(d)
-        if (Number.isNaN(dt.getTime())) return null
-        return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
-      } catch { return null }
-    }
+      const users = usersResp.status === 'fulfilled' ? (Array.isArray(usersResp.value) ? usersResp.value : (usersResp.value && Array.isArray(usersResp.value.results) ? usersResp.value.results : [])) : []
+      const notices = noticesResp.status === 'fulfilled' ? (Array.isArray(noticesResp.value) ? noticesResp.value : (noticesResp.value && Array.isArray(noticesResp.value.results) ? noticesResp.value.results : [])) : []
+      const exams = examsResp.status === 'fulfilled' ? (Array.isArray(examsResp.value) ? examsResp.value : (examsResp.value && Array.isArray(examsResp.value.results) ? examsResp.value.results : [])) : []
 
-    async function loadNotices() {
-      try {
-        const active = await api.getActiveNotices().catch(() => [])
-        const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
-        const ev = {}
-        act.forEach(n => {
-          const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
-          const iso = date ? toISO(date) : null
-          if (!iso) return
-          ev[iso] = ev[iso] || []
-          ev[iso].push({
-            kind: 'notice',
-            title: n.title || 'Notice',
-            noticeId: n.id,
-            created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
-            expiry_date: n.expiry_date || null,
-          })
+      const uItems = users.map(u => ({ kind: 'user', id: u.id, title: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.svc_number || 'User', date: u.date_joined || u.created_at || u.created || null, meta: u }))
+      const nItems = notices.map(n => ({ kind: 'notice', id: n.id, title: n.title || 'Notice', date: n.created_at || n.created || n.start_date || n.expiry_date || null, meta: n }))
+      const eItems = exams.map(e => ({ kind: 'exam', id: e.id, title: e.title || 'Exam', date: e.exam_date || e.date || e.created_at || null, meta: e }))
+
+      const merged = [...uItems, ...nItems, ...eItems]
+      const normalized = merged.map(i => ({ ...i, _date: i.date ? new Date(i.date) : null })).filter(i => i._date && !Number.isNaN(i._date.getTime()))
+      normalized.sort((a, b) => b._date - a._date)
+      return normalized.slice(0, 8)
+    },
+  })
+
+  const { data: calendarEvents = {} } = useQuery({
+    queryKey: QK.activeNotices(),
+    queryFn: async () => {
+      const pad = (n) => String(n).padStart(2, '0')
+      const toISO = (d) => {
+        try {
+          const dt = new Date(d)
+          if (Number.isNaN(dt.getTime())) return null
+          return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
+        } catch { return null }
+      }
+      const active = await api.getActiveNotices().catch(() => [])
+      const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
+      const ev = {}
+      act.forEach(n => {
+        const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
+        const iso = date ? toISO(date) : null
+        if (!iso) return
+        ev[iso] = ev[iso] || []
+        ev[iso].push({
+          kind: 'notice',
+          title: n.title || 'Notice',
+          noticeId: n.id,
+          created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+          expiry_date: n.expiry_date || null,
         })
-        if (mounted) setCalendarEvents(ev)
-      } catch (err) {
-      }
-    }
+      })
+      return ev
+    },
+  })
 
-    loadNotices()
-
-    function onChange() { if (mounted) loadNotices() }
+  useEffect(() => {
+    function onChange() { queryClient.invalidateQueries({ queryKey: QK.activeNotices() }) }
     window.addEventListener('notices:changed', onChange)
-    return () => { mounted = false; window.removeEventListener('notices:changed', onChange) }
-  }, [])
+    return () => window.removeEventListener('notices:changed', onChange)
+  }, [queryClient])
 
   return (
     <div>

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -22,7 +24,6 @@ export default function AddResults() {
   const { user } = useAuth()
   const toast = useToast()
 
-  const [exams, setExams] = useState([])
   const [selectedExam, setSelectedExam] = useState('')
   const [examInfo, setExamInfo] = useState(null)
   const [results, setResults] = useState([])
@@ -60,21 +61,14 @@ export default function AddResults() {
     return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`
   }
 
-  useEffect(() => {
-    let mounted = true
-    async function load() {
-      try {
-        const res = await api.getMyExams?.() ?? api.getExams()
-        const arr = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
-        if (!mounted) return
-        setExams(arr)
-      } catch (err) {
-        toast.error(err?.message || 'Failed to load exams')
-      }
-    }
-    if (user) load()
-    return () => { mounted = false }
-  }, [user, toast])
+  const { data: exams = [] } = useQuery({
+    queryKey: QK.exams('my'),
+    queryFn: async () => {
+      const res = await (api.getMyExams?.() ?? api.getExams())
+      return Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
+    },
+    enabled: !!user,
+  })
 
   // auto-select exam from query param (e.g. /list/results?exam=5)
   const location = useLocation()

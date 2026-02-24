@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import Card from '../../components/Card'
 import { getDepartmentsPaginated, addDepartment, updateDepartment, deleteDepartment } from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useToast from '../../hooks/useToast'
 
 function sanitizeInput(value, trimSpaces = false) {
@@ -15,16 +17,13 @@ function sanitizeInput(value, trimSpaces = false) {
 }
 
 export default function Departments() {
-  const [loading, setLoading] = useState(false)
-  const [departments, setDepartments] = useState([])
+  const queryClient = useQueryClient()
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [newDept, setNewDept] = useState({ name: '', code: '', description: '' })
   const [editingDept, setEditingDept] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({ name: '', code: '', description: '', is_active: true })
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
   const [pageSize] = useState(12)
   const [errors, setErrors] = useState({})
   const [isSaving, setIsSaving] = useState(false)
@@ -44,26 +43,22 @@ export default function Departments() {
     if (toast?.showToast) return toast.showToast(msg, { type: 'success' })
   }, [toast])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      let params = `page=${currentPage}&page_size=${pageSize}`
-      if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
-      const data = await getDepartmentsPaginated(params)
+  const deptParams = `page=${currentPage}&page_size=${pageSize}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`
+  const { data: deptQueryResult = { list: [], totalCount: 0, totalPages: 1 }, isFetching: loading } = useQuery({
+    queryKey: QK.departments(deptParams),
+    queryFn: async () => {
+      const data = await getDepartmentsPaginated(deptParams)
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-      if (data && data.count !== undefined) {
-        setTotalCount(data.count)
-        setTotalPages(Math.ceil(data.count / pageSize))
-      }
-      setDepartments(list)
-    } catch (err) {
-      reportError(err?.message || 'Failed to load departments')
-    } finally {
-      setLoading(false)
-    }
-  }, [currentPage, pageSize, search, reportError])
+      const count = data?.count ?? list.length
+      const pages = Math.ceil(count / pageSize) || 1
+      return { list, totalCount: count, totalPages: pages }
+    },
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => { load() }, [load])
+  const departments = deptQueryResult.list
+  const totalCount = deptQueryResult.totalCount
+  const totalPages = deptQueryResult.totalPages
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -79,7 +74,7 @@ export default function Departments() {
       reportSuccess('Department Created')
       setNewDept({ name: '', code: '', description: '' })
       setAddModalOpen(false)
-      load()
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
     } catch (err) {
       if (err?.data && typeof err.data === 'object') {
         const d = err.data
@@ -115,7 +110,7 @@ export default function Departments() {
       })
       reportSuccess('Department Updated')
       setEditModalOpen(false)
-      load()
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
     } catch (err) {
       if (err?.data && typeof err.data === 'object') {
         const d = err.data
@@ -140,7 +135,7 @@ export default function Departments() {
       reportSuccess('Department Deleted')
       setConfirmDelete(null)
       setEditModalOpen(false)
-      load()
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
     } catch (err) {
       reportError(err?.message || 'Failed to delete department')
     } finally {

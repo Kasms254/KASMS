@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import { useSearchParams } from 'react-router-dom'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
@@ -492,51 +494,71 @@ export default function PerformanceAnalytics() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
   // Selected filters
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '')
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
   // Instructors default to 'subject' view since they don't have access to class-level analytics
   const [viewMode, setViewMode] = useState(user?.role === 'instructor' ? 'subject' : 'class')
 
-  // Analytics data
-  const [classPerformance, setClassPerformance] = useState(null)
-  const [subjectPerformance, setSubjectPerformance] = useState(null)
-  const [subjectComparison, setSubjectComparison] = useState(null)
-  const [classComparison, setClassComparison] = useState(null)
-  const [trendData, setTrendData] = useState(null)
-  const [correlationData, setCorrelationData] = useState(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const classesKey = user?.role === 'instructor' ? QK.classes('my') : QK.classes('is_active=true')
+  const subjectsKey = user?.role === 'instructor' ? QK.subjects('my') : QK.subjects('is_active=true')
 
-  // Load classes and subjects on mount
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true)
-      try {
-        const [classesResp, subjectsResp] = await Promise.all([
-          user?.role === 'instructor' ? api.getMyClasses() : api.getAllClasses('is_active=true'),
-          user?.role === 'instructor' ? api.getMySubjects() : api.getAllSubjects('is_active=true'),
-        ])
+  const { data: classes = [], isLoading: loading, error: classesError } = useQuery({
+    queryKey: classesKey,
+    queryFn: async () => {
+      const resp = user?.role === 'instructor' ? await api.getMyClasses() : await api.getAllClasses('is_active=true')
+      return Array.isArray(resp) ? resp : (resp?.results || [])
+    },
+    enabled: !!user,
+  })
 
-        // Handle both direct arrays and paginated responses {count, results}
-        const classList = Array.isArray(classesResp) ? classesResp : (classesResp?.results || [])
-        const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results || [])
+  const { data: subjects = [], error: subjectsError } = useQuery({
+    queryKey: subjectsKey,
+    queryFn: async () => {
+      const resp = user?.role === 'instructor' ? await api.getMySubjects() : await api.getAllSubjects('is_active=true')
+      return Array.isArray(resp) ? resp : (resp?.results || [])
+    },
+    enabled: !!user,
+  })
 
-        setClasses(classList)
-        setSubjects(subjectList)
-      } catch (err) {
-        // Silently handle data load error
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [user])
+  const { data: classPerformance = null, isLoading: classPerformLoading, error: classPerformError } = useQuery({
+    queryKey: QK.classPerformance(selectedClass),
+    queryFn: () => api.getClassPerformanceSummary(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+  })
+
+  const { data: subjectComparison = null, isLoading: subjectCompLoading } = useQuery({
+    queryKey: QK.subjectComparison(selectedClass),
+    queryFn: () => api.compareSubjects(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+  })
+
+  const { data: correlationData = null, isLoading: corrDataLoading } = useQuery({
+    queryKey: QK.attendanceCorrelation(selectedClass),
+    queryFn: () => api.getAttendanceCorrelation(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+  })
+
+  const { data: subjectPerformance = null, isLoading: subjectPerfLoading } = useQuery({
+    queryKey: QK.subjectPerformance(selectedSubject),
+    queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
+    enabled: viewMode === 'subject' && !!selectedSubject,
+  })
+
+  const { data: trendData = null, isLoading: trendDataLoading } = useQuery({
+    queryKey: QK.subjectTrends(selectedSubject, 90),
+    queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
+    enabled: viewMode === 'trends' && !!selectedSubject,
+  })
+
+  const { data: classComparison = null, isLoading: classCompLoading } = useQuery({
+    queryKey: QK.compareClasses(),
+    queryFn: () => api.compareClasses().catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+  })
+
+  const analyticsLoading = classPerformLoading || subjectCompLoading || corrDataLoading || subjectPerfLoading || trendDataLoading || classCompLoading
+  const error = classesError?.message || subjectsError?.message || classPerformError?.message || null
 
   // Filter subjects by selected class
   const filteredSubjects = useMemo(() => {
@@ -580,60 +602,6 @@ export default function PerformanceAnalytics() {
     }
   }, [isClassInstructor, user, viewMode, selectedClass])
 
-  // Load analytics when class/subject changes
-  useEffect(() => {
-    async function loadAnalytics() {
-      // Don't load analytics if required filters aren't selected
-      if (viewMode === 'class' && !selectedClass) {
-        setClassPerformance(null)
-        setSubjectComparison(null)
-        setClassComparison(null)
-        return
-      }
-
-      if ((viewMode === 'subject' || viewMode === 'trends') && !selectedSubject) {
-        setSubjectPerformance(null)
-        setTrendData(null)
-        return
-      }
-
-      setAnalyticsLoading(true)
-      setError(null)
-
-      try {
-        if (viewMode === 'class' && selectedClass) {
-          const [perf, comparison, correlation] = await Promise.all([
-            api.getClassPerformanceSummary(selectedClass).catch(() => null),
-            api.compareSubjects(selectedClass).catch(() => null),
-            api.getAttendanceCorrelation(selectedClass).catch(() => null),
-          ])
-          setClassPerformance(perf)
-          setSubjectComparison(comparison)
-          setCorrelationData(correlation)
-        } else if (viewMode === 'subject' && selectedSubject) {
-          const perf = await api.getSubjectPerformanceSummary(selectedSubject).catch(() => null)
-          setSubjectPerformance(perf)
-        } else if (viewMode === 'trends' && selectedSubject) {
-          const trends = await api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null)
-          setTrendData(trends)
-        }
-
-        // Also load class comparison for overview when in class view
-        if (viewMode === 'class' && selectedClass) {
-          const classComp = await api.compareClasses().catch(() => null)
-          setClassComparison(classComp)
-        }
-
-      } catch (err) {
-        // Silently handle analytics load error
-        setError(err.message)
-      } finally {
-        setAnalyticsLoading(false)
-      }
-    }
-
-    loadAnalytics()
-  }, [selectedClass, selectedSubject, viewMode])
 
   // Update URL params
   useEffect(() => {

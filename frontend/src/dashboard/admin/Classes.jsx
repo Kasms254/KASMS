@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, deleteClass, getAllCourses } from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
@@ -42,14 +44,11 @@ function sanitizeInput(value, trimSpaces = false) {
 }
 
 export default function ClassesList(){
-  const [classes, setClasses] = useState([])
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const queryClient = useQueryClient()
   const [showOnlyActive, setShowOnlyActive] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
   const [pageSize] = useState(12)
   // global modal open state; class selection is handled inside the form
   const [modalOpen, setModalOpen] = useState(false)
@@ -77,59 +76,41 @@ export default function ClassesList(){
   }, [toast])
   const modalRef = useRef(null)
 
-  const loadClasses = useCallback(async () => {
-    setLoading(true)
-    try{
-      // showOnlyActive: true = show active, false = show inactive only
-      // If current user is an instructor, prefer to call the instructor-specific endpoint
+  const classQueryParams = user?.role === 'instructor'
+    ? `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+    : `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+
+  const { data: classQueryResult = { list: [], totalCount: 0, totalPages: 1 }, isFetching: loading } = useQuery({
+    queryKey: QK.classes(classQueryParams),
+    queryFn: async () => {
       let data
       if (user && user.role === 'instructor') {
         try {
-          // Filter by instructor and active status with pagination
-          const params = `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
-          data = await getClassesPaginated(params)
+          data = await getClassesPaginated(`instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`)
         } catch {
-          // If filtering fails, fall back to fetching all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
           const list = listAll.filter((c) => String(c.instructor) === String(user.id) || String(c.instructor_id) === String(user.id) || (c.instructor_name && (c.instructor_name === user.full_name || c.instructor_name.includes(user.username || ''))))
-          // Filter by active status
           const finalList = list.filter((c) => c.is_active === showOnlyActive)
-          setClasses(finalList)
-          setTotalCount(finalList.length)
-          setTotalPages(1)
           data = { results: finalList, count: finalList.length }
         }
       } else {
-        // Non-instructor: filter by is_active with pagination
-        const params = `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
         try {
-          data = await getClassesPaginated(params)
+          data = await getClassesPaginated(`is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`)
         } catch {
-          // fallback: fetch all classes and filter locally
           const all = await getClasses()
           const listAll = Array.isArray(all) ? all : (all && all.results) ? all.results : []
           const filtered = listAll.filter((c) => c.is_active === showOnlyActive)
-          setClasses(filtered)
-          setTotalCount(filtered.length)
-          setTotalPages(1)
           data = { results: filtered, count: filtered.length }
         }
       }
 
-      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const rawList = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const count = data?.count ?? rawList.length
+      const pages = Math.ceil(count / pageSize) || 1
 
-      // Update pagination metadata
-      if (data && data.count !== undefined) {
-        setTotalCount(data.count)
-        setTotalPages(Math.ceil(data.count / pageSize))
-      }
+      const initialMapped = rawList.map((cl) => ({ ...cl, students_count: cl.current_enrollment ?? cl.enrollment_count ?? (cl.students_count ?? null) }))
 
-      // If the server already provided a count (current_enrollment or enrollment_count), reuse it.
-      const initialMapped = list.map((cl) => ({ ...cl, students_count: cl.current_enrollment ?? cl.enrollment_count ?? (cl.students_count ?? null) }))
-      setClasses(initialMapped)
-
-      // Determine which classes still need a students_count (null/undefined) and fetch only those
       const toFetch = initialMapped.reduce((acc, cl, idx) => {
         if (cl.students_count == null) acc.push({ id: cl.id, idx })
         return acc
@@ -148,17 +129,20 @@ export default function ClassesList(){
             }
             mapped[t.idx] = { ...mapped[t.idx], students_count: studentsCount }
           })
-          setClasses(mapped)
+          return { list: mapped, totalCount: count, totalPages: pages }
         } catch {
           // ignore per-class failures
         }
       }
-    }catch{
-      reportError('Failed to load classes')
-    }finally{ setLoading(false) }
-  }, [reportError, showOnlyActive, user, currentPage, pageSize])
 
-  useEffect(()=>{ loadClasses() }, [loadClasses])
+      return { list: initialMapped, totalCount: count, totalPages: pages }
+    },
+    placeholderData: keepPreviousData,
+  })
+
+  const classes = classQueryResult.list
+  const totalCount = classQueryResult.totalCount
+  const totalPages = classQueryResult.totalPages
 
   async function openAddSubjectModal(classId = ''){
     try{
@@ -227,7 +211,7 @@ export default function ClassesList(){
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       closeModal()
-      await loadClasses()
+      queryClient.invalidateQueries({ queryKey: ["classes"] })
     }catch(err){
       const d = err?.data
       // If backend provided structured field errors, show them inline
@@ -409,7 +393,7 @@ export default function ClassesList(){
                   }
                   await updateClass(editingClass.id, payload)
                   setEditModalOpen(false)
-                  await loadClasses()
+                  queryClient.invalidateQueries({ queryKey: ["classes"] })
                 } catch (err) {
                   const d = err?.data
                   if (d && typeof d === 'object') {
@@ -557,7 +541,7 @@ export default function ClassesList(){
                       else if (toast?.showToast) toast.showToast('Class deleted', { type: 'success' })
                       setConfirmDeleteClass(null)
                       setEditModalOpen(false)
-                      loadClasses()
+                      queryClient.invalidateQueries({ queryKey: ["classes"] })
                     } catch (err) {
                       reportError(err?.message || 'Failed to delete class')
                     } finally {
@@ -649,7 +633,7 @@ export default function ClassesList(){
                   setClassForm({ name: '', class_code: '', index_prefix: '', index_start_from: 1, course: '', instructor: '', start_date: '', end_date: '', capacity: '', is_active: true })
                   setClassErrors({})
                   setClassErrorsFromValidation(false)
-                  await loadClasses()
+                  queryClient.invalidateQueries({ queryKey: ["classes"] })
                 } catch (err) {
                   const d = err?.data
                   if (d && typeof d === 'object') {

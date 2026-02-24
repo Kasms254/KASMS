@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
@@ -167,28 +169,19 @@ export default function ExamReports() {
   const { user } = useAuth()
   const toast = useToast()
   const isAdmin = user?.role === 'admin'
+  const queryClient = useQueryClient()
 
-  // State
-  const [loading, setLoading] = useState(true)
-  const [exams, setExams] = useState([])
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  
-  // Filters
+  // Filter state
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedExamType, setSelectedExamType] = useState('')
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
-  
+
   // Selected exam for detail view
   const [selectedExam, setSelectedExam] = useState(null)
-  const [examResults, setExamResults] = useState([])
-  const [loadingResults, setLoadingResults] = useState(false)
 
   // Comprehensive results
   const [showComprehensive, setShowComprehensive] = useState(false)
-  const [comprehensiveData, setComprehensiveData] = useState(null)
-  const [loadingComprehensive, setLoadingComprehensive] = useState(false)
 
   // Pagination state
   const [examListPage, setExamListPage] = useState(1)
@@ -197,40 +190,88 @@ export default function ExamReports() {
   const examsPerPage = 10
   const resultsPerPage = 10
 
-  // Fetch initial data
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      try {
-        const [examsData, classesData, subjectsData] = await Promise.all([
-          isAdmin ? api.getExams() : api.getMyExams(),
-          isAdmin ? api.getAllClasses() : api.getMyClasses(),
-          isAdmin ? api.getAllSubjects() : api.getMySubjects()
-        ])
+  const { data: exams = [], isLoading: loading } = useQuery({
+    queryKey: QK.exams(isAdmin ? 'all' : 'mine'),
+    queryFn: async () => {
+      const data = isAdmin ? await api.getExams() : await api.getMyExams()
+      return Array.isArray(data) ? data : (data?.results || [])
+    },
+    enabled: !!user,
+  })
 
-        // Handle both direct arrays and paginated responses {count, results}
-        setExams(Array.isArray(examsData) ? examsData : (examsData?.results || []))
-        setClasses(Array.isArray(classesData) ? classesData : (classesData?.results || []))
-        setSubjects(Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results || []))
-      } catch {
-        toast?.showError?.('Failed to load exam data')
-      } finally {
-        setLoading(false)
+  const { data: classes = [] } = useQuery({
+    queryKey: QK.classes(),
+    queryFn: async () => {
+      const data = isAdmin ? await api.getAllClasses() : await api.getMyClasses()
+      return Array.isArray(data) ? data : (data?.results || [])
+    },
+    enabled: !!user,
+  })
+
+  const { data: subjects = [] } = useQuery({
+    queryKey: QK.subjects(),
+    queryFn: async () => {
+      const data = isAdmin ? await api.getAllSubjects() : await api.getMySubjects()
+      return Array.isArray(data) ? data : (data?.results || [])
+    },
+    enabled: !!user,
+  })
+
+  const { data: _examResults = [], isLoading: loadingResults } = useQuery({
+    queryKey: QK.examResults(selectedExam?.id),
+    queryFn: async () => {
+      const results = await api.getExamResults(selectedExam.id)
+      return Array.isArray(results) ? results : (results?.results || [])
+    },
+    enabled: !!selectedExam?.id,
+  })
+  const examResults = selectedExam ? _examResults : []
+
+  const { data: _comprehensiveData = null, isLoading: loadingComprehensive } = useQuery({
+    queryKey: QK.classPerformance(selectedClass),
+    queryFn: async () => {
+      const data = await api.getClassPerformanceSummary(selectedClass)
+      // Map fields to match StudentPerformanceTable expectations
+      if (data?.all_students) {
+        data.all_students = data.all_students.map(student => {
+          // Compute total marks from subject breakdown
+          let totalObtained = 0
+          let totalPossible = 0
+          const mappedBreakdown = (student.subject_breakdown || []).map(subj => {
+            totalObtained += subj.marks_obtained ?? 0
+            totalPossible += subj.total_possible ?? 0
+            return subj
+          })
+          const finalObtained = student.total_marks_obtained ?? totalObtained
+          const finalPossible = student.total_marks_possible ?? totalPossible
+          const overallPct = finalPossible > 0 ? (finalObtained / finalPossible) * 100 : 0
+          return {
+            ...student,
+            subject_breakdown: mappedBreakdown,
+            total_marks_obtained: finalObtained,
+            total_marks_possible: finalPossible,
+            total_grade: _gradeFromPct(overallPct),
+            total_percentage: overallPct,
+          }
+        })
       }
-    }
-    fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+      return data
+    },
+    enabled: showComprehensive && !!selectedClass,
+  })
+  const comprehensiveData = showComprehensive ? _comprehensiveData : null
+
+  // Reset exam list page when filters change
+  useEffect(() => {
+    setExamListPage(1)
+  }, [selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Filter exams based on selections
   const filteredExams = useMemo(() => {
     // Don't show any exams if no class is selected
-    if (!selectedClass) {
-      setExamListPage(1)
-      return []
-    }
+    if (!selectedClass) return []
 
-    const filtered = exams.filter(exam => {
+    return exams.filter(exam => {
       // Class filter is required
       if (exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
         // Try matching via subject
@@ -241,16 +282,13 @@ export default function ExamReports() {
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
-      
+
       // Only show exams that have results
       const hasResults = exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
       if (!hasResults) return false
-      
+
       return true
     })
-    // Reset to page 1 when filters change
-    setExamListPage(1)
-    return filtered
   }, [exams, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Paginated exams for list view
@@ -268,26 +306,6 @@ export default function ExamReports() {
     return subjects.filter(s => s.class_obj === parseInt(selectedClass) || s.class_id === parseInt(selectedClass))
   }, [subjects, selectedClass])
 
-  // Load exam results when an exam is selected
-  useEffect(() => {
-    if (!selectedExam) {
-      setExamResults([])
-      return
-    }
-    async function loadResults() {
-      setLoadingResults(true)
-      try {
-        const results = await api.getExamResults(selectedExam.id)
-        setExamResults(Array.isArray(results) ? results : (results?.results || []))
-      } catch {
-        toast?.showError?.('Failed to load exam results')
-      } finally {
-        setLoadingResults(false)
-      }
-    }
-    loadResults()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExam])
 
   // Calculate statistics for selected exam
   const examStats = useMemo(() => {
@@ -434,47 +452,13 @@ export default function ExamReports() {
   // Reset comprehensive view when class changes
   useEffect(() => {
     setShowComprehensive(false)
-    setComprehensiveData(null)
   }, [selectedClass])
 
-  // Load comprehensive results for selected class
-  const handleViewComprehensive = useCallback(async () => {
+  // Load comprehensive results for selected class - triggers the useQuery by enabling it
+  const handleViewComprehensive = useCallback(() => {
     if (!selectedClass) return
-    setLoadingComprehensive(true)
-    try {
-      const data = await api.getClassPerformanceSummary(selectedClass)
-      // Map fields to match StudentPerformanceTable expectations
-      if (data?.all_students) {
-        data.all_students = data.all_students.map(student => {
-          // Compute total marks from subject breakdown
-          let totalObtained = 0
-          let totalPossible = 0
-          const mappedBreakdown = (student.subject_breakdown || []).map(subj => {
-            totalObtained += subj.marks_obtained ?? 0
-            totalPossible += subj.total_possible ?? 0
-            return subj
-          })
-          const finalObtained = student.total_marks_obtained ?? totalObtained
-          const finalPossible = student.total_marks_possible ?? totalPossible
-          const overallPct = finalPossible > 0 ? (finalObtained / finalPossible) * 100 : 0
-          return {
-            ...student,
-            subject_breakdown: mappedBreakdown,
-            total_marks_obtained: finalObtained,
-            total_marks_possible: finalPossible,
-            total_grade: _gradeFromPct(overallPct),
-            total_percentage: overallPct,
-          }
-        })
-      }
-      setComprehensiveData(data)
-      setShowComprehensive(true)
-    } catch {
-      toast?.showError?.('Failed to load comprehensive results')
-    } finally {
-      setLoadingComprehensive(false)
-    }
-  }, [selectedClass, toast])
+    setShowComprehensive(true)
+  }, [selectedClass])
 
   // Export PDF with ranked student results
   const exportResultsPDF = useCallback(() => {

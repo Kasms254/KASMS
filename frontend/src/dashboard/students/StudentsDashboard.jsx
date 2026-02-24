@@ -3,6 +3,8 @@ import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import useAuth from '../../hooks/useAuth'
 import * as api from '../../lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 
 // Mirrors backend ExamResult.grade / _calculate_grade exactly
 function gradeFromPct(pct) {
@@ -21,20 +23,20 @@ function gradeFromPct(pct) {
 
 export default function StudentsDashboard() {
   const { user } = useAuth()
-  const [classesCount, setClassesCount] = useState(null)
-  const [gpa, setGpa] = useState(null)
-  const [dashboardStats, setDashboardStats] = useState(null)
-  const [activeClassName, setActiveClassName] = useState(null)
-  const [loadingMetrics, setLoadingMetrics] = useState(true)
-  const [calendarEvents, setCalendarEvents] = useState({})
+  const queryClient = useQueryClient()
   // tick used to re-render the component periodically so "upcoming" windows
   // update when the date changes without needing a backend update.
   const [nowTick, setNowTick] = useState(0)
 
+  // Keep the minute-based re-render tick
   useEffect(() => {
-    let mounted = true
-    async function loadMetrics() {
-      setLoadingMetrics(true)
+    const tickTimer = setInterval(() => setNowTick(n => n + 1), 60 * 1000)
+    return () => clearInterval(tickTimer)
+  }, [])
+
+  const { data: metricsData = null, isLoading: loadingMetrics } = useQuery({
+    queryKey: QK.studentDashboard(),
+    queryFn: async () => {
       try {
         // Prefer the consolidated student-dashboard overview endpoint.
         // Fall back to existing heuristics if backend doesn't expose it.
@@ -42,42 +44,19 @@ export default function StudentsDashboard() {
           const dash = await api.getStudentDashboard().catch(() => null)
           if (dash && dash.stats) {
             const s = dash.stats
-            if (mounted) {
-              setDashboardStats(s)
-              setClassesCount(s.total_classes ?? 0)
-              // prefer average grade as a GPA-like metric
-              setGpa(s.average_grade ?? user?.gpa ?? null)
-              // pick an active class name from enrollments if provided by the consolidated endpoint
-              try {
-                const enrolls = Array.isArray(dash.enrollments) ? dash.enrollments : (dash.enrollments && Array.isArray(dash.enrollments.results) ? dash.enrollments.results : [])
-                if (enrolls && enrolls.length) {
-                  const e = enrolls[0]
-                  const cname = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
-                  setActiveClassName(cname || null)
-                } else {
-                  setActiveClassName(null)
-                }
-              } catch { setActiveClassName(null) }
-              // we seed calendar events below; no separate upcomingExams state needed
-              if (Array.isArray(dash.upcoming_exams)) {
-                const ev = {}
-                dash.upcoming_exams.forEach(x => {
-                  const date = x?.exam_date || x?.date
-                  const iso = date ? `${new Date(date).getFullYear()}-${String(new Date(date).getMonth()+1).padStart(2,'0')}-${String(new Date(date).getDate()).padStart(2,'0')}` : null
-                  if (!iso) return
-                  ev[iso] = ev[iso] || []
-                  ev[iso].push({
-                    kind: 'exam',
-                    title: x.title || 'Exam',
-                    subject: x.subject_name || (x.subject && x.subject.name) || null,
-                    className: x.class_name || (x.subject && x.subject.class_obj && x.subject.class_obj.name) || null,
-                    exam_id: x.id,
-                    url: x.id ? `/exams/${x.id}` : null,
-                    duration: x.exam_duration || null,
-                  })
-                })
-                if (mounted) setCalendarEvents(ev)
+            let activeClassName = null
+            try {
+              const enrolls = Array.isArray(dash.enrollments) ? dash.enrollments : (dash.enrollments && Array.isArray(dash.enrollments.results) ? dash.enrollments.results : [])
+              if (enrolls && enrolls.length) {
+                const e = enrolls[0]
+                activeClassName = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
               }
+            } catch { /* ignore */ }
+            return {
+              dashboardStats: s,
+              classesCount: s.total_classes ?? 0,
+              gpa: s.average_grade ?? null,
+              activeClassName,
             }
           } else {
             // fallback: attempt older heuristics (enrollments / my classes)
@@ -97,52 +76,52 @@ export default function StudentsDashboard() {
                 else if (myClasses && Array.isArray(myClasses.results)) count = myClasses.results.length
               } catch { /* ignore */ }
             }
-            if (mounted) {
-              setClassesCount(count ?? 0)
-              setGpa(user?.gpa ?? null)
-              // fallback: if enrollments were fetched above, try to use the first as active class
-              try {
-                const en = Array.isArray(enrollsVar) ? enrollsVar : (enrollsVar && Array.isArray(enrollsVar.results) ? enrollsVar.results : [])
-                if (en && en.length) {
-                  const e = en[0]
-                  const cname = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
-                  setActiveClassName(cname || null)
-                } else {
-                  setActiveClassName(null)
-                }
-              } catch { /* ignore */ }
+            let activeClassName = null
+            try {
+              const en = Array.isArray(enrollsVar) ? enrollsVar : (enrollsVar && Array.isArray(enrollsVar.results) ? enrollsVar.results : [])
+              if (en && en.length) {
+                const e = en[0]
+                activeClassName = e?.class_name || (e?.class_obj && (e.class_obj.name || e.class_obj.title)) || (e?.class && (e.class.name || e.class)) || null
+              }
+            } catch { /* ignore */ }
+            return {
+              dashboardStats: null,
+              classesCount: count ?? 0,
+              gpa: null,
+              activeClassName,
             }
           }
         } catch {
-          // if all else fails use previous heuristics
+          // if all else fails return null
         }
       } finally {
-        if (mounted) setLoadingMetrics(false)
+        // nothing to clean up
       }
-    }
-    loadMetrics()
-    return () => { mounted = false }
-  }, [user])
+      return null
+    },
+    enabled: !!user,
+  })
+
+  const dashboardStats = metricsData?.dashboardStats ?? null
+  const classesCount = metricsData?.classesCount ?? null
+  const gpa = metricsData?.gpa ?? user?.gpa ?? null
+  const activeClassName = metricsData?.activeClassName ?? null
 
   // Load student-specific calendar events (exams, class notices).
   // We poll periodically so that when an instructor posts an exam the student's
   // calendar picks it up shortly after.
-  useEffect(() => {
-    // re-render every minute so upcoming list updates as dates pass
-    const tickTimer = setInterval(() => setNowTick(n => n + 1), 60 * 1000)
-    let mounted = true
-    let timer = null
+  const { data: calendarEvents = {} } = useQuery({
+    queryKey: ['student-calendar'],
+    queryFn: async () => {
+      const pad = (n) => String(n).padStart(2, '0')
+      const toISO = (d) => {
+        try {
+          const dt = new Date(d)
+          if (Number.isNaN(dt.getTime())) return null
+          return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
+        } catch { return null }
+      }
 
-    const pad = (n) => String(n).padStart(2, '0')
-    const toISO = (d) => {
-      try {
-        const dt = new Date(d)
-        if (Number.isNaN(dt.getTime())) return null
-        return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
-      } catch { return null }
-    }
-
-    async function loadEvents() {
       try {
         // First try the dedicated student upcoming schedule endpoint
         try {
@@ -185,8 +164,7 @@ export default function StudentsDashboard() {
               })
             })
 
-            if (mounted) setCalendarEvents(ev)
-            return
+            return ev
           }
         } catch {
           // ignore and fall back to previous logic
@@ -292,22 +270,25 @@ export default function StudentsDashboard() {
           })
         })
 
-        if (mounted) setCalendarEvents(ev)
+        return ev
       } catch (err) {
+        return {}
       }
-    }
+    },
+    enabled: !!user,
+    refetchInterval: 60 * 1000,
+  })
 
-    // Initial load and poll every 60s for updates (so instructor posts appear quickly)
-    loadEvents()
-    timer = setInterval(() => loadEvents(), 60 * 1000)
-
-    // When notices change (created/updated/deleted) elsewhere (admin UI),
-    // re-run loadEvents so calendar immediately shows new notices.
-    function onNoticesChanged() { try { loadEvents().catch(() => {}) } catch { /* ignore */ } }
+  // When notices change (created/updated/deleted) elsewhere (admin UI),
+  // re-run calendar query so it immediately shows new notices.
+  useEffect(() => {
+    function onNoticesChanged() { queryClient.invalidateQueries({ queryKey: ['student-calendar'] }) }
     window.addEventListener('notices:changed', onNoticesChanged)
+    return () => window.removeEventListener('notices:changed', onNoticesChanged)
+  }, [queryClient])
 
-    return () => { mounted = false; if (timer) clearInterval(timer); window.removeEventListener('notices:changed', onNoticesChanged); clearInterval(tickTimer) }
-  }, [user])
+  // suppress unused warning — nowTick is read to force re-renders each minute
+  void nowTick
 
   return (
     <div>

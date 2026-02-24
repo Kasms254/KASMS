@@ -7,6 +7,16 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './context/themeContext'
 import { AuthProvider } from './context/AuthProvider'
 import ToastProvider from './components/ToastProvider'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    },
+  },
+})
 
 // Security: Disable DevTools and console logging in production
 if (typeof window !== 'undefined' && import.meta.env.PROD) {
@@ -44,16 +54,18 @@ if (typeof window !== 'undefined' && window.localStorage) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <ScrollToTop />
-      <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ScrollToTop />
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   </StrictMode>,
 )
 

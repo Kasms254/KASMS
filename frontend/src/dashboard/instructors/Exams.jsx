@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
@@ -12,11 +14,9 @@ export default function Exams() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
 
-  const [exams, setExams] = useState([])
-  const [subjects, setSubjects] = useState([])
   const [query, setQuery] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false) // used for create/edit mutations
   const [editingId, setEditingId] = useState(null)
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -34,6 +34,33 @@ export default function Exams() {
   const [attachmentsOpenId, setAttachmentsOpenId] = useState(null)
   const [sortOrder, setSortOrder] = useState('newest')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const { data: exams = [], isLoading: examsLoading } = useQuery({
+    queryKey: QK.exams('my'),
+    queryFn: async () => {
+      const elist = await (api.getMyExams?.() ?? api.getExams())
+      return Array.isArray(elist.results) ? elist.results : (Array.isArray(elist) ? elist : (elist && elist.results) ? elist.results : [])
+    },
+    enabled: !!user,
+  })
+
+  const { data: subjects = [] } = useQuery({
+    queryKey: QK.subjects('my'),
+    queryFn: async () => {
+      const slist = await (api.getMySubjects?.() ?? api.getSubjects())
+      return Array.isArray(slist.results) ? slist.results : (Array.isArray(slist) ? slist : (slist && slist.results) ? slist.results : [])
+    },
+    enabled: !!user,
+  })
+
+  // Prefetch attachments whenever the exams list loads
+  useEffect(() => {
+    if (exams.length > 0) {
+      exams.map(x => x.id).filter(Boolean).forEach(id => fetchAttachmentsForExam(id))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exams])
 
   // fetch attachments for a single exam and stash into attachmentsMap
   async function fetchAttachmentsForExam(examId) {
@@ -48,37 +75,6 @@ export default function Exams() {
     }
   }
 
-  useEffect(() => {
-    let mounted = true
-    async function load() {
-      setLoading(true)
-      try {
-        const [slist, elist] = await Promise.all([
-          api.getMySubjects?.() ?? api.getSubjects(),
-          api.getMyExams?.() ?? api.getExams()
-        ])
-
-        if (!mounted) return
-        const subjectsArr = Array.isArray(slist.results) ? slist.results : (Array.isArray(slist) ? slist : (slist && slist.results) ? slist.results : [])
-        const examsArr = Array.isArray(elist.results) ? elist.results : (Array.isArray(elist) ? elist : (elist && elist.results) ? elist.results : [])
-        setSubjects(subjectsArr)
-        setExams(examsArr)
-        // fetch attachments for loaded exams
-        try {
-          const ids = examsArr.map(x => x.id).filter(Boolean)
-          ids.forEach(id => fetchAttachmentsForExam(id))
-        } catch (err) {
-          // Silently handle prefetch failure
-        }
-      } catch (err) {
-        toast.error(err.message || 'Failed to load exams')
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-    if (user) load()
-    return () => { mounted = false }
-  }, [user, toast])
 
   const filtered = useMemo(() => {
     const q = (query || '').trim().toLowerCase()
@@ -203,7 +199,7 @@ export default function Exams() {
       try {
         const res = await api.updateExam(editingId, payload)
         toast.success('Exam updated')
-        setExams(s => s.map(x => (x.id === res.id ? res : x)))
+        queryClient.setQueryData(QK.exams('my'), s => (s || []).map(x => (x.id === res.id ? res : x)))
         setEditingId(null)
         setEditForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
         // if files were selected while editing, upload them now
@@ -242,7 +238,7 @@ export default function Exams() {
         const res = await api.createExam(payload)
         toast.success('Exam created')
         // prepend to list
-        setExams(s => [res, ...s])
+        queryClient.setQueryData(QK.exams('my'), s => [res, ...(s || [])])
         setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
         // if files were selected on create, upload them now (create-time uploads only)
         if (createFiles && createFiles.length) {
@@ -314,7 +310,7 @@ export default function Exams() {
     setDeletingId(exam.id)
     try {
       await api.deleteExam(exam.id)
-      setExams(s => s.filter(x => x.id !== exam.id))
+      queryClient.setQueryData(QK.exams('my'), s => (s || []).filter(x => x.id !== exam.id))
       setConfirmDelete(null)
       toast.success('Exam deleted')
     } catch (err) {
@@ -554,9 +550,9 @@ export default function Exams() {
             <div className="flex flex-wrap gap-2 text-xs text-neutral-600" aria-hidden />
           </div>
 
-          {loading && <LoadingSkeleton />}
+          {(examsLoading || loading) && <LoadingSkeleton />}
 
-          {!loading && exams.length === 0 && (
+          {!examsLoading && !loading && exams.length === 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
               <h3 className="mt-2 text-lg font-medium text-gray-900">No exams yet</h3>
               <p className="mt-1 text-gray-600">Start by creating your first exam and attaching supporting resources.</p>
@@ -564,7 +560,7 @@ export default function Exams() {
             </div>
           )}
 
-          {!loading && displayed.length > 0 && (
+          {!examsLoading && displayed.length > 0 && (
             <>
               {/* Mobile & Tablet: card list */}
               <div className="lg:hidden space-y-4">

@@ -1,4 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -24,58 +26,43 @@ const STATUS_COLORS = {
 export default function AttendanceReports() {
   const { user } = useAuth()
   const toast = useToast()
+  const queryClient = useQueryClient()
 
   // State
-  const [loading, setLoading] = useState(false)
-  const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10)
   })
-
-  // Report data
-  const [classSummary, setClassSummary] = useState(null)
-  const [trendData, setTrendData] = useState([])
-  const [lowAttendanceStudents, setLowAttendanceStudents] = useState([])
   const [selectedStudent, setSelectedStudent] = useState(null)
-  const [studentDetail, setStudentDetail] = useState(null)
-
-  // Active tab
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'trends' | 'alerts' | 'student'
 
-  // Load classes
-  useEffect(() => {
-    async function loadClasses() {
-      try {
-        const data = user?.role === 'admin'
-          ? await api.getAllClasses('is_active=true')
-          : await api.getMyClasses()
-        const list = Array.isArray(data) ? data : (data?.results || [])
-        setClasses(list)
-        if (list.length > 0) {
-          setSelectedClass(list[0].id)
-        }
-      } catch (err) {
-        console.error('Failed to load classes:', err)
-      }
-    }
-    loadClasses()
-  }, [user])
+  const { data: classes = [] } = useQuery({
+    queryKey: QK.attendanceClasses(),
+    queryFn: async () => {
+      const data = user?.role === 'admin'
+        ? await api.getAllClasses('is_active=true')
+        : await api.getMyClasses()
+      return Array.isArray(data) ? data : (data?.results || [])
+    },
+    enabled: !!user,
+  })
 
-  // Load class summary
-  const loadClassSummary = useCallback(async () => {
-    if (!selectedClass) return
-    setLoading(true)
-    try {
+  // Auto-select first class when classes load
+  useEffect(() => {
+    if (classes.length > 0 && !selectedClass) {
+      setSelectedClass(classes[0].id)
+    }
+  }, [classes])
+
+  const { data: classSummary = null, isLoading: loading } = useQuery({
+    queryKey: QK.classSummary(selectedClass, dateRange.startDate, dateRange.endDate),
+    queryFn: async () => {
       const data = await api.getClassAttendanceSummary(selectedClass, dateRange.startDate, dateRange.endDate)
       // Transform backend response to match expected frontend structure
-      // Backend returns: { class, period, overall_statistics, student_statistics }
-      // Frontend expects: { total_sessions, total_students, attendance_rate, punctuality_rate, by_status, by_method }
       const stats = data.overall_statistics || {}
       const studentStats = data.student_statistics || []
 
-      // Calculate by_status from student statistics
       let totalPresent = 0, totalLate = 0, totalAbsent = 0, totalExcused = 0
       studentStats.forEach(s => {
         totalPresent += s.present || 0
@@ -84,11 +71,10 @@ export default function AttendanceReports() {
         totalExcused += s.excused || 0
       })
 
-      // Calculate punctuality rate (present / (present + late) * 100)
       const totalAttended = totalPresent + totalLate
       const punctualityRate = totalAttended > 0 ? (totalPresent / totalAttended * 100) : 0
 
-      const transformedData = {
+      return {
         total_sessions: stats.total_sessions || data.period?.total_sessions || 0,
         total_students: stats.total_students || 0,
         attendance_rate: stats.class_attendance_rate || 0,
@@ -100,63 +86,38 @@ export default function AttendanceReports() {
           excused: totalExcused
         },
         by_method: data.by_method || {},
-        // Keep original data for reference
         student_statistics: studentStats,
         class: data.class,
         period: data.period
       }
-      setClassSummary(transformedData)
-    } catch (err) {
-      toast.error(err.message || 'Failed to load class summary')
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedClass, dateRange, toast])
+    },
+    enabled: activeTab === 'overview' && !!selectedClass,
+  })
 
-  // Load trend data
-  const loadTrendData = useCallback(async () => {
-    if (!selectedClass) return
-    try {
+  const { data: trendData = [] } = useQuery({
+    queryKey: QK.attendanceTrend(selectedClass),
+    queryFn: async () => {
       const data = await api.getAttendanceTrend(selectedClass, 30)
       // Backend returns { class, period, trend_data: [...] }
-      setTrendData(data?.trend_data || data?.trend || [])
-    } catch (err) {
-      console.error('Failed to load trend data:', err)
-    }
-  }, [selectedClass])
+      return data?.trend_data || data?.trend || []
+    },
+    enabled: activeTab === 'trends' && !!selectedClass,
+  })
 
-  // Load low attendance alerts
-  const loadLowAttendanceAlerts = useCallback(async () => {
-    try {
+  const { data: lowAttendanceStudents = [] } = useQuery({
+    queryKey: QK.lowAttendance(selectedClass),
+    queryFn: async () => {
       const data = await api.getLowAttendanceAlerts(selectedClass || null, 75)
-      setLowAttendanceStudents(data?.students || data || [])
-    } catch (err) {
-      console.error('Failed to load alerts:', err)
-    }
-  }, [selectedClass])
+      return data?.students || data || []
+    },
+    enabled: activeTab === 'alerts',
+  })
 
-  // Load student detail
-  const loadStudentDetail = useCallback(async () => {
-    if (!selectedStudent) return
-    try {
-      const data = await api.getStudentAttendanceDetail(selectedStudent, dateRange.startDate, dateRange.endDate)
-      setStudentDetail(data)
-    } catch (err) {
-      toast.error(err.message || 'Failed to load student detail')
-    }
-  }, [selectedStudent, dateRange, toast])
-
-  useEffect(() => {
-    if (activeTab === 'overview') {
-      loadClassSummary()
-    } else if (activeTab === 'trends') {
-      loadTrendData()
-    } else if (activeTab === 'alerts') {
-      loadLowAttendanceAlerts()
-    } else if (activeTab === 'student' && selectedStudent) {
-      loadStudentDetail()
-    }
-  }, [activeTab, loadClassSummary, loadTrendData, loadLowAttendanceAlerts, loadStudentDetail, selectedStudent])
+  const { data: studentDetail = null } = useQuery({
+    queryKey: QK.studentDetail(selectedStudent, dateRange.startDate, dateRange.endDate),
+    queryFn: () => api.getStudentAttendanceDetail(selectedStudent, dateRange.startDate, dateRange.endDate),
+    enabled: activeTab === 'student' && !!selectedStudent,
+  })
 
   // Format date
   function formatDate(dt) {
@@ -334,9 +295,9 @@ export default function AttendanceReports() {
               <div className="flex items-end">
                 <button
                   onClick={() => {
-                    if (activeTab === 'overview') loadClassSummary()
-                    else if (activeTab === 'trends') loadTrendData()
-                    else if (activeTab === 'alerts') loadLowAttendanceAlerts()
+                    if (activeTab === 'overview') queryClient.invalidateQueries({ queryKey: QK.classSummary(selectedClass, dateRange.startDate, dateRange.endDate) })
+                    else if (activeTab === 'trends') queryClient.invalidateQueries({ queryKey: QK.attendanceTrend(selectedClass) })
+                    else if (activeTab === 'alerts') queryClient.invalidateQueries({ queryKey: QK.lowAttendance(selectedClass) })
                   }}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
                 >

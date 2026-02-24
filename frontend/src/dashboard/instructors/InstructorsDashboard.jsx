@@ -1,153 +1,87 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import { getInstructorDashboard } from '../../lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 
 export default function InstructorsDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [classes, setClasses] = useState([])
-  const [uniqueStudentsCount, setUniqueStudentsCount] = useState(0)
-  const [subjectsCount, setSubjectsCount] = useState(0)
-  const [attendanceToday, setAttendanceToday] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [calendarEvents, setCalendarEvents] = useState({})
 
-  useEffect(() => {
-    let mounted = true
-    async function load() {
-      if (!user) return
-      setLoading(true)
-      try {
-        // Use the backend instructor-dashboard endpoint which returns counts
-        // and an array of classes (more efficient than multiple requests)
-        const data = await getInstructorDashboard()
-        if (!mounted) return
-  setClasses(Array.isArray(data.classes) ? data.classes : (data.classes && Array.isArray(data.classes)) ? data.classes : [])
-  setUniqueStudentsCount(data.total_students ?? data.students ?? data.total_students_count ?? 0)
-  setAttendanceToday(data.attendance_today ?? data.attendance_today_count ?? data.today_attendance_records ?? 0)
-  // populate subjects count if provided by the dashboard endpoint
-  setSubjectsCount(
-    data.subjects_count ?? data.total_subjects ?? (Array.isArray(data.subjects) ? data.subjects.length : 0)
-  )
-      } catch (err) {
-        if (mounted) setError(err)
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-    load()
-    return () => { mounted = false }
-  }, [user])
+  const { data: dashData = null, isLoading: loading, error } = useQuery({
+    queryKey: QK.instructorDashboard(),
+    queryFn: () => getInstructorDashboard(),
+    enabled: !!user,
+  })
 
-    // load exams and map to calendar events
-    useEffect(() => {
-      let mounted = true
-      async function loadEvents() {
-        if (!user) return
+  const classes = Array.isArray(dashData?.classes) ? dashData.classes : []
+  const uniqueStudentsCount = dashData?.total_students ?? dashData?.students ?? dashData?.total_students_count ?? 0
+  const attendanceToday = dashData?.attendance_today ?? dashData?.attendance_today_count ?? dashData?.today_attendance_records ?? 0
+  const subjectsCount = dashData?.subjects_count ?? dashData?.total_subjects ?? (Array.isArray(dashData?.subjects) ? dashData.subjects.length : 0)
+
+  const { data: calendarEvents = {} } = useQuery({
+    queryKey: [...QK.exams('mine'), 'calendar'],
+    queryFn: async () => {
+      const res = await api.getMyExams?.() ?? api.getExams()
+      // res might be paginated object or array
+      const examsList = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
+      const ev = {}
+      const pad = (n) => String(n).padStart(2, '0')
+      const toISO = (d) => {
         try {
-          const res = await api.getMyExams?.() ?? api.getExams()
-          // res might be paginated object or array
-          const examsList = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
-          const ev = {}
-          const upcoming = []
-          const pad = (n) => String(n).padStart(2, '0')
-          const toISO = (d) => {
-            try {
-              const dt = new Date(d)
-              if (Number.isNaN(dt.getTime())) return null
-              return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
-            } catch { return null }
-          }
-          examsList.forEach(x => {
-            const iso = x.exam_date ? toISO(x.exam_date) : null
-            if (!iso) return
-            // build structured event object so Calendar can style chips
-            const subject = x.subject_name || x.subject?.name || null
-            const className = x.class_name || x.class_obj?.name || x.class?.name || x.subject?.class_obj?.name || null
-            const evt = {
-              kind: x.exam_type || 'exam',
-              title: x.title || 'Exam',
-              subject: subject,
-              className: className,
-            }
-            ev[iso] = ev[iso] || []
-            ev[iso].push(evt)
-            // consider as upcoming if exam_date is today or in future
-            try {
-              const d = new Date(x.exam_date)
-              if (!Number.isNaN(d.getTime())) {
-                const now = new Date()
-                if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
-                  upcoming.push({
-                    kind: 'exam',
-                    id: x.id,
-                    date: d.toISOString(),
-                    title: x.title || 'Exam',
-                    subject: subject,
-                    className: className,
-                  })
-                }
-              }
-            } catch {
-              // ignore date parse issues
-            }
-          })
-
-          // include active/global notices on the instructor calendar
-          try {
-            const active = await api.getActiveNotices().catch(() => [])
-            const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
-            act.forEach(n => {
-              const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
-              const iso = date ? toISO(date) : null
-              if (!iso) return
-              ev[iso] = ev[iso] || []
-              // Use a structured event so Calendar can style notices specially
-              ev[iso].push({
-                kind: 'notice',
-                title: n.title || 'Notice',
-                noticeId: n.id,
-                created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
-                expiry_date: n.expiry_date || null,
-              })
-              // include notice in upcoming list if its date is today or later
-              try {
-                const d = new Date(date)
-                if (!Number.isNaN(d.getTime())) {
-                  const now = new Date()
-                  if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
-                    upcoming.push({
-                      kind: 'notice',
-                      id: n.id,
-                      date: d.toISOString(),
-                      title: n.title || 'Notice',
-                      created_by_name: n.created_by_name || null,
-                    })
-                  }
-                }
-              } catch {
-                // ignore
-              }
-            })
-          } catch {
-            // non-fatal
-          }
-
-          // Note: Class creation events are intentionally excluded from calendar
-          // to avoid cluttering the events view with administrative actions
-          if (mounted) setCalendarEvents(ev)
-        } catch (err) {
-          // ignore calendar load errors; don't block dashboard
-        }
+          const dt = new Date(d)
+          if (Number.isNaN(dt.getTime())) return null
+          return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
+        } catch { return null }
       }
-      loadEvents()
-      return () => { mounted = false }
-  }, [user, classes])
+      examsList.forEach(x => {
+        const iso = x.exam_date ? toISO(x.exam_date) : null
+        if (!iso) return
+        // build structured event object so Calendar can style chips
+        const subject = x.subject_name || x.subject?.name || null
+        const className = x.class_name || x.class_obj?.name || x.class?.name || x.subject?.class_obj?.name || null
+        const evt = {
+          kind: x.exam_type || 'exam',
+          title: x.title || 'Exam',
+          subject: subject,
+          className: className,
+        }
+        ev[iso] = ev[iso] || []
+        ev[iso].push(evt)
+      })
+
+      // include active/global notices on the instructor calendar
+      try {
+        const active = await api.getActiveNotices().catch(() => [])
+        const act = Array.isArray(active) ? active : (active && Array.isArray(active.results) ? active.results : [])
+        act.forEach(n => {
+          const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
+          const iso = date ? toISO(date) : null
+          if (!iso) return
+          ev[iso] = ev[iso] || []
+          // Use a structured event so Calendar can style notices specially
+          ev[iso].push({
+            kind: 'notice',
+            title: n.title || 'Notice',
+            noticeId: n.id,
+            created_by_name: n.created_by_name || (n.created_by && (n.created_by.username || n.created_by.name)) || null,
+            expiry_date: n.expiry_date || null,
+          })
+        })
+      } catch {
+        // non-fatal
+      }
+
+      // Note: Class creation events are intentionally excluded from calendar
+      // to avoid cluttering the events view with administrative actions
+      return ev
+    },
+    enabled: !!user,
+  })
 
   return (
     <div>

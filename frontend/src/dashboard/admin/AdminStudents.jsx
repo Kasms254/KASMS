@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
@@ -61,14 +63,41 @@ function getRankDisplay(raw) {
 export default function AdminStudents() {
   const navigate = useNavigate()
   const toast = useToast()
+  const queryClient = useQueryClient()
   const reportError = (msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
   }
-  const [students, setStudents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+
+  const { data: students = [], isLoading: loading, error } = useQuery({
+    queryKey: QK.students(),
+    queryFn: async () => {
+      const studentsData = await api.getAllStudents()
+      const list = Array.isArray(studentsData) ? studentsData : []
+      return list.map((u) => ({
+        id: u.id,
+        first_name: u.first_name,
+        last_name: u.last_name,
+        full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+        name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+        svc_number: u.svc_number != null ? String(u.svc_number) : '',
+        email: u.email,
+        phone_number: u.phone_number,
+        rank: normalizeRank(u.rank || u.rank_display),
+        unit: u.unit || '',
+        is_active: u.is_active,
+        created_at: u.created_at,
+        className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
+      }))
+    },
+  })
+
+  const { data: availableClasses = [] } = useQuery({
+    queryKey: QK.classes('is_active=true'),
+    queryFn: () => api.getAllClasses('is_active=true'),
+  })
+
   // Pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -123,6 +152,7 @@ export default function AdminStudents() {
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
   const [enrollmentsList, setEnrollmentsList] = useState([])
   // Password reset modal state
+
   const [resetPasswordUser, setResetPasswordUser] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -137,49 +167,6 @@ export default function AdminStudents() {
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClass, setSelectedClass] = useState('all')
-  const [availableClasses, setAvailableClasses] = useState([])
-
-  // Fetch ALL students and classes once on mount
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-
-    Promise.all([
-      api.getAllStudents(),
-      api.getAllClasses('is_active=true'),
-    ])
-      .then(([studentsData, classesData]) => {
-        if (!mounted) return
-        const list = Array.isArray(studentsData) ? studentsData : []
-        // normalize shape used by this component
-        const mapped = list.map((u) => ({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          svc_number: u.svc_number != null ? String(u.svc_number) : '',
-          email: u.email,
-          phone_number: u.phone_number,
-          rank: normalizeRank(u.rank || u.rank_display),
-          unit: u.unit || '',
-          is_active: u.is_active,
-          created_at: u.created_at,
-          className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
-        }))
-        setStudents(mapped)
-        setAvailableClasses(Array.isArray(classesData) ? classesData : [])
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
 
   // Filter and sort students client-side
   const filteredStudents = useMemo(() => {
@@ -367,7 +354,7 @@ export default function AdminStudents() {
         created_at: updated.created_at,
         className: newClassName,
       }
-      setStudents((s) => s.map((x) => (x.id === norm.id ? norm : x)))
+      queryClient.setQueryData(QK.students(), (old) => (old || []).map((x) => (x.id === norm.id ? norm : x)))
       // if class changed, create a new enrollment
       try {
         const selectedClass = editForm.class_obj
@@ -413,7 +400,7 @@ export default function AdminStudents() {
           // update local student's className from classesList if available
           const cls = classesList.find((c) => String(c.id) === String(selectedClass))
           if (cls) {
-            setStudents((s) => s.map((x) => (x.id === norm.id ? { ...x, className: cls.name } : x)))
+            queryClient.setQueryData(QK.students(), (old) => (old || []).map((x) => (x.id === norm.id ? { ...x, className: cls.name } : x)))
           }
         }
           } catch (err) {
@@ -469,14 +456,12 @@ export default function AdminStudents() {
     setDeletingId(st.id)
     try {
       await api.deleteUser(st.id)
-      setStudents((s) => s.filter((x) => x.id !== st.id))
+      queryClient.setQueryData(QK.students(), (old) => (old || []).filter((x) => x.id !== st.id))
       // close confirm modal and also the edit modal if open
       setConfirmDelete(null)
       closeEdit()
       toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
-      setError(err)
-      // prefer toast later; keep simple for now
       reportError('Failed to delete student: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
@@ -489,11 +474,11 @@ export default function AdminStudents() {
     try {
       if (st.is_active) {
         await api.deactivateUser(st.id)
-        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: false } : x))
+        queryClient.setQueryData(QK.students(), (old) => (old || []).map((x) => x.id === st.id ? { ...x, is_active: false } : x))
         toast?.success?.('Student deactivated successfully') || toast?.showToast?.('Student deactivated successfully', { type: 'success' })
       } else {
         await api.activateUser(st.id)
-        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: true } : x))
+        queryClient.setQueryData(QK.students(), (old) => (old || []).map((x) => x.id === st.id ? { ...x, is_active: true } : x))
         toast?.success?.('Student activated successfully') || toast?.showToast?.('Student activated successfully', { type: 'success' })
       }
     } catch (err) {

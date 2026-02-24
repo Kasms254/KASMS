@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { QK } from '../../lib/queryKeys'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import useTheme from '../../hooks/useTheme'
@@ -9,12 +11,7 @@ export default function StudentResults() {
   const { user } = useAuth()
   const toast = useToast()
   const { theme } = useTheme()
-  const [results, setResults] = useState([])
-  const [enrollments, setEnrollments] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('all')
-  const [loading, setLoading] = useState(false)
-  const [loadingEnrollments, setLoadingEnrollments] = useState(false)
-  const [error, setError] = useState(null)
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [viewMode, setViewMode] = useState('table') // 'table' or 'cards'
   const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
@@ -33,70 +30,27 @@ export default function StudentResults() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Load student enrollments (all classes they've been enrolled in)
-  useEffect(() => {
-    let mounted = true
+  const { data: enrollments = [], isLoading: loadingEnrollments } = useQuery({
+    queryKey: QK.studentEnrollments(),
+    queryFn: async () => {
+      const res = await api.getStudentEnrollments()
+      return Array.isArray(res) ? res : Array.isArray(res?.results) ? res.results : []
+    },
+    enabled: !!user,
+  })
 
-    async function loadEnrollments() {
-      if (!user) return
-      setLoadingEnrollments(true)
-      try {
-        const res = await api.getStudentEnrollments()
-        if (!mounted) return
-        const enrollmentList = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.results)
-            ? res.results
-            : []
-        setEnrollments(enrollmentList)
-      } catch {
-        // Silently handle enrollment load error
-      } finally {
-        if (mounted) setLoadingEnrollments(false)
+  const { data: results = [], isLoading: loading, error } = useQuery({
+    queryKey: QK.studentResults(selectedClassId),
+    queryFn: async () => {
+      const params = {}
+      if (selectedClassId !== 'all') {
+        params.class_id = selectedClassId
       }
-    }
-
-    loadEnrollments()
-    return () => { mounted = false }
-  }, [user])
-
-  // Load student results with optional class filter
-  useEffect(() => {
-    let mounted = true
-
-    async function loadStudentResults() {
-      if (!user) return
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const params = {}
-        if (selectedClassId !== 'all') {
-          params.class_id = selectedClassId
-        }
-        const res = await api.getMyResults(params)
-
-        if (!mounted) return
-
-        const allResults = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.results)
-            ? res.results
-            : []
-
-        setResults(allResults)
-      } catch (err) {
-        if (!mounted) return
-        setError(err)
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-
-    loadStudentResults()
-    return () => { mounted = false }
-  }, [user, selectedClassId])
+      const res = await api.getMyResults(params)
+      return Array.isArray(res) ? res : Array.isArray(res?.results) ? res.results : []
+    },
+    enabled: !!user,
+  })
 
   // Group results by class for display
   const resultsByClass = useMemo(() => {

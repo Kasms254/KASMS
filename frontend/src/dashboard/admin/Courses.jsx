@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import Card from '../../components/Card'
 import { getCoursesPaginated, addCourse, updateCourse, deleteCourse, getClasses, getDepartments } from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import { useNavigate } from 'react-router-dom'
 import useToast from '../../hooks/useToast'
 
@@ -19,17 +21,13 @@ function sanitizeInput(value, trimSpaces = false) {
 }
 
 export default function Courses() {
-  const [loading, setLoading] = useState(false)
-  const [courses, setCourses] = useState([])
+  const queryClient = useQueryClient()
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [newCourse, setNewCourse] = useState({ name: '', code: '', description: '', department: '' })
   const [editingCourse, setEditingCourse] = useState(null)
   const [editCourseModalOpen, setEditCourseModalOpen] = useState(false)
   const [editCourseForm, setEditCourseForm] = useState({ name: '', code: '', description: '', is_active: true, department: '' })
-  const [departments, setDepartments] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
   const [pageSize] = useState(12)
   // modal state
   const addModalRef = useRef(null)
@@ -51,59 +49,21 @@ export default function Courses() {
   const [confirmDeleteCourse, setConfirmDeleteCourse] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  useEffect(() => {
-    getDepartments().then(setDepartments).catch(() => {})
-  }, [])
+  const { data: departments = [] } = useQuery({
+    queryKey: QK.departments(),
+    queryFn: () => getDepartments(),
+  })
 
-  useEffect(() => {
-    // load courses on mount and fetch active class counts per course
-    ;(async () => {
-      setLoading(true)
-      try {
-        const params = `page=${currentPage}&page_size=${pageSize}`
-        const data = await getCoursesPaginated(params)
-        const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-
-        // Update pagination metadata
-        if (data && data.count !== undefined) {
-          setTotalCount(data.count)
-          setTotalPages(Math.ceil(data.count / pageSize))
-        }
-
-        // For each course fetch number of active classes. Use Promise.allSettled to avoid single failure breaking everything.
-        const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
-        const mapped = list.map((course, idx) => {
-          const res = counts[idx]
-          let active = null
-          if (res && res.status === 'fulfilled' && res.value) {
-            const v = res.value
-            active = Array.isArray(v) ? v.length : (v?.count ?? null)
-          }
-          return { ...course, active_classes: active }
-        })
-        setCourses(mapped)
-      } catch (err) {
-        reportError(err?.message || 'Failed to load courses')
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [reportError, currentPage, pageSize])
-
-  async function load() {
-    setLoading(true)
-    try {
-      const params = `page=${currentPage}&page_size=${pageSize}`
-      const data = await getCoursesPaginated(params)
+  const courseParams = `page=${currentPage}&page_size=${pageSize}`
+  const { data: courseQueryResult = { list: [], totalCount: 0, totalPages: 1 }, isFetching: loading } = useQuery({
+    queryKey: QK.courses(courseParams),
+    queryFn: async () => {
+      const data = await getCoursesPaginated(courseParams)
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const count = data?.count ?? list.length
+      const pages = Math.ceil(count / pageSize) || 1
 
-      // Update pagination metadata
-      if (data && data.count !== undefined) {
-        setTotalCount(data.count)
-        setTotalPages(Math.ceil(data.count / pageSize))
-      }
-
-      // fetch active class counts per course
+      // For each course fetch number of active classes
       const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
       const mapped = list.map((course, idx) => {
         const res = counts[idx]
@@ -114,13 +74,14 @@ export default function Courses() {
         }
         return { ...course, active_classes: active }
       })
-      setCourses(mapped)
-    } catch (err) {
-      reportError(err?.message || 'Failed to load courses')
-    } finally {
-      setLoading(false)
-    }
-  }
+      return { list: mapped, totalCount: count, totalPages: pages }
+    },
+    placeholderData: keepPreviousData,
+  })
+
+  const courses = courseQueryResult.list
+  const totalCount = courseQueryResult.totalCount
+  const totalPages = courseQueryResult.totalPages
 
   async function handleAddCourse(e) {
     e.preventDefault()
@@ -131,7 +92,7 @@ export default function Courses() {
       reportSuccess('Course Added')
       setNewCourse({ name: '', code: '', description: '', department: '' })
       setAddModalOpen(false)
-      load()
+      queryClient.invalidateQueries({ queryKey: ['courses'] })
     } catch (err) {
       // map field errors if present
       if (err?.data && typeof err.data === 'object') {
@@ -280,7 +241,7 @@ export default function Courses() {
                   await updateCourse(editingCourse.id, payload)
                   reportSuccess('Course Updated')
                   setEditCourseModalOpen(false)
-                  load()
+                  queryClient.invalidateQueries({ queryKey: ['courses'] })
                 } catch (err) {
                   reportError(err?.message || 'Failed to update course')
                 }
@@ -355,7 +316,7 @@ export default function Courses() {
                       reportSuccess('Course Deleted')
                       setConfirmDeleteCourse(null)
                       setEditCourseModalOpen(false)
-                      load()
+                      queryClient.invalidateQueries({ queryKey: ['courses'] })
                     } catch (err) {
                       reportError(err?.message || 'Failed to delete course')
                     } finally {

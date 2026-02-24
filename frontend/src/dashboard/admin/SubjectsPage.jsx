@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import SearchableSelect from '../../components/SearchableSelect'
@@ -17,10 +19,7 @@ function sanitizeInput(value) {
 }
 
 export default function SubjectsPage() {
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [showInactive, setShowInactive] = useState(false)
 
@@ -42,7 +41,6 @@ export default function SubjectsPage() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [instructors, setInstructors] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
   const [isSaving, setIsSaving] = useState(false)
@@ -55,46 +53,33 @@ export default function SubjectsPage() {
     // developer fallback
   }
 
-  // Fetch classes and instructors once on mount (for dropdowns and enrichment)
-  useEffect(() => {
-    let mounted = true
+  const { data: classes = [] } = useQuery({
+    queryKey: QK.classes(),
+    queryFn: () => api.getAllClasses(),
+  })
 
-    Promise.all([api.getAllClasses().catch(() => null), api.getAllInstructors().catch(() => null)])
-      .then(([clsData, insData]) => {
-        if (!mounted) return
-        setClasses(Array.isArray(clsData) ? clsData : [])
-        const list = Array.isArray(insData) ? insData : []
-        list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
-        setInstructors(list)
-      })
-      .catch(() => {})
+  const { data: instructors = [] } = useQuery({
+    queryKey: QK.instructors(),
+    queryFn: async () => {
+      const list = await api.getAllInstructors()
+      const raw = Array.isArray(list) ? list : []
+      raw.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+      return raw
+    },
+  })
 
-    return () => { mounted = false }
-  }, [])
+  const subjectParams = [
+    selectedClass !== 'all' ? `class_obj=${selectedClass}` : null,
+    selectedInstructor !== 'all' ? `instructor=${selectedInstructor}` : null,
+  ].filter(Boolean).join('&')
 
-  // Fetch subjects — re-fetches when class or instructor filter changes,
-  // passing filters to backend to reduce data transferred
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-
-    const params = []
-    if (selectedClass !== 'all') params.push(`class_obj=${selectedClass}`)
-    if (selectedInstructor !== 'all') params.push(`instructor=${selectedInstructor}`)
-
-    api.getAllSubjects(params.join('&'))
-      .then((subjData) => {
-        if (!mounted) return
-        setSubjects(Array.isArray(subjData) ? subjData : [])
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => { if (mounted) setLoading(false) })
-
-    return () => { mounted = false }
-  }, [selectedClass, selectedInstructor])
+  const { data: subjects = [], isLoading: loading, error } = useQuery({
+    queryKey: QK.subjects(subjectParams || null),
+    queryFn: async () => {
+      const subjData = await api.getAllSubjects(subjectParams)
+      return Array.isArray(subjData) ? subjData : []
+    },
+  })
 
   // Enhanced subjects list with class and instructor names, service number, and rank
   const enrichedSubjects = useMemo(() => {
@@ -255,7 +240,7 @@ export default function SubjectsPage() {
       
       const updated = await api.partialUpdateSubject(editingSubject.id, payload)
       // update local subjects list
-      setSubjects((s) => s.map((x) => (x.id === updated.id ? updated : x)))
+      queryClient.setQueryData(QK.subjects(subjectParams || null), (old) => (old || []).map((x) => (x.id === updated.id ? updated : x)))
       closeEdit()
       toast?.success?.('Subject updated successfully') || toast?.showToast?.('Subject updated successfully', { type: 'success' })
     } catch (err) {
@@ -275,7 +260,7 @@ export default function SubjectsPage() {
     
     try {
       await api.deleteSubject(subj.id)
-      setSubjects((s) => s.filter((x) => x.id !== subj.id))
+      queryClient.setQueryData(QK.subjects(subjectParams || null), (old) => (old || []).filter((x) => x.id !== subj.id))
       setConfirmDelete(null)
     } catch (err) {
       reportError('Failed to delete subject: ' + (err.message || String(err)))
@@ -285,15 +270,6 @@ export default function SubjectsPage() {
   }
 
   async function openAddSubjectModal(classId = ''){
-    try{
-      const ins = await api.getAllInstructors()
-      const list = Array.isArray(ins) ? ins : []
-      // Sort by rank: senior first
-      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
-      setInstructors(list)
-    }catch{
-      setInstructors([])
-    }
     setForm({ name: '', subject_code: '', description: '', instructor: '', class_obj: classId || '' })
     setModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button,textarea')?.focus() }, 20)
@@ -320,10 +296,7 @@ export default function SubjectsPage() {
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       closeModal()
-      // refresh subjects
-      const s = await api.getAllSubjects()
-      const subjList = Array.isArray(s) ? s : []
-      setSubjects(subjList)
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
     }catch(err){
       const d = err?.data
       if (d && typeof d === 'object'){

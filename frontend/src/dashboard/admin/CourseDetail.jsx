@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCourses, getClassesPaginated, getAllClasses, addClass, updateClass, deleteClass, getAllInstructors, getClassEnrolledStudents } from '../../lib/api'
+import { QK } from '../../lib/queryKeys'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
@@ -33,15 +35,10 @@ function sanitizeInput(value, trimSpaces = false) {
 export default function CourseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
-  const [course, setCourse] = useState(null)
-  const [classes, setClasses] = useState([])
+  const queryClient = useQueryClient()
   const [showOnlyActive, setShowOnlyActive] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
   const [pageSize] = useState(12)
-  const [instructors, setInstructors] = useState([])
 
   // Add class modal
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -75,44 +72,46 @@ export default function CourseDetail() {
     if (toast?.showToast) return toast.showToast(m, { type: 'success' })
   }, [toast])
 
-  // Load course info
-  useEffect(() => {
-    (async () => {
-      try {
-        const courses = await getCourses()
-        const list = Array.isArray(courses) ? courses : (courses && courses.results) ? courses.results : []
-        const found = list.find(c => String(c.id) === String(id))
-        setCourse(found || { id, name: `Course ${id}`, code: '', description: '' })
-      } catch {
-        reportError('Failed to load course')
-      }
-    })()
-  }, [id, reportError])
+  const { data: course = null } = useQuery({
+    queryKey: [...QK.courses(), 'detail', id],
+    queryFn: async () => {
+      const courses = await getCourses()
+      const list = Array.isArray(courses) ? courses : (courses && courses.results) ? courses.results : []
+      return list.find(c => String(c.id) === String(id)) || { id, name: `Course ${id}`, code: '', description: '' }
+    },
+  })
 
-  const loadClasses = useCallback(async () => {
-    setLoading(true)
-    try {
+  const { data: instructors = [] } = useQuery({
+    queryKey: QK.instructors(),
+    queryFn: async () => {
+      const ins = await getAllInstructors()
+      const list = Array.isArray(ins) ? ins : []
+      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+      return list
+    },
+  })
+
+  const classParams = `course=${id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+  const { data: classQueryResult = { list: [], totalCount: 0, totalPages: 1 }, isFetching: loading } = useQuery({
+    queryKey: QK.classes(classParams),
+    queryFn: async () => {
       let data
       try {
-        const params = `course=${id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
-        data = await getClassesPaginated(params)
+        data = await getClassesPaginated(classParams)
       } catch {
         const fallbackParams = showOnlyActive ? `course=${id}&is_active=true` : `course=${id}`
         const all = await getAllClasses(fallbackParams)
         data = { results: Array.isArray(all) ? all : [], count: Array.isArray(all) ? all.length : 0 }
       }
 
-      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-      if (data && data.count !== undefined) {
-        setTotalCount(data.count)
-        setTotalPages(Math.ceil(data.count / pageSize))
-      }
+      const rawList = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const count = data?.count ?? rawList.length
+      const pages = Math.ceil(count / pageSize) || 1
 
-      const initialMapped = list.map(cl => ({
+      const initialMapped = rawList.map(cl => ({
         ...cl,
         students_count: cl.current_enrollment ?? cl.enrollment_count ?? cl.students_count ?? null,
       }))
-      setClasses(initialMapped)
 
       const toFetch = initialMapped.reduce((acc, cl, idx) => {
         if (cl.students_count == null) acc.push({ id: cl.id, idx })
@@ -131,16 +130,16 @@ export default function CourseDetail() {
           }
           mapped[t.idx] = { ...mapped[t.idx], students_count: cnt }
         })
-        setClasses(mapped)
+        return { list: mapped, totalCount: count, totalPages: pages }
       }
-    } catch {
-      reportError('Failed to load classes')
-    } finally {
-      setLoading(false)
-    }
-  }, [id, showOnlyActive, currentPage, pageSize, reportError])
+      return { list: initialMapped, totalCount: count, totalPages: pages }
+    },
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => { loadClasses() }, [loadClasses])
+  const classes = classQueryResult.list
+  const totalCount = classQueryResult.totalCount
+  const totalPages = classQueryResult.totalPages
 
   async function openAddModal() {
     try {
