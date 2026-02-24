@@ -177,30 +177,49 @@ class SchoolViewSet(viewsets.ModelViewSet):
     def statistics(self, request, pk=None):
 
         school = self.get_object()
-
    
+        membership_stats = SchoolMembership.all_objects.filter(
+            school=school, status='active'
+        ).aggregate(
+            total=Count('id'),
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+            admins=Count('id', filter=Q(role='admin')),
+            commandants=Count('id', filter=Q(role='commandant')),
+        )
+
+        academic_stats = School.objects.filter(id=school.id).aggregate(
+            courses=Count('courses', filter=Q(courses__is_active=True)),
+            classes=Count('classes', filter=Q(classes__is_active=True)),
+            subjects=Count('subjects', filter=Q(subjects__is_active=True)),
+            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True)),
+        )
+
+        current_students = membership_stats['students'] or 0
+        current_instructors = membership_stats['instructors'] or 0
+
         stats = {
             'users': {
-                'total': school.memberships.filter(status='active').count(),
-                'students': school.memberships.filter(role='student', status='active').count(),
-                'instructors': school.memberships.filter(role='instructor', status='active').count(),
-                'admins': school.memberships.filter(role='admin', status='active').count(),
-                'commandants': school.memberships.filter(role='commandant', status='active').count(),
+                'total': membership_stats['total'] or 0,
+                'students': current_students,
+                'instructors': current_instructors,
+                'admins': membership_stats['admins'] or 0,
+                'commandants': membership_stats['commandants'] or 0,
             },
             'academic':{
-                'courses':school.courses.filter(is_active=True).count(),
-                'classes': school.classes.filter(is_active= True).count(),
-                'subjects': school.subjects.filter(is_active=True).count(),
-                'active_enrollments': school.enrollments.filter(is_active=True).count(),
+                'courses': academic_stats['courses'] or 0,
+                'classes': academic_stats['classes'] or 0,
+                'subjects': academic_stats['subjects'] or 0,
+                'active_enrollments': academic_stats['active_enrollments'] or 0,
             },
             'limits':{
                 'max_students': school.max_students,
-                'current_students':school.current_student_count,
-                'student_capacity_used': round((school.current_student_count / school.max_students) * 100, 2),
+                'current_students': current_students,
+                'student_capacity_used': round((current_students / school.max_students) * 100, 2) if school.max_students else 0,
                 'max_instructors': school.max_instructors,
-                'current_instructors':school.current_instructor_count,
-                'instructor_capacity_used':round((school.current_instructor_count /school.max_instructors) * 100, 2),
-                'within_limits':school.is_within_limits
+                'current_instructors': current_instructors,
+                'instructor_capacity_used': round((current_instructors / school.max_instructors) * 100, 2) if school.max_instructors else 0,
+                'within_limits': current_students <= school.max_students and current_instructors <= school.max_instructors
             },
             'subscription':{
                 'start_date':school.subscription_start,
@@ -2452,13 +2471,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             class_q,
             school=school,
             is_active=True
-        ).distinct()
+        ).distinct().select_related('course', 'instructor').annotate(
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+        )
 
         my_subjects = Subject.all_objects.filter(
             subject_q,
             school=school,
             is_active=True
-        ).distinct()
+        ).distinct().select_related('instructor', 'class_obj', 'class_obj__course')
 
         my_students_count = Enrollment.all_objects.filter(
             class_obj__in=my_classes,
@@ -4043,7 +4065,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
             session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
 
-
         sessions = session_qs.order_by('-scheduled_start')
 
         enrolled_students = User.objects.filter(
@@ -4053,41 +4074,46 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             is_active=True
         ).distinct()
 
-        student_stats =[]
+        student_att_stats = SessionAttendance.objects.filter(
+            session__in=sessions
+        ).values('student_id').annotate(
+            attended=Count('id'),
+            present=Count('id', filter=Q(status='present')),
+            late=Count('id', filter=Q(status='late')),
+            excused=Count('id', filter=Q(status='excused')),
+        )
+        att_map = {s['student_id']: s for s in student_att_stats}
+
+        total_sessions_count = sessions.count()
+        student_stats = []
 
         for student in enrolled_students:
-            attendances = SessionAttendance.objects.filter(
-                session__in =sessions,
-                student = student
-            )
+            att_data = att_map.get(student.id, {})
+            attended = att_data.get('attended', 0)
+            present = att_data.get('present', 0)
+            late = att_data.get('late', 0)
+            excused = att_data.get('excused', 0)
+            absent = total_sessions_count - attended
 
-            total_sessions = sessions.count()
-            attended = attendances.count()
-            present = attendances.filter(status='present').count()
-            late = attendances.filter(status='late').count()
-            absent = total_sessions - attended
-
-            attendance_rate = (attended / total_sessions * 100) if total_sessions > 0 else 0
-            punctuality_rate  =(present/attended * 100) if attended > 0 else 0
+            attendance_rate = (attended / total_sessions_count * 100) if total_sessions_count > 0 else 0
+            punctuality_rate = (present / attended * 100) if attended > 0 else 0
 
             student_stats.append({
                 'student_id': student.id,
-                'student_name':student.get_full_name(),
-                'svc_number':student.svc_number,
-                'total_sessions':total_sessions,
-                'attended':attended,
-                'present':present,
-                'late':late,
-                'absent':absent,
-                'excused':attendances.filter(status='excused').count(),
-                'attendance_rate':round(attendance_rate, 2),
-                'punctuality_rate':round(punctuality_rate, 2)
-
-                            })
+                'student_name': student.get_full_name(),
+                'svc_number': student.svc_number,
+                'total_sessions': total_sessions_count,
+                'attended': attended,
+                'present': present,
+                'late': late,
+                'absent': absent,
+                'excused': excused,
+                'attendance_rate': round(attendance_rate, 2),
+                'punctuality_rate': round(punctuality_rate, 2)
+            })
 
         student_stats.sort(key=lambda x: x['attendance_rate'], reverse=True)
 
-        total_sessions_count = sessions.count()
         total_attendances = SessionAttendance.objects.filter(
             session__in = sessions
         ).count()
@@ -4115,7 +4141,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             },
             'student_statistics': student_stats
         })
-
+        
     @action(detail=False, methods=['get'])
     def student_detail(self, request):
         

@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Avg, Count, Q, F, Sum, Max, Min
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models import F, FloatField
+from django.db.models import Case, When, Value, CharField
 
 from .models import (
     Exam, ExamResult, Subject, Class, Enrollment, User, Attendance, AttendanceSession, SessionAttendance
@@ -56,27 +58,39 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
 
         total_students = enrolled_students.count()
 
-        all_results = ExamResult.objects.filter(
-            exam__subject  =subject,
-            is_submitted= True,
-            marks_obtained__isnull = False
-        ).select_related('exam', 'student', 'graded_by')
+        result_stats = ExamResult.objects.filter(
+            exam__subject=subject,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).aggregate(
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+            avg_pct=Avg(
+                F('marks_obtained') * 100.0 / F('exam__total_marks'),
+                output_field=FloatField()
+            ),
+            max_pct=Max(
+                F('marks_obtained') * 100.0 / F('exam__total_marks'),
+                output_field=FloatField()
+            ),
+            min_pct=Min(
+                F('marks_obtained') * 100.0 / F('exam__total_marks'),
+                output_field=FloatField()
+            ),
+            total_count=Count('id'),
+            passing_count=Count(
+                'id',
+                filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)
+            ),
+        )
 
-        if all_results.exists():
-            total_marks = sum(r.marks_obtained for r in all_results)
-            total_possible = sum(r.exam.total_marks for r in all_results)
-            overall_exam_average = (total_marks / total_possible * 100) if total_possible > 0 else 0
-
-            highest_exam_score = max(r.percentage for r in all_results)
-            lowest_exam_score = min(r.percentage for r in all_results)
-
-        else:
-            overall_exam_average = 0
-            highest_exam_score = 0
-            lowest_exam_score = 0
-
-        passing_results = sum(1 for r in all_results if r.percentage >=50)
-        total_results_count = all_results.count()
+        total_marks = result_stats['total_marks'] or 0
+        total_possible = result_stats['total_possible'] or 0
+        overall_exam_average = result_stats['avg_pct'] or 0
+        highest_exam_score = result_stats['max_pct'] or 0
+        lowest_exam_score = result_stats['min_pct'] or 0
+        total_results_count = result_stats['total_count'] or 0
+        passing_results = result_stats['passing_count'] or 0
         exam_pass_rate = (passing_results / total_results_count * 100) if total_results_count > 0 else 0
 
         attendance_sessions = AttendanceSession.objects.filter(
@@ -92,64 +106,94 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
         actual_attendances = all_session_attendances.count()
         overall_attendance_rate  =(actual_attendances / expected_attendances *100) if expected_attendances > 0 else 0
 
-        grade_distribution = {
-            'A': sum(1 for r in all_results if r.grade =='A'),
-            'A-': sum(1 for r in all_results if r.grade == 'A-'),
-            'B+': sum(1 for r in all_results if r.grade == 'B+'),
-            'B': sum(1 for r in all_results if r.grade == 'B'),
-            'B-': sum(1 for r in all_results if r.grade == 'B-'),
-            'C+': sum(1 for r in all_results if r.grade == 'C+'),
-            'C': sum(1 for r in all_results if r.grade == 'C'),
-            'C-': sum(1 for r in all_results if r.grade == 'C-'),
-            'F': sum(1 for r in all_results if r.grade == 'F'),
-        }
+        pct_expr = F('marks_obtained') * 100.0 / F('exam__total_marks')
+        grade_qs = ExamResult.objects.filter(
+            exam__subject=subject,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).annotate(
+            grade_bucket=Case(
+                When(condition=Q(**{}), then=Case(
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.91}, then=Value('A')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.86}, then=Value('A-')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.81}, then=Value('B+')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.76}, then=Value('B')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.71}, then=Value('B-')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.65}, then=Value('C+')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.60}, then=Value('C')),
+                    When(**{f'marks_obtained__gte': F('exam__total_marks') * 0.50}, then=Value('C-')),
+                    default=Value('F'),
+                    output_field=CharField(),
+                )),
+                output_field=CharField(),
+            )
+        ).values('grade_bucket').annotate(count=Count('id'))
 
+        grade_distribution = {'A': 0, 'A-': 0, 'B+': 0, 'B': 0, 'B-': 0, 'C+': 0, 'C': 0, 'C-': 0, 'F': 0}
+        for row in grade_qs:
+            if row['grade_bucket'] in grade_distribution:
+                grade_distribution[row['grade_bucket']] = row['count']
+
+        student_exam_stats = ExamResult.objects.filter(
+            exam__subject=subject,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).values('student_id').annotate(
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+            exams_taken=Count('id'),
+        )
+        exam_map = {s['student_id']: s for s in student_exam_stats}
+
+        student_att_stats = SessionAttendance.objects.filter(
+            session__subject=subject
+        ).values('student_id').annotate(
+            attended=Count('id'),
+            present=Count('id', filter=Q(status='present')),
+            late=Count('id', filter=Q(status='late')),
+        )
+        att_map = {s['student_id']: s for s in student_att_stats}
 
         student_performance = []
 
         for enrollment in enrolled_students:
             student = enrollment.student
+            exam_data = exam_map.get(student.id, {})
+            att_data = att_map.get(student.id, {})
 
-            student_results = all_results.filter(student=student)
-            if student_results.exists():
-                student_total = sum(r.marks_obtained for r in student_results)
-                student_possible = sum(r.exam.total_marks for r in student_results)
-                exam_percentage = (student_total / student_possible * 100) if student_possible > 0 else 0
+            student_total = float(exam_data.get('total_marks', 0) or 0)
+            student_possible = exam_data.get('total_possible', 0) or 0
+            exams_taken = exam_data.get('exams_taken', 0)
+            exam_percentage = (student_total / student_possible * 100) if student_possible > 0 else 0
 
-            else:
-                exam_percentage = 0
-                student_total = 0
-                student_possible = 0
-
-            student_attendances = all_session_attendances.filter(student=student)
-            attended_count = student_attendances.count()
-            present_count = student_attendances.filter(status='present').count()
-            late_count = student_attendances.filter(status='late').count()
+            attended_count = att_data.get('attended', 0)
+            present_count = att_data.get('present', 0)
+            late_count = att_data.get('late', 0)
 
             attendance_rate = (attended_count / total_sessions * 100) if total_sessions > 0 else 0
-            punctuality_rate = (present_count /attended_count * 100) if attended_count > 0 else 0
+            punctuality_rate = (present_count / attended_count * 100) if attended_count > 0 else 0
 
-            combined_score = (float(exam_percentage) * 0.7) + (float(attendance_rate)* 0.3)
+            combined_score = (float(exam_percentage) * 0.7) + (float(attendance_rate) * 0.3)
 
             student_performance.append({
                 'student_id': student.id,
-                'student_name':student.get_full_name(),
-                'svc_number':getattr(student, 'svc_number', None),
+                'student_name': student.get_full_name(),
+                'svc_number': getattr(student, 'svc_number', None),
 
-                'exams_taken':student_results.count() if student_results.exists() else 0,
-                'exam_percentage':round(exam_percentage, 2),
-                'total_marks_obtained':float(student_total),
-                'total_possible_marks':student_possible,
+                'exams_taken': exams_taken,
+                'exam_percentage': round(exam_percentage, 2),
+                'total_marks_obtained': student_total,
+                'total_possible_marks': student_possible,
             
                 'total_sessions': total_sessions,
                 'sessions_attached': attended_count,
                 'present_count': present_count,
                 'late_count': late_count,
                 'absent_count': total_sessions - attended_count,
-                'attendance_rate':round(attendance_rate, 2),
-                'punctuality_rate':round(punctuality_rate, 2),
+                'attendance_rate': round(attendance_rate, 2),
+                'punctuality_rate': round(punctuality_rate, 2),
 
-                'combined_score':round(combined_score, 2),
+                'combined_score': round(combined_score, 2),
                 'performance_grade': _calculate_grade(combined_score)
             })
 
@@ -161,39 +205,52 @@ class SubjectPerformanceViewSet(viewsets.ViewSet):
         top_performers = student_performance[:10]
 
         exam_breakdown = []
-        for exam in exams:
-            exam_results = all_results.filter(exam=exam)
-            if exam_results.exists():
-                exam_total = sum(r.marks_obtained for r in exam_results)
-                exam_possible = sum(r.exam.total_marks for r in exam_results)
-                exam_avg = (exam_total / exam_possible * 100) if exam_possible > 0 else 0
+        exam_agg = ExamResult.objects.filter(
+            exam__subject=subject,
+            exam__is_active=True,
+            is_submitted=True,
+            marks_obtained__isnull=False
+        ).values('exam_id', 'exam__title', 'exam__exam_type', 'exam__exam_date', 'exam__total_marks').annotate(
+            student_attempted=Count('id'),
+            avg_pct=Avg(F('marks_obtained') * 100.0 / F('exam__total_marks'), output_field=FloatField()),
+            max_pct=Max(F('marks_obtained') * 100.0 / F('exam__total_marks'), output_field=FloatField()),
+            min_pct=Min(F('marks_obtained') * 100.0 / F('exam__total_marks'), output_field=FloatField()),
+        ).order_by('exam__exam_date')
 
-                exam_breakdown.append({
-                    'exam_id': exam.id,
-                    'exam_title':exam.title,
-                    'exam_type':exam.exam_type,
-                    'exam_date':exam.exam_date,
-                    'total_marks':exam.total_marks,
-                    'student_attempted':exam_results.count(),
-                    'average_percentage':round(exam_avg, 2),
-                    'highest_score':round(max(r.percentage for r in exam_results), 2),
-                    'lowest_score':round(min(r.percentage for r in exam_results), 2),
-                })
+        for e in exam_agg:
+            exam_breakdown.append({
+                'exam_id': e['exam_id'],
+                'exam_title': e['exam__title'],
+                'exam_type': e['exam__exam_type'],
+                'exam_date': e['exam__exam_date'],
+                'total_marks': e['exam__total_marks'],
+                'student_attempted': e['student_attempted'],
+                'average_percentage': round(e['avg_pct'] or 0, 2),
+                'highest_score': round(e['max_pct'] or 0, 2),
+                'lowest_score': round(e['min_pct'] or 0, 2),
+            })
+
+        session_att_agg = SessionAttendance.objects.filter(
+            session__subject=subject
+        ).values('session_id', 'session__title', 'session__scheduled_start').annotate(
+            marked_count=Count('id'),
+            present=Count('id', filter=Q(status='present')),
+            late=Count('id', filter=Q(status='late')),
+        )
 
         session_breakdown = []
-        for session in attendance_sessions:
-            session_attendances = all_session_attendances.filter(session=session)
-
+        for s in session_att_agg:
+            marked = s['marked_count']
+            att_rate = round((marked / total_students * 100), 2) if total_students > 0 else 0
             session_breakdown.append({
-                'session_id':session.id,
-                'session_title':session.title,
-                'session_date':session.scheduled_start,
-                'total_students':total_students,
-                'marked_count':session_attendances.count(),
-                'present':session_attendances.filter(status='present').count(),
-                'late':session_attendances.filter(status='late').count(),
-                'attendance_rate':round((session_attendances.count() /total_students * 100), 2) if total_students > 0 else 0
-
+                'session_id': s['session_id'],
+                'session_title': s['session__title'],
+                'session_date': s['session__scheduled_start'],
+                'total_students': total_students,
+                'marked_count': marked,
+                'present': s['present'],
+                'late': s['late'],
+                'attendance_rate': att_rate,
             })
         return Response({
             'subject':{
