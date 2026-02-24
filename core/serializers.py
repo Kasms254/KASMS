@@ -1515,6 +1515,7 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     effective_colors = serializers.SerializerMethodField(read_only=True)
     has_logo = serializers.SerializerMethodField(read_only=True)
     has_signature = serializers.SerializerMethodField(read_only=True)
+    is_active = serializers.BooleanField(default=True)
 
     class Meta:
         model = CertificateTemplate
