@@ -138,8 +138,6 @@ def token_refresh_view(request):
     try:
         old_refresh = RefreshToken(raw_refresh)
 
-        new_access = str(old_refresh.access_token)
-
         old_refresh.blacklist()
         new_refresh = RefreshToken.for_user(
 

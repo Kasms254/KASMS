@@ -68,6 +68,6 @@ def delete_auth_cookies(response):
 
     response.delete_cookie(ACCESS_COOKIE_NAME, path="/", samesite=base["samesite"])
     response.delete_cookie(
-        REFRESH_COOKIE_NAME, path="/api/auth/", samesite=base["samesite"]
+        REFRESH_COOKIE_NAME, path="/api/auth", samesite=base["samesite"]
     )
     

@@ -144,6 +144,10 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
         userMessage = detail || 'Invalid service number or password. Please try again.'
       } else {
         userMessage = 'Authentication failed. Please log in again.'
+        // Both the original request and the refresh attempt returned 401 —
+        // the session is completely gone. Notify AuthProvider to clear state
+        // so ProtectedRoute redirects the user to the login page automatically.
+        window.dispatchEvent(new CustomEvent('auth:session-expired'))
       }
     } else if (res.status === 403) {
       userMessage = 'You do not have permission to perform this action.'
@@ -204,6 +208,13 @@ export async function changePassword(oldPassword, newPassword, newPassword2) {
 
 export async function getCurrentUser() {
   return request('/api/auth/me/')
+}
+
+// Validates the current session and re-checks student enrollment status.
+// Returns { valid: true, user: {...} } on success, throws on failure.
+// Used by restoreSession() on every page load.
+export async function verifyToken() {
+  return request('/api/auth/token/verify/', { method: 'POST' })
 }
 
 export async function getStudents() {

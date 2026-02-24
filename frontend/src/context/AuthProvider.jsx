@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react'
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react'
 import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
+
+const INACTIVITY_TIMEOUT_MS = 1 * 60 * 1000 // 30 minutes
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -23,7 +25,10 @@ export function AuthProvider({ children }) {
         // Non-fatal — proceed without CSRF cookie
       }
       try {
-        const me = await api.getCurrentUser()
+        // verifyToken validates the session AND re-checks student enrollment.
+        // Response shape: { valid: true, user: {...} }
+        const result = await api.verifyToken()
+        const me = result?.user
         if (mounted) {
           setUser(me)
           if (me?.must_change_password) setMustChangePassword(true)
@@ -73,6 +78,24 @@ export function AuthProvider({ children }) {
       setUser(userInfo)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
+      // Apply school theme immediately from the login response so users see
+      // their school's branding right after login, not only after a page refresh.
+      // UserListSerializer already includes school_theme in the login payload.
+      if (userInfo?.role !== 'superadmin') {
+        const themeData = userInfo?.school_theme
+        if (themeData) {
+          setTheme({
+            primary_color: themeData.primary_color,
+            secondary_color: themeData.secondary_color,
+            accent_color: themeData.accent_color,
+            logo_url: themeData.logo_url
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              : null,
+            school_name: themeData.school_name || userInfo.school_name,
+            school_code: themeData.school_code || userInfo.school_code,
+          })
+        }
+      }
       return { ok: true, mustChangePassword: needsPasswordChange }
     } catch (err) {
       const fieldErrors = {}
@@ -94,7 +117,20 @@ export function AuthProvider({ children }) {
         fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : null
       }
     }
-  }, [])
+  }, [setTheme])
+
+  // When api.js exhausts both the original request and the token refresh and
+  // still gets 401, it dispatches 'auth:session-expired'. We clear all auth
+  // state here so ProtectedRoute automatically redirects to the login page.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null)
+      setMustChangePassword(false)
+      resetTheme()
+    }
+    window.addEventListener('auth:session-expired', handleSessionExpired)
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired)
+  }, [resetTheme])
 
   const logout = useCallback(async () => {
     try {
@@ -108,6 +144,30 @@ export function AuthProvider({ children }) {
       resetTheme()
     }
   }, [resetTheme])
+
+  // Inactivity timer — log out after 30 minutes of no user interaction.
+  // Only active while a user is logged in.
+  const inactivityTimer = useRef(null)
+
+  useEffect(() => {
+    if (!user) return
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer.current)
+      inactivityTimer.current = setTimeout(() => {
+        logout()
+      }, INACTIVITY_TIMEOUT_MS)
+    }
+
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
+    events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }))
+    resetTimer() // start the timer immediately on login / mount
+
+    return () => {
+      clearTimeout(inactivityTimer.current)
+      events.forEach(evt => window.removeEventListener(evt, resetTimer))
+    }
+  }, [user, logout])
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, mustChangePassword, setMustChangePassword }}>
