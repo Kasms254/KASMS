@@ -85,13 +85,10 @@ export function AuthProvider({ children }) {
         return { ok: true, requires2FA: true, email: resp.email }
       }
 
-      // Fallback: direct token response (if 2FA ever disabled on backend)
-      const newAccess = resp?.access || resp?.token || null
-      const newRefresh = resp?.refresh || resp?.refresh_token || null
+      // Fallback: direct login response (if 2FA is ever disabled on backend).
+      // Tokens are set as HTTP-only cookies by the server; no client-side storage needed.
       const userInfo = resp?.user || resp?.data || null
-      if (!newAccess) throw new Error('No access token returned from login')
-      authStore.login({ access: newAccess, refresh: newRefresh })
-      setToken(newAccess)
+      if (!userInfo) throw new Error('Login failed: no user data returned')
       setUser(userInfo)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
@@ -162,6 +159,57 @@ export function AuthProvider({ children }) {
     }
   }, [resetTheme])
 
+  const verify2FA = useCallback(async (code) => {
+    if (!twoFA) return { ok: false, error: 'No active 2FA session. Please log in again.' }
+    try {
+      const resp = await api.verify2FA(twoFA.svc_number, twoFA.password, code)
+      const me = resp?.user || null
+      setTwoFA(null) // Clear credentials from memory immediately after use
+      setUser(me)
+      const needsPasswordChange = !!resp?.must_change_password
+      setMustChangePassword(needsPasswordChange)
+      if (me?.role !== 'superadmin') {
+        const themeData = me?.school_theme
+        if (themeData) {
+          setTheme({
+            primary_color: themeData.primary_color,
+            secondary_color: themeData.secondary_color,
+            accent_color: themeData.accent_color,
+            logo_url: themeData.logo_url
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              : null,
+            school_name: themeData.school_name || me?.school_name,
+            school_code: themeData.school_code || me?.school_code,
+          })
+        }
+      }
+      return { ok: true, mustChangePassword: needsPasswordChange }
+    } catch (err) {
+      const detail = err?.data?.error || err?.data?.detail || err?.message || 'Verification failed.'
+      // Parse remaining attempts from error string if present (e.g. "Invalid code. 3 attempt(s) remaining.")
+      const match = typeof detail === 'string' ? detail.match(/(\d+) attempt/) : null
+      const remainingAttempts = match ? parseInt(match[1], 10) : null
+      return { ok: false, error: detail, remainingAttempts }
+    }
+  }, [twoFA, setTheme])
+
+  const resend2FA = useCallback(async () => {
+    if (!twoFA) return { ok: false, error: 'No active 2FA session. Please log in again.' }
+    try {
+      const resp = await api.resend2FA(twoFA.svc_number, twoFA.password)
+      if (resp?.email) {
+        setTwoFA(prev => prev ? { ...prev, email: resp.email } : prev)
+      }
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Failed to resend code. Please try again.' }
+    }
+  }, [twoFA])
+
+  const clearTwoFA = useCallback(() => {
+    setTwoFA(null)
+  }, [])
+
   // Inactivity timer — log out after 30 minutes of no user interaction.
   // Only active while a user is logged in.
   const inactivityTimer = useRef(null)
@@ -187,7 +235,10 @@ export function AuthProvider({ children }) {
   }, [user, logout])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, mustChangePassword, setMustChangePassword }}>
+    <AuthContext.Provider value={{
+      user, loading, login, logout, mustChangePassword, setMustChangePassword,
+      verify2FA, resend2FA, clearTwoFA, twoFAEmail: twoFA?.email || null,
+    }}>
       {children}
     </AuthContext.Provider>
   )
