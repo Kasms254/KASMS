@@ -39,7 +39,18 @@ const AttendanceSessions = lazy(() => import('./dashboard/instructors/Attendance
 const SessionAttendance = lazy(() => import('./dashboard/instructors/SessionAttendance'))
 const StudentAttendance = lazy(() => import('./dashboard/students/StudentAttendance'))
 const AttendanceReports = lazy(() => import('./dashboard/shared/AttendanceReports'))
+const Certificates = lazy(() => import('./dashboard/admin/Certificates'))
+const ClassCertificates = lazy(() => import('./dashboard/admin/ClassCertificates'))
+const StudentCertificates = lazy(() => import('./dashboard/students/StudentCertificates'))
+const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTemplates'))
+const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+
+// Department & HOD components
+const Departments = lazy(() => import('./dashboard/admin/Departments'))
+const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
+const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
+const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
 
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
@@ -189,6 +200,50 @@ const App = () => {
 			{/* Exam Reports (admins & instructors) */}
 			<Route path="/list/exam-reports" element={<AdminOrInstructorLayout />}>
 				<Route index element={<ExamReports />} />
+			</Route>
+
+			{/* Certificates list (admin) */}
+			<Route path="/list/certificates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Certificates />} />
+			</Route>
+
+			{/* Certificate templates (admin) */}
+			<Route path="/list/certificate-templates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<CertificateTemplates />} />
+			</Route>
+
+			{/* Class Certificates - completion status & issuance (admin) */}
+			<Route path="/list/classes/:id/certificates" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<ClassCertificates />} />
+			</Route>
+			{/* Class students list (admin & instructor) */}
+			<Route path="/list/classes/:id/students" element={<AdminOrInstructorLayout />}>
+				<Route index element={<ClassStudents />} />
+			</Route>
+
+			{/* Student Certificates */}
+			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
+				<Route index element={<StudentCertificates />} />
+			</Route>
+
+			{/* Departments (admin) */}
+			<Route path="/list/departments" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<Departments />} />
+			</Route>
+
+			{/* Department Members (admin) */}
+			<Route path="/list/department-members" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<DepartmentMembers />} />
+			</Route>
+
+			{/* HOD Dashboard — HODs only */}
+			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" hodOnly />}>
+				<Route index element={<HODDashboard />} />
+			</Route>
+
+			{/* Result Edit Requests — HODs only */}
+			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" hodOnly />}>
+				<Route index element={<EditRequestsReview />} />
 			</Route>
 
 			{/* Superadmin routes */}

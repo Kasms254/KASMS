@@ -5,8 +5,22 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+
+function _gradeFromPct(pct) {
+  const p = parseFloat(pct) || 0
+  if (p >= 91) return 'A'
+  if (p >= 86) return 'A-'
+  if (p >= 81) return 'B+'
+  if (p >= 76) return 'B'
+  if (p >= 71) return 'B-'
+  if (p >= 65) return 'C+'
+  if (p >= 60) return 'C'
+  if (p >= 50) return 'C-'
+  return 'F'
+}
 
 /**
  * Pagination Component
@@ -171,6 +185,11 @@ export default function ExamReports() {
   const [examResults, setExamResults] = useState([])
   const [loadingResults, setLoadingResults] = useState(false)
 
+  // Comprehensive results
+  const [showComprehensive, setShowComprehensive] = useState(false)
+  const [comprehensiveData, setComprehensiveData] = useState(null)
+  const [loadingComprehensive, setLoadingComprehensive] = useState(false)
+
   // Pagination state
   const [examListPage, setExamListPage] = useState(1)
   const [resultsPage, setResultsPage] = useState(1)
@@ -286,12 +305,16 @@ export default function ExamReports() {
     const lowest = Math.min(...percentages)
     
     // Grade distribution
-    const grades = { A: 0, B: 0, C: 0, D: 0, F: 0 }
+    const grades = { A: 0, 'A-': 0, 'B+': 0, B: 0, 'B-': 0, 'C+': 0, C: 0, 'C-': 0, F: 0 }
     percentages.forEach(p => {
-      if (p >= 80) grades.A++
-      else if (p >= 70) grades.B++
+      if (p >= 91) grades.A++
+      else if (p >= 86) grades['A-']++
+      else if (p >= 81) grades['B+']++
+      else if (p >= 76) grades.B++
+      else if (p >= 71) grades['B-']++
+      else if (p >= 65) grades['C+']++
       else if (p >= 60) grades.C++
-      else if (p >= 50) grades.D++
+      else if (p >= 50) grades['C-']++
       else grades.F++
     })
     
@@ -351,11 +374,15 @@ export default function ExamReports() {
   // Get grade color
   const getGradeColor = (grade) => {
     const colors = {
-      A: 'bg-green-100 text-green-800',
-      B: 'bg-blue-100 text-blue-800',
-      C: 'bg-yellow-100 text-yellow-800',
-      D: 'bg-orange-100 text-orange-800',
-      F: 'bg-red-100 text-red-800'
+      'A':  'bg-green-100 text-green-800',
+      'A-': 'bg-green-100 text-green-700',
+      'B+': 'bg-blue-100 text-blue-800',
+      'B':  'bg-blue-100 text-blue-700',
+      'B-': 'bg-blue-100 text-blue-600',
+      'C+': 'bg-yellow-100 text-yellow-800',
+      'C':  'bg-yellow-100 text-yellow-700',
+      'C-': 'bg-yellow-100 text-yellow-600',
+      'F':  'bg-red-100 text-red-800',
     }
     return colors[grade] || 'bg-gray-100 text-gray-800'
   }
@@ -393,12 +420,61 @@ export default function ExamReports() {
   // Get grade from percentage
   const getGrade = useCallback((pct) => {
     const p = parseFloat(pct)
-    if (p >= 80) return 'A'
-    if (p >= 70) return 'B'
+    if (p >= 91) return 'A'
+    if (p >= 86) return 'A-'
+    if (p >= 81) return 'B+'
+    if (p >= 76) return 'B'
+    if (p >= 71) return 'B-'
+    if (p >= 65) return 'C+'
     if (p >= 60) return 'C'
-    if (p >= 50) return 'D'
+    if (p >= 50) return 'C-'
     return 'F'
   }, [])
+
+  // Reset comprehensive view when class changes
+  useEffect(() => {
+    setShowComprehensive(false)
+    setComprehensiveData(null)
+  }, [selectedClass])
+
+  // Load comprehensive results for selected class
+  const handleViewComprehensive = useCallback(async () => {
+    if (!selectedClass) return
+    setLoadingComprehensive(true)
+    try {
+      const data = await api.getClassPerformanceSummary(selectedClass)
+      // Map fields to match StudentPerformanceTable expectations
+      if (data?.all_students) {
+        data.all_students = data.all_students.map(student => {
+          // Compute total marks from subject breakdown
+          let totalObtained = 0
+          let totalPossible = 0
+          const mappedBreakdown = (student.subject_breakdown || []).map(subj => {
+            totalObtained += subj.marks_obtained ?? 0
+            totalPossible += subj.total_possible ?? 0
+            return subj
+          })
+          const finalObtained = student.total_marks_obtained ?? totalObtained
+          const finalPossible = student.total_marks_possible ?? totalPossible
+          const overallPct = finalPossible > 0 ? (finalObtained / finalPossible) * 100 : 0
+          return {
+            ...student,
+            subject_breakdown: mappedBreakdown,
+            total_marks_obtained: finalObtained,
+            total_marks_possible: finalPossible,
+            total_grade: _gradeFromPct(overallPct),
+            total_percentage: overallPct,
+          }
+        })
+      }
+      setComprehensiveData(data)
+      setShowComprehensive(true)
+    } catch {
+      toast?.showError?.('Failed to load comprehensive results')
+    } finally {
+      setLoadingComprehensive(false)
+    }
+  }, [selectedClass, toast])
 
   // Export PDF with ranked student results
   const exportResultsPDF = useCallback(() => {
@@ -427,16 +503,21 @@ export default function ExamReports() {
     // Statistics
     if (examStats) {
       doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
       doc.text('Statistics:', 14, 68)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Total Students: ${examStats.total}  |  Graded: ${examStats.submitted}  |  Pending: ${examStats.pending}`, 14, 75)
-      doc.text(`Average: ${examStats.average}%  |  Highest: ${examStats.highest}%  |  Lowest: ${examStats.lowest}%  |  Pass Rate: ${examStats.passRate}%`, 14, 82)
+      doc.setFontSize(9)
+      doc.text(`Total Students: ${examStats.total}   Graded: ${examStats.submitted}   Pending: ${examStats.pending}   Pass Rate: ${examStats.passRate}%`, 14, 75)
+      doc.text(`Average: ${examStats.average}%   Highest: ${examStats.highest}%   Lowest: ${examStats.lowest}%`, 14, 82)
 
-      // Grade distribution
-      const gradeText = Object.entries(examStats.grades)
-        .map(([grade, count]) => `${grade}: ${count}`)
-        .join('  |  ')
-      doc.text(`Grade Distribution: ${gradeText}`, 14, 89)
+      // Grade distribution — compact key:value pairs
+      const gradeEntries = Object.entries(examStats.grades)
+      const gradeText = gradeEntries.map(([g, c]) => `${g}:${c}`).join('   ')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text('Grade Distribution:', 14, 89)
+      doc.setFont('helvetica', 'normal')
+      doc.text(gradeText, 50, 89)
     }
 
     // Student results table
@@ -451,17 +532,16 @@ export default function ExamReports() {
         `${result.marks_obtained} / ${selectedExam.total_marks}`,
         `${pct}%`,
         grade,
-        result.remarks || '-'
       ]
     })
 
     autoTable(doc, {
       startY: examStats ? 98 : 68,
-      head: [['S/No', 'SVC Number', 'Student Rank', 'Student Name', 'Marks', 'Percentage', 'Grade', 'Remarks']],
+      head: [['S/No', 'SVC Number', 'Student Rank', 'Student Name', 'Marks', 'Percentage', 'Grade']],
       body: tableData,
       theme: 'striped',
       headStyles: {
-        fillColor: [79, 70, 229],
+        fillColor: [40, 40, 40],
         textColor: 255,
         fontStyle: 'bold'
       },
@@ -471,13 +551,12 @@ export default function ExamReports() {
       },
       columnStyles: {
         0: { halign: 'center', cellWidth: 10 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 22 },
-        3: { cellWidth: 35 },
-        4: { halign: 'center', cellWidth: 20 },
-        5: { halign: 'center', cellWidth: 18 },
-        6: { halign: 'center', cellWidth: 14 },
-        7: { cellWidth: 'auto' }
+        1: { cellWidth: 25 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 'auto' },
+        4: { halign: 'center', cellWidth: 22 },
+        5: { halign: 'center', cellWidth: 20 },
+        6: { halign: 'center', cellWidth: 16 },
       }
     })
 
@@ -525,29 +604,81 @@ export default function ExamReports() {
           <h1 className="text-2xl font-bold text-black">Exam Reports</h1>
           <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
-        {selectedExam && (
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
+          {selectedClass && !selectedExam && !showComprehensive && (() => {
+            // Only show for admins/superadmins/commandants, or if instructor is the class instructor
+            const cls = classes.find(c => String(c.id) === selectedClass)
+            const canViewComprehensive = ['admin', 'superadmin', 'commandant'].includes(user?.role)
+              || (cls && cls.instructor === user?.id)
+            return canViewComprehensive
+          })() && (
             <button
-              onClick={exportResultsPDF}
-              disabled={!sortedResults.length}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              onClick={handleViewComprehensive}
+              disabled={loadingComprehensive || filteredExams.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              <LucideIcons.FileDown className="w-4 h-4" />
-              Export PDF
+              {loadingComprehensive ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              ) : (
+                <LucideIcons.ClipboardList className="w-4 h-4" />
+              )}
+              {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
             </button>
+          )}
+
+          {/* Back from comprehensive view */}
+          {showComprehensive && (
             <button
-              onClick={() => setSelectedExam(null)}
+              onClick={() => { setShowComprehensive(false); setComprehensiveData(null) }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
             >
               <LucideIcons.ArrowLeft className="w-4 h-4" />
-              Back to List
+              Back to Exams
             </button>
-          </div>
-        )}
+          )}
+
+          {/* Exam detail view buttons */}
+          {selectedExam && (
+            <>
+              <button
+                onClick={exportResultsPDF}
+                disabled={!sortedResults.length}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <LucideIcons.FileDown className="w-4 h-4" />
+                Export PDF
+              </button>
+              <button
+                onClick={() => setSelectedExam(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+              >
+                <LucideIcons.ArrowLeft className="w-4 h-4" />
+                Back to List
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Filters - Only show when not viewing exam details */}
-      {!selectedExam && (
+      {/* Comprehensive Results View */}
+      {showComprehensive && comprehensiveData && (
+        <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+          <StudentPerformanceTable
+            students={comprehensiveData.all_students || []}
+            title={(() => {
+              const cls = classes.find(c => String(c.id) === selectedClass)
+              if (!cls) return 'Comprehensive Results'
+              return cls.course_name
+                ? `${cls.name} — ${cls.course_name}`
+                : cls.name
+            })()}
+          />
+        </section>
+      )}
+
+      {/* Filters - Only show when not viewing exam details or comprehensive */}
+      {!selectedExam && !showComprehensive && (
         <div className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${
           !selectedClass
             ? 'border-indigo-300 ring-2 ring-indigo-100'
@@ -671,7 +802,7 @@ export default function ExamReports() {
       )}
 
       {/* Exam List View */}
-      {!selectedExam && (
+      {!selectedExam && !showComprehensive && (
         <>
           {filteredExams.length === 0 ? (
             !selectedClass ? (
@@ -1001,7 +1132,7 @@ export default function ExamReports() {
               {/* Grade Distribution */}
               <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 md:p-6">
                 <h3 className="text-base md:text-lg font-semibold text-black mb-4">Grade Distribution</h3>
-                <div className="grid grid-cols-5 gap-2 md:gap-4">
+                <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 md:gap-3">
                   {Object.entries(examStats.grades).map(([grade, count]) => {
                     const total = examStats.submitted
                     const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0
@@ -1109,7 +1240,7 @@ export default function ExamReports() {
                                 <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
-                                      parseFloat(pct) >= 80 ? 'bg-green-500' :
+                                      parseFloat(pct) >= 76 ? 'bg-green-500' :
                                       parseFloat(pct) >= 60 ? 'bg-blue-500' :
                                       parseFloat(pct) >= 50 ? 'bg-yellow-500' :
                                       'bg-red-500'
@@ -1118,7 +1249,7 @@ export default function ExamReports() {
                                   ></div>
                                 </div>
                                 <span className={`text-sm font-bold ${
-                                  parseFloat(pct) >= 80 ? 'text-green-600' :
+                                  parseFloat(pct) >= 76 ? 'text-green-600' :
                                   parseFloat(pct) >= 60 ? 'text-blue-600' :
                                   parseFloat(pct) >= 50 ? 'text-yellow-600' :
                                   'text-red-600'
@@ -1200,7 +1331,7 @@ export default function ExamReports() {
                                   ></div>
                                 </div>
                                 <span className={`text-base font-bold ${
-                                  parseFloat(pct) >= 80 ? 'text-green-600' :
+                                  parseFloat(pct) >= 76 ? 'text-green-600' :
                                   parseFloat(pct) >= 60 ? 'text-blue-600' :
                                   parseFloat(pct) >= 50 ? 'text-yellow-600' :
                                   'text-red-600'
@@ -1291,7 +1422,7 @@ export default function ExamReports() {
                                   <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full rounded-full ${
-                                        parseFloat(pct) >= 80 ? 'bg-green-500' :
+                                        parseFloat(pct) >= 76 ? 'bg-green-500' :
                                         parseFloat(pct) >= 60 ? 'bg-blue-500' :
                                         parseFloat(pct) >= 50 ? 'bg-yellow-500' :
                                         'bg-red-500'

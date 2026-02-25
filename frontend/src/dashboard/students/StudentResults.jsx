@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
+import useTheme from '../../hooks/useTheme'
 import * as api from '../../lib/api'
 import { Download, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Filter } from 'lucide-react'
 
 export default function StudentResults() {
   const { user } = useAuth()
   const toast = useToast()
+  const { theme } = useTheme()
   const [results, setResults] = useState([])
   const [enrollments, setEnrollments] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('all')
@@ -186,33 +188,39 @@ export default function StudentResults() {
     return { obtained, totalPossible, percentage: pct }
   }
 
+  // Mirrors the backend ExamResult.grade property exactly
   function toLetterGrade(pct) {
     if (pct == null) return '—'
-    if (pct >= 80) return 'A'
-    if (pct >= 70) return 'B'
+    if (pct >= 91) return 'A'
+    if (pct >= 86) return 'A-'
+    if (pct >= 81) return 'B+'
+    if (pct >= 76) return 'B'
+    if (pct >= 71) return 'B-'
+    if (pct >= 65) return 'C+'
     if (pct >= 60) return 'C'
-    if (pct >= 50) return 'D'
+    if (pct >= 50) return 'C-'
     return 'F'
   }
 
   function getGradeColor(grade) {
-    switch (grade) {
-      case 'A': return 'bg-green-100 text-green-800 border-green-200'
-      case 'B': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'C': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'D': return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'F': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-600 border-gray-200'
-    }
+    if (grade === 'A' || grade === 'A-') return 'bg-green-100 text-green-800 border-green-200'
+    if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-blue-100 text-blue-800 border-blue-200'
+    if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    if (grade === 'F') return 'bg-red-100 text-red-800 border-red-200'
+    return 'bg-gray-100 text-gray-600 border-gray-200'
   }
 
   function getPerformanceIndicator(pct) {
     if (pct == null) return null
-    if (pct >= 80) return { icon: TrendingUp, color: 'text-green-600', label: 'Excellent' }
-    if (pct >= 70) return { icon: TrendingUp, color: 'text-blue-600', label: 'Good' }
-    if (pct >= 60) return { icon: Minus, color: 'text-yellow-600', label: 'Average' }
-    if (pct >= 50) return { icon: TrendingDown, color: 'text-orange-600', label: 'Below Average' }
-    return { icon: TrendingDown, color: 'text-red-600', label: 'Needs Improvement' }
+    if (pct >= 91) return { icon: TrendingUp, color: 'text-green-600', label: 'Excellent' }
+    if (pct >= 86) return { icon: TrendingUp, color: 'text-green-500', label: 'Very Good' }
+    if (pct >= 81) return { icon: TrendingUp, color: 'text-blue-600', label: 'Good' }
+    if (pct >= 76) return { icon: TrendingUp, color: 'text-blue-500', label: 'Good' }
+    if (pct >= 71) return { icon: Minus, color: 'text-indigo-500', label: 'Above Average' }
+    if (pct >= 65) return { icon: Minus, color: 'text-yellow-600', label: 'Average' }
+    if (pct >= 60) return { icon: Minus, color: 'text-orange-500', label: 'Pass' }
+    if (pct >= 50) return { icon: TrendingDown, color: 'text-orange-600', label: 'Pass' }
+    return { icon: TrendingDown, color: 'text-red-600', label: 'Fail' }
   }
 
   function formatMarks(obtained, total) {
@@ -282,13 +290,17 @@ export default function StudentResults() {
   }
 
   function getGradeColorForPDF(grade) {
-    switch (grade) {
-      case 'A': return [34, 197, 94] // green-500
-      case 'B': return [59, 130, 246] // blue-500
-      case 'C': return [234, 179, 8] // yellow-500
-      case 'D': return [249, 115, 22] // orange-500
-      case 'F': return [239, 68, 68] // red-500
-      default: return [107, 114, 128] // gray-500
+    switch ((grade || '').trim()) {
+      case 'A':  return [22, 163, 74]   // green-600
+      case 'A-': return [34, 197, 94]   // green-500
+      case 'B+': return [37, 99, 235]   // blue-600
+      case 'B':  return [59, 130, 246]  // blue-500
+      case 'B-': return [99, 102, 241]  // indigo-500
+      case 'C+': return [202, 138, 4]   // yellow-600
+      case 'C':  return [234, 179, 8]   // yellow-500
+      case 'C-': return [234, 88, 12]   // orange-600
+      case 'F':  return [220, 38, 38]   // red-600
+      default:   return [107, 114, 128] // gray-500
     }
   }
 
@@ -331,8 +343,12 @@ export default function StudentResults() {
       const { jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
 
-      // Load logo as base64 before PDF generation
-      const logoUrl = '/ka.png';
+      // Get school theme from context (already loaded at login)
+      const schoolName = theme.school_name || 'School Management System'
+      const schoolShortName = theme.school_short_name || ''
+      const schoolLogoUrl = theme.logo_url || null
+
+      // Helper: load any image URL as base64
       const getImageBase64 = url => new Promise((resolve, reject) => {
         const img = new window.Image();
         img.crossOrigin = 'Anonymous';
@@ -347,10 +363,14 @@ export default function StudentResults() {
         img.onerror = reject;
         img.src = url;
       });
+
+      // Load school logo (prefer school logo from theme, fallback to ka.png)
       let logoBase64 = null;
-      try {
-        logoBase64 = await getImageBase64(logoUrl);
-      } catch {}
+      const logoUrl = schoolLogoUrl || '/ka.png';
+      try { logoBase64 = await getImageBase64(logoUrl); } catch {}
+      // Always try ka.png as background watermark
+      let bgLogoBase64 = null;
+      try { bgLogoBase64 = await getImageBase64('/ka.png'); } catch {}
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
@@ -368,342 +388,371 @@ export default function StudentResults() {
         day: 'numeric'
       })
 
-      // Helper function to draw header on each page
-      function drawHeader(title, subtitle) {
-        // Maroon color: rgb(128, 0, 0)
-        const headerHeight = 140;
-        doc.setFillColor(128, 0, 0);
-        doc.rect(0, 0, pageWidth, headerHeight, 'F');
-        // Add ka.png logo centered if available and space the system name below it
-        const defaultSystemNameY = 80;
-        const defaultTitleOffset = 30;
+      // Draw ka.png as a centred watermark on every page (applied in drawFooter pass)
+      function drawBackground() {
+        if (!bgLogoBase64) return
+        const bgSize = 280
+        doc.saveGraphicsState()
+        doc.setGState(new doc.GState({ opacity: 0.06 }))
+        doc.addImage(bgLogoBase64, 'PNG', (pageWidth - bgSize) / 2, (pageHeight - bgSize) / 2, bgSize, bgSize)
+        doc.restoreGraphicsState()
+      }
+
+      // ── HEADER ──────────────────────────────────────────────────────────
+      // Returns the Y position where content should start after the header
+      function drawHeader(classLabel) {
+        // White page background strip
+        doc.setFillColor(255, 255, 255)
+        doc.rect(0, 0, pageWidth, pageHeight, 'F')
+
+        let y = 22
+
+        // Logo
         if (logoBase64) {
-          const logoWidth = 60, logoHeight = 60;
-          const logoTop = 10;
-          doc.addImage(logoBase64, 'PNG', (pageWidth - logoWidth) / 2, logoTop, logoWidth, logoHeight);
-          // place system name a bit below the logo
-          const systemNameY = logoTop + logoHeight + 12; // 12pt gap
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(16);
-          doc.setFont(undefined, 'bold');
-          doc.text('Kenya Army School Management System', pageWidth / 2, systemNameY, { align: 'center' });
-
-          // Add transcript title below system name
-          doc.setFontSize(22);
-          doc.setFont(undefined, 'bold');
-          doc.text(title, pageWidth / 2, systemNameY + 22, { align: 'center' });
-          if (subtitle) {
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'normal');
-            doc.text(subtitle, pageWidth / 2, systemNameY + 40, { align: 'center' });
-          }
-        } else {
-          // fallback positions when no logo
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(16);
-          doc.setFont(undefined, 'bold');
-          doc.text('Kenya Army School Management System', pageWidth / 2, defaultSystemNameY, { align: 'center' });
-          doc.setFontSize(22);
-          doc.setFont(undefined, 'bold');
-          doc.text(title, pageWidth / 2, defaultSystemNameY + defaultTitleOffset, { align: 'center' });
-          if (subtitle) {
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'normal');
-            doc.text(subtitle, pageWidth / 2, defaultSystemNameY + defaultTitleOffset + 18, { align: 'center' });
-          }
-        }
-      }
-
-      // Helper function to draw student info
-      function drawStudentInfo(startY) {
-        // Distribute four fields evenly across the content width
-        let yPos = startY;
-        const labelFontSize = 11;
-        const valueFontSize = 11;
-        doc.setTextColor(0, 0, 0);
-
-        const contentWidth = pageWidth - (2 * margin);
-        const cols = 4;
-        const colWidth = contentWidth / cols;
-
-        const fields = [
-          { label: 'Service Number:', value: String(studentSvc || '-') },
-          { label: 'Rank:', value: String(studentRank || '-') },
-          { label: 'Name:', value: String(studentName) },
-          { label: 'Generated:', value: String(generatedDate) }
-        ];
-
-        const padding = 8;
-        for (let i = 0; i < cols; i++) {
-          const colX = margin + (i * colWidth);
-          // label on left of column
-          doc.setFontSize(labelFontSize);
-          doc.setFont(undefined, 'bold');
-          const labelX = colX + padding;
-          let label = fields[i].label || '';
-          // Add a small space after the colon for Service Number only
-          if (i === 0 && label && !label.endsWith(' ')) label = label + ' ';
-          doc.text(label, labelX, yPos);
-
-          // place value immediately after the colon when possible,
-          // otherwise right-align within the column to avoid overflow
-          doc.setFontSize(valueFontSize);
-          doc.setFont(undefined, 'normal');
-          const value = fields[i].value || '';
-          const labelWidth = doc.getTextWidth(label) || 0;
-          const valueWidth = doc.getTextWidth(value) || 0;
-          const gap = 4;
-
-          // preferred X for adjacent placement
-          let valueX = labelX + labelWidth + gap;
-          const maxValueRight = colX + colWidth - padding;
-
-          // If the value would overflow the column, right-align instead
-          if (valueX + valueWidth > maxValueRight) {
-            valueX = maxValueRight - valueWidth;
-            // ensure we don't overlap the label
-            const minValueX = labelX + labelWidth + gap;
-            if (valueX < minValueX) valueX = minValueX;
-          }
-
-          doc.text(value, valueX, yPos);
+          const logoSize = 72
+          doc.addImage(logoBase64, 'PNG', (pageWidth - logoSize) / 2, y, logoSize, logoSize)
+          y += logoSize + 20
         }
 
-        return yPos + 20;
-      }
-
-      // Helper function to draw summary box
-      function drawSummaryBox(startY, classResults, classLabel) {
-        const classTotals = calculateTotals(classResults)
-        let yPos = startY
-
-        if (classLabel) {
-          doc.setFontSize(14)
-          doc.setFont(undefined, 'bold')
-          doc.setTextColor(79, 70, 229) // indigo-600
-          doc.text(classLabel, margin, yPos)
-          yPos += 20
-        }
-
-        doc.setFillColor(249, 250, 251) // gray-50
-        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'F')
-        doc.setDrawColor(229, 231, 235) // gray-200
-        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 70, 3, 3, 'S')
-
-        yPos += 20
-        doc.setFontSize(11)
+        // School full name
         doc.setFont(undefined, 'bold')
-        doc.setTextColor(0, 0, 0)
-        doc.text('Performance Summary', margin + 15, yPos)
+        doc.setFontSize(16)
+        doc.setTextColor(15, 15, 15)
+        doc.text(schoolName, pageWidth / 2, y, { align: 'center' })
+        y += 18
 
-        yPos += 20
-        doc.setFontSize(10)
-        doc.setFont(undefined, 'normal')
-
-        const summaryLine1 = `Total Score: ${formatMarks(classTotals.obtained, classTotals.totalPossible)}`
-        const summaryLine2 = `Percentage: ${formatPercentage(classTotals.percentage)}`
-        const classGrade = classTotals.percentage != null ? toLetterGrade(classTotals.percentage) : '—'
-        const summaryLine3 = `Grade: ${classGrade}`
-
-        doc.text(summaryLine1, margin + 15, yPos)
-        doc.text(summaryLine2, margin + 180, yPos)
-        doc.text(summaryLine3, margin + 320, yPos)
-
-        if (classTotals.percentage != null) {
-          const indicator = getPerformanceIndicator(classTotals.percentage)
-          if (indicator) {
-            yPos += 15
-            doc.setFont(undefined, 'italic')
-            doc.text(`Performance Level: ${indicator.label}`, margin + 15, yPos)
-          }
+        // Short name
+        if (schoolShortName) {
+          doc.setFont(undefined, 'normal')
+          doc.setFontSize(11)
+          doc.setTextColor(60, 60, 60)
+          doc.text(`(${schoolShortName})`, pageWidth / 2, y, { align: 'center' })
+          y += 14
         }
 
-        return yPos + 40
+        // Decorative double rule
+        doc.setDrawColor(30, 30, 30)
+        doc.setLineWidth(1.5)
+        doc.line(margin, y, pageWidth - margin, y)
+        doc.setLineWidth(0.4)
+        doc.line(margin, y + 3, pageWidth - margin, y + 3)
+        y += 26
+
+        // "ACADEMIC TRANSCRIPT" title
+        doc.setFont(undefined, 'bold')
+        doc.setFontSize(13)
+        doc.setTextColor(15, 15, 15)
+        doc.text('ACADEMIC TRANSCRIPT', pageWidth / 2, y, { align: 'center' })
+        y += 14
+
+        // Class / course label
+        if (classLabel) {
+          doc.setFont(undefined, 'normal')
+          doc.setFontSize(10)
+          doc.setTextColor(70, 70, 70)
+          doc.text(classLabel, pageWidth / 2, y, { align: 'center' })
+          y += 10
+        }
+
+        // Bottom rule of header
+        doc.setDrawColor(30, 30, 30)
+        doc.setLineWidth(0.4)
+        doc.line(margin, y, pageWidth - margin, y)
+        y += 12
+
+        return y
       }
 
-      // Helper function to draw results table
+      // ── STUDENT INFO BOX ─────────────────────────────────────────────────
+      function drawStudentInfo(startY, classLabel, subjectCount) {
+        const boxH = 52
+        const innerPad = 10
+        doc.setFillColor(247, 247, 247)
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.5)
+        doc.roundedRect(margin, startY, pageWidth - 2 * margin, boxH, 3, 3, 'FD')
+
+        const col = (pageWidth - 2 * margin) / 3
+        const rows2 = [
+          [
+            { label: 'Service No:', value: studentSvc || '—' },
+            { label: 'Name:', value: studentName },
+            { label: 'Date:', value: generatedDate }
+          ],
+          [
+            { label: 'Rank:', value: studentRank || '—' },
+            { label: 'Class:', value: classLabel || '—' },
+            { label: 'Subjects:', value: subjectCount != null ? String(subjectCount) : '—' }
+          ]
+        ]
+
+        let rowY = startY + innerPad + 8
+        for (const row of rows2) {
+          let cx = margin + innerPad
+          for (let ci = 0; ci < row.length; ci++) {
+            const { label, value } = row[ci]
+            doc.setFont(undefined, 'bold')
+            doc.setFontSize(9)
+            doc.setTextColor(80, 80, 80)
+            doc.text(label, cx, rowY)
+            doc.setFont(undefined, 'normal')
+            doc.setFontSize(9)
+            doc.setTextColor(15, 15, 15)
+            doc.text(value, cx + doc.getTextWidth(label) + 3, rowY)
+            cx += col
+          }
+          rowY += 14
+        }
+
+        return startY + boxH + 10
+      }
+
+      // ── RESULTS TABLE ────────────────────────────────────────────────────
       function drawResultsTable(startY, classResults) {
+        const totals = calculateTotals(classResults)
+        const meanPct = totals.percentage != null ? Number(totals.percentage).toFixed(2) : '—'
+        const overallGrade = totals.percentage != null ? toLetterGrade(totals.percentage) : '—'
+
         const body = classResults.map(r => {
+          const subjectCode = r.subject_code || '—'
           const subjectName = r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'
-          const examTitle = r.exam_title || (r.exam && r.exam.title) || 'Exam'
-          const score = formatMarks(r.marks_obtained, r.exam_total_marks ?? (r.exam && r.exam.total_marks))
-          const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
-          return [subjectName, examTitle, score, grade]
+          const pct = r.percentage != null ? Number(r.percentage).toFixed(0) : '—'
+          const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
+          return [subjectCode, subjectName, pct, grade]
         })
 
         autoTable(doc, {
-          head: [['Subject', 'Exam', 'Score', 'Grade']],
+          head: [['Subject Code', 'Subject Title', 'Marks %', 'Grade']],
           body,
+          foot: [['', 'Overall Grade :', meanPct, overallGrade]],
+          showFoot: 'lastPage',
           startY,
           margin: { left: margin, right: margin },
           styles: {
             fontSize: 10,
-            cellPadding: 8,
-            lineColor: [229, 231, 235],
-            lineWidth: 0.5
+            cellPadding: { top: 5, bottom: 5, left: 6, right: 6 },
+            lineColor: [210, 210, 210],
+            lineWidth: 0.4,
+            textColor: [20, 20, 20]
           },
           headStyles: {
-            fillColor: [255, 255, 255], // no header color
-            textColor: 0,
-            fontSize: 11,
+            fillColor: [30, 30, 30],
+            textColor: [255, 255, 255],
+            fontSize: 10,
             fontStyle: 'bold',
-            halign: 'left'
+            halign: 'center',
+            cellPadding: { top: 6, bottom: 6, left: 6, right: 6 }
+          },
+          footStyles: {
+            fillColor: [235, 235, 235],
+            textColor: [10, 10, 10],
+            fontStyle: 'bold',
+            fontSize: 10,
+            halign: 'center'
           },
           columnStyles: {
-            0: { cellWidth: 'auto', fontStyle: 'bold' },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 70, halign: 'center', fontSize: 11 },
-            3: { cellWidth: 50, halign: 'center', fontStyle: 'bold', fontSize: 12 }
+            0: { cellWidth: 90, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 'auto', halign: 'left' },
+            2: { cellWidth: 68, halign: 'center' },
+            3: { cellWidth: 52, halign: 'center', fontStyle: 'bold', fontSize: 11 }
           },
-          alternateRowStyles: {
-            fillColor: [249, 250, 251]
-          },
-          didParseCell: function(data) {
-            if (data.column.index === 3 && data.section === 'body') {
-              const grade = data.cell.text[0]
-              const color = getGradeColorForPDF(grade)
-              data.cell.styles.textColor = color
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          didParseCell(data) {
+            if (data.section === 'body' && data.column.index === 3) {
+              data.cell.styles.textColor = getGradeColorForPDF(data.cell.text[0])
+            }
+            if (data.section === 'foot') {
+              if (data.column.index === 1) data.cell.styles.halign = 'right'
             }
           }
         })
 
-        return doc.lastAutoTable.finalY + 20
+        return doc.lastAutoTable.finalY + 14
       }
 
-      // Helper function to draw footer
-      function drawFooter(classInfo) {
+      // ── GRADE KEY ─────────────────────────────────────────────────────────
+      function drawGradeKey(startY) {
+        const grades = [
+          { g: 'A',  range: '91 – 100', label: 'Excellent'     },
+          { g: 'A-', range: '86 – 90',  label: 'Very Good'     },
+          { g: 'B+', range: '81 – 85',  label: 'Good'          },
+          { g: 'B',  range: '76 – 80',  label: 'Good'          },
+          { g: 'B-', range: '71 – 75',  label: 'Above Average' },
+          { g: 'C+', range: '65 – 70',  label: 'Average'       },
+          { g: 'C',  range: '60 – 64',  label: 'Pass'          },
+          { g: 'C-', range: '50 – 59',  label: 'Pass'          },
+          { g: 'F',  range: '0 – 49',   label: 'Fail'          },
+        ]
+
+        // Separator rule
+        doc.setDrawColor(180, 180, 180)
+        doc.setLineWidth(0.4)
+        doc.line(margin, startY, pageWidth - margin, startY)
+        let y = startY + 14
+
+        // Title
+        doc.setFont(undefined, 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(30, 30, 30)
+        doc.text('KEY TO GRADING SYSTEM', pageWidth / 2, y, { align: 'center' })
+        y += 10
+
+        // Draw a two-column grid: 5 grades left, 4 grades right
+        const colW = (pageWidth - 2 * margin) / 2
+        const colGap = 10
+        const leftX  = margin
+        const rightX = margin + colW + colGap
+        const cellH  = 16
+        const leftGrades  = grades.slice(0, 5)
+        const rightGrades = grades.slice(5)
+
+        // Column headers
+        const drawColHeader = (x, w) => {
+          doc.setFillColor(30, 30, 30)
+          doc.rect(x, y, w - colGap / 2, cellH, 'F')
+          doc.setFont(undefined, 'bold')
+          doc.setFontSize(8)
+          doc.setTextColor(255, 255, 255)
+          const gradeX    = x + 14
+          const rangeX    = x + 38
+          const remarksX  = x + 90
+          doc.text('Grade',   gradeX,   y + 10, { align: 'center' })
+          doc.text('Range',   rangeX + 12, y + 10, { align: 'center' })
+          doc.text('Remarks', remarksX + 20, y + 10, { align: 'center' })
+        }
+        drawColHeader(leftX,  colW)
+        drawColHeader(rightX, colW)
+        y += cellH
+
+        // Draw grade rows for a column
+        const drawColRows = (items, x, colWidth) => {
+          items.forEach((k, i) => {
+            const rowY = y + i * cellH
+            const fill = i % 2 === 0 ? [248, 248, 248] : [255, 255, 255]
+            doc.setFillColor(...fill)
+            doc.setDrawColor(210, 210, 210)
+            doc.setLineWidth(0.3)
+            doc.rect(x, rowY, colWidth - colGap / 2, cellH, 'FD')
+
+            const gradeX   = x + 14
+            const rangeX   = x + 38
+            const remarksX = x + 90
+
+            // Grade letter (coloured)
+            doc.setFont(undefined, 'bold')
+            doc.setFontSize(9)
+            doc.setTextColor(...getGradeColorForPDF(k.g))
+            doc.text(k.g, gradeX, rowY + 10, { align: 'center' })
+
+            // Range
+            doc.setFont(undefined, 'normal')
+            doc.setFontSize(8)
+            doc.setTextColor(40, 40, 40)
+            doc.text(k.range, rangeX + 12, rowY + 10, { align: 'center' })
+
+            // Remarks
+            doc.setFont(undefined, 'normal')
+            doc.setFontSize(8)
+            doc.setTextColor(60, 60, 60)
+            doc.text(k.label, remarksX + 20, rowY + 10, { align: 'center' })
+          })
+        }
+
+        drawColRows(leftGrades,  leftX,  colW)
+        drawColRows(rightGrades, rightX, colW)
+
+        const tallestCol = Math.max(leftGrades.length, rightGrades.length)
+        return y + tallestCol * cellH + 14
+      }
+
+      // ── FOOTER (page numbers + watermark, applied last) ─────────────────
+      function finalisePages(classInfo) {
         const pageCount = doc.internal.getNumberOfPages()
         for (let i = 1; i <= pageCount; i++) {
           doc.setPage(i)
-          doc.setFontSize(8)
-          doc.setTextColor(107, 114, 128)
+          drawBackground()
+
+          // thin rule above footer
+          doc.setDrawColor(200, 200, 200)
+          doc.setLineWidth(0.4)
+          doc.line(margin, pageHeight - 28, pageWidth - margin, pageHeight - 28)
+
           doc.setFont(undefined, 'normal')
-
-          const footerText = classInfo 
-            ? `Academic Transcript - ${studentName} - ${classInfo}`
-            : `Academic Transcript - ${studentName}`
-          doc.text(footerText, margin, pageHeight - 20)
-          doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 60, pageHeight - 20)
-
-          doc.setDrawColor(229, 231, 235)
-          doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30)
+          doc.setFontSize(8)
+          doc.setTextColor(120, 120, 120)
+          const left = classInfo ? `${schoolName}  —  ${classInfo}` : schoolName
+          doc.text(left, margin, pageHeight - 16)
+          doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 16, { align: 'right' })
         }
       }
 
-      // Generate transcript based on whether we're viewing all classes or a single class
+      // ── GENERATION ───────────────────────────────────────────────────────
       if (transcriptClassId === 'all' && transcriptResultsByClass.length > 1) {
-        // Multiple classes - create separate sections for each class
-        let isFirstClass = true
-
-        for (const classGroup of transcriptResultsByClass) {
-          if (!isFirstClass) {
-            doc.addPage()
-          }
-
-          const classLabel = `${classGroup.className}${classGroup.courseName ? ` — ${classGroup.courseName}` : ''}`
-          
-          drawHeader('Academic Transcript', classLabel)
-          let yPos = 185;
-          yPos = drawStudentInfo(yPos)
-          yPos = drawSummaryBox(yPos + 15, classGroup.results, null)
-          drawResultsTable(yPos, classGroup.results)
-
-          isFirstClass = false
+        let isFirst = true
+        for (const cg of transcriptResultsByClass) {
+          if (!isFirst) doc.addPage()
+          const classLabel = `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}`
+          let yPos = drawHeader(classLabel)
+          yPos = drawStudentInfo(yPos, classLabel, cg.results.length)
+          yPos = drawResultsTable(yPos, cg.results)
+          drawGradeKey(yPos)
+          isFirst = false
         }
 
-        // Add a summary page at the end with overall totals
+        // Summary page
         doc.addPage()
-        drawHeader('Academic Transcript', 'Overall Summary - All Classes')
-        let yPos = 185;
-        yPos = drawStudentInfo(yPos)
-        yPos += 15
-        doc.setFontSize(12)
-        doc.setFont(undefined, 'bold')
-        doc.setTextColor(0, 0, 0)
-        doc.text('Summary by Class', margin, yPos)
-        yPos += 20
+        let yPos = drawHeader('Overall Summary — All Classes')
+        yPos = drawStudentInfo(yPos, 'All Classes', rows.length)
+        yPos += 8
 
-        // Summary table for all classes
         const classSummaryBody = transcriptResultsByClass.map(cg => {
-          const totals = calculateTotals(cg.results)
+          const t = calculateTotals(cg.results)
           return [
             `${cg.className}${cg.courseName ? ` (${cg.courseName})` : ''}`,
             String(cg.results.length),
-            formatMarks(totals.obtained, totals.totalPossible),
-            formatPercentage(totals.percentage),
-            totals.percentage != null ? toLetterGrade(totals.percentage) : '—'
+            t.percentage != null ? `${Number(t.percentage).toFixed(1)}%` : '—',
+            t.percentage != null ? toLetterGrade(t.percentage) : '—'
           ]
         })
+        const overallT = calculateTotals(rows)
+        const overallMean = overallT.percentage != null ? `${Number(overallT.percentage).toFixed(1)}%` : '—'
+        const overallG = overallT.percentage != null ? toLetterGrade(overallT.percentage) : '—'
 
         autoTable(doc, {
-          head: [['Class', 'Exams', 'Score', 'Percentage', 'Grade']],
+          head: [['Class / Course', 'Subjects', 'Mean %', 'Grade']],
           body: classSummaryBody,
+          foot: [['', 'Overall :', overallMean, overallG]],
+          showFoot: 'lastPage',
           startY: yPos,
           margin: { left: margin, right: margin },
-          styles: {
-            fontSize: 10,
-            cellPadding: 8,
-            lineColor: [229, 231, 235],
-            lineWidth: 0.5
-          },
-          headStyles: {
-            fillColor: [255, 255, 255], // no header color
-            textColor: 0,
-            fontSize: 11,
-            fontStyle: 'bold'
-          },
+          styles: { fontSize: 10, cellPadding: 6, lineColor: [210, 210, 210], lineWidth: 0.4 },
+          headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+          footStyles: { fillColor: [235, 235, 235], textColor: [10, 10, 10], fontStyle: 'bold', halign: 'center' },
           columnStyles: {
             0: { cellWidth: 'auto', fontStyle: 'bold' },
-            1: { cellWidth: 50, halign: 'center' },
+            1: { cellWidth: 60, halign: 'center' },
             2: { cellWidth: 70, halign: 'center' },
-            3: { cellWidth: 70, halign: 'center' },
-            4: { cellWidth: 50, halign: 'center', fontStyle: 'bold' }
+            3: { cellWidth: 52, halign: 'center', fontStyle: 'bold' }
           },
-          didParseCell: function(data) {
-            if (data.column.index === 4 && data.section === 'body') {
-              const grade = data.cell.text[0]
-              const color = getGradeColorForPDF(grade)
-              data.cell.styles.textColor = color
-            }
+          didParseCell(data) {
+            if (data.section === 'body' && data.column.index === 3)
+              data.cell.styles.textColor = getGradeColorForPDF(data.cell.text[0])
+            if (data.section === 'foot' && data.column.index === 1)
+              data.cell.styles.halign = 'right'
           }
         })
+        drawGradeKey(doc.lastAutoTable.finalY + 14)
+        finalisePages('All Classes')
 
-        yPos = doc.lastAutoTable.finalY + 30
-
-        // Overall totals box
-        doc.setFillColor(79, 70, 229)
-        doc.roundedRect(margin, yPos, pageWidth - (2 * margin), 60, 3, 3, 'F')
-
-        yPos += 25
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(12)
-        doc.setFont(undefined, 'bold')
-        doc.text('Combined Overall Performance', margin + 15, yPos)
-
-        yPos += 20
-        doc.setFontSize(11)
-        doc.setFont(undefined, 'normal')
-        const transcriptOverall = calculateTotals(rows)
-        const overallGrade = transcriptOverall.percentage != null ? toLetterGrade(transcriptOverall.percentage) : '—'
-        doc.text(
-          `Total: ${formatMarks(transcriptOverall.obtained, transcriptOverall.totalPossible)}  |  Percentage: ${formatPercentage(transcriptOverall.percentage)}  |  Grade: ${overallGrade}`,
-          margin + 15,
-          yPos
-        )
-
-        drawFooter('All Classes')
       } else {
-        // Single class or one class only - simple single-page transcript
-        const classInfo = transcriptResultsByClass.length > 0 
-          ? `${transcriptResultsByClass[0]?.className || ''}${transcriptResultsByClass[0]?.courseName ? ` — ${transcriptResultsByClass[0].courseName}` : ''}`
-          : null
-
-        drawHeader('Academic Transcript', classInfo)
-        let yPos = 185;
-        yPos = drawStudentInfo(yPos)
-        yPos = drawSummaryBox(yPos + 15, rows, null)
-        drawResultsTable(yPos, rows)
-        drawFooter(classInfo)
+        // Single class
+        const cg = transcriptResultsByClass[0]
+        const classLabel = cg ? `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}` : null
+        let yPos = drawHeader(classLabel)
+        yPos = drawStudentInfo(yPos, classLabel, rows.length)
+        yPos = drawResultsTable(yPos, rows)
+        drawGradeKey(yPos)
+        finalisePages(classLabel)
       }
 
       // Generate filename
@@ -992,7 +1041,7 @@ export default function StudentResults() {
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
                     {currentClassResults.map(r => {
-                      const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
+                      const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
                       const indicator = getPerformanceIndicator(r.percentage)
                       return (
                         <tr

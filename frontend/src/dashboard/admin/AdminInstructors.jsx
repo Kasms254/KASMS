@@ -128,6 +128,8 @@ export default function AdminInstructors() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] })
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
 
@@ -296,6 +298,8 @@ export default function AdminInstructors() {
     setNewPassword('')
     setConfirmPassword('')
     setPasswordStrength({ score: 0, feedback: [] })
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
   }
 
   function closeResetPassword() {
@@ -303,6 +307,8 @@ export default function AdminInstructors() {
     setNewPassword('')
     setConfirmPassword('')
     setPasswordStrength({ score: 0, feedback: [] })
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
   }
 
   function handleNewPasswordChange(e) {
@@ -1099,17 +1105,22 @@ export default function AdminInstructors() {
               </p>
 
               <form onSubmit={submitResetPassword} className="mt-4 space-y-4">
-                <label className="block">
+                <div>
                   <div className="text-sm text-neutral-600 mb-1">New Password</div>
-                  <input 
-                    type="password" 
-                    value={newPassword} 
-                    onChange={handleNewPasswordChange} 
-                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
-                    required 
-                    minLength={8}
-                  />
-                </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={handleNewPasswordChange}
+                      className="w-full border border-neutral-200 rounded px-3 py-2 pr-10 text-black text-sm"
+                      required
+                      minLength={8}
+                    />
+                    <button type="button" onClick={() => setShowNewPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                      {showNewPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
                 {/* Password Requirements */}
                 {newPassword && (
@@ -1128,17 +1139,22 @@ export default function AdminInstructors() {
                   </div>
                 )}
 
-                <label className="block">
+                <div>
                   <div className="text-sm text-neutral-600 mb-1">Confirm Password</div>
-                  <input 
-                    type="password" 
-                    value={confirmPassword} 
-                    onChange={(e) => setConfirmPassword(e.target.value)} 
-                    className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" 
-                    required 
-                    minLength={8}
-                  />
-                </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full border border-neutral-200 rounded px-3 py-2 pr-10 text-black text-sm"
+                      required
+                      minLength={8}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                      {showConfirmPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
                 {newPassword && confirmPassword && newPassword !== confirmPassword && (
                   <p className="text-sm text-red-600 flex items-center gap-1">

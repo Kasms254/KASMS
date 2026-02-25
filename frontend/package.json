@@ -21,9 +21,10 @@
     ]
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.23.24",
     "html5-qrcode": "^2.3.8",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.553.0",
     "qrcode.react": "^4.2.0",

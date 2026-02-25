@@ -2,6 +2,8 @@ from rest_framework.permissions import BasePermission
 from rest_framework import permissions
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .managers import get_current_school
+from .models import DepartmentMembership
+
 
 class IsSuperAdmin(BasePermission):
 
@@ -27,19 +29,16 @@ class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'superadmin']
     
-
 class IsAdminOrInstructor(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin']
     
-
 class IsInstructor(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'instructor'
     
-
 class IsInstructorofClass(BasePermission):
     def has_object_permission(self, request, view, obj):
         if not request.user.is_authenticated:
@@ -59,13 +58,11 @@ class IsStudent(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'student'
     
-
 class IsCommandant(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'commandant'
     
-
 class IsOwnerOrAdmin(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
@@ -92,7 +89,6 @@ class IsAdminOrCommandant(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'superadmin']
 
-
 class  ReadOnlyForCommandant(permissions.BasePermission):
 
     def has_permission(self, request, view):
@@ -114,7 +110,6 @@ class  ReadOnlyForCommandant(permissions.BasePermission):
 
     message = "You do not have permission to perform this action"
 
-    
 class BelongsToSameSchool(BasePermission):
 
     message = "You can only access resources from your school."
@@ -175,6 +170,7 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
+
 class ForcePasswordChangePermission(BasePermission):
 
     def has_permission(self, request, view):
@@ -189,6 +185,11 @@ class ForcePasswordChangePermission(BasePermission):
             "logout_view",
             "verify_token_view",
             "token_refresh_view",
+
+            "login_view",
+            "verify_2fa_view",
+            "resend_2fa_view",
+            "csrf_token_view",
         ]
 
         if user.must_change_password:
@@ -196,6 +197,76 @@ class ForcePasswordChangePermission(BasePermission):
 
         return True
 
+class IsInstructorOfSubject(BasePermission):
+    
+    message = "You can only enter the marks for subjects assigned to you"
 
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ["instructor", "admin", "superadmin"]
+        )
 
+    def has_object_permission(self, request, view, obj):
+        if request.user.role in ["admin", "superadmin"]:
+            return True
+        return obj.exam.subject.instructor == request.user
+        
+        
+class IsAdminOnly(BasePermission):
+    message = "Only administrators can access this resource."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ["admin", "superadmin"]
+        )
+# department permission
+
+class IsHOD(BasePermission):
+
+    message = "Only a Head of Department can perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return DepartmentMembership.objects.filter(
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+
+class IsHODOfDepartment(BasePermission):
+
+    message = "You are not the HOD of this department."
+
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.role in ('admin', 'superadmin'):
+            return True
+        department = getattr(obj, 'department', None)
+        if department is None:
+            return False
+        return DepartmentMembership.objects.filter(
+            department=department,
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+
+class IsHODOrAdmin(BasePermission):
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.role in ('admin', 'superadmin'):
+            return True
+        return DepartmentMembership.objects.filter(
+            user=request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).exists()
+
+        
 

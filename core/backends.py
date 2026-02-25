@@ -6,12 +6,11 @@ class SvcNumberBackend(ModelBackend):
     def authenticate(self, request, svc_number=None, password=None, **kwargs):
         try:
             
-            user = User.objects.get(svc_number=svc_number)
-
-
+            user = User.all_objects.get(
+                svc_number=svc_number
+            )
             if user.check_password(password):
                 return user
-            
         except User.DoesNotExist:
             return None
         

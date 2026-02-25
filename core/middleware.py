@@ -1,22 +1,24 @@
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
-from .models import School, User, Enrollment
+from .models import School, User, Enrollment,SchoolMembership
 from .managers import set_current_school, get_current_school,clear_current_school
 from .cookie_utils import ACCESS_COOKIE_NAME
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
-
+from django.conf import settings
 logger = logging.getLogger(__name__)
 
 def get_user_from_jwt(request):
 
     raw_token = None
-    raw_token = request.COOKIES.get(ACCESS_COOKIE_NAME)
+
+    cookie_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
+    raw_token = request.COOKIES.get(cookie_name)
 
     if not raw_token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
             raw_token = auth_header[7:]
 
     if not raw_token:
@@ -24,22 +26,45 @@ def get_user_from_jwt(request):
 
     try:
         access_token = AccessToken(raw_token)
-        user_id = access_token.get("user_id")
+        user_id = access_token.get('user_id')
 
         if user_id:
             user = User.all_objects.filter(id=user_id, is_active=True).first()
             if user:
-                logger.debug(f"JWT validated - User: {user.username}, School: {user.school}")
-                return user
+                logger.debug(
+                    "JWT validated - User: %s, School: %s",
+                    user.username, user.school,
+                )
             else:
-                logger.warning(f"No active user found for user_id: {user_id}")
-                return None
+                logger.warning("No active user found for user_id: %s", user_id)
+            return user
         else:
             logger.warning("No user_id in token payload")
             return None
 
     except TokenError as e:
-        logger.debug(f"Token validation error: {e}")
+        logger.debug("Token validation error: %s", e)
+        return None
+
+    except Exception as e:
+        logger.error(
+            "Unexpected error in JWT validation: %s", e, exc_info=True,
+        )
+        return None
+
+class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
+
+    def process_request(self, request):
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            return None
+
+        user = get_user_from_jwt(request)
+        if user:
+            request.user = user
+            request._jwt_user = user
+        else:
+            request._jwt_user = None
+
         return None
 
 class TenantMiddleware(MiddlewareMixin):
@@ -49,62 +74,58 @@ class TenantMiddleware(MiddlewareMixin):
         '/admin/',
         '/static/',
         '/media/',
-        '/api/schools/'
+        '/api/schools/',
     ]
 
     def process_request(self, request):
 
         clear_current_school()
-        
+
         for path in self.EXEMPT_PATHS:
             if request.path.startswith(path):
-                logger.debug(f"Path {request.path} is exempt from tenant middleware")
                 return None
-        
-        user = get_user_from_jwt(request)
-        request._jwt_user = user  
-        
+
+        user = getattr(request, '_jwt_user', None) or get_user_from_jwt(request)
+        request._jwt_user = user
+
         school = None
         school_code = request.headers.get('X-School-Code')
-        
-        logger.debug(f"Processing request: path={request.path}, X-School-Code={school_code}, user={user}")
-        
+
         if school_code:
             try:
                 school = School.objects.get(code=school_code, is_active=True)
-                logger.debug(f"School from X-School-Code header: {school.name} ({school.code})")
             except School.DoesNotExist:
-                logger.warning(f"Invalid school code in header: {school_code}")
                 return JsonResponse({
                     'error': 'Invalid school code',
-                    'detail': f'School with code "{school_code}" not found or inactive'
+                    'detail': f'School with code "{school_code}" not found or inactive',
                 }, status=400)
-        
+
         elif user:
             if user.role == 'superadmin':
                 school = None
-                logger.debug("Superadmin request without explicit school - global access")
             else:
-                school = user.school
-                if school:
-                    logger.debug(f"Using user's assigned school: {school.name} ({school.code})")
-                else:
-                    logger.warning(f"User {user.username} has no school assigned")
-        
+                membership = user.active_membership
+                school = membership.school if membership else None
+
         set_current_school(school)
         request.school = school
-        
-        logger.debug(f"School context set: {school.code if school else 'None (global)'}")
-        
+
+        if user and school:
+            request.membership = (
+                user.school_memberships.filter(
+                    school=school, status='active',
+                ).first()
+            )
+        else:
+            request.membership = None
+
         return None
 
     def process_response(self, request, response):
-
         clear_current_school()
         return response
-    
-    def process_exception(self, request, exception):
 
+    def process_exception(self, request, exception):
         clear_current_school()
         return None
 
@@ -123,35 +144,29 @@ class SchoolAccessMiddleware(MiddlewareMixin):
         for path in self.EXEMPT_PATHS:
             if request.path.startswith(path):
                 return None
-        
+
         user = getattr(request, '_jwt_user', None)
-        
-        if not user:
+        if not user or user.role == 'superadmin':
             return None
-        
-        if user.role == 'superadmin':
-            return None
-        
+
         current_school = get_current_school()
-        
-        if current_school and user.school:
-            if user.school.id != current_school.id:
-                logger.warning(
-                    f"Access denied: User {user.username} (school: {user.school.code}) "
-                    f"attempted to access school: {current_school.code}"
-                )
-                return JsonResponse({
-                    'error': 'Access Denied',
-                    'detail': 'You do not have access to this school'
-                }, status=403)
-        
-        if not user.school:
-            logger.warning(f"Access denied: User {user.username} has no school assigned")
+        if not current_school:
+            return JsonResponse(
+                {'error': 'No school context'}, status=403,
+            )
+
+        has_membership = SchoolMembership.all_objects.filter(
+            user=user,
+            school=current_school,
+            status='active',
+        ).exists()
+
+        if not has_membership:
             return JsonResponse({
                 'error': 'Access Denied',
-                'detail': 'User is not associated with any school'
+                'detail': 'No active membership at this school',
             }, status=403)
-        
+
         return None
         
 class StudentEnrollmentMiddleware(MiddlewareMixin):
@@ -168,28 +183,34 @@ class StudentEnrollmentMiddleware(MiddlewareMixin):
         for path in self.EXEMPT_PATHS:
             if request.path.startswith(path):
                 return None
-        
+
         user = getattr(request, '_jwt_user', None)
-        
+
         if not user:
             return None
-        
+
         if getattr(user, 'role', None) != 'student':
             return None
-        
+
         has_active_enrollment = Enrollment.all_objects.filter(
             student=user,
             is_active=True,
-            class_obj__is_active=True
+            class_obj__is_active=True,
         ).exists()
-        
+
         if not has_active_enrollment:
-            logger.warning(f"Student {user.username} denied access - no active enrollment")
+            logger.warning(
+                "Student %s denied access - no active enrollment",
+                user.username,
+            )
             return JsonResponse({
                 'error': 'Enrollment Required',
-                'detail': 'Your enrollment is not active. Please contact your school administrator.'
+                'detail': (
+                    'Your enrollment is not active. '
+                    'Please contact your school administrator.'
+                ),
             }, status=403)
-        
+
         return None
 
 

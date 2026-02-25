@@ -11,11 +11,17 @@ function SortIcon({ columnKey, sortConfig }) {
 }
 
 function gradeColor(grade) {
-  if (grade === 'A') return 'text-emerald-600'
-  if (grade === 'B') return 'text-sky-600'
-  if (grade === 'C') return 'text-amber-600'
-  if (grade === 'D') return 'text-orange-600'
+  if (grade === 'A' || grade === 'A-') return 'text-emerald-600'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'text-sky-600'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'text-amber-600'
   return 'text-red-600'
+}
+
+function gradeBg(grade) {
+  if (grade === 'A' || grade === 'A-') return 'bg-emerald-50'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-sky-50'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-amber-50'
+  return 'bg-red-50'
 }
 
 
@@ -37,6 +43,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
   // Extract ordered subject list from first student with a breakdown
   const subjectList = (students.find(s => s.subject_breakdown?.length > 0)?.subject_breakdown || [])
     .map(s => ({ name: s.subject_name, code: s.subject_code }))
+
+  const hasSubjects = subjectList.length > 0
 
   // Filter
   const filteredStudents = students.filter(student =>
@@ -64,6 +72,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     setCurrentPage(1)
   }
 
+  // ── PDF Download ──────────────────────────────────────────────────────────
   const handleDownload = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pageW = doc.internal.pageSize.getWidth()
@@ -77,11 +86,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     // Summary stats
     const total       = sortedStudents.length
-    const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 }
+    const gradeCounts = { A: 0, B: 0, C: 0, F: 0 }
     let   totalPct    = 0
     sortedStudents.forEach(s => {
       const g = s.total_grade || 'F'
-      gradeCounts[g] = (gradeCounts[g] || 0) + 1
+      if (g === 'A' || g === 'A-') gradeCounts.A++
+      else if (g.startsWith('B')) gradeCounts.B++
+      else if (g.startsWith('C')) gradeCounts.C++
+      else gradeCounts.F++
       totalPct += s.total_percentage ?? 0
     })
     const classAvg = total > 0 ? (totalPct / total).toFixed(1) : '0.0'
@@ -96,32 +108,27 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     const now = new Date()
 
-    // ── HEADER ────────────────────────────────────────────────────────────────
-    // Top border line
+    // ── HEADER ──────────────────────────────────────────────────────────────
     doc.setDrawColor(...LGRAY)
     doc.setLineWidth(0.5)
     doc.line(margin, 10, pageW - margin, 10)
 
-    // Report label (small caps style)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...MGRAY)
     doc.text('STUDENT PERFORMANCE REPORT', margin, 8)
 
-    // Date top-right
     doc.text(
       now.toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' }),
       pageW - margin, 8, { align: 'right' }
     )
 
-    // Class name — primary heading
     let y = 18
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(18)
     doc.setTextColor(...BLACK)
     doc.text(className, margin, y)
 
-    // Course name — secondary line
     if (courseName) {
       y += 7
       doc.setFont('helvetica', 'normal')
@@ -132,21 +139,19 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     y += 5
 
-    // Bottom header rule
     doc.setDrawColor(...BLACK)
     doc.setLineWidth(0.8)
     doc.line(margin, y, pageW - margin, y)
     y += 6
 
-    // ── SUMMARY ROW ───────────────────────────────────────────────────────────
+    // ── SUMMARY ROW ─────────────────────────────────────────────────────────
     const summaryItems = [
       { label: 'Total Students', value: String(total) },
       { label: 'Class Average',  value: `${classAvg}%` },
       { label: 'Pass Rate',      value: `${passRate}%` },
-      { label: 'Grade A',        value: String(gradeCounts.A) },
-      { label: 'Grade B',        value: String(gradeCounts.B) },
-      { label: 'Grade C',        value: String(gradeCounts.C) },
-      { label: 'Grade D',        value: String(gradeCounts.D) },
+      { label: 'Grade A (A/A-)', value: String(gradeCounts.A) },
+      { label: 'Grade B (B+–B-)', value: String(gradeCounts.B) },
+      { label: 'Grade C (C+–C-)', value: String(gradeCounts.C) },
       { label: 'Grade F',        value: String(gradeCounts.F) },
     ]
     const colW = (pageW - margin * 2) / summaryItems.length
@@ -160,7 +165,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
       doc.setFontSize(6.5)
       doc.setTextColor(...MGRAY)
       doc.text(item.label, x, y + 9, { align: 'center' })
-      // Separator between items (not after last)
       if (i < summaryItems.length - 1) {
         doc.setDrawColor(...LGRAY)
         doc.setLineWidth(0.3)
@@ -169,13 +173,12 @@ export default function StudentPerformanceTable({ students, title = "All Student
     })
     y += 14
 
-    // Light rule under summary
     doc.setDrawColor(...LGRAY)
     doc.setLineWidth(0.3)
     doc.line(margin, y, pageW - margin, y)
     y += 5
 
-    // ── TABLE ─────────────────────────────────────────────────────────────────
+    // ── TABLE ───────────────────────────────────────────────────────────────
     const head = [[
       { content: 'S/No',         styles: { halign: 'center' } },
       { content: 'SVC No.',      styles: { halign: 'left'   } },
@@ -183,7 +186,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
       ...subjectList.map(s => ({ content: `${s.name}\n(Obtained / Total)`, styles: { halign: 'center' } })),
       { content: 'Total Marks\n(Obtained / Possible)', styles: { halign: 'center' } },
       { content: 'Grade',      styles: { halign: 'center' } },
-      { content: 'Attendance', styles: { halign: 'center' } },
     ]]
 
     const body = sortedStudents.map((student, idx) => [
@@ -200,7 +202,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
         styles: { halign: 'center', fontStyle: 'bold' },
       },
       { content: student.total_grade ?? '—', styles: { halign: 'center', fontStyle: 'bold' } },
-      { content: `${student.attendance_rate?.toFixed(1) ?? 0}%`, styles: { halign: 'center' } },
     ])
 
     autoTable(doc, {
@@ -229,7 +230,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
         2: { cellWidth: 42 },
         [3 + subjectList.length]:     { cellWidth: 30 },
         [3 + subjectList.length + 1]: { cellWidth: 14 },
-        [3 + subjectList.length + 2]: { cellWidth: 20 },
       },
       didDrawPage: () => {
         const pg  = doc.internal.getCurrentPageInfo().pageNumber
@@ -252,6 +252,109 @@ export default function StudentPerformanceTable({ students, title = "All Student
     const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_')
     doc.save(`Performance_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`)
   }
+
+  // ── Excel Download ────────────────────────────────────────────────────────
+  const handleExcelDownload = async () => {
+    const ExcelJS = (await import('exceljs')).default
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'KASMS'
+    wb.created = new Date()
+
+    const ws = wb.addWorksheet('Comprehensive Results')
+
+    const titleParts = title.split(' — ')
+    const className  = titleParts[0] || title
+    const courseName = titleParts[1] || ''
+
+    // Title row
+    const titleCell = ws.addRow([`${className}${courseName ? ' — ' + courseName : ''}`])
+    titleCell.font = { bold: true, size: 16 }
+    ws.mergeCells(1, 1, 1, 3 + subjectList.length + 2)
+
+    // Date row
+    const dateRow = ws.addRow([`Generated: ${new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}`])
+    dateRow.font = { italic: true, size: 10, color: { argb: '666666' } }
+    ws.mergeCells(2, 1, 2, 3 + subjectList.length + 2)
+
+    // Blank row
+    ws.addRow([])
+
+    // Header row
+    const headerLabels = [
+      'S/No', 'SVC No.', 'Student Name',
+      ...subjectList.map(s => s.name),
+      'Total Marks', 'Grade',
+    ]
+    const headerRow = ws.addRow(headerLabels)
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '282828' } }
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: 'CCCCCC' } },
+      }
+    })
+    // Left-align name columns
+    headerRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' }
+    headerRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' }
+
+    // Data rows
+    sortedStudents.forEach((student, idx) => {
+      const row = ws.addRow([
+        student.rank ?? idx + 1,
+        student.svc_number || '-',
+        student.student_name || '',
+        ...subjectList.map(subj => {
+          const b = student.subject_breakdown?.find(s => s.subject_name === subj.name)
+          return b ? `${b.marks_obtained ?? '-'} / ${b.total_possible ?? '-'}` : '—'
+        }),
+        student.total_marks_possible > 0
+          ? `${student.total_marks_obtained ?? 0} / ${student.total_marks_possible ?? 0}` : '—',
+        student.total_grade ?? '—',
+      ])
+
+      // Alternate row shading
+      if (idx % 2 === 1) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F8F8F8' } }
+        })
+      }
+
+      // Center subject + summary cells
+      for (let c = 1; c <= headerLabels.length; c++) {
+        const cell = row.getCell(c)
+        cell.alignment = { horizontal: c <= 3 ? (c === 1 ? 'center' : 'left') : 'center', vertical: 'middle' }
+      }
+    })
+
+    // Auto-width columns
+    ws.columns.forEach((col, i) => {
+      if (i === 0) col.width = 6          // S/No
+      else if (i === 1) col.width = 14    // SVC No
+      else if (i === 2) col.width = 28    // Name
+      else if (i >= 3 && i < 3 + subjectList.length) col.width = 16 // Subjects
+      else if (i === 3 + subjectList.length) col.width = 18 // Total
+      else if (i === 3 + subjectList.length + 1) col.width = 8 // Grade
+    })
+
+    // Freeze header + left columns (S/No, SVC, Name)
+    ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 4 }]
+
+    // Generate and download
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_')
+    a.download = `Performance_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Sticky column widths (px) for left freeze
+  const stickyLeftW = { rank: 52, svc: 90, name: 160 }
+  const stickyLeftTotal = stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.name
 
   return (
     <div className="space-y-4">
@@ -277,9 +380,19 @@ export default function StudentPerformanceTable({ students, title = "All Student
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
             title="Download as PDF"
           >
-            <Icons.Download className="w-3.5 h-3.5" />
-            Download
+            <Icons.FileDown className="w-3.5 h-3.5" />
+            PDF
           </button>
+          {hasSubjects && (
+            <button
+              onClick={handleExcelDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+              title="Download as Excel"
+            >
+              <Icons.Sheet className="w-3.5 h-3.5" />
+              Excel
+            </button>
+          )}
         </div>
       </div>
 
@@ -310,20 +423,34 @@ export default function StudentPerformanceTable({ students, title = "All Student
         </div>
       )}
 
-      {/* Desktop Table */}
-      <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200">
-        <table className="min-w-full text-xs md:text-sm">
+      {/* Desktop Table — with sticky left columns when subjects > 5 */}
+      <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200" style={{ position: 'relative' }}>
+        <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 5 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined}>
           <thead>
             <tr className="border-b-2 border-gray-200 bg-gray-50">
-              <th onClick={() => handleSort('rank')} className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
+              {/* ── Sticky left columns ── */}
+              <th
+                onClick={() => handleSort('rank')}
+                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20"
+                style={subjectList.length > 5 ? { position: 'sticky', left: 0, width: stickyLeftW.rank, minWidth: stickyLeftW.rank } : {}}
+              >
                 <div className="flex items-center gap-1">S/No <SortIcon columnKey="rank" sortConfig={sortConfig} /></div>
               </th>
-              <th className="text-left py-3 px-3 font-medium text-gray-600 whitespace-nowrap">SVC No.</th>
-              <th onClick={() => handleSort('student_name')} className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
+              <th
+                className="text-left py-3 px-3 font-medium text-gray-600 whitespace-nowrap bg-gray-50 z-20"
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank, width: stickyLeftW.svc, minWidth: stickyLeftW.svc } : {}}
+              >
+                SVC No.
+              </th>
+              <th
+                onClick={() => handleSort('student_name')}
+                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20 border-r-2 border-gray-300"
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+              >
                 <div className="flex items-center gap-1">Student Name <SortIcon columnKey="student_name" sortConfig={sortConfig} /></div>
               </th>
 
-              {/* Dynamic subject columns */}
+              {/* ── Scrollable subject columns ── */}
               {subjectList.map((subj, i) => (
                 <th key={i} className="text-center py-3 px-3 font-medium text-indigo-700 whitespace-nowrap border-l border-gray-200">
                   <div>{subj.name}</div>
@@ -331,21 +458,23 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 </th>
               ))}
 
+              {/* ── Right summary columns ── */}
               <th onClick={() => handleSort('total_marks_obtained')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l-2 border-gray-300">
                 <div className="flex items-center justify-center gap-1">Total Marks <SortIcon columnKey="total_marks_obtained" sortConfig={sortConfig} /></div>
               </th>
               <th onClick={() => handleSort('total_grade')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
                 <div className="flex items-center justify-center gap-1">Grade <SortIcon columnKey="total_grade" sortConfig={sortConfig} /></div>
               </th>
-              <th onClick={() => handleSort('attendance_rate')} className="text-center py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l border-gray-200">
-                <div className="flex items-center justify-center gap-1">Attendance <SortIcon columnKey="attendance_rate" sortConfig={sortConfig} /></div>
-              </th>
             </tr>
           </thead>
           <tbody>
             {paginatedStudents.length > 0 ? paginatedStudents.map((student, idx) => (
               <tr key={student.student_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                <td className="py-2 px-3">
+                {/* ── Sticky left cells ── */}
+                <td
+                  className="py-2 px-3 bg-white z-10"
+                  style={subjectList.length > 5 ? { position: 'sticky', left: 0 } : {}}
+                >
                   <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
                     student.rank === 1 ? 'bg-amber-100 text-amber-700' :
                     student.rank === 2 ? 'bg-gray-200 text-gray-700' :
@@ -353,10 +482,20 @@ export default function StudentPerformanceTable({ students, title = "All Student
                     'bg-gray-100 text-gray-600'
                   }`}>{student.rank}</span>
                 </td>
-                <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{student.svc_number || '-'}</td>
-                <td className="py-2 px-3 font-medium text-gray-800 whitespace-nowrap">{student.student_name}</td>
+                <td
+                  className="py-2 px-3 text-gray-600 whitespace-nowrap bg-white z-10"
+                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank } : {}}
+                >
+                  {student.svc_number || '-'}
+                </td>
+                <td
+                  className="py-2 px-3 font-medium text-gray-800 whitespace-nowrap bg-white z-10 border-r-2 border-gray-300"
+                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+                >
+                  {student.student_name}
+                </td>
 
-                {/* Per-subject marks */}
+                {/* ── Subject marks ── */}
                 {subjectList.map((subj, i) => {
                   const breakdown = student.subject_breakdown?.find(s => s.subject_name === subj.name)
                   return (
@@ -388,7 +527,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 </td>
 
                 {/* Grade */}
-                <td className="py-2 px-3 text-center">
+                <td className={`py-2 px-3 text-center ${gradeBg(student.total_grade)}`}>
                   {student.total_grade ? (
                     <span className={`text-base font-bold ${gradeColor(student.total_grade)}`}>
                       {student.total_grade}
@@ -396,14 +535,10 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   ) : <span className="text-gray-400">—</span>}
                 </td>
 
-                {/* Attendance */}
-                <td className="py-2 px-3 text-center text-gray-600 border-l border-gray-200">
-                  {student.attendance_rate?.toFixed(1) ?? 0}%
-                </td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={4 + subjectList.length + 3} className="py-8 text-center text-gray-500">
+                <td colSpan={3 + subjectList.length + 2} className="py-8 text-center text-gray-500">
                   <Icons.Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No students match your search criteria</p>
                 </td>
@@ -455,10 +590,6 @@ export default function StudentPerformanceTable({ students, title = "All Student
               </div>
             )}
 
-            <div className="flex items-center justify-between text-sm text-gray-500 border-t border-gray-100 pt-2">
-              <span>Attendance</span>
-              <span className="font-medium text-gray-700">{student.attendance_rate?.toFixed(1) ?? 0}%</span>
-            </div>
           </div>
         )) : (
           <div className="text-center py-8 bg-white rounded-lg border border-gray-200">

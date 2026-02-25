@@ -4,7 +4,7 @@ import useAuth from '../hooks/useAuth'
 import AccessDenied from './AccessDenied'
 import Layout from './Layout'
 
-export default function RoleProtectedLayout({ role = null }) {
+export default function RoleProtectedLayout({ role = null, hodOnly = false }) {
   const { user, token, loading, mustChangePassword } = useAuth()
 
   // while validating token avoid rendering
@@ -26,6 +26,11 @@ export default function RoleProtectedLayout({ role = null }) {
   // Check role authorization BEFORE rendering Layout
   // This ensures AccessDenied is shown WITHOUT sidebar/navbar
   if (role && (!user || user.role !== role)) {
+    return <AccessDenied />
+  }
+
+  // HOD-only routes — require the user to be an active HOD
+  if (hodOnly && !user?.is_hod) {
     return <AccessDenied />
   }
 

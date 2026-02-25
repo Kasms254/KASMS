@@ -106,6 +106,25 @@ export default function StudentAttendance() {
     }
   }
 
+  // Safely stop and clean up a scanner instance
+  async function safeStopScanner(scanner) {
+    if (!scanner) return
+    try {
+      const state = scanner.getState()
+      // Only stop if actually scanning or paused (state 2 = SCANNING, 3 = PAUSED)
+      if (state === 2 || state === 3) {
+        await scanner.stop()
+      }
+    } catch {
+      // Scanner already stopped or never started — ignore
+    }
+    try {
+      scanner.clear()
+    } catch {
+      // ignore clear errors
+    }
+  }
+
   // Start QR scanner
   async function startScanner() {
     setScannerError('')
@@ -117,22 +136,47 @@ export default function StudentAttendance() {
         const html5QrCode = new Html5Qrcode('qr-reader')
         html5QrCodeRef.current = html5QrCode
 
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }
-          },
-          (decodedText) => {
-            handleQRCodeScanned(decodedText)
-          },
-          () => {
-            // QR code not found - ignore, keep scanning
+        // Responsive QR box: 70% of the smaller viewport dimension, capped at 250
+        const vw = window.innerWidth
+        const vh = window.innerHeight
+        const boxSize = Math.min(Math.floor(Math.min(vw, vh) * 0.6), 250)
+
+        const scanConfig = {
+          fps: 10,
+          qrbox: { width: boxSize, height: boxSize },
+          aspectRatio: 1
+        }
+
+        const onSuccess = (decodedText) => handleQRCodeScanned(decodedText)
+        const onFailure = () => {} // QR not found yet — keep scanning
+
+        // Try rear camera first, then fall back to any available camera
+        try {
+          await html5QrCode.start(
+            { facingMode: 'environment' },
+            scanConfig,
+            onSuccess,
+            onFailure
+          )
+        } catch {
+          // Rear camera failed — enumerate devices and try the first one
+          const devices = await Html5Qrcode.getCameras()
+          if (devices && devices.length > 0) {
+            await html5QrCode.start(
+              devices[0].id,
+              scanConfig,
+              onSuccess,
+              onFailure
+            )
+          } else {
+            throw new Error('No cameras found on this device. Please use manual entry.')
           }
-        )
+        }
       } catch (err) {
         console.error('Scanner error:', err)
-        setScannerError(err.message || 'Failed to start camera. Please check permissions.')
+        setScannerError(
+          err.message || 'Failed to start camera. Please check camera permissions and ensure you are on HTTPS.'
+        )
         setShowScanner(false)
       }
     }, 100)
@@ -140,15 +184,10 @@ export default function StudentAttendance() {
 
   // Stop QR scanner
   async function stopScanner() {
-    if (html5QrCodeRef.current) {
-      try {
-        await html5QrCodeRef.current.stop()
-        html5QrCodeRef.current = null
-      } catch (err) {
-        console.error('Error stopping scanner:', err)
-      }
-    }
+    const scanner = html5QrCodeRef.current
+    html5QrCodeRef.current = null
     setShowScanner(false)
+    await safeStopScanner(scanner)
   }
 
   // Handle scanned QR code
@@ -203,7 +242,17 @@ export default function StudentAttendance() {
       setShowManualEntry(false)
       loadAttendanceHistory()
     } catch (err) {
-      toast.error(err.message || 'Failed to mark attendance')
+      // Extract field-level errors from DRF response (err.data holds the raw response body)
+      let msg = 'Failed to mark attendance'
+      if (err.data && typeof err.data === 'object') {
+        const fieldMsgs = Object.values(err.data)
+          .map(v => (Array.isArray(v) ? v.join(' ') : String(v)))
+          .filter(Boolean)
+        if (fieldMsgs.length) msg = fieldMsgs.join('. ')
+      } else if (err.message) {
+        msg = err.message
+      }
+      toast.error(msg)
     } finally {
       setMarkingAttendance(false)
     }
@@ -214,11 +263,13 @@ export default function StudentAttendance() {
     submitAttendance(sessionId, qrToken)
   }
 
-  // Cleanup scanner on unmount
+  // Cleanup scanner on unmount / page navigation
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {})
+      const scanner = html5QrCodeRef.current
+      html5QrCodeRef.current = null
+      if (scanner) {
+        safeStopScanner(scanner)
       }
     }
   }, [])

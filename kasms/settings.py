@@ -120,7 +120,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -171,17 +170,14 @@ SIMPLE_JWT = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'core.cookie_auth.CookieJWTAuthentication',
-        # SessionAuthentication removed: it enforces CSRF on requests that carry
-        # a Django session cookie, which causes 403s when the frontend sends
-        # credentials:'include'. JWT cookie auth does not require session auth.
+        'core.authentication.CookieJWTAuthentication',
+        
     ],
-    # 'DEFAULT_PERMISSION_CLASSES': [
-    #     'rest_framework.permissions.IsAuthenticated',
-    # ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "core.permissions.ForcePasswordChangePermission",
+    'DEFAULT_PERMISSION_CLASSES': [
+        'core.permissions.ForcePasswordChangePermission',
+
     ],
+
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -226,13 +222,17 @@ CORS_ALLOW_HEADERS = [
     "x-school-code",
 ]
 
-CORS_EXPOSE_HEADERS = ["Authorization"]
+CORS_EXPOSE_HEADERS = ["X-CSRFToken"]
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+AUTHENTICATION_BACKENDS = [
+    'core.backends.SvcNumberBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
@@ -247,21 +247,30 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_NAME = "csrftoken"
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
-COOKIE_CROSS_SITE = os.getenv("COOKIE_CROSS_SITE", "True") == "True"
 
-if not DEBUG and COOKIE_CROSS_SITE:
-    CSRF_COOKIE_SAMESITE = "None"
-    SESSION_COOKIE_SAMESITE = "None"
-
-else:
-    CSRF_COOKIE_SAMESITE ="Lax"
-    SESSION_COOKIE_SAMESITE = "Lax"
-
-# CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
-# SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+JWT_COOKIE_SECURE = not DEBUG
+JWT_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+JWT_COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None) 
+JWT_ACCESS_COOKIE_NAME = 'access_token'
+JWT_REFRESH_COOKIE_NAME = 'refresh_token'
 
 AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')       
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '') 
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# 2FA settings
+TWO_FA_CODE_LENGTH = 6
+TWO_FA_CODE_EXPIRY_MINUTES = 5
+TWO_FA_MAX_ATTEMPTS = 5
