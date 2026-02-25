@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, ClipboardList, BarChart3, ArrowRight, Target, Shield, Award } from 'lucide-react'
+import useAuth from '../hooks/useAuth'
 
 export default function IntroPage() {
   const navigate = useNavigate()
   const [loaded, setLoaded] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const { user, logout } = useAuth()
+
+  // If the user lands on the public intro page while still authenticated
+  // (e.g. back-navigating from the dashboard), invalidate the session immediately.
+  // They must log in again to access protected pages.
+  useEffect(() => {
+    if (user) {
+      logout()
+    }
+  }, [user, logout])
 
   useEffect(() => {
     const timer = setTimeout(() => setLoaded(true), 100)

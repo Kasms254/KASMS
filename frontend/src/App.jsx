@@ -1,5 +1,5 @@
-import React, { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { lazy, Suspense, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -71,10 +71,19 @@ const LoadingFallback = () => (
 )
 
 const ProtectedLogin = () => {
-	const { user } = useAuth()
-	// Don't check loading here - let the Login component handle its own loading state
-	// This prevents the white screen when login fails
-	if (user) return <Navigate to="/dashboard" replace />
+	const { loading, user, logout } = useAuth()
+
+	// If an active session exists when the user visits /login (e.g. back-navigating
+	// from the dashboard), invalidate it so they must re-authenticate.
+	useEffect(() => {
+		if (!loading && user) {
+			logout()
+		}
+	}, [loading, user, logout])
+
+	if (loading) return null
+	// Show nothing while logout is in progress (user will become null shortly)
+	if (user) return null
 	return <Login />
 }
 

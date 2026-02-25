@@ -100,7 +100,7 @@ export default function ChangePassword() {
       await api.changePassword(currentPassword, newPassword, confirmPassword)
       // Backend sets fresh auth cookies via Set-Cookie — no token handling needed here.
       setMustChangePassword(false)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       if (err?.data?.error) {
         // Backend returns { error: "message" } or { error: ["msg1", ...] }
@@ -117,7 +117,7 @@ export default function ChangePassword() {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/')
+    navigate('/', { replace: true })
   }
 
   return (

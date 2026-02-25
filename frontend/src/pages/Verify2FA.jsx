@@ -14,14 +14,20 @@ export default function Verify2FA() {
 
   const inputRefs = useRef([])
   const navigate = useNavigate()
-  const { verify2FA, resend2FA, clearTwoFA, twoFAEmail } = useAuth()
+  const { verify2FA, resend2FA, clearTwoFA, twoFAEmail, user, loading: authLoading } = useAuth()
 
-  // Redirect to login if user navigated here directly with no active 2FA session
+  // Guard: if already authenticated (2FA just completed, or back-navigated here while logged in)
+  // go straight to dashboard. If there's no active 2FA session at all, go back to login.
+  // The useEffect drives the actual navigation; the conditions are also checked synchronously
+  // below (return null) so the form never flashes before the redirect fires.
   useEffect(() => {
-    if (!twoFAEmail) {
+    if (authLoading) return
+    if (user) {
+      navigate('/dashboard', { replace: true })
+    } else if (!twoFAEmail) {
       navigate('/login', { replace: true })
     }
-  }, [twoFAEmail, navigate])
+  }, [twoFAEmail, user, authLoading, navigate])
 
   // Countdown timer for resend button cooldown
   useEffect(() => {
@@ -119,6 +125,10 @@ export default function Verify2FA() {
     if (Comp) return <Comp {...props} />
     return <span className={`${props.className || ''} inline-block w-4 h-4 bg-gray-300 rounded`} />
   }
+
+  // Render nothing while the session check is running, or while any redirect condition
+  // is true — this prevents a one-frame flash of the form before the useEffect fires.
+  if (authLoading || user || !twoFAEmail) return null
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
