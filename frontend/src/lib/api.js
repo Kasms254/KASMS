@@ -1555,6 +1555,98 @@ export async function bulkSubmitMarks(payload) {
   return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
 }
 
+// ─── Commandant / Chief Instructor ────────────────────────────────────────────
+
+export async function getCommandantOverview() {
+  return request('/api/commandant/overview/')
+}
+
+export async function getCommandantDepartments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/departments/${q}`)
+}
+
+export async function getCommandantDepartmentDetails(id) {
+  return request(`/api/commandant/departments/${id}/details/`)
+}
+
+export async function getCommandantClasses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/classes/${q}`)
+}
+
+export async function getCommandantClassStudents(id) {
+  return request(`/api/commandant/classes/${id}/students/`)
+}
+
+export async function getCommandantClassSubjects(id) {
+  return request(`/api/commandant/classes/${id}/subjects/`)
+}
+
+export async function getCommandantCourses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/courses/${q}`)
+}
+
+export async function getCommandantUsers(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/users/${q}`)
+}
+
+export async function getCommandantUsersSummary() {
+  return request('/api/commandant/users/summary/')
+}
+
+export async function getCommandantAttendance(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/attendance/${q}`)
+}
+
+export async function getCommandantAttendanceClassSummary() {
+  return request('/api/commandant/attendance/class_summary/')
+}
+
+export async function getCommandantCertificates(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/certificates/${q}`)
+}
+
+export async function getCommandantCertificatesSummary() {
+  return request('/api/commandant/certificates/summary/')
+}
+
+export async function getCommandantExamReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/exam-reports/${q}`)
+}
+
+export async function getCommandantExamReportDetail(id) {
+  return request(`/api/commandant/exam-reports/${id}/detailed_report/`)
+}
+
+export async function addCommandantExamReportRemark(id, remark) {
+  return request(`/api/commandant/exam-reports/${id}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
+export async function getCommandantPendingRemarks() {
+  return request('/api/commandant/exam-reports/pending_remarks/')
+}
+
+export async function getCommandantExamResults(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/exam-results/${q}`)
+}
+
+export async function getCommandantEnrollments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/enrollments/${q}`)
+}
+
+export async function getCommandantNotices(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/notices/${q}`)
+}
+
 export default {
   login,
   changePassword,
@@ -1762,4 +1854,25 @@ export default {
   getMarksEntryResults,
   updateMarksEntry,
   bulkSubmitMarks,
+  // Commandant / Chief Instructor
+  getCommandantOverview,
+  getCommandantDepartments,
+  getCommandantDepartmentDetails,
+  getCommandantClasses,
+  getCommandantClassStudents,
+  getCommandantClassSubjects,
+  getCommandantCourses,
+  getCommandantUsers,
+  getCommandantUsersSummary,
+  getCommandantAttendance,
+  getCommandantAttendanceClassSummary,
+  getCommandantCertificates,
+  getCommandantCertificatesSummary,
+  getCommandantExamReports,
+  getCommandantExamReportDetail,
+  addCommandantExamReportRemark,
+  getCommandantPendingRemarks,
+  getCommandantExamResults,
+  getCommandantEnrollments,
+  getCommandantNotices,
 }

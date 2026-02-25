@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import RoleProtectedLayout from './components/RoleProtectedLayout'
 import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
+import CommandantOrCILayout from './components/CommandantOrCILayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import IntroPage from './pages/IntroPage'
@@ -51,6 +52,19 @@ const Departments = lazy(() => import('./dashboard/admin/Departments'))
 const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
 const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
 const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
+
+// Commandant / Chief Instructor components
+const CommandantDashboard = lazy(() => import('./dashboard/commandants/CommandantDashboard'))
+const CommandantDepartments = lazy(() => import('./dashboard/commandants/CommandantDepartments'))
+const CommandantDepartmentDetail = lazy(() => import('./dashboard/commandants/CommandantDepartmentDetail'))
+const CommandantClasses = lazy(() => import('./dashboard/commandants/CommandantClasses'))
+const CommandantClassDetail = lazy(() => import('./dashboard/commandants/CommandantClassDetail'))
+const CommandantUsers = lazy(() => import('./dashboard/commandants/CommandantUsers'))
+const CommandantExamReports = lazy(() => import('./dashboard/commandants/CommandantExamReports'))
+const CommandantAttendance = lazy(() => import('./dashboard/commandants/CommandantAttendance'))
+const CommandantCertificates = lazy(() => import('./dashboard/commandants/CommandantCertificates'))
+const CommandantNotices = lazy(() => import('./dashboard/commandants/CommandantNotices'))
+const CommandantCourses = lazy(() => import('./dashboard/commandants/CommandantCourses'))
 
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
@@ -245,6 +259,35 @@ const App = () => {
 			{/* Result Edit Requests — HODs only */}
 			<Route path="/list/edit-requests" element={<RoleProtectedLayout role="instructor" hodOnly />}>
 				<Route index element={<EditRequestsReview />} />
+			</Route>
+
+			{/* Commandant dashboard */}
+			<Route path="/dashboard/commandant" element={<RoleProtectedLayout role="commandant" />}>
+				<Route index element={<CommandantDashboard />} />
+			</Route>
+
+			{/* Chief Instructor dashboard */}
+			<Route path="/dashboard/ci" element={<RoleProtectedLayout role="chief_instructor" />}>
+				<Route index element={<CommandantDashboard />} />
+			</Route>
+
+			{/* Shared Commandant / CI routes */}
+			<Route path="/commandant" element={<CommandantOrCILayout />}>
+				<Route path="departments" element={<CommandantDepartments />} />
+				<Route path="users/students" element={<AdminStudents hideActions={true} source="commandant" />} />
+				<Route path="users/instructors" element={<AdminInstructors hideActions={true} source="commandant" />} />
+				<Route path="users" element={<CommandantUsers />} />
+				<Route path="departments/:id" element={<CommandantDepartmentDetail />} />
+				<Route path="courses" element={<CommandantCourses />} />
+				<Route path="courses/:id" element={<CourseDetail />} />
+				<Route path="analytics" element={<PerformanceAnalytics />} />
+				<Route path="classes" element={<CommandantClasses />} />
+				<Route path="classes/:id" element={<CommandantClassDetail />} />
+				<Route path="users" element={<CommandantUsers />} />
+				<Route path="exam-reports" element={<CommandantExamReports />} />
+				<Route path="attendance" element={<CommandantAttendance />} />
+				<Route path="certificates" element={<CommandantCertificates />} />
+				<Route path="notices" element={<CommandantNotices />} />
 			</Route>
 
 			{/* Superadmin routes */}

@@ -13,7 +13,7 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['superadmin', 'admin', 'instructor', 'student'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
       },
       // Superadmin-only items
       {
@@ -98,6 +98,95 @@ const menuItems = [
         href: '/list/edit-requests',
         visible: ['instructor'],
         hodOnly: true,
+      },
+      // Commandant / Chief Instructor items
+      {
+        icon: 'LayoutDashboard',
+        label: 'Overview',
+        href: '/dashboard/commandant',
+        visible: ['commandant'],
+      },
+      {
+        icon: 'LayoutDashboard',
+        label: 'Overview',
+        href: '/dashboard/ci',
+        visible: ['chief_instructor'],
+      },
+      {
+        icon: 'Building',
+        label: 'Departments',
+        href: '/commandant/departments',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        groupKey: 'users',
+        icon: 'Users',
+        label: 'Users',
+        visible: ['commandant', 'chief_instructor'],
+        children: [
+          {
+            icon: 'Users',
+            label: 'All Users',
+            href: '/commandant/users',
+            visible: ['commandant', 'chief_instructor'],
+          },
+          {
+            icon: 'Users',
+            label: 'Students',
+            href: '/commandant/users/students',
+            visible: ['commandant', 'chief_instructor'],
+          },
+          {
+            icon: 'User',
+            label: 'Instructors',
+            href: '/commandant/users/instructors',
+            visible: ['commandant', 'chief_instructor'],
+          },
+        ],
+      },
+      {
+        icon: 'BookOpen',
+        label: 'Courses',
+        href: '/commandant/courses',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'Layers',
+        label: 'Classes',
+        href: '/commandant/classes',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'TrendingUp',
+        label: 'Analytics',
+        href: '/commandant/analytics',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      
+      
+      {
+        icon: 'FileBarChart',
+        label: 'Exam Reports',
+        href: '/commandant/exam-reports',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'Attendance',
+        href: '/commandant/attendance',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'Award',
+        label: 'Certificates',
+        href: '/commandant/certificates',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'Megaphone',
+        label: 'Notices',
+        href: '/commandant/notices',
+        visible: ['commandant', 'chief_instructor'],
       },
       // {
       //   icon: 'Book',
@@ -197,13 +286,13 @@ const menuItems = [
         icon: 'Bell',
         label: 'Notifications',
         href: '/list/notifications',
-        visible: ['admin', 'instructor', 'student'],
+        visible: ['admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
       },
       {
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['superadmin', 'admin', 'instructor', 'student'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
       },
     ],
   },

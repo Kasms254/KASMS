@@ -108,6 +108,7 @@ def home(request):
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('commandant/', include(commandant_router.urls)),
     path("", home),
     path('auth/login/', login_view, name='login'),
     path('auth/logout/', logout_view, name='logout'),
