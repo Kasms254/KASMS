@@ -41,6 +41,12 @@ const SENTENCE_CASE_CONFIG = {
 }
 
 
+// Read the Django CSRF token from the csrftoken cookie
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
+  return match ? match[1] : null
+}
+
 // Sanitize string input to prevent injection attacks
 function sanitizeInput(value) {
   if (typeof value !== 'string') return value
