@@ -15,7 +15,19 @@ from .auth_views import (
     login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 from .performance_viewsets import(
     SubjectPerformanceViewSet, ClassPerformanceViewSet)
-
+from .commandant_views import (
+    CommandantDashboardViewSet,
+    CommandantDepartmentViewSet,
+    CommandantClassViewSet,
+    CommandantCourseViewSet,
+    CommandantUserViewSet,
+    CommandantAttendanceViewSet,
+    CommandantCertificateViewSet,
+    CommandantExamReportViewSet,
+    CommandantExamResultViewSet,
+    CommandantEnrollmentViewSet,
+    CommandantNoticeViewSet,
+)
 router = DefaultRouter()
 
 # admin routes
@@ -75,6 +87,21 @@ router.register(r"admin/roster", AdminRosterViewSet, basename="admin-roster")
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
 router.register(r'result-edit-requests', ResultEditRequestViewSet, basename='result-edit-request')
+
+
+# commandantrouters
+commandant_router = DefaultRouter()
+commandant_router.register(r'overview',       CommandantDashboardViewSet,    basename='commandant-dashboard')
+commandant_router.register(r'departments',    CommandantDepartmentViewSet,   basename='commandant-departments')
+commandant_router.register(r'classes',        CommandantClassViewSet,        basename='commandant-classes')
+commandant_router.register(r'courses',        CommandantCourseViewSet,       basename='commandant-courses')
+commandant_router.register(r'users',          CommandantUserViewSet,         basename='commandant-users')
+commandant_router.register(r'attendance',     CommandantAttendanceViewSet,   basename='commandant-attendance')
+commandant_router.register(r'certificates',   CommandantCertificateViewSet,  basename='commandant-certificates')
+commandant_router.register(r'exam-reports',   CommandantExamReportViewSet,   basename='commandant-exam-reports')
+commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   basename='commandant-exam-results')
+commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
+commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
