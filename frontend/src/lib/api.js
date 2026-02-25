@@ -138,8 +138,16 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
         window.dispatchEvent(new CustomEvent('auth:session-expired'))
       }
     } else if (res.status === 403) {
-      const detail = data && (data.detail || data.message || data.error)
-      userMessage = detail || 'You do not have permission to perform this action.'
+      // Auth paths (login, 2FA) return 403 after credential validation — e.g. "Account disabled"
+      // or "No active school membership". Exposing these confirms credentials were valid,
+      // which aids enumeration. Use a generic message for all auth-path 403s.
+      const isAuthPath = ['/login/', '/verify-2fa/', '/resend-2fa/'].some(p => path.includes(p))
+      if (isAuthPath) {
+        userMessage = 'Access denied. Please contact your administrator.'
+      } else {
+        const detail = data && (data.detail || data.message || data.error)
+        userMessage = detail || 'You do not have permission to perform this action.'
+      }
     } else if (res.status === 404) {
       userMessage = 'The requested resource was not found.'
     } else if (res.status === 500) {

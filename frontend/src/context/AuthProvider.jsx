@@ -125,9 +125,14 @@ export function AuthProvider({ children }) {
             : err.data.password
         }
       }
+      // Use generic messages — never expose whether the account exists,
+      // whether credentials were valid, or any other backend-specific detail.
+      const errorMessage = (err?.status >= 500)
+        ? 'Unable to complete login. Please try again later.'
+        : 'Login failed. Please check your credentials and try again.'
       return {
         ok: false,
-        error: err?.message || String(err),
+        error: errorMessage,
         fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : null
       }
     }
@@ -147,15 +152,16 @@ export function AuthProvider({ children }) {
   }, [resetTheme])
 
   const logout = useCallback(async () => {
+    // Clear React state immediately so ProtectedRoute blocks any forward navigation
+    // before the network request completes.
+    setUser(null)
+    setMustChangePassword(false)
+    resetTheme()
     try {
       // Backend blacklists the refresh cookie and clears both cookies
       await api.logout()
     } catch {
-      // ignore backend errors — clear client state regardless
-    } finally {
-      setUser(null)
-      setMustChangePassword(false)
-      resetTheme()
+      // ignore backend errors — React state is already clean
     }
   }, [resetTheme])
 

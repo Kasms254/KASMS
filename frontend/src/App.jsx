@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react'
+import React, { lazy, Suspense, useLayoutEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
@@ -75,7 +75,9 @@ const ProtectedLogin = () => {
 
 	// If an active session exists when the user visits /login (e.g. back-navigating
 	// from the dashboard), invalidate it so they must re-authenticate.
-	useEffect(() => {
+	// useLayoutEffect fires before the browser paints, eliminating the window
+	// where a forward-button press could bypass the logout.
+	useLayoutEffect(() => {
 		if (!loading && user) {
 			logout()
 		}

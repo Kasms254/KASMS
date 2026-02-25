@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, ClipboardList, BarChart3, ArrowRight, Target, Shield, Award } from 'lucide-react'
 import useAuth from '../hooks/useAuth'
@@ -11,8 +11,9 @@ export default function IntroPage() {
 
   // If the user lands on the public intro page while still authenticated
   // (e.g. back-navigating from the dashboard), invalidate the session immediately.
-  // They must log in again to access protected pages.
-  useEffect(() => {
+  // useLayoutEffect fires before the browser paints, so logout() + setUser(null)
+  // is committed before the forward button can navigate away.
+  useLayoutEffect(() => {
     if (user) {
       logout()
     }
