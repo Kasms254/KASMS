@@ -82,7 +82,9 @@ export default function Login() {
       // Trim values before sending to API
       const result = await login(svc_number.trim(), password)
       if (result.ok) {
-        if (result.mustChangePassword) {
+        if (result.requires2FA) {
+          navigate('/verify-2fa')
+        } else if (result.mustChangePassword) {
           navigate('/change-password')
         } else {
           navigate('/dashboard')

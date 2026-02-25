@@ -9,6 +9,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true) // true on mount while we check for an existing session
   const [mustChangePassword, setMustChangePassword] = useState(false)
+  // twoFA holds { svc_number, password, email } during the 2FA step (never persisted to storage)
+  const [twoFA, setTwoFA] = useState(null)
   const { setTheme, resetTheme } = useContext(ThemeContext)
 
   // On mount, always try to fetch the current user.
@@ -75,7 +77,21 @@ export function AuthProvider({ children }) {
     try {
       // Backend returns { message, must_change_password, user } and sets tokens as HTTP-only cookies
       const resp = await api.login(svc_number, password)
+
+      // Backend sends 2FA trigger — no tokens yet
+      if (resp?.requires_2fa) {
+        setTwoFA({ svc_number, password, email: resp.email })
+        setLoading(false)
+        return { ok: true, requires2FA: true, email: resp.email }
+      }
+
+      // Fallback: direct token response (if 2FA ever disabled on backend)
+      const newAccess = resp?.access || resp?.token || null
+      const newRefresh = resp?.refresh || resp?.refresh_token || null
       const userInfo = resp?.user || resp?.data || null
+      if (!newAccess) throw new Error('No access token returned from login')
+      authStore.login({ access: newAccess, refresh: newRefresh })
+      setToken(newAccess)
       setUser(userInfo)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
