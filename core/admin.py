@@ -87,7 +87,11 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
     ordering = ['-created_at']
-    inlines = [SchoolMembershipInline]
+    
+    def get_inlines(self, request, obj=None):
+        if obj is None: 
+            return []
+        return [SchoolMembershipInline]
     
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
@@ -112,6 +116,15 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
 
     def get_queryset(self, request):
         return User.all_objects.all()
+
+    def save_model(self, request, obj, form, change):
+
+        obj.save()
+
+    def response_add(self, request, obj, post_url_continue=None):
+
+        obj.clear_membership_cache()
+        return super().response_add(request, obj, post_url_continue)
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
