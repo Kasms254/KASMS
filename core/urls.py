@@ -115,7 +115,7 @@ urlpatterns = [
     path('auth/change-password/', change_password_view, name='change_password'),
     path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
     path('auth/token/verify/', verify_token_view, name='token-verify'),
-
+    path('commandant/', include(commandant_router.urls)),
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),
 
