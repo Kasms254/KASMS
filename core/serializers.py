@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, ExamReportRemark,Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
     SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
 )
@@ -1656,7 +1656,6 @@ class CertificateStatsSerializer(serializers.Serializer):
     certificates_this_month = serializers.IntegerField()
     certificates_this_year = serializers.IntegerField()
 
-
 class DepartmentSerializer(serializers.ModelSerializer):
     hod_name = serializers.SerializerMethodField()
     hod_svc_number = serializers.SerializerMethodField()
@@ -1834,7 +1833,6 @@ class ResultEditRequestReviewSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['approve', 'reject'])
     note = serializers.CharField(required=False, allow_blank=True, default='')
 
-
 class InstructorMarksSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -1940,7 +1938,6 @@ class InstructorMarksSerializer(serializers.ModelSerializer):
                 "wait for HOD approval before editing."
             )
         return attrs
-
 
 class AdminMarksSerializer(serializers.ModelSerializer):
 
@@ -2081,7 +2078,6 @@ class AdminMarksSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
 
         return attrs
-
     
 class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
 
@@ -2156,3 +2152,120 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
         if s.rank:
             return s.get_rank_display()
         return None
+
+class ExamReportRemarkSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField(read_only=True)
+    author_rank = serializers.CharField(source='author.get_rank_display', read_only=True)
+    author_svc_number = serializers.CharField(source='author.svc_number', read_only=True)
+    author_role_display = serializers.CharField(source='get_author_role_display', read_only=True)
+
+    class Meta:
+        model = ExamReportRemark
+        fields = [
+            'id', 'exam_report', 'author', 'author_name', 'author_rank',
+            'author_svc_number', 'author_role', 'author_role_display',
+            'remark', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'author', 'author_role', 'school',
+            'created_at', 'updated_at',
+        ]
+
+    def get_author_name(self, obj):
+        return obj.author.get_full_name() if obj.author else None
+
+    def validate_remark(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Remark cannot be empty.")
+        return value.strip()
+
+class DashboardClassSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    course_code = serializers.CharField(source='course.code', read_only=True)
+    instructor_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(
+        source='department.name', read_only=True, default=None
+    )
+    current_enrollment = serializers.IntegerField(read_only=True)
+    enrollment_status = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Class
+        fields = [
+            'id', 'name', 'class_code', 'course', 'course_name', 'course_code',
+            'instructor', 'instructor_name', 'department', 'department_name',
+            'start_date', 'end_date', 'capacity', 'current_enrollment',
+            'enrollment_status', 'is_active', 'is_closed',
+        ]
+
+    def get_instructor_name(self, obj):
+        return obj.instructor.get_full_name() if obj.instructor else None
+
+class DashboardDepartmentSerializer(serializers.ModelSerializer):
+    course_count = serializers.SerializerMethodField(read_only=True)
+    class_count = serializers.SerializerMethodField(read_only=True)
+    hod_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'name', 'code', 'description', 'is_active',
+            'course_count', 'class_count', 'hod_name',
+        ]
+
+    def get_course_count(self, obj):
+        return obj.courses.filter(is_active=True).count()
+
+    def get_class_count(self, obj):
+        return obj.classes.filter(is_active=True).count()
+
+    def get_hod_name(self, obj):
+        hod = obj.hod
+        return hod.get_full_name() if hod else None
+
+class DashboardCertificateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Certificate
+        fields = [
+            'id', 'certificate_number', 'student_name', 'student_svc_number',
+            'student_rank', 'course_name', 'class_name', 'final_grade',
+            'final_percentage', 'attendance_percentage', 'status',
+            'issued_at', 'completion_date',
+        ]
+
+class DashboardExamReportSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    exams_count = serializers.IntegerField(source='exams.count', read_only=True)
+    total_students = serializers.IntegerField(read_only=True)
+    average_performance = serializers.FloatField(read_only=True)
+    remarks_list = ExamReportRemarkSerializer(
+        source='remarks', many=True, read_only=True
+    )
+    commandant_remark = serializers.SerializerMethodField(read_only=True)
+    chief_instructor_remark = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ExamReport
+        fields = [
+            'id', 'title', 'description', 'subject', 'subject_name',
+            'class_obj', 'class_name', 'course_name', 'report_date',
+            'created_by', 'created_by_name', 'exams_count',
+            'total_students', 'average_performance',
+            'remarks_list', 'commandant_remark', 'chief_instructor_remark',
+            'created_at', 'updated_at',
+        ]
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_commandant_remark(self, obj):
+        remark = obj.remarks.filter(author_role='commandant').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None
+
+    def get_chief_instructor_remark(self, obj):
+        remark = obj.remarks.filter(author_role='chief_instructor').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None

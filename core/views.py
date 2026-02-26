@@ -2,13 +2,20 @@ from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest)
+ Department, DepartmentMembership, ResultEditRequest, ExamReportRemark)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
+from .serializers import (
+    ExamReportRemarkSerializer,
+    DashboardClassSerializer,
+    DashboardDepartmentSerializer,
+    DashboardCertificateSerializer,
+    DashboardExamReportSerializer,
+)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -4961,7 +4968,6 @@ class CertificatePublicVerificationView(APIView):
         })
 
 # student indexes
-
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5096,7 +5102,6 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
-
 
 class AdminRosterViewSet(viewsets.ViewSet):
 
@@ -5466,3 +5471,4 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
+
