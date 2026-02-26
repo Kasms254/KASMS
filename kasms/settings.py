@@ -9,10 +9,6 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 
@@ -20,7 +16,10 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,192.168.2.254"
+).split(",")
 
 
 # Application definition
@@ -204,20 +203,14 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
 }
 
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([
     "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
-    "http://192.168.2.254",
-    "http://192.168.2.254:8080",
-
-]
+    "http://localhost:8000",
+])).split(",")
 
 CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -253,16 +246,12 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
-CSRF_TRUSTED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
-    "http://192.168.2.254",
-    "http://192.168.2.254:8080",
-]
+    "http://localhost:8000",
+])).split(",")
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_NAME = "csrftoken"
@@ -292,6 +281,6 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # 2FA settings
-TWO_FA_CODE_LENGTH = 6
-TWO_FA_CODE_EXPIRY_MINUTES = 5
-TWO_FA_MAX_ATTEMPTS = 5
+TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
+TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
+TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
