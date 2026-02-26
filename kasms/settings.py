@@ -54,8 +54,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
-
 ROOT_URLCONF = "kasms.urls"
 
 TEMPLATES = [
@@ -245,7 +243,6 @@ AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
-
 CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:3000",
     "http://localhost:5173",
