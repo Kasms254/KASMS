@@ -3,7 +3,6 @@ import * as LucideIcons from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import * as api from '../lib/api'
-import * as authStore from '../lib/auth'
 
 function checkPasswordStrength(password) {
   const feedback = []
@@ -98,15 +97,10 @@ export default function ChangePassword() {
     setFieldErrors({})
 
     try {
-      const resp = await api.changePassword(currentPassword, newPassword, confirmPassword)
-      // Update tokens from response
-      const newAccess = resp?.access || resp?.token || null
-      const newRefresh = resp?.refresh || resp?.refresh_token || null
-      if (newAccess) {
-        authStore.login({ access: newAccess, refresh: newRefresh })
-      }
+      await api.changePassword(currentPassword, newPassword, confirmPassword)
+      // Backend sets fresh auth cookies via Set-Cookie — no token handling needed here.
       setMustChangePassword(false)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       if (err?.data?.error) {
         // Backend returns { error: "message" } or { error: ["msg1", ...] }
@@ -123,7 +117,7 @@ export default function ChangePassword() {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/')
+    navigate('/', { replace: true })
   }
 
   return (

@@ -1,5 +1,5 @@
-import React, { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { lazy, Suspense, useLayoutEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -8,6 +8,7 @@ import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
+import Verify2FA from './pages/Verify2FA'
 import IntroPage from './pages/IntroPage'
 import useAuth from './hooks/useAuth'
 
@@ -70,10 +71,21 @@ const LoadingFallback = () => (
 )
 
 const ProtectedLogin = () => {
-	const { token } = useAuth()
-	// Don't check loading here - let the Login component handle its own loading state
-	// This prevents the white screen when login fails
-	if (token) return <Navigate to="/dashboard" replace />
+	const { loading, user, logout } = useAuth()
+
+	// If an active session exists when the user visits /login (e.g. back-navigating
+	// from the dashboard), invalidate it so they must re-authenticate.
+	// useLayoutEffect fires before the browser paints, eliminating the window
+	// where a forward-button press could bypass the logout.
+	useLayoutEffect(() => {
+		if (!loading && user) {
+			logout()
+		}
+	}, [loading, user, logout])
+
+	if (loading) return null
+	// Show nothing while logout is in progress (user will become null shortly)
+	if (user) return null
 	return <Login />
 }
 
@@ -88,8 +100,11 @@ const App = () => {
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />
 
-			{/* Change password page (outside dashboard layout since other endpoints are blocked) */}
-		<Route path="/change-password" element={<ChangePassword />} />
+			{/* 2FA verification step — shown after login, before tokens are issued */}
+		<Route path="/verify-2fa" element={<Verify2FA />} />
+
+			{/* Change password page — requires auth but skips the mustChangePassword redirect to avoid loops */}
+		<Route path="/change-password" element={<ProtectedRoute skipMustChangeRedirect><ChangePassword /></ProtectedRoute>} />
 
 		{/* Profile page (all authenticated users, inside Layout with sidebar/navbar) */}
 		<Route path="/profile" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

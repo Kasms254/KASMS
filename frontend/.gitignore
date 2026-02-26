@@ -17,6 +17,7 @@ dist-ssr
 .venv
 .env.local
 .env.*.local
+frontend/.env
 
 # Build output
 build/

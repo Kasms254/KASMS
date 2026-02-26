@@ -15,6 +15,37 @@ def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
         return f"school_logos/{instance.slug}/{uuid.uuid4().hex}.{ext}"
       
+class TwoFactorCode(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='two_factor_codes',
+    )
+    code = models.CharField(max_length=10)
+    is_used = models.BooleanField(default=False)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'two_factor_codes'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_used', 'expires_at']),
+        ]
+
+    def __str__(self):
+        return f"2FA code for {self.user.svc_number} ({'used' if self.is_used else 'active'})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_valid(self):
+        return not self.is_used and not self.is_expired
+
 class School(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(
@@ -370,7 +401,6 @@ class StudentIndex(models.Model):
         if not self.school and self.class_obj:
             self.school = self.class_obj.school
         super().save(*args, **kwargs)
-
 
 class User(AbstractUser):
     ROLE_CHOICES = [

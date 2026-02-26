@@ -1656,7 +1656,6 @@ class CertificateStatsSerializer(serializers.Serializer):
     certificates_this_month = serializers.IntegerField()
     certificates_this_year = serializers.IntegerField()
 
-
 class DepartmentSerializer(serializers.ModelSerializer):
     hod_name = serializers.SerializerMethodField()
     hod_svc_number = serializers.SerializerMethodField()
@@ -1834,7 +1833,6 @@ class ResultEditRequestReviewSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['approve', 'reject'])
     note = serializers.CharField(required=False, allow_blank=True, default='')
 
-
 class InstructorMarksSerializer(serializers.ModelSerializer):
 
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
@@ -1940,7 +1938,6 @@ class InstructorMarksSerializer(serializers.ModelSerializer):
                 "wait for HOD approval before editing."
             )
         return attrs
-
 
 class AdminMarksSerializer(serializers.ModelSerializer):
 
@@ -2082,7 +2079,6 @@ class AdminMarksSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    
 class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
 
     formatted_index = serializers.SerializerMethodField(read_only=True)

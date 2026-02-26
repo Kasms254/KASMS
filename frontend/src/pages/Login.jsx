@@ -82,10 +82,13 @@ export default function Login() {
       // Trim values before sending to API
       const result = await login(svc_number.trim(), password)
       if (result.ok) {
-        if (result.mustChangePassword) {
-          navigate('/change-password')
+        if (result.requires2FA) {
+          // replace so the login page is not in history — back from 2FA goes to the page before login
+          navigate('/verify-2fa', { replace: true })
+        } else if (result.mustChangePassword) {
+          navigate('/change-password', { replace: true })
         } else {
-          navigate('/dashboard')
+          navigate('/dashboard', { replace: true })
         }
       } else {
         // Check if there are field-level errors

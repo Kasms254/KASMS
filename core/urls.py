@@ -12,9 +12,10 @@ from .views import (
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
-    login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
+   csrf_token_view,login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 from .performance_viewsets import(
     SubjectPerformanceViewSet, ClassPerformanceViewSet)
+from .auth_urls import auth_urlpatterns
 
 router = DefaultRouter()
 
@@ -82,15 +83,17 @@ def home(request):
 urlpatterns = [
     path('', include(router.urls)),
     path("", home),
-    path('auth/login/', login_view, name='login'),
-    path('auth/logout/', logout_view, name='logout'),
-    path('auth/me/', current_user_view, name='current_user'),
-    path('auth/change-password/', change_password_view, name='change_password'),
-    path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
-    path('auth/token/verify/', verify_token_view, name='token-verify'),
+    # path('auth/login/', login_view, name='login'),
+    # path('auth/logout/', logout_view, name='logout'),
+    # path('auth/me/', current_user_view, name='current_user'),
+    # path('auth/change-password/', change_password_view, name='change_password'),
+    # path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
+    # path('auth/token/verify/', verify_token_view, name='token-verify'),
 
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),
+    path('auth/', include((auth_urlpatterns, 'auth'))),
+
 
 ]
 
