@@ -704,6 +704,16 @@ class ClassSerializer(serializers.ModelSerializer):
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
     
+    def get_subjects_count(self, obj):
+        if hasattr(obj, '_subjects_count'):
+            return obj._subjects_count
+        return obj.subjects.filter(is_active=True).count()
+
+    def get_current_enrollment(self, obj):
+        if hasattr(obj, '_current_enrollment'):
+            return obj._current_enrollment
+        return obj.enrollments.filter(is_active=True).count()
+
     def validate(self, attrs):
         start_date = attrs.get('start_date', self.instance.start_date if self.instance else None)
         end_date = attrs.get('end_date', self.instance.end_date if self.instance else None)
@@ -989,13 +999,13 @@ class ExamResultSerializer(serializers.ModelSerializer):
             index = StudentIndex.all_objects.filter(
                 enrollment__student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
-            ).first()
+            ).select_related('class_obj').first()
             if index:
                 return index.class_obj.format_index(int(index.index_number))
         except Exception:
             pass
         return None
-
+        
     def validate_marks_obtained(self, value):
         if value is not None:
             exam = self.instance.exam if self.instance else None

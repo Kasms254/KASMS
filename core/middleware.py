@@ -6,6 +6,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
+from django.core.cache import cache
+
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +73,17 @@ class TenantMiddleware(MiddlewareMixin):
         school_code = request.headers.get('X-School-Code')
                 
         if school_code:
-            try:
-                school = School.objects.get(code=school_code, is_active=True)
-            except School.DoesNotExist:
-                return JsonResponse({
-                    'error': 'Invalid school code',
-                    'detail': f'School with code "{school_code}" not found or inactive'
-                }, status=400)
+            
+            cache_key = f'school_by_code:{school_code}'
+            school = cache.get(cache_key)
+            if school is None:  
+                try:
+                    school = School.objects.get(code=school_code, is_active=True)
+                except School.DoesNotExist:
+                    return JsonResponse({
+                        'error': 'Invalid school code',
+                        'detail': f'School with code "{school_code}" not found or inactive'
+                    }, status=400)
         
         elif user:
             if user.role == 'superadmin':
@@ -89,12 +95,17 @@ class TenantMiddleware(MiddlewareMixin):
         set_current_school(school)
         request.school = school
 
+        membership = None
         if user and school:
-            request.membership = (
-                user.school_memberships.filter(school=school, status='active').first()
-            )
-        else:
-            request.membership =None
+            cache_key = f'membership:{user.id}:{school.id}'
+            membership = cache.get(cache_key)
+            if membership is None:
+                membership = (
+                    user.school_memberships.filter(school=school, status='active').first()
+                )
+                if membership:
+                    cache.set(cache_key, membership, timeout=600)  
+        request.membership = membership
 
         return None
 
@@ -134,11 +145,7 @@ class SchoolAccessMiddleware(MiddlewareMixin):
                 {'error': 'No school context'}, status=403
             )
 
-        has_membership = SchoolMembership.all_objects.filter(
-            user=user,
-            school=current_school,
-            status='active'
-        ).exists()
+        has_membership = getattr(request, 'membership', None) is not None
 
         if not has_membership:
             return JsonResponse({
