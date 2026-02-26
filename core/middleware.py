@@ -6,7 +6,8 @@ from .cookie_utils import ACCESS_COOKIE_NAME
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
-from django.conf import settingsfrom django.core.cache import cache
+from django.conf import settings
+from django.core.cache import cache
 
 
 logger = logging.getLogger(__name__)
