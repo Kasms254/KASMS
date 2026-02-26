@@ -194,6 +194,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://192.168.2.254",
+    "http://192.168.2.254:8080",
 
 ]
 
@@ -241,6 +243,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://192.168.2.254",
+    "http://192.168.2.254:8080",
 ]
 
 CSRF_COOKIE_HTTPONLY = False

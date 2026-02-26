@@ -4,6 +4,7 @@
 import { transformToSentenceCase } from './textTransform'
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_FALLBACK = import.meta.env.VITE_API_FALLBACK || null;
 
 // Configuration for sentence case transformation
 const SENTENCE_CASE_CONFIG = {
@@ -91,7 +92,16 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     }
   }
 
-  let res = await fetch(url, opts)
+  let res
+  try {
+    res = await fetch(url, opts)
+  } catch {
+    if (API_FALLBACK) {
+      res = await fetch(`${API_FALLBACK}${path}`, opts)
+    } else {
+      throw new Error('Network error: unable to reach the server.')
+    }
+  }
   let data = await parseResponse(res)
 
   // If unauthorized, try to refresh the access token via the HTTP-only cookie.
