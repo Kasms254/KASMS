@@ -4,10 +4,23 @@ import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
+import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+
+const GRADE_COLORS = {
+  'A':  { bg: 'bg-emerald-600', text: 'text-emerald-700', light: 'bg-emerald-50' },
+  'A-': { bg: 'bg-emerald-400', text: 'text-emerald-600', light: 'bg-emerald-50' },
+  'B+': { bg: 'bg-sky-600',     text: 'text-sky-700',     light: 'bg-sky-50' },
+  'B':  { bg: 'bg-sky-500',     text: 'text-sky-700',     light: 'bg-sky-50' },
+  'B-': { bg: 'bg-sky-400',     text: 'text-sky-600',     light: 'bg-sky-50' },
+  'C+': { bg: 'bg-amber-600',   text: 'text-amber-700',   light: 'bg-amber-50' },
+  'C':  { bg: 'bg-amber-500',   text: 'text-amber-700',   light: 'bg-amber-50' },
+  'C-': { bg: 'bg-amber-400',   text: 'text-amber-600',   light: 'bg-amber-50' },
+  'F':  { bg: 'bg-red-500',     text: 'text-red-700',     light: 'bg-red-50' },
+}
 
 function _gradeFromPct(pct) {
   const p = parseFloat(pct) || 0
@@ -253,12 +266,13 @@ export default function CommandantExamReports() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-black">Exam Reports</h1>
-          <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
-        </div>
+    <div className="space-y-6">
+      <header className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-black">Exam Reports</h2>
+        <p className="text-sm text-gray-500">Comprehensive exam analysis and student performance</p>
+      </header>
+
+      {(selectedClass || selectedExam || showComprehensive) && (
         <div className="flex items-center gap-3 flex-wrap">
           {selectedClass && !selectedExam && !showComprehensive && (
             <button onClick={handleViewComprehensive} disabled={loadingComprehensive} className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
@@ -285,7 +299,7 @@ export default function CommandantExamReports() {
             </>
           )}
         </div>
-      </div>
+      )}
 
       {showComprehensive && comprehensiveData && (
         <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
@@ -451,31 +465,46 @@ export default function CommandantExamReports() {
             <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>
           ) : examStats ? (
             <>
-              <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-                <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
-                  <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Total Students</div><div className="text-xl md:text-2xl font-bold text-black">{examStats.total}</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Graded</div><div className="text-xl md:text-2xl font-bold text-green-600">{examStats.submitted}</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Pending</div><div className="text-xl md:text-2xl font-bold text-amber-600">{examStats.pending}</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Average</div><div className="text-xl md:text-2xl font-bold text-indigo-600">{examStats.average}%</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Highest</div><div className="text-xl md:text-2xl font-bold text-green-600">{examStats.highest}%</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Lowest</div><div className="text-xl md:text-2xl font-bold text-red-600">{examStats.lowest}%</div></div>
-                  <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px]"><div className="text-xs text-neutral-500">Pass Rate</div><div className="text-xl md:text-2xl font-bold text-blue-600">{examStats.passRate}%</div></div>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                <Card title="Total Students" value={examStats.total}    icon="Users"         accent="bg-indigo-500"  colored />
+                <Card title="Graded"         value={examStats.submitted} icon="CheckCircle"   accent="bg-emerald-500" colored />
+                <Card title="Pending"        value={examStats.pending}   icon="Clock"         accent="bg-amber-500"   colored />
+                <Card title="Average"        value={`${examStats.average}%`}  icon="TrendingUp"    accent="bg-indigo-600"  colored />
+                <Card title="Highest"        value={`${examStats.highest}%`}  icon="ArrowUpCircle" accent="bg-emerald-500" colored />
+                <Card title="Lowest"         value={`${examStats.lowest}%`}   icon="ArrowDownCircle" accent="bg-pink-500" colored />
+                <Card title="Pass Rate"      value={`${examStats.passRate}%`} icon="Award"         accent="bg-sky-500"     colored />
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 md:p-6">
-                <h3 className="text-base md:text-lg font-semibold text-black mb-4">Grade Distribution</h3>
-                <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 md:gap-3">
+              <div className="bg-white rounded-xl border border-neutral-200 p-4 md:p-6">
+                <h3 className="text-base font-semibold text-black mb-4">Grade Distribution</h3>
+                {/* Stacked bar */}
+                <div className="flex h-8 rounded-lg overflow-hidden mb-4">
+                  {Object.entries(examStats.grades).map(([grade, count]) => {
+                    const pct = examStats.submitted > 0 ? (count / examStats.submitted) * 100 : 0
+                    if (pct === 0) return null
+                    const c = GRADE_COLORS[grade] || { bg: 'bg-neutral-400' }
+                    return (
+                      <div
+                        key={grade}
+                        className={`${c.bg} flex items-center justify-center text-white text-xs font-bold transition-all hover:opacity-90`}
+                        style={{ width: `${pct}%` }}
+                        title={`Grade ${grade}: ${count} (${pct.toFixed(1)}%)`}
+                      >
+                        {pct > 8 && grade}
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Legend */}
+                <div className="grid grid-cols-5 sm:grid-cols-9 gap-1 md:gap-2">
                   {Object.entries(examStats.grades).map(([grade, count]) => {
                     const total = examStats.submitted
-                    const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0
+                    const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0
+                    const c = GRADE_COLORS[grade] || { text: 'text-neutral-700', light: 'bg-neutral-50' }
                     return (
-                      <div key={grade} className="text-center">
-                        <div className={`w-full h-16 md:h-24 rounded-lg flex items-end justify-center bg-gray-100`} style={{ opacity: 0.3 + (count / Math.max(1, total)) * 0.7 }}>
-                          <div style={{ height: `${Math.max(20, pct)}%` }} className={`w-full rounded-lg bg-gray-300`} />
-                        </div>
-                        <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full font-bold text-sm md:text-base bg-gray-100`}>{grade}</div>
-                        <div className="text-xs md:text-sm text-neutral-600 mt-1">{count} <span className="hidden sm:inline">({pct}%)</span></div>
+                      <div key={grade} className={`${c.light} rounded-lg p-2 text-center`}>
+                        <div className={`text-lg font-bold ${c.text}`}>{grade}</div>
+                        <div className="text-xs text-neutral-600 mt-0.5">{count} <span className="hidden sm:inline">({pct}%)</span></div>
                       </div>
                     )
                   })}
