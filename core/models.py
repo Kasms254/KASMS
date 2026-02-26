@@ -565,6 +565,10 @@ class Class(models.Model):
     class Meta:
         db_table = 'classes'
         ordering = ['course', 'name']
+        indexes = [
+            models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['instructor', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.course.name} - {self.name}"
@@ -614,6 +618,11 @@ class Subject(models.Model):
     class Meta:
         db_table = 'subjects'
         ordering = ['class_obj', 'name']
+        indexes = [
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['instructor', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.class_obj.name})"
@@ -699,6 +708,11 @@ class Enrollment(models.Model):
         db_table = 'enrollments'
         ordering = ['-enrollment_date']
         unique_together = ['student', 'class_obj']
+        indexes = [
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['student', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.student.username} enrolled in {self.class_obj.course.name}"
@@ -730,6 +744,10 @@ class Exam(models.Model):
         db_table = 'exams'
         ordering = ['created_at']
         unique_together = ['subject', 'exam_date', 'title']
+        indexes = [
+            models.Index(fields=['subject', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.subject.name}"
@@ -804,6 +822,11 @@ class ExamResult(models.Model):
     class Meta:
         db_table = 'exam_results'
         unique_together = ['exam', 'student']
+        indexes = [
+            models.Index(fields=['school', 'is_submitted']),
+            models.Index(fields=['student', 'is_submitted', 'marks_obtained']),
+            models.Index(fields=['exam', 'is_submitted', 'student']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.school and self.exam:
@@ -860,6 +883,10 @@ class Attendance(models.Model):
         db_table = 'attendance'
         ordering = ['-date', 'student__last_name']
         constraints = [models.UniqueConstraint(fields=['student', 'class_obj', 'subject', 'date'], name='unique_attendance_per_student_class_subject_date')]
+        indexes = [
+            models.Index(fields=['student', 'class_obj', 'date']),
+            models.Index(fields=['class_obj', 'date', 'status']),
+        ]
 
     def __str__(self):
         return f"{self.student.get_full_name()} - {self.date} - {self.status}"

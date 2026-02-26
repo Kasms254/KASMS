@@ -3,12 +3,38 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
 from .services import get_class_completion_status
-from .models import PersonalNotification, User, Enrollment
+from .models import (
+    PersonalNotification, User, Enrollment, School, SchoolMembership,
+    )
 from core.models import Enrollment as Enroll, StudentIndex
 from django.db import transaction as tx
 import logging
+from django.db.models.signals import post_save, post_delete 
+from django.core.cache import cache 
+
 
 logger = logging.getLogger(__name__)
+
+@receiver([post_save, post_delete], sender=Enrollment)
+def invalidate_enrollment_caches(sender, instance, **kwargs):
+    if instance.school_id:
+        cache.delete(f'school_stats:{instance.school_id}')
+
+@receiver([post_save, post_delete], sender=SchoolMembership)
+def invalidate_membership_caches(sender, instance, **kwargs):
+    if instance.school_id:
+        cache.delete(f'school_stats:{instance.school_id}')
+    if instance.user_id and instance.school_id:
+        cache.delete(f'membership:{instance.user_id}:{instance.school_id}')
+
+@receiver(post_save, sender=School)
+def invalidate_school_cache(sender, instance, **kwargs):
+    cache.delete(f'school_by_code:{instance.code}')
+
+@receiver(post_save, sender='core.ExamResult')
+def invalidate_exam_result_caches(sender, instance, **kwargs):
+    if instance.school_id:
+        cache.delete(f'school_stats:{instance.school_id}')
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):

@@ -95,11 +95,28 @@ DATABASES = {
         "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
         "HOST": os.getenv('HOST', default='localhost'),
         "PORT": os.getenv('PORT', default='5432'),
+        "CONN_MAX_AGE": 600,
         
     }
     #  "default": dj_database_url.config(
     #     default=os.environ.get("DATABASE_URL")
     # )
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": os.getenv(
+            "CACHE_BACKEND",
+            "django.core.cache.backends.redis.RedisCache"
+            if os.getenv("REDIS_URL")
+            else "django.core.cache.backends.locmem.LocMemCache",
+        ),
+        "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
+        "TIMEOUT": 300,  
+        "OPTIONS": {
+            "MAX_ENTRIES": 5000,
+        },
+    }
 }
 
 # Password validation
