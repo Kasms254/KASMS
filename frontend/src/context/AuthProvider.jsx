@@ -125,11 +125,9 @@ export function AuthProvider({ children }) {
             : err.data.password
         }
       }
-      // Use generic messages — never expose whether the account exists,
-      // whether credentials were valid, or any other backend-specific detail.
-      const errorMessage = (err?.status >= 500)
-        ? 'Unable to complete login. Please try again later.'
-        : 'Login failed. Please check your credentials and try again.'
+      const errorMessage = (err instanceof TypeError && !err.status)
+        ? 'Network error. Please check your connection and try again.'
+        : (err?.message || 'Login failed. Please try again.')
       return {
         ok: false,
         error: errorMessage,

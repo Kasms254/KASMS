@@ -37,6 +37,13 @@ const SENTENCE_CASE_CONFIG = {
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
+    'grade', // Preserve grade values (e.g. A-, B+, C-)
+    'overall_grade',
+    'performance_grade',
+    'total_grade',
+    'grade_letter',
+    'average_grade_letter',
+    'final_grade',
   ]
 }
 
