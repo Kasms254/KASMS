@@ -1,4 +1,4 @@
-
+import socket
 from pathlib import Path
 from datetime import timedelta
 import os
@@ -24,35 +24,38 @@ ALLOWED_HOSTS = os.getenv(
 
 # Application definition
 
-INSTALLED_APPS = [
-    "corsheaders",
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
-    "core",
-    # 'rest_framework.authtoken',
-    "rest_framework",
-    "django_filters",
-]
+# INSTALLED_APPS = [
+#         "corsheaders",
+#         "django.contrib.admin",
+#         "django.contrib.auth",
+#         "django.contrib.contenttypes",
+#         "django.contrib.sessions",
+#         "django.contrib.messages",
+#         "django.contrib.staticfiles",
+#         "rest_framework_simplejwt",
+#         "rest_framework_simplejwt.token_blacklist",
+#         "core",
+#         # 'rest_framework.authtoken',
+#         "rest_framework",
+#         "django_filters",
+#         "debug_toolbar",
+#         "silk",
+#     ]
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "core.middleware.TenantMiddleware",
-    "core.middleware.SchoolAccessMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-]
+
+# MIDDLEWARE = [
+#         "corsheaders.middleware.CorsMiddleware",
+#         "django.middleware.security.SecurityMiddleware",
+#         "whitenoise.middleware.WhiteNoiseMiddleware",
+#         "django.contrib.sessions.middleware.SessionMiddleware",
+#         "django.middleware.common.CommonMiddleware",
+#         "django.middleware.csrf.CsrfViewMiddleware",
+#         "django.contrib.auth.middleware.AuthenticationMiddleware",
+#         "core.middleware.TenantMiddleware",
+#         "core.middleware.SchoolAccessMiddleware",
+#         "django.contrib.messages.middleware.MessageMiddleware",
+#         "django.middleware.clickjacking.XFrameOptionsMiddleware",
+#     ]
 
 ROOT_URLCONF = "kasms.urls"
 
@@ -74,11 +77,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "kasms.wsgi.application"
 
-
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-
 
 # AUTH_USER_MODEL = "users.User"
 
@@ -281,3 +281,88 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
 TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
 TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
+
+
+INSTALLED_APPS = [
+    "corsheaders",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "core",
+    "rest_framework",
+    "django_filters",
+]
+
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.TenantMiddleware",
+    "core.middleware.SchoolAccessMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+
+if DEBUG:
+    import socket
+
+    INSTALLED_APPS += ["debug_toolbar", "silk"]
+
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
+    MIDDLEWARE.append("silk.middleware.SilkyMiddleware")
+
+    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+    INTERNAL_IPS = ["127.0.0.1", "10.0.2.2"] + [
+        ip[: ip.rfind(".")] + ".1" for ip in ips
+    ]
+
+    DEBUG_TOOLBAR_CONFIG = {
+        "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,
+        "SQL_WARNING_THRESHOLD": 100,
+    }
+
+    DEBUG_TOOLBAR_PANELS = [
+        "debug_toolbar.panels.history.HistoryPanel",
+        "debug_toolbar.panels.timer.TimerPanel",
+        "debug_toolbar.panels.headers.HeadersPanel",
+        "debug_toolbar.panels.request.RequestPanel",
+        "debug_toolbar.panels.sql.SQLPanel",
+        "debug_toolbar.panels.cache.CachePanel",
+        "debug_toolbar.panels.signals.SignalsPanel",
+        "debug_toolbar.panels.profiling.ProfilingPanel",
+    ]
+
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "console": {"class": "logging.StreamHandler"},
+        },
+        "loggers": {
+            "django.core.cache": {
+                "level": "DEBUG",
+                "handlers": ["console"],
+            },
+        },
+    }
+
+    SILKY_PYTHON_PROFILER = False
+    SILKY_PYTHON_PROFILER_BINARY = False
+    SILKY_MAX_RECORDED_REQUESTS = 10_000
+    SILKY_MAX_RECORDED_REQUESTS_CHECK_PERCENT = 10
+    SILKY_META = True
+    SILKY_INTERCEPT_PERCENT = 100
+    SILKY_AUTHENTICATION = True
+    SILKY_AUTHORISATION = True
+    SILKY_MAX_REQUEST_BODY_SIZE = 1024
+    SILKY_MAX_RESPONSE_BODY_SIZE = 1024

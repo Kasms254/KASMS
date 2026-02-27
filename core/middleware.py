@@ -36,7 +36,7 @@ def get_user_from_jwt(request):
             if user:
                 logger.debug(
                     "JWT validated - User: %s, School: %s",
-                    user.username, user.school,
+                    user.username,
                 )
             else:
                 logger.warning("No active user found for user_id: %s", user_id)
