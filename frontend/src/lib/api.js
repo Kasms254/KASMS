@@ -294,7 +294,7 @@ export async function getAllStudents(params = '') {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.total_pages && page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -1033,8 +1033,7 @@ export async function getAllInstructors() {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allInstructors = [...allInstructors, ...results]
 
-      // Check if there are more pages
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.total_pages && page < data.total_pages
       page++
     } catch {
       hasMore = false
