@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -27,8 +28,8 @@ export default function AttendanceReports() {
 
   // State
   const [loading, setLoading] = useState(false)
-  const [classes, setClasses] = useState([])
   const [selectedClass, setSelectedClass] = useState('')
+  const didSetInitialClass = useRef(false)
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10)
@@ -44,24 +45,22 @@ export default function AttendanceReports() {
   // Active tab
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'trends' | 'alerts' | 'student'
 
-  // Load classes
+  // Load classes (cached 10 min)
+  const { data: classesResp } = useQuery({
+    queryKey: ['classes', 'active', user?.role === 'admin'],
+    queryFn: () => user?.role === 'admin' ? api.getAllClasses('is_active=true') : api.getMyClasses(),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!user,
+  })
+  const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
+
+  // Set initial class selection once classes are loaded
   useEffect(() => {
-    async function loadClasses() {
-      try {
-        const data = user?.role === 'admin'
-          ? await api.getAllClasses('is_active=true')
-          : await api.getMyClasses()
-        const list = Array.isArray(data) ? data : (data?.results || [])
-        setClasses(list)
-        if (list.length > 0) {
-          setSelectedClass(list[0].id)
-        }
-      } catch (err) {
-        console.error('Failed to load classes:', err)
-      }
+    if (!didSetInitialClass.current && classes.length > 0) {
+      didSetInitialClass.current = true
+      setSelectedClass(classes[0].id)
     }
-    loadClasses()
-  }, [user])
+  }, [classes])
 
   // Load class summary
   const loadClassSummary = useCallback(async () => {

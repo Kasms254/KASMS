@@ -279,7 +279,7 @@ export async function getStudents() {
 
 export async function getStudentsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/students${qs}`)
+  return request(`/api/users/students/${qs}`)
 }
 
 // Fetch ALL students by iterating through all pages
@@ -295,7 +295,7 @@ export async function getAllStudents(params = '') {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -1035,7 +1035,7 @@ export async function getAllInstructors() {
       allInstructors = [...allInstructors, ...results]
 
       // Check if there are more pages
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -1047,7 +1047,7 @@ export async function getAllInstructors() {
 
 export async function getInstructorsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/instructors${qs}`)
+  return request(`/api/users/instructors/${qs}`)
 }
 
 export async function getUserEnrollments(userId) {

@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
-import { getRankSortIndex } from '../../lib/rankOrder'
 
 function initials(name = '') {
   return name
@@ -58,18 +58,14 @@ function getRankDisplay(raw) {
 
 export default function AdminInstructors() {
   const toast = useToast()
+  const queryClient = useQueryClient()
   const reportError = (msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    // Error already shown via toast
   }
-  const [instructors, setInstructors] = useState([])
-  const [classesList, setClassesList] = useState([])
-  const [subjectsList, setSubjectsList] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   // pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -133,86 +129,63 @@ export default function AdminInstructors() {
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
 
-  // Fetch ALL instructors, classes, and subjects once on mount
+  // Debounce search input 300ms
   useEffect(() => {
-    let mounted = true
-    setLoading(true)
+    const t = setTimeout(() => { setDebouncedSearch(searchTerm); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [searchTerm])
 
-    Promise.all([
-      api.getAllInstructors(),
-      api.getAllClasses(),
-      api.getAllSubjects(),
-    ])
-      .then(([instructorsData, classesData, subjectsData]) => {
-        if (!mounted) return
-        const list = Array.isArray(instructorsData) ? instructorsData : []
-        const normalized = list.map((it) => ({
-          id: it.id,
-          first_name: it.first_name,
-          last_name: it.last_name,
-          full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
-          svc_number: it.svc_number,
-          email: it.email,
-          phone_number: it.phone_number,
-          rank: normalizeRank(it.rank || it.rank_display),
-          unit: it.unit || '',
-          role: it.role,
-          role_display: it.role_display,
-          is_active: it.is_active,
-          created_at: it.created_at,
-        }))
-        setInstructors(normalized)
-        setClassesList(Array.isArray(classesData) ? classesData : [])
-        setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
-        setError(null)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
+  // Server-side paginated instructors
+  const { data: instructorsData, isPending: loading, error } = useQuery({
+    queryKey: ['instructors', { page, pageSize, search: debouncedSearch }],
+    queryFn: () => {
+      const params = new URLSearchParams({ page, page_size: pageSize })
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      return api.getInstructorsPaginated(params.toString())
+    },
+    placeholderData: (prev) => prev,
+  })
 
-  // Filter and sort instructors client-side
-  const filteredInstructors = useMemo(() => {
-    let filtered = instructors
+  const allInstructors = (instructorsData?.results ?? []).map((it) => ({
+    id: it.id,
+    first_name: it.first_name,
+    last_name: it.last_name,
+    full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+    svc_number: it.svc_number,
+    email: it.email,
+    phone_number: it.phone_number,
+    rank: normalizeRank(it.rank || it.rank_display),
+    unit: it.unit || '',
+    role: it.role,
+    role_display: it.role_display,
+    is_active: it.is_active,
+    created_at: it.created_at,
+  }))
 
-    // Filter by class
-    if (selectedClass !== 'all') {
-      filtered = filtered.filter((it) => {
+  // Classes/subjects for display in cards (cached 10 min)
+  const { data: classesQueryData } = useQuery({
+    queryKey: ['classes', 'active'],
+    queryFn: () => api.getClassesPaginated('is_active=true&page_size=500'),
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: subjectsQueryData } = useQuery({
+    queryKey: ['subjects', 'active'],
+    queryFn: () => api.getSubjectsPaginated('is_active=true&page_size=500'),
+    staleTime: 10 * 60 * 1000,
+  })
+  const classesList = classesQueryData?.results ?? []
+  const subjectsList = subjectsQueryData?.results ?? []
+
+  // Client-side class filter on current page only (instructors are few)
+  const instructors = selectedClass === 'all'
+    ? allInstructors
+    : allInstructors.filter((it) => {
         const instructorClasses = getInstructorClasses(it.id)
         return instructorClasses.some(c => String(c.id) === String(selectedClass))
       })
-    }
 
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase()
-      filtered = filtered.filter((it) =>
-        (it.full_name || '').toLowerCase().includes(q) ||
-        (it.email || '').toLowerCase().includes(q) ||
-        (it.svc_number || '').toLowerCase().includes(q) ||
-        (it.rank || '').toLowerCase().includes(q) ||
-        (it.unit || '').toLowerCase().includes(q)
-      )
-    }
-
-    // Sort by rank: senior first
-    filtered.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
-    return filtered
-  }, [instructors, selectedClass, classesList, searchTerm])
-
-  // Client-side pagination
-  const totalCount = filteredInstructors.length
-  const totalPages = Math.ceil(totalCount / pageSize)
-  const paginatedInstructors = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredInstructors.slice(start, start + pageSize)
-  }, [filteredInstructors, page, pageSize])
+  const totalCount = instructorsData?.count ?? 0
+  const totalPages = instructorsData?.total_pages ?? 1
 
   function handleDelete(it) {
     setConfirmDelete(it)
@@ -223,13 +196,12 @@ export default function AdminInstructors() {
     setDeletingId(it.id)
     try {
       await api.deleteUser(it.id)
-      setInstructors((s) => s.filter((x) => x.id !== it.id))
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
       // close confirm modal and edit modal if open
       setConfirmDelete(null)
       closeEdit()
       toast?.success?.('Instructor deleted successfully') || toast?.showToast?.('Instructor deleted successfully', { type: 'success' })
     } catch (err) {
-      setError(err)
       reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
@@ -242,13 +214,12 @@ export default function AdminInstructors() {
     try {
       if (it.is_active) {
         await api.deactivateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: false } : x))
         toast?.success?.('Instructor deactivated successfully') || toast?.showToast?.('Instructor deactivated successfully', { type: 'success' })
       } else {
         await api.activateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: true } : x))
         toast?.success?.('Instructor activated successfully') || toast?.showToast?.('Instructor activated successfully', { type: 'success' })
       }
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
     } catch (err) {
       reportError('Failed to update status: ' + (err.message || String(err)))
     } finally {
@@ -435,7 +406,7 @@ export default function AdminInstructors() {
         is_active: updated.is_active,
         created_at: updated.created_at,
       }
-      setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
       closeEdit()
       toast?.success?.('Instructor updated successfully') || toast?.showToast?.('Instructor updated successfully', { type: 'success' })
     } catch (err) {
@@ -476,7 +447,7 @@ export default function AdminInstructors() {
   function downloadCSV() {
     // Service No first, then Rank, Name, Unit, then the rest
     const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone', 'Role', 'Active', 'Created']]
-    filteredInstructors.forEach((it) => {
+    instructors.forEach((it) => {
       const svc = it.svc_number || ''
       const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
       const email = it.email || ''
@@ -538,10 +509,7 @@ export default function AdminInstructors() {
             <div className="relative flex-1">
               <input
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value)
-                  setPage(1)
-                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search instructors..."
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
@@ -611,7 +579,7 @@ export default function AdminInstructors() {
         <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
       ) : loading ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading instructors…</div>
-      ) : paginatedInstructors.length === 0 ? (
+      ) : instructors.length === 0 ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
         <>
@@ -631,7 +599,7 @@ export default function AdminInstructors() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedInstructors.map((it) => (
+                {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
@@ -701,7 +669,7 @@ export default function AdminInstructors() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedInstructors.map((it) => (
+                  {instructors.map((it) => (
                     <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                       <td className="px-3 py-3">
                         <div className="min-w-0">
@@ -757,7 +725,7 @@ export default function AdminInstructors() {
 
           {/* Mobile Card View (small screens) */}
           <div className="md:hidden space-y-4">
-            {paginatedInstructors.map((it) => (
+            {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                 {/* Header with name */}
                 <div className="mb-4">
@@ -864,7 +832,7 @@ export default function AdminInstructors() {
               {/* Page numbers */}
               <div className="flex items-center gap-1">
                 {(() => {
-                  const totalPages = Math.ceil(totalCount / pageSize)
+                  // totalPages comes from server response
                   const pages = []
                   const maxVisible = 5
 
@@ -951,8 +919,8 @@ export default function AdminInstructors() {
 
               {/* Next button */}
               <button
-                onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
-                disabled={page >= Math.ceil(totalCount / pageSize)}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
                 className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />

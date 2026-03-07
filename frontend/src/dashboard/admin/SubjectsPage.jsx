@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
@@ -17,10 +18,8 @@ function sanitizeInput(value) {
 }
 
 export default function SubjectsPage() {
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [showInactive, setShowInactive] = useState(false)
 
@@ -42,7 +41,7 @@ export default function SubjectsPage() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [instructors, setInstructors] = useState([])
+  // instructors state kept for add-subject modal enrichment (populated from React Query)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
   const [isSaving, setIsSaving] = useState(false)
@@ -55,46 +54,36 @@ export default function SubjectsPage() {
     // developer fallback
   }
 
-  // Fetch classes and instructors once on mount (for dropdowns and enrichment)
-  useEffect(() => {
-    let mounted = true
+  // Fetch classes and instructors (cached 10 min)
+  const { data: classesResp } = useQuery({
+    queryKey: ['classes', 'active'],
+    queryFn: () => api.getAllClasses().catch(() => null),
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: instructorsResp } = useQuery({
+    queryKey: ['instructors', 'all'],
+    queryFn: () => api.getAllInstructors().catch(() => null),
+    staleTime: 10 * 60 * 1000,
+  })
+  const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
+  const instructors = (() => {
+    const list = Array.isArray(instructorsResp) ? instructorsResp : (instructorsResp?.results ?? [])
+    return [...list].sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
+  })()
 
-    Promise.all([api.getAllClasses().catch(() => null), api.getAllInstructors().catch(() => null)])
-      .then(([clsData, insData]) => {
-        if (!mounted) return
-        setClasses(Array.isArray(clsData) ? clsData : [])
-        const list = Array.isArray(insData) ? insData : []
-        list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
-        setInstructors(list)
-      })
-      .catch(() => {})
-
-    return () => { mounted = false }
-  }, [])
-
-  // Fetch subjects — re-fetches when class or instructor filter changes,
-  // passing filters to backend to reduce data transferred
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-
-    const params = []
-    if (selectedClass !== 'all') params.push(`class_obj=${selectedClass}`)
-    if (selectedInstructor !== 'all') params.push(`instructor=${selectedInstructor}`)
-
-    api.getAllSubjects(params.join('&'))
-      .then((subjData) => {
-        if (!mounted) return
-        setSubjects(Array.isArray(subjData) ? subjData : [])
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => { if (mounted) setLoading(false) })
-
-    return () => { mounted = false }
-  }, [selectedClass, selectedInstructor])
+  // Fetch subjects with filters (cached, refetches when filters change)
+  const subjectsQueryKey = ['subjects', { classId: selectedClass, instructorId: selectedInstructor }]
+  const { data: subjectsResp, isPending: loading } = useQuery({
+    queryKey: subjectsQueryKey,
+    queryFn: () => {
+      const params = []
+      if (selectedClass !== 'all') params.push(`class_obj=${selectedClass}`)
+      if (selectedInstructor !== 'all') params.push(`instructor=${selectedInstructor}`)
+      return api.getAllSubjects(params.join('&'))
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+  const subjects = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results ?? [])
 
   // Enhanced subjects list with class and instructor names, service number, and rank
   const enrichedSubjects = useMemo(() => {
@@ -253,9 +242,8 @@ export default function SubjectsPage() {
       const payload = { name: editForm.name, subject_code: editForm.code }
       if (editForm.instructor) payload.instructor = Number(editForm.instructor)
       
-      const updated = await api.partialUpdateSubject(editingSubject.id, payload)
-      // update local subjects list
-      setSubjects((s) => s.map((x) => (x.id === updated.id ? updated : x)))
+      await api.partialUpdateSubject(editingSubject.id, payload)
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
       closeEdit()
       toast?.success?.('Subject updated successfully') || toast?.showToast?.('Subject updated successfully', { type: 'success' })
     } catch (err) {
@@ -275,7 +263,7 @@ export default function SubjectsPage() {
     
     try {
       await api.deleteSubject(subj.id)
-      setSubjects((s) => s.filter((x) => x.id !== subj.id))
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
       setConfirmDelete(null)
     } catch (err) {
       reportError('Failed to delete subject: ' + (err.message || String(err)))
@@ -285,15 +273,7 @@ export default function SubjectsPage() {
   }
 
   async function openAddSubjectModal(classId = ''){
-    try{
-      const ins = await api.getAllInstructors()
-      const list = Array.isArray(ins) ? ins : []
-      // Sort by rank: senior first
-      list.sort((a, b) => getRankSortIndex(a.rank || a.rank_display) - getRankSortIndex(b.rank || b.rank_display))
-      setInstructors(list)
-    }catch{
-      setInstructors([])
-    }
+    // instructors already loaded via React Query
     setForm({ name: '', subject_code: '', description: '', instructor: '', class_obj: classId || '' })
     setModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button,textarea')?.focus() }, 20)
@@ -320,10 +300,7 @@ export default function SubjectsPage() {
       if (toast?.success) toast.success('Subject added')
       else if (toast?.showToast) toast.showToast('Subject added', { type: 'success' })
       closeModal()
-      // refresh subjects
-      const s = await api.getAllSubjects()
-      const subjList = Array.isArray(s) ? s : []
-      setSubjects(subjList)
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
     }catch(err){
       const d = err?.data
       if (d && typeof d === 'object'){
