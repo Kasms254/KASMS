@@ -127,6 +127,8 @@ class SchoolViewSet(viewsets.ModelViewSet):
         return [IsSchoolAdmin()]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return School.objects.none()
         queryset = School.objects.all()
         user = self.request.user
 
@@ -5218,6 +5220,8 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Department.objects.none()
         user = self.request.user
         qs = Department.objects.select_related('school').prefetch_related(
             'department_memberships__user'
@@ -5329,6 +5333,8 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return ResultEditRequest.objects.none()
         user = self.request.user
         base = ResultEditRequest.objects.select_related(
             'exam_result__exam__subject',

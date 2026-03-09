@@ -108,6 +108,7 @@ commandant_router.register(r'notices',        CommandantNoticeViewSet,       bas
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
+
 urlpatterns = [
     path('', include(router.urls)),
     path("", home),
@@ -121,6 +122,7 @@ urlpatterns = [
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),
     path('auth/', include((auth_urlpatterns, 'auth'))),
+
 
 
 ]

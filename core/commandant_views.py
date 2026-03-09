@@ -33,7 +33,6 @@ from .serializers import (
     DashboardCertificateSerializer,
     DashboardExamReportSerializer,
 )
-
 from .permissions import IsCommandantOrChiefInstructor
 from .managers import get_current_school
 
@@ -637,7 +636,6 @@ class CommandantExamResultViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(exam__subject_id=subject_id)
 
         return qs
-
 
 class CommandantEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
 
