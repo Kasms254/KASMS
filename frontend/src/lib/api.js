@@ -1,8 +1,10 @@
-// Small API client for the frontend. Uses fetch and the token stored by ../lib/auth.
-import * as authStore from './auth'
+// API client for the frontend.
+// Authentication is handled via HTTP-only cookies set by the server.
+// All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_FALLBACK = import.meta.env.VITE_API_FALLBACK || null;
 
 // Configuration for sentence case transformation
 const SENTENCE_CASE_CONFIG = {
@@ -37,9 +39,22 @@ const SENTENCE_CASE_CONFIG = {
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
     'template_type', // Preserve certificate template type choice values
+    'grade', // Preserve grade values (e.g. A-, B+, C-)
+    'overall_grade',
+    'performance_grade',
+    'total_grade',
+    'grade_letter',
+    'average_grade_letter',
+    'final_grade',
   ]
 }
 
+
+// Read the Django CSRF token from the csrftoken cookie
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
+  return match ? match[1] : null
+}
 
 // Sanitize string input to prevent injection attacks
 function sanitizeInput(value) {
@@ -54,14 +69,17 @@ function sanitizeInput(value) {
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
-  const token = authStore.getToken()
   const h = {
     'Content-Type': 'application/json',
     ...headers,
   }
-  if (token) h['Authorization'] = `Bearer ${token}`
+  // Include CSRF token for state-changing requests (Django CSRF protection)
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+    const csrf = getCsrfToken()
+    if (csrf) h['X-CSRFToken'] = csrf
+  }
 
-  const opts = { method, headers: h }
+  const opts = { method, headers: h, credentials: 'include' }
   if (body !== undefined) opts.body = JSON.stringify(body)
 
   // Helper to parse response body safely
@@ -75,39 +93,35 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     }
   }
 
-  let res = await fetch(url, opts)
+  let res
+  try {
+    res = await fetch(url, opts)
+  } catch {
+    if (API_FALLBACK) {
+      res = await fetch(`${API_FALLBACK}${path}`, opts)
+    } else {
+      throw new Error('Network error: unable to reach the server.')
+    }
+  }
   let data = await parseResponse(res)
 
-  // If unauthorized, try to refresh the access token (if we have a refresh token)
-  if (res.status === 401) {
-    const refreshToken = authStore.getRefreshToken && authStore.getRefreshToken()
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh: refreshToken }),
-        })
-        const refreshData = await parseResponse(refreshRes)
-        if (refreshRes.ok && refreshData && (refreshData.access || refreshData.token)) {
-          const newAccess = refreshData.access || refreshData.token
-          const newRefresh = refreshData.refresh || refreshData.refresh_token || null
-          // update refresh token when server rotates it
-          if (newRefresh && authStore.setRefresh) authStore.setRefresh(newRefresh)
-          // update in-memory token
-          if (authStore.setAccess) authStore.setAccess(newAccess)
-          // retry original request once with new token
-          const retryHeaders = { ...h, Authorization: `Bearer ${newAccess}` }
-          const retryOpts = { method, headers: retryHeaders }
-          if (body !== undefined) retryOpts.body = JSON.stringify(body)
-          res = await fetch(url, retryOpts)
-          data = await parseResponse(res)
-        } else {
-          // refresh failed; fall through to error handling below
-        }
-      } catch {
-        // ignore refresh errors and fall through to error handling
+  // If unauthorized, try to refresh the access token via the HTTP-only cookie.
+  // The server reads the refresh_token cookie automatically — no body needed.
+  if (res.status === 401 && !path.includes('/token/refresh/')) {
+    try {
+      const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+      if (refreshRes.ok) {
+        // New access_token cookie is set by the server; retry the original request
+        res = await fetch(url, opts)
+        data = await parseResponse(res)
       }
+      // If refresh failed, fall through to error handling below
+    } catch {
+      // ignore refresh errors and fall through to error handling
     }
   }
 
@@ -120,19 +134,12 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
     // Show sanitized error messages to users (avoid exposing internal details)
     let userMessage
     if (res.status === 400) {
-      // Check if it's a login endpoint with specific error details
-      if (path.includes('/login')) {
-        const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
-        if (detail) {
-          // Handle array of errors (common in DRF)
-          if (Array.isArray(detail)) {
-            userMessage = detail.join(', ')
-          } else {
-            userMessage = String(detail)
-          }
-        } else {
-          userMessage = 'Invalid credentials. Please check your service number and password.'
-        }
+      // Always try to extract the specific error from the response
+      const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
+      if (detail) {
+        userMessage = Array.isArray(detail) ? detail.join(', ') : String(detail)
+      } else if (path.includes('/login')) {
+        userMessage = 'Invalid credentials. Please check your service number and password.'
       } else {
         userMessage = 'Invalid request. Please check your input and try again.'
       }
@@ -143,9 +150,22 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
         userMessage = detail || 'Invalid service number or password. Please try again.'
       } else {
         userMessage = 'Authentication failed. Please log in again.'
+        // Both the original request and the refresh attempt returned 401 —
+        // the session is completely gone. Notify AuthProvider to clear state
+        // so ProtectedRoute redirects the user to the login page automatically.
+        window.dispatchEvent(new CustomEvent('auth:session-expired'))
       }
     } else if (res.status === 403) {
-      userMessage = 'You do not have permission to perform this action.'
+      // Auth paths (login, 2FA) return 403 after credential validation — e.g. "Account disabled"
+      // or "No active school membership". Exposing these confirms credentials were valid,
+      // which aids enumeration. Use a generic message for all auth-path 403s.
+      const isAuthPath = ['/login/', '/verify-2fa/', '/resend-2fa/'].some(p => path.includes(p))
+      if (isAuthPath) {
+        userMessage = 'Access denied. Please contact your administrator.'
+      } else {
+        const detail = data && (data.detail || data.message || data.error)
+        userMessage = detail || 'You do not have permission to perform this action.'
+      }
     } else if (res.status === 404) {
       userMessage = 'The requested resource was not found.'
     } else if (res.status === 500) {
@@ -179,11 +199,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
 // Helper for multipart/form-data requests (files)
 async function requestMultipart(path, { method = 'POST', formData, headers = {} } = {}) {
   const url = `${API_BASE}${path}`
-  const token = authStore.getToken()
   const h = { ...headers }
-  if (token) h['Authorization'] = `Bearer ${token}`
-
-  const opts = { method, headers: h, body: formData }
+  const opts = { method, headers: h, body: formData, credentials: 'include' }
 
   const res = await fetch(url, opts)
   if (!res.ok) {
@@ -212,8 +229,28 @@ export async function login(svc_number, password) {
   })
 }
 
-export async function logout(refresh) {
-  return request('/api/auth/logout/', { method: 'POST', body: { refresh } })
+export async function verify2FA(svc_number, password, code) {
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  const sanitizedCode = sanitizeInput(code)
+  return request('/api/auth/verify-2fa/', {
+    method: 'POST',
+    body: { svc_number: sanitizedSvcNumber, password: sanitizedPassword, code: sanitizedCode }
+  })
+}
+
+export async function resend2FA(svc_number, password) {
+  const sanitizedSvcNumber = sanitizeInput(svc_number)
+  const sanitizedPassword = sanitizeInput(password)
+  return request('/api/auth/resend-2fa/', {
+    method: 'POST',
+    body: { svc_number: sanitizedSvcNumber, password: sanitizedPassword }
+  })
+}
+
+export async function logout() {
+  // No body needed — server reads the refresh_token cookie, blacklists it, and clears both cookies
+  return request('/api/auth/logout/', { method: 'POST' })
 }
 
 export async function changePassword(oldPassword, newPassword, newPassword2) {
@@ -224,12 +261,14 @@ export async function changePassword(oldPassword, newPassword, newPassword2) {
 }
 
 export async function getCurrentUser() {
-  // Try common endpoints used by different backends
-  try {
-    return await request('/api/auth/me/')
-  } catch {
-    return await request('/api/users/me/')
-  }
+  return request('/api/auth/me/')
+}
+
+// Validates the current session and re-checks student enrollment status.
+// Returns { valid: true, user: {...} } on success, throws on failure.
+// Used by restoreSession() on every page load.
+export async function verifyToken() {
+  return request('/api/auth/verify-token/', { method: 'POST' })
 }
 
 export async function getStudents() {
@@ -490,11 +529,8 @@ export async function exportSessionAttendance(sessionId) {
 
   // Handle CSV export specially - don't parse as JSON
   const url = `${API_BASE}/api/attendance-sessions/${sessionId}/export_csv/`
-  const token = authStore.getToken()
-  const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const response = await fetch(url, { headers })
+  const response = await fetch(url, { credentials: 'include' })
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -918,16 +954,16 @@ export async function exportClassReport(classId, format = 'summary') {
 
 // Upload exam attachment (multipart/form-data). Returns attachment resource.
 export async function uploadExamAttachment(examId, file) {
-  const token = authStore.getToken()
   const url = `${API_BASE}/api/exam-attachments/`
   const form = new FormData()
   form.append('exam', String(examId))
   form.append('file', file)
 
   const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRFToken'] = csrf
 
-  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const res = await fetch(url, { method: 'POST', headers, body: form, credentials: 'include' })
 
   if (!res.ok) {
     let text = await res.text()
@@ -1116,15 +1152,15 @@ export async function getMySchoolTheme() {
 
 // Upload school logo (multipart/form-data)
 export async function uploadSchoolLogo(schoolId, file) {
-  const token = authStore.getToken()
   const url = `${API_BASE}/api/schools/${schoolId}/upload_logo/`
   const form = new FormData()
   form.append('logo', file)
 
   const headers = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRFToken'] = csrf
 
-  const res = await fetch(url, { method: 'POST', headers, body: form })
+  const res = await fetch(url, { method: 'POST', headers, body: form, credentials: 'include' })
 
   if (!res.ok) {
     let text = await res.text()
@@ -1292,10 +1328,7 @@ export async function regenerateCertificate(id) {
 // Download certificate PDF as a Blob
 export async function downloadCertificatePdf(id) {
   if (!id) throw new Error('id is required')
-  const token = authStore.getToken()
-  const headers = {}
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${API_BASE}/api/certificates/${id}/download/`, { method: 'GET', headers })
+  const res = await fetch(`${API_BASE}/api/certificates/${id}/download/`, { method: 'GET', credentials: 'include' })
   if (!res.ok) {
     const err = new Error('Failed to download certificate')
     err.status = res.status

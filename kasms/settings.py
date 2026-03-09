@@ -9,10 +9,6 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 
@@ -20,7 +16,10 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,192.168.2.254"
+).split(",")
 
 
 # Application definition
@@ -95,11 +94,28 @@ DATABASES = {
         "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
         "HOST": os.getenv('HOST', default='localhost'),
         "PORT": os.getenv('PORT', default='5432'),
+        "CONN_MAX_AGE": 600,
         
     }
     #  "default": dj_database_url.config(
     #     default=os.environ.get("DATABASE_URL")
     # )
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": os.getenv(
+            "CACHE_BACKEND",
+            "django.core.cache.backends.redis.RedisCache"
+            if os.getenv("REDIS_URL")
+            else "django.core.cache.backends.locmem.LocMemCache",
+        ),
+        "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
+        "TIMEOUT": 300,  
+        "OPTIONS": {
+            "MAX_ENTRIES": 5000,
+        },
+    }
 }
 
 # Password validation
@@ -119,7 +135,6 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
-
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -148,7 +163,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "core.User"
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':timedelta(hours=5),
+    'ACCESS_TOKEN_LIFETIME':timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME':timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION':True,
@@ -171,16 +186,14 @@ SIMPLE_JWT = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
+        'core.authentication.CookieJWTAuthentication',
         
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'core.permissions.ForcePasswordChangePermission',
+
     ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "core.permissions.ForcePasswordChangePermission",
-    ],
+
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -190,18 +203,14 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
 }
 
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([
     "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
-
-]
+    "http://localhost:8000",
+])).split(",")
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -225,31 +234,53 @@ CORS_ALLOW_HEADERS = [
     "x-school-code",
 ]
 
-CORS_EXPOSE_HEADERS = ["Authorization"]
+CORS_EXPOSE_HEADERS = ["X-CSRFToken"]
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
-    "http://localhost:5173",
-    "http://localhost:5174",
+AUTHENTICATION_BACKENDS = [
+    'core.backends.SvcNumberBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:8000",
+])).split(",")
 
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+
+
+JWT_COOKIE_SECURE = not DEBUG
+JWT_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+JWT_COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None) 
+JWT_ACCESS_COOKIE_NAME = 'access_token'
+JWT_REFRESH_COOKIE_NAME = 'refresh_token'
 
 AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')       
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '') 
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# 2FA settings
+TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
+TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
+TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))

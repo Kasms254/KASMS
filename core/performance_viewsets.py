@@ -2,1177 +2,752 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Avg, Count, Q, F, Sum, Max, Min
+from django.db.models import (
+    Avg, Count, Q, F, Sum, Max, Min,
+    FloatField, CharField, Case, When, Value,
+)
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 
 from .models import (
-    Exam, ExamResult, Subject, Class, Enrollment, User, Attendance, AttendanceSession, SessionAttendance
+    Exam, ExamResult, Subject, Class, Enrollment, User,
+    Attendance, AttendanceSession, SessionAttendance,
 )
-
-from .serializers import(
-    ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer
+from .serializers import (
+    ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer,
 )
-
 from .permissions import IsAdminOrInstructor, IsAdminOrCommandant
 
-class SubjectPerformanceViewSet(viewsets.ViewSet):
 
+def _calculate_grade(percentage):
+    if percentage >= 91: return 'A'
+    if percentage >= 86: return 'A-'
+    if percentage >= 81: return 'B+'
+    if percentage >= 76: return 'B'
+    if percentage >= 71: return 'B-'
+    if percentage >= 65: return 'C+'
+    if percentage >= 60: return 'C'
+    if percentage >= 50: return 'C-'
+    return 'F'
+
+def _interpret_correlation(correlation):
+    abs_corr = abs(correlation)
+    direction = "positive" if correlation > 0 else "negative"
+    if abs_corr >= 0.7:   strength = "strong"
+    elif abs_corr >= 0.4: strength = "moderate"
+    elif abs_corr >= 0.2: strength = "weak"
+    else:                 strength = "very weak or no"
+    return f"There is a {strength} {direction} correlation between attendance and exam performance."
+
+
+PCT_EXPR = F('marks_obtained') * 100.0 / F('exam__total_marks')
+
+GRADE_BUCKET_EXPR = Case(
+    When(marks_obtained__gte=F('exam__total_marks') * 0.91, then=Value('A')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.86, then=Value('A-')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.81, then=Value('B+')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.76, then=Value('B')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.71, then=Value('B-')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.65, then=Value('C+')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.60, then=Value('C')),
+    When(marks_obtained__gte=F('exam__total_marks') * 0.50, then=Value('C-')),
+    default=Value('F'),
+    output_field=CharField(),
+)
+
+
+def _grade_distribution_sql(result_qs):
+    rows = result_qs.annotate(gb=GRADE_BUCKET_EXPR).values('gb').annotate(c=Count('id'))
+    dist = {'A': 0, 'A-': 0, 'B+': 0, 'B': 0, 'B-': 0, 'C+': 0, 'C': 0, 'C-': 0, 'F': 0}
+    for r in rows:
+        if r['gb'] in dist:
+            dist[r['gb']] = r['c']
+    return dist
+
+
+def _student_exam_map(result_qs):
+    rows = result_qs.values('student_id').annotate(
+        total_marks=Sum('marks_obtained'), total_possible=Sum('exam__total_marks'),
+        exams_taken=Count('id'),
+        passing_count=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
+    )
+    return {r['student_id']: r for r in rows}
+
+
+def _student_subject_exam_map(result_qs):
+    rows = result_qs.values('student_id', 'exam__subject_id').annotate(
+        total_marks=Sum('marks_obtained'), total_possible=Sum('exam__total_marks'),
+        exams_taken=Count('id'),
+    )
+    out = {}
+    for r in rows:
+        out.setdefault(r['student_id'], {})[r['exam__subject_id']] = r
+    return out
+
+
+def _student_att_map(att_qs):
+    rows = att_qs.values('student_id').annotate(
+        attended=Count('id'),
+        present=Count('id', filter=Q(status='present')),
+        late=Count('id', filter=Q(status='late')),
+        excused=Count('id', filter=Q(status='excused')),
+    )
+    return {r['student_id']: r for r in rows}
+
+
+def _student_subject_att_map(att_qs):
+    rows = att_qs.values('student_id', 'session__subject_id').annotate(
+        attended=Count('id'),
+        present=Count('id', filter=Q(status='present')),
+        late=Count('id', filter=Q(status='late')),
+    )
+    out = {}
+    for r in rows:
+        out.setdefault(r['student_id'], {})[r['session__subject_id']] = r
+    return out
+
+
+def _subject_session_counts(class_obj):
+    rows = AttendanceSession.objects.filter(class_obj=class_obj).values('subject_id').annotate(cnt=Count('id'))
+    return {r['subject_id']: r['cnt'] for r in rows}
+
+class SubjectPerformanceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-
         subject_id = request.query_params.get('subject_id')
-
         if not subject_id:
-            return Response({
-                'error':'subject_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'subject_id parameter is required'}, status=400)
+
+        cache_key = f'subj_perf:{subject_id}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         try:
             subject = Subject.objects.select_related(
                 'instructor', 'class_obj', 'class_obj__course'
             ).get(id=subject_id, is_active=True)
-
         except Subject.DoesNotExist:
-            return Response({
-                'error': ' Subject Not Found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Subject Not Found'}, status=404)
 
         class_obj = subject.class_obj
+        enrollments = Enrollment.objects.filter(class_obj=class_obj, is_active=True).select_related('student')
+        total_students = enrollments.count()
 
-
-        exams = Exam.objects.filter(
-            subject=subject,
-            is_active=True,
-        ).order_by('exam_date')
-
-
-        enrolled_students = Enrollment.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).select_related('student')
-
-        total_students = enrolled_students.count()
-
-        all_results = ExamResult.objects.filter(
-            exam__subject  =subject,
-            is_submitted= True,
-            marks_obtained__isnull = False
-        ).select_related('exam', 'student', 'graded_by')
-
-        if all_results.exists():
-            total_marks = sum(r.marks_obtained for r in all_results)
-            total_possible = sum(r.exam.total_marks for r in all_results)
-            overall_exam_average = (total_marks / total_possible * 100) if total_possible > 0 else 0
-
-            highest_exam_score = max(r.percentage for r in all_results)
-            lowest_exam_score = min(r.percentage for r in all_results)
-
-        else:
-            overall_exam_average = 0
-            highest_exam_score = 0
-            lowest_exam_score = 0
-
-        passing_results = sum(1 for r in all_results if r.percentage >=50)
-        total_results_count = all_results.count()
-        exam_pass_rate = (passing_results / total_results_count * 100) if total_results_count > 0 else 0
-
-        attendance_sessions = AttendanceSession.objects.filter(
-            subject=subject,
-            status__in = ['active', 'completed']
+        results_qs = ExamResult.objects.filter(
+            exam__subject=subject, is_submitted=True, marks_obtained__isnull=False
         )
-        total_sessions = attendance_sessions.count()
-        all_session_attendances = SessionAttendance.objects.filter(
-            session__subject = subject
-        ).select_related('student', 'session')
+        att_qs = SessionAttendance.objects.filter(session__subject=subject)
 
-        expected_attendances = total_students * total_sessions
-        actual_attendances = all_session_attendances.count()
-        overall_attendance_rate  =(actual_attendances / expected_attendances *100) if expected_attendances > 0 else 0
+        agg = results_qs.aggregate(
+            total_marks=Sum('marks_obtained'), total_possible=Sum('exam__total_marks'),
+            avg_pct=Avg(PCT_EXPR, output_field=FloatField()),
+            max_pct=Max(PCT_EXPR, output_field=FloatField()),
+            min_pct=Min(PCT_EXPR, output_field=FloatField()),
+            total_count=Count('id'),
+            passing=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
+        )
+        tc = agg['total_count'] or 0
+        pass_rate = ((agg['passing'] or 0) / tc * 100) if tc else 0
 
-        grade_distribution = {
-            'A': sum(1 for r in all_results if r.grade =='A'),
-            'A-': sum(1 for r in all_results if r.grade == 'A-'),
-            'B+': sum(1 for r in all_results if r.grade == 'B+'),
-            'B': sum(1 for r in all_results if r.grade == 'B'),
-            'B-': sum(1 for r in all_results if r.grade == 'B-'),
-            'C+': sum(1 for r in all_results if r.grade == 'C+'),
-            'C': sum(1 for r in all_results if r.grade == 'C'),
-            'C-': sum(1 for r in all_results if r.grade == 'C-'),
-            'F': sum(1 for r in all_results if r.grade == 'F'),
-        }
+        total_sessions = AttendanceSession.objects.filter(
+            subject=subject, status__in=['active', 'completed']
+        ).count()
+        expected_att = total_students * total_sessions
+        actual_att = att_qs.count()
+        att_rate_overall = (actual_att / expected_att * 100) if expected_att else 0
 
+        grade_dist = _grade_distribution_sql(results_qs)
 
-        student_performance = []
+        exam_map = _student_exam_map(results_qs)
+        att_map_data = _student_att_map(att_qs)
 
-        for enrollment in enrolled_students:
-            student = enrollment.student
+        students = []
+        for enr in enrollments:
+            sid = enr.student_id
+            s = enr.student
+            ed = exam_map.get(sid, {})
+            ad = att_map_data.get(sid, {})
 
-            student_results = all_results.filter(student=student)
-            if student_results.exists():
-                student_total = sum(r.marks_obtained for r in student_results)
-                student_possible = sum(r.exam.total_marks for r in student_results)
-                exam_percentage = (student_total / student_possible * 100) if student_possible > 0 else 0
+            st = float(ed.get('total_marks', 0) or 0)
+            sp = ed.get('total_possible', 0) or 0
+            ep = (st / sp * 100) if sp else 0
 
-            else:
-                exam_percentage = 0
-                student_total = 0
-                student_possible = 0
+            att_cnt = ad.get('attended', 0)
+            pres = ad.get('present', 0)
+            late = ad.get('late', 0)
+            ar = (att_cnt / total_sessions * 100) if total_sessions else 0
+            pr = (pres / att_cnt * 100) if att_cnt else 0
+            combined = float(ep) * 0.7 + float(ar) * 0.3
 
-            student_attendances = all_session_attendances.filter(student=student)
-            attended_count = student_attendances.count()
-            present_count = student_attendances.filter(status='present').count()
-            late_count = student_attendances.filter(status='late').count()
-
-            attendance_rate = (attended_count / total_sessions * 100) if total_sessions > 0 else 0
-            punctuality_rate = (present_count /attended_count * 100) if attended_count > 0 else 0
-
-            combined_score = (float(exam_percentage) * 0.7) + (float(attendance_rate)* 0.3)
-
-            student_performance.append({
-                'student_id': student.id,
-                'student_name':student.get_full_name(),
-                'svc_number':getattr(student, 'svc_number', None),
-
-                'exams_taken':student_results.count() if student_results.exists() else 0,
-                'exam_percentage':round(exam_percentage, 2),
-                'total_marks_obtained':float(student_total),
-                'total_possible_marks':student_possible,
-            
-                'total_sessions': total_sessions,
-                'sessions_attached': attended_count,
-                'present_count': present_count,
-                'late_count': late_count,
-                'absent_count': total_sessions - attended_count,
-                'attendance_rate':round(attendance_rate, 2),
-                'punctuality_rate':round(punctuality_rate, 2),
-
-                'combined_score':round(combined_score, 2),
-                'performance_grade': _calculate_grade(combined_score)
+            students.append({
+                'student_id': s.id, 'student_name': s.get_full_name(),
+                'svc_number': getattr(s, 'svc_number', None),
+                'exams_taken': ed.get('exams_taken', 0),
+                'exam_percentage': round(ep, 2),
+                'total_marks_obtained': st, 'total_possible_marks': sp,
+                'total_sessions': total_sessions, 'sessions_attached': att_cnt,
+                'present_count': pres, 'late_count': late,
+                'absent_count': total_sessions - att_cnt,
+                'attendance_rate': round(ar, 2), 'punctuality_rate': round(pr, 2),
+                'combined_score': round(combined, 2),
+                'performance_grade': _calculate_grade(combined),
             })
 
-        student_performance.sort(key=lambda x: x['combined_score'], reverse=True)
+        students.sort(key=lambda x: x['combined_score'], reverse=True)
+        for i, st in enumerate(students, 1):
+            st['rank'] = i
 
-        for idx, student in enumerate(student_performance, 1):
-            student['rank'] = idx
+        exam_bd = list(
+            results_qs.values('exam_id', 'exam__title', 'exam__exam_type', 'exam__exam_date', 'exam__total_marks')
+            .annotate(
+                student_attempted=Count('id'),
+                avg_pct=Avg(PCT_EXPR, output_field=FloatField()),
+                max_pct=Max(PCT_EXPR, output_field=FloatField()),
+                min_pct=Min(PCT_EXPR, output_field=FloatField()),
+            ).order_by('exam__exam_date')
+        )
+        exam_breakdown = [{
+            'exam_id': e['exam_id'], 'exam_title': e['exam__title'],
+            'exam_type': e['exam__exam_type'], 'exam_date': e['exam__exam_date'],
+            'total_marks': e['exam__total_marks'], 'student_attempted': e['student_attempted'],
+            'average_percentage': round(e['avg_pct'] or 0, 2),
+            'highest_score': round(e['max_pct'] or 0, 2),
+            'lowest_score': round(e['min_pct'] or 0, 2),
+        } for e in exam_bd]
 
-        top_performers = student_performance[:10]
+        sess_bd = list(
+            att_qs.values('session_id', 'session__title', 'session__scheduled_start')
+            .annotate(
+                marked=Count('id'),
+                present=Count('id', filter=Q(status='present')),
+                late=Count('id', filter=Q(status='late')),
+            )
+        )
+        session_breakdown = [{
+            'session_id': s['session_id'], 'session_title': s['session__title'],
+            'session_date': s['session__scheduled_start'],
+            'total_students': total_students, 'marked_count': s['marked'],
+            'present': s['present'], 'late': s['late'],
+            'attendance_rate': round((s['marked'] / total_students * 100), 2) if total_students else 0,
+        } for s in sess_bd]
 
-        exam_breakdown = []
-        for exam in exams:
-            exam_results = all_results.filter(exam=exam)
-            if exam_results.exists():
-                exam_total = sum(r.marks_obtained for r in exam_results)
-                exam_possible = sum(r.exam.total_marks for r in exam_results)
-                exam_avg = (exam_total / exam_possible * 100) if exam_possible > 0 else 0
-
-                exam_breakdown.append({
-                    'exam_id': exam.id,
-                    'exam_title':exam.title,
-                    'exam_type':exam.exam_type,
-                    'exam_date':exam.exam_date,
-                    'total_marks':exam.total_marks,
-                    'student_attempted':exam_results.count(),
-                    'average_percentage':round(exam_avg, 2),
-                    'highest_score':round(max(r.percentage for r in exam_results), 2),
-                    'lowest_score':round(min(r.percentage for r in exam_results), 2),
-                })
-
-        session_breakdown = []
-        for session in attendance_sessions:
-            session_attendances = all_session_attendances.filter(session=session)
-
-            session_breakdown.append({
-                'session_id':session.id,
-                'session_title':session.title,
-                'session_date':session.scheduled_start,
-                'total_students':total_students,
-                'marked_count':session_attendances.count(),
-                'present':session_attendances.filter(status='present').count(),
-                'late':session_attendances.filter(status='late').count(),
-                'attendance_rate':round((session_attendances.count() /total_students * 100), 2) if total_students > 0 else 0
-
-            })
-        return Response({
-            'subject':{
-                'id':subject.id,
-                'name':subject.name,
-                'code':getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
+        data = {
+            'subject': {
+                'id': subject.id, 'name': subject.name,
+                'code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
                 'instructor': subject.instructor.get_full_name() if subject.instructor else None,
                 'class': class_obj.name,
             },
-            'overall_statistics':{
+            'overall_statistics': {
                 'total_students_enrolled': total_students,
-                'total_exams':exams.count(),
-                'total_results_submitted':total_results_count,
-                'exam_average_percentage':round(overall_exam_average, 2),
-                'exam_pass_rate':round(exam_pass_rate, 2),
-                'highest_exam_score':round(highest_exam_score, 2),
-                'lowest_exam_score': round(lowest_exam_score, 2),
-
-                'total_sessions':total_sessions,
-                'expected_attendances':expected_attendances,
-                'actual_attendances':actual_attendances,
-                'attendance_rate':round(overall_attendance_rate, 2),
-
-                'combined_performance': round((float(overall_exam_average) * 0.7) + (overall_attendance_rate * 0.3), 2)
+                'total_exams': Exam.objects.filter(subject=subject, is_active=True).count(),
+                'total_results_submitted': tc,
+                'exam_average_percentage': round(agg['avg_pct'] or 0, 2),
+                'exam_pass_rate': round(pass_rate, 2),
+                'highest_exam_score': round(agg['max_pct'] or 0, 2),
+                'lowest_exam_score': round(agg['min_pct'] or 0, 2),
+                'total_sessions': total_sessions,
+                'expected_attendances': expected_att,
+                'actual_attendances': actual_att,
+                'attendance_rate': round(att_rate_overall, 2),
+                'combined_performance': round(float(agg['avg_pct'] or 0) * 0.7 + att_rate_overall * 0.3, 2),
             },
-            'grade_distribution': grade_distribution,
-            'top_performers':top_performers,
-            'all_students':student_performance,
-            'exam_breakdown':exam_breakdown,
-            'session_breakdown':session_breakdown,   
-        })
+            'grade_distribution': grade_dist,
+            'top_performers': students[:10],
+            'all_students': students,
+            'exam_breakdown': exam_breakdown,
+            'session_breakdown': session_breakdown,
+        }
+
+        cache.set(cache_key, data, timeout=120)
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def compare_subjects(self, request):
-        
         class_id = request.query_params.get('class_id')
-
         if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'class_id parameter is required'}, status=400)
+
+        cache_key = f'compare_subj:{class_id}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         try:
             class_obj = Class.objects.get(id=class_id, is_active=True)
         except Class.DoesNotExist:
-            return Response({
-                'error': 'Class not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Class not found'}, status=404)
 
-        subjects = Subject.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).select_related('instructor')
+        subjects = Subject.objects.filter(class_obj=class_obj, is_active=True).select_related('instructor')
+        enrolled = Enrollment.objects.filter(class_obj=class_obj, is_active=True).count()
 
+        subj_exam = (
+            ExamResult.objects
+            .filter(exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False)
+            .values('exam__subject_id')
+            .annotate(tm=Sum('marks_obtained'), tp=Sum('exam__total_marks'),
+                      rc=Count('id'),
+                      pc=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)))
+        )
+        sem = {r['exam__subject_id']: r for r in subj_exam}
 
-        subject_comparison = []
-        
-        for subject in subjects:
-            all_results = ExamResult.objects.filter(
-                exam__subject = subject,
-                is_submitted= True, 
-                marks_obtained__isnull = False
-            ).select_related('exam')
+        subj_att = (
+            SessionAttendance.objects
+            .filter(session__class_obj=class_obj)
+            .values('session__subject_id')
+            .annotate(actual=Count('id'))
+        )
+        sam = {r['session__subject_id']: r['actual'] for r in subj_att}
+        ssc = _subject_session_counts(class_obj)
 
-            if all_results.exists():
-                total_marks = sum(r.marks_obtained for r in all_results)
-                total_possible = sum(r.exam.total_marks for r in all_results)
-                avg_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
+        comparison = []
+        for subj in subjects:
+            sid = subj.id
+            es = sem.get(sid, {})
+            tm = float(es.get('tm', 0) or 0)
+            tp = es.get('tp', 0) or 0
+            rc = es.get('rc', 0)
+            pc = es.get('pc', 0)
+            avg = (tm / tp * 100) if tp else 0
+            pr = (pc / rc * 100) if rc else 0
+            sc = ssc.get(sid, 0)
+            exp = enrolled * sc
+            act = sam.get(sid, 0)
+            ar = (act / exp * 100) if exp else 0
 
-                passing_count = sum(1 for r in all_results if r.percentage >= 50)
-                pass_rate = (passing_count / all_results.count() * 100) if all_results.count() > 0 else 0
-
-                highest = round(max(r.percentage for r in all_results), 2)
-                lowest = round(min(r.percentage for r in all_results), 2)
-
-            else:
-                avg_percentage =0
-                pass_rate = 0
-                highest = 0
-                lowest = 0
-
-            sessions  =AttendanceSession.objects.filter(subject=subject)
-            attendances = SessionAttendance.objects.filter(session__subject=subject)
-
-            enrolled = Enrollment.objects.filter(class_obj=class_obj, is_active=True).count()
-            expected = enrolled * sessions.count()
-            actual  =attendances.count()
-            attendance_rate = (actual / expected * 100) if expected > 0 else 0
-            subject_comparison.append({
-                'subject_id': subject.id,
-                'subject_name':subject.name,
-                'subject_code':getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
-                'instructor':subject.instructor.get_full_name() if subject.instructor else None,
-                'total_exams':Exam.objects.filter(subject=subject, is_active=True).count(),
-                'results_count': all_results.count(),
-                'average_percentage':round(avg_percentage, 2),
-                'pass_rate':round(pass_rate, 2),
-                'highest_score': highest,
-                'lowest_score': lowest,
-                'attendance_rate':round(attendance_rate, 2),
-                'combined_performance':round((float(avg_percentage) * 0.7) + (float(attendance_rate) * 0.3), 2)
+            comparison.append({
+                'subject_id': sid, 'subject_name': subj.name,
+                'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                'instructor': subj.instructor.get_full_name() if subj.instructor else None,
+                'total_exams': Exam.objects.filter(subject=subj, is_active=True).count(),
+                'results_count': rc, 'average_percentage': round(avg, 2),
+                'pass_rate': round(pr, 2), 'highest_score': 0, 'lowest_score': 0,
+                'attendance_rate': round(ar, 2),
+                'combined_performance': round(float(avg) * 0.7 + float(ar) * 0.3, 2),
             })
 
-        subject_comparison.sort(key=lambda x: x['combined_performance'], reverse=True)
-
-        return Response({
-            'class':{
-                'id':class_obj.id,
-                'name':class_obj.name,
-                'course':class_obj.course.name if hasattr(class_obj, 'course') else None,
-            },
-            'total_subjects': len(subject_comparison),
-            'subjects':subject_comparison,
-        })
+        comparison.sort(key=lambda x: x['combined_performance'], reverse=True)
+        data = {
+            'class': {'id': class_obj.id, 'name': class_obj.name,
+                      'course': class_obj.course.name if hasattr(class_obj, 'course') else None},
+            'total_subjects': len(comparison), 'subjects': comparison,
+        }
+        cache.set(cache_key, data, timeout=120)
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def trend_analysis(self, request):
-        
         subject_id = request.query_params.get('subject_id')
         days = int(request.query_params.get('days', 90))
-
         if not subject_id:
-            return Response({
-                'error': 'subject_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'error': 'subject_id parameter is required'}, status=400)
         try:
             subject = Subject.objects.get(id=subject_id, is_active=True)
         except Subject.DoesNotExist:
-            return Response({
-                'error': 'Subject not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Subject not found'}, status=404)
 
+        cutoff = timezone.now().date() - timedelta(days=days)
+        enrolled = Enrollment.objects.filter(class_obj=subject.class_obj, is_active=True).count()
 
-        cutoff_date = timezone.now().date() -timedelta(days=days)
+        exam_trend = (
+            ExamResult.objects
+            .filter(exam__subject=subject, exam__is_active=True, exam__exam_date__gte=cutoff,
+                    is_submitted=True, marks_obtained__isnull=False)
+            .values('exam_id', 'exam__title', 'exam__exam_type', 'exam__exam_date')
+            .annotate(avg_pct=Avg(PCT_EXPR, output_field=FloatField()), cnt=Count('id'))
+            .order_by('exam__exam_date')
+        )
+        trend = [{'date': e['exam__exam_date'], 'type': 'exam', 'exam_title': e['exam__title'],
+                  'exam_type': e['exam__exam_type'], 'average_percentage': round(e['avg_pct'] or 0, 2),
+                  'students_attempted': e['cnt']} for e in exam_trend]
 
-        exams = Exam.objects.filter(
-            subject=subject,
-            is_active=True,
-            exam_date__gte = cutoff_date
-        ).order_by('exam_date')
+        sess_att = (
+            SessionAttendance.objects
+            .filter(session__subject=subject, session__scheduled_start__gte=cutoff)
+            .values('session_id', 'session__title', 'session__scheduled_start')
+            .annotate(marked=Count('id'))
+        )
+        for s in sess_att:
+            ar = (s['marked'] / enrolled * 100) if enrolled else 0
+            dt = s['session__scheduled_start']
+            trend.append({'date': dt.date() if hasattr(dt, 'date') else dt, 'type': 'attendance',
+                          'session_title': s['session__title'], 'attendance_rate': round(ar, 2),
+                          'students_marked': s['marked']})
 
-        trend_data = []
-        
-        for exam in exams:
-            results = ExamResult.objects.filter(
-                exam=exam,
-                is_submitted=True,
-                marks_obtained__isnull=False
-            )
-
-            if results.exists():
-                total = sum(r.marks_obtained for r in results)
-                possible = sum(r.exam.total_marks for r in results)
-                avg = (total /possible * 100) if possible > 0 else 0
-
-                trend_data.append({
-                    'date':exam.exam_date,
-                    'type':'exam',
-                    'exam_date':exam.exam_date,
-                    'exam_title':exam.title,
-                    'exam_type':exam.exam_type,
-                    'average_percentage':round(avg, 2),
-                    'students_attempted':results.count(),
-                })
-
-        
-        sessions = AttendanceSession.objects.filter(
-            subject=subject,
-            scheduled_start__gte=cutoff_date
-        ).order_by('scheduled_start')
-
-        for session in sessions:
-            attendances = SessionAttendance.objects.filter(
-                session=session
-                            )
-            enrolled = Enrollment.objects.filter(
-                class_obj=subject.class_obj,
-                is_active=True
-            ).count()
-
-            att_rate = (attendances.count() / enrolled * 100) if enrolled > 0 else 0
-
-            trend_data.append({
-                'date':session.scheduled_start.date() if hasattr(session.scheduled_start, 'date') else session.scheduled_start,
-                'type':'attendance',
-                'session_title':session.title,
-                'attendance_rate':round(att_rate, 2),
-                'students_marked':attendances.count(),
-            })
-        trend_data.sort(key=lambda x: x['date'])
-
+        trend.sort(key=lambda x: x['date'])
         return Response({
-            'subject':{
-                'id': subject.id,
-                'name':subject.name,
-                'code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),                
-            },
-            'period':{
-                'start_date':cutoff_date,
-                'end_date':timezone.now().date(),
-                'days':days,
-            },
-            'trend': trend_data,
+            'subject': {'id': subject.id, 'name': subject.name,
+                        'code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name))},
+            'period': {'start_date': cutoff, 'end_date': timezone.now().date(), 'days': days},
+            'trend': trend,
         })
-
-    # @action(detail=False, methods=['get'])
-    # def attendance_correlation(self, request):
-        
-    #     subject_id = request.query_params.get('subject_id')
-
-    #     if not subject_id:
-    #         return Response({
-    #             'error': 'subject_id parameter is required'
-    #         }, status=status.HTTP_400_BAD_REQUEST)
-
-    #     try:
-    #         subject = Subject.objects.get(
-    #             id=subject_id, is_active=True
-    #         )
-    #     except Subject.DoesNotExist:
-    #         return Response({
-    #             'error': 'Subject Not Found'
-    #         }, status=status.HTTP_404_NOT_FOUND)
-
-
-    #     enrolled_students = Enrollment.objects.filter(
-    #         class_obj=subject.class_obj,
-    #         is_active=True
-    #     ).select_related('student')
-
-    #     all_results = ExamResult.objects.filter(
-    #         exam__subject = subject,
-    #         is_submitted=True,
-    #         marks_obtained__isnull = False
-    #     )
-
-    #     sessions = AttendanceSession.objects.filter(
-    #         subject=subject
-    #     )
-    #     total_sessions = sessions.count()
-
-    #     if total_sessions == 0 :
-    #         return Response({
-    #             'message': 'No attendance sessions found for this subject'
-    #         })
-
-    #     correlation_data =[]
-
-    #     for enrollment in enrolled_students:
-    #         student = enrollment.student
-
-
-    #         student_results = all_results.filter(student=student)
-    #         if student_results.exists():
-    #             total_marks = sum(r.marks_obtained for r in student_results)
-    #             possible_marks = sum(r.exam.total_marks for r in student_results)
-    #             exam_percentage = (total_marks / possible_marks * 100) if possible_marks > 0 else 0
-    #         else:
-    #             exam_percentage = 0
-
-
-    #         attendances = SessionAttendance.objects.filter(
-    #             session__subject = subject,
-    #             student=student
-    #         )
-
-    #         attendance_rate = (attendances.count() / total_sessions * 100) if total_sessions > 0 else 0
-
-    #         correlation_data.append({
-    #             'student_name': student.get_full_name(),
-    #             'attendance_rate':round(attendance_rate, 2),
-    #             'exam_percentage':round(exam_percentage, 2)
-    #         })
-    #     correlation_data.sort(key=lambda x: x['attendance_rate'], reverse=True)
-
-    #     if len (correlation_data) >= 2:
-    #         attendance_rates = [d['attendance_rate'] for d in correlation_data]
-    #         exam_percentages = [d['exam_percentage'] for d in correlation_data]
-
-    #         n = len(correlation_data)
-    #         sum_attendance = sum(attendance_rates)
-    #         sum_exam = sum(exam_percentages)
-    #         sum_attendance_exam  =sum(a * e for a, e in zip(attendance_rates, exam_percentages))
-    #         sum_attendance_sq = sum(a ** 2 for a in attendance_rates)
-    #         sum_exam_sq = sum(e ** 2 for e in exam_percentages)
-
-    #         numerator = (n * sum_attendance_exam) - (sum_attendance * sum_exam)
-    #         denominator_part1  =(n * sum_attendance_sq) - (sum_attendance ** 2)
-    #         denominator_part2 = (n * sum_exam_sq) - (sum_exam ** 2)
-    #         denominator = (denominator_part1 * denominator_part2) ** 0.5
-
-    #         correlation = numerator / denominator if denominator != 0 else 0
-
-    #     else:
-    #         correlation = 0
-        
-    #     return Response({
-    #         'subject':{
-    #             'id': subject.id,
-    #             'name':subject.name
-    #         },
-    #         'correlation_coefficient': round(correlation, 4),
-    #         'interpretation': _interpret_correlation(correlation),
-    #         'data_points': len(correlation_data),
-    #         'correlation_data': correlation_data
-    #     })
 
 class ClassPerformanceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def _has_class_access(self, request, class_obj):
-        """
-        Admins, superadmins and commandants can access all classes.
-        Instructors can only access a class if they are assigned as its class instructor.
-        """
         user = request.user
         if user.role in ['admin', 'superadmin', 'commandant']:
             return True
-        if user.role == 'instructor' and class_obj.instructor_id == user.id:
-            return True
-        return False
+        return user.role == 'instructor' and class_obj.instructor_id == user.id
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-
         class_id = request.query_params.get('class_id')
-
         if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'class_id parameter is required'}, status=400)
+
+        cache_key = f'class_perf:{class_id}'
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         try:
-            class_obj = Class.objects.select_related(
-                'course', 'instructor'
-            ).get(id=class_id, is_active=True)
-
+            class_obj = Class.objects.select_related('course', 'instructor').get(id=class_id, is_active=True)
         except Class.DoesNotExist:
-            return Response({
-                'error': 'Class Not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Class Not found'}, status=404)
 
         if not self._has_class_access(request, class_obj):
-            return Response({
-                'error': 'You do not have permission to view this class.'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'You do not have permission to view this class.'}, status=403)
 
-        enrollments = Enrollment.objects.filter(
-            class_obj = class_obj,
-            is_active= True
-        ).select_related(
-            'student'
-        )
+        enrollments = Enrollment.objects.filter(class_obj=class_obj, is_active=True).select_related('student')
         total_students = enrollments.count()
+        subjects = list(Subject.objects.filter(class_obj=class_obj, is_active=True).select_related('instructor'))
 
-        subjects = Subject.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).select_related('instructor')
-
-
-        all_results = ExamResult.objects.filter(
-            exam__subject__class_obj = class_obj,
-            is_submitted=True,
-            marks_obtained__isnull = False
-        ).select_related ('exam', 'exam__subject', 'student')
-
-        if all_results.exists():
-            total_marks = sum(r.marks_obtained for r in  all_results)
-            total_possible = sum(r.exam.total_marks for r in all_results)
-            class_exam_average = (total_marks / total_possible * 100) if total_possible > 0 else 0
-
-            passing_results = sum(1 for r in all_results if r.percentage >= 50)
-            exam_pass_rate = (passing_results / all_results.count() * 100) if all_results.count() > 0 else 0
-        else:
-            class_exam_average = 0
-            exam_pass_rate = 0
-
-
-        attendance_sessions = AttendanceSession.objects.filter(
-            class_obj = class_obj
+        results_qs = ExamResult.objects.filter(
+            exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False
         )
-        total_sessions = attendance_sessions.count()
+        att_qs = SessionAttendance.objects.filter(session__class_obj=class_obj)
 
-        all_session_attendances = SessionAttendance.objects.filter(
-            session__class_obj = class_obj
-        ).select_related('student', 'session')
+        ov = results_qs.aggregate(
+            tm=Sum('marks_obtained'), tp=Sum('exam__total_marks'),
+            tc=Count('id'),
+            pc=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
+        )
+        _tm = float(ov['tm'] or 0)
+        _tp = ov['tp'] or 0
+        _tc = ov['tc'] or 0
+        _pc = ov['pc'] or 0
+        class_avg = (_tm / _tp * 100) if _tp else 0
+        pass_rate = (_pc / _tc * 100) if _tc else 0
 
-        expected_attendances = total_students * total_sessions
-        actual_attendances = all_session_attendances.count()
-        class_attendance_rate = (actual_attendances / expected_attendances * 100) if expected_attendances > 0 else 0
+        total_sessions = AttendanceSession.objects.filter(class_obj=class_obj).count()
+        expected_att = total_students * total_sessions
+        actual_att = att_qs.count()
+        class_att_rate = (actual_att / expected_att * 100) if expected_att else 0
 
-        grade_distribution ={
-            'A': sum(1 for r in all_results if r.grade =='A'),
-            'B': sum(1 for r in all_results if r.grade == 'B'),
-            'C': sum(1 for r in all_results if r.grade == 'C'),
-            'D': sum(1 for r in all_results if r.grade == 'D'),
-            'F': sum(1 for r in all_results if r.grade == 'F'),
+        grade_dist = _grade_distribution_sql(results_qs)
 
-        }
+        exam_map = _student_exam_map(results_qs)
+        att_map_data = _student_att_map(att_qs)
+        subj_exam_data = _student_subject_exam_map(results_qs)
+        subj_att_data = _student_subject_att_map(att_qs)
+        ssc = _subject_session_counts(class_obj)
 
-        student_rankings = []
+        rankings = []
+        for enr in enrollments:
+            sid = enr.student_id
+            s = enr.student
+            ed = exam_map.get(sid, {})
+            ad = att_map_data.get(sid, {})
 
-        for enrollment in enrollments:
-            student = enrollment.student
+            st = float(ed.get('total_marks', 0) or 0)
+            sp = ed.get('total_possible', 0) or 0
+            ep = (st / sp * 100) if sp else 0
+            attended = ad.get('attended', 0)
+            ar = (attended / total_sessions * 100) if total_sessions else 0
+            combined = float(ep) * 0.7 + float(ar) * 0.3
 
-            student_results = all_results.filter(student=student)
-            if student_results.exists():
-                student_total = sum(r.marks_obtained for r in student_results)
-                student_possible = sum(r.exam.total_marks for r in student_results)
-                exam_percentage = (student_total / student_possible * 100) if student_possible > 0 else 0
-            else:
-                student_total = 0
-                student_possible = 0
-                exam_percentage = 0
-
-            student_attendances = all_session_attendances.filter(student=student)
-            attended_count = student_attendances.count()
-            present_count = student_attendances.filter(status='present').count()
-            late_count = student_attendances.filter(status='late').count()
-
-            attendance_rate = (attended_count /total_sessions * 100) if total_sessions > 0 else 0
-
-            exam_percentage = float(exam_percentage or 0)
-            attendance_rate = float(attendance_rate or 0)
-            combined_score = (exam_percentage * 0.7) + (attendance_rate * 0.3)
-
-            subject_scores = []
-            for subject in subjects:
-                subject_results = student_results.filter(exam__subject=subject) if student_results.exists() else ExamResult.objects.none()
-                if subject_results.exists():
-                    subj_total = sum(r.marks_obtained for r in subject_results)
-                    subj_possible= sum(r.exam.total_marks for r in subject_results)
-                    subj_pct = (subj_total / subj_possible * 100) if subj_possible > 0 else 0
-
-                    subject_attendances = student_attendances.filter(session__subject=subject)
-                    subject_sessions = attendance_sessions.filter(subject=subject).count()
-                    subject_attendance_rate = (subject_attendances.count() / subject_sessions * 100) if subject_sessions > 0 else 0
-
-                    subject_scores.append({
-                        'subject_name': subject.name,
-                        'subject_code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
-                        'marks_obtained': float(subj_total),
-                        'total_possible': float(subj_possible),
-                        'exam_percentage': round(subj_pct, 2),
-                        'attendance_rate':round(subject_attendance_rate, 2),
-                        'combined_score': round((float(subj_pct or 0) * 0.7) + (float(subject_attendance_rate or 0) * 0.3), 2)
-
+            sse = subj_exam_data.get(sid, {})
+            ssa = subj_att_data.get(sid, {})
+            sb = []
+            for subj in subjects:
+                se = sse.get(subj.id, {})
+                sa = ssa.get(subj.id, {})
+                stm = float(se.get('total_marks', 0) or 0)
+                stp = se.get('total_possible', 0) or 0
+                spct = (stm / stp * 100) if stp else 0
+                ssess = ssc.get(subj.id, 0)
+                satt = sa.get('attended', 0)
+                sar = (satt / ssess * 100) if ssess else 0
+                if stm > 0 or satt > 0:
+                    sb.append({
+                        'subject_name': subj.name,
+                        'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                        'marks_obtained': stm, 'total_possible': float(stp),
+                        'exam_percentage': round(spct, 2), 'attendance_rate': round(sar, 2),
+                        'combined_score': round(float(spct) * 0.7 + float(sar) * 0.3, 2),
                     })
 
-            student_rankings.append({
-                'student_id': student.id,
-                'student_name': student.get_full_name(),
-                'svc_number': getattr(student, 'svc_number', None),
-                'total_exams_taken': student_results.count() if student_results.exists() else 0,
-                'total_marks_obtained': float(student_total),
-                'total_marks_possible': float(student_possible),
-                'exam_percentage': round(exam_percentage, 2),
-                'total_sessions': total_sessions,
-                'sessions_attended': attended_count,
-                'attendance_rate':round(attendance_rate, 2),
-                'combined_score': round(combined_score, 2),
-                'overall_grade': _calculate_grade(exam_percentage),
-                'subject_breakdown': subject_scores,
+            rankings.append({
+                'student_id': s.id, 'student_name': s.get_full_name(),
+                'svc_number': getattr(s, 'svc_number', None),
+                'total_exams_taken': ed.get('exams_taken', 0),
+                'total_marks_obtained': st, 'total_marks_possible': float(sp),
+                'exam_percentage': round(ep, 2),
+                'total_sessions': total_sessions, 'sessions_attended': attended,
+                'attendance_rate': round(ar, 2), 'combined_score': round(combined, 2),
+                'overall_grade': _calculate_grade(ep), 'subject_breakdown': sb,
             })
 
+        rankings.sort(key=lambda x: x['combined_score'], reverse=True)
+        for i, r in enumerate(rankings, 1):
+            r['rank'] = i
 
-        student_rankings.sort(key=lambda x: x['combined_score'], reverse=True)
-        for idx, student in enumerate(student_rankings, 1):
-            student['rank'] = idx
+        subj_exam_agg = results_qs.values('exam__subject_id').annotate(
+            tm=Sum('marks_obtained'), tp=Sum('exam__total_marks'), rc=Count('id'),
+            pc=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
+        )
+        sea_map = {r['exam__subject_id']: r for r in subj_exam_agg}
 
-        
-        top_performers = student_rankings[:3]
+        subj_att_agg = att_qs.values('session__subject_id').annotate(actual=Count('id'))
+        saa_map = {r['session__subject_id']: r['actual'] for r in subj_att_agg}
 
-        subject_performance = []
-        for subject in subjects:
-            subject_results = all_results.filter(exam__subject=subject)
-            subject_sessions = attendance_sessions.filter(subject=subject)
+        subject_perf = []
+        for subj in subjects:
+            es = sea_map.get(subj.id, {})
+            stm = float(es.get('tm', 0) or 0)
+            stp = es.get('tp', 0) or 0
+            src = es.get('rc', 0)
+            spc = es.get('pc', 0)
+            savg = (stm / stp * 100) if stp else 0
+            spr = (spc / src * 100) if src else 0
+            sc = ssc.get(subj.id, 0)
+            sexp = total_students * sc
+            sact = saa_map.get(subj.id, 0)
+            sar = (sact / sexp * 100) if sexp else 0
 
-            if subject_results.exists():
-                subj_total = sum(r.marks_obtained for r in subject_results)
-                subj_possible = sum(r.exam.total_marks for r in subject_results)
-                subj_exam_avg = (subj_total / subj_possible * 100) if subj_possible > 0 else 0
-
-
-                subj_passing = sum(1 for r in subject_results if r.percentage >= 50)
-                subj_pass_rate = (subj_passing / subject_results.count() * 100) if subject_results.count()> 0 else 0
-            else:
-                
-                subj_exam_avg = 0
-                subj_pass_rate = 0
-
-            
-            subj_attendances = all_session_attendances.filter(session__subject=subject)
-            subj_sessions_count = subject_sessions.count()
-            subj_expected_att = total_students * subj_sessions_count
-            subj_actual_att = subj_attendances.count()
-            subj_att_rate = (subj_actual_att / subj_expected_att * 100) if subj_expected_att > 0 else 0
-
-            subject_performance.append({
-                'subject_id': subject.id,
-                'subject_name': subject.name,
-                'subject_code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
-                'instructor': subject.instructor.get_full_name() if subject.instructor else None,
-
-                'total_exams': Exam.objects.filter(subject=subject, is_active=True).count(),
-                'results_count': subject_results.count() if subject_results.exists() else 0,
-                'exam_average': round(subj_exam_avg, 2),
-                'pass_rate': round(subj_pass_rate, 2),
-
-                'total_sessions': subj_sessions_count,
-                'attendance_rate': round(subj_att_rate, 2),
-
-                'combined_performance': round((float(subj_exam_avg or 0) * 0.7) + (float(subj_att_rate or 0) *0.3), 2)
-
+            subject_perf.append({
+                'subject_id': subj.id, 'subject_name': subj.name,
+                'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                'instructor': subj.instructor.get_full_name() if subj.instructor else None,
+                'total_exams': Exam.objects.filter(subject=subj, is_active=True).count(),
+                'results_count': src, 'exam_average': round(savg, 2), 'pass_rate': round(spr, 2),
+                'total_sessions': sc, 'attendance_rate': round(sar, 2),
+                'combined_performance': round(float(savg) * 0.7 + float(sar) * 0.3, 2),
             })
+        subject_perf.sort(key=lambda x: x['combined_performance'], reverse=True)
 
-        subject_performance.sort(key=lambda x: x['combined_performance'], reverse=True)
-
-        return Response({   
-            'class':{
-                'id': class_obj.id,
-                'name': class_obj.name,
-                'course':class_obj.course.name if hasattr(class_obj, 'course') else None,
-                'instructor': class_obj.instructor.get_full_name() if hasattr(class_obj, 'instructor') and class_obj.instructor else None,  
-                          },
-            'overall_statistics':{
-                'total_students': total_students,
-                'total_subjects': subjects.count(),
-                
-                'total_exams': Exam.objects.filter(subject__class_obj=class_obj, is_active=True).count(),
-                'total_results_submitted': all_results.count(),
-                'class_exam_average': round(class_exam_average, 2),
-                'exam_pass_rate': round(exam_pass_rate, 2),
-
-                'total_sessions': total_sessions,
-                'expected_attendances': expected_attendances,
-                'actual_attendances': actual_attendances,
-                'class_attendance_rate': round(class_attendance_rate, 2),
-                
-                'overall_performance': round((float(class_exam_average or 0) * 0.7) + (float(class_attendance_rate or 0)* 0.3), 2)      
+        data = {
+            'class': {
+                'id': class_obj.id, 'name': class_obj.name,
+                'course': class_obj.course.name if hasattr(class_obj, 'course') and class_obj.course else None,
+                'instructor': class_obj.instructor.get_full_name() if hasattr(class_obj, 'instructor') and class_obj.instructor else None,
             },
-            'grade_distribution': grade_distribution,
-            'top_performers': top_performers,
-            'all_students': student_rankings,
-            'subject_performance': subject_performance,  
-        })
+            'overall_statistics': {
+                'total_students': total_students, 'total_subjects': len(subjects),
+                'class_average': round(class_avg, 2), 'pass_rate': round(pass_rate, 2),
+                'total_sessions': total_sessions, 'attendance_rate': round(class_att_rate, 2),
+                'combined_performance': round(float(class_avg) * 0.7 + float(class_att_rate) * 0.3, 2),
+            },
+            'grade_distribution': grade_dist,
+            'student_rankings': rankings,
+            'subject_performance': subject_perf,
+        }
+
+        cache.set(cache_key, data, timeout=120)
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def top_performers(self, request):
         class_id = request.query_params.get('class_id')
         limit = int(request.query_params.get('limit', 10))
-
         if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'error': 'class_id parameter is required'}, status=400)
         try:
-            class_obj = Class.objects.select_related('instructor').get(id=class_id, is_active=True)
+            class_obj = Class.objects.get(id=class_id, is_active=True)
         except Class.DoesNotExist:
-            return Response({
-                'error': 'Class Not Found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Class not found'}, status=404)
 
-        if not self._has_class_access(request, class_obj):
-            return Response({
-                'error': 'You do not have permission to view this class.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        enrollments = Enrollment.objects.filter(class_obj=class_obj, is_active=True).select_related('student')
+        results_qs = ExamResult.objects.filter(
+            exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False
+        )
+        att_qs = SessionAttendance.objects.filter(session__class_obj=class_obj)
+        total_sessions = AttendanceSession.objects.filter(class_obj=class_obj).count()
 
-        enrollments = Enrollment.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).select_related('student')
+        exam_map = _student_exam_map(results_qs)
+        att_map_data = _student_att_map(att_qs)
 
-        all_results = ExamResult.objects.filter(
-            exam__subject__class_obj = class_obj,
-            is_submitted=True,
-            marks_obtained__isnull =False
-        ).select_related('exam', 'student')
+        performers = []
+        for enr in enrollments:
+            sid = enr.student_id
+            s = enr.student
+            ed = exam_map.get(sid, {})
+            ad = att_map_data.get(sid, {})
+            st = float(ed.get('total_marks', 0) or 0)
+            sp = ed.get('total_possible', 0) or 0
+            ep = (st / sp * 100) if sp else 0
+            attended = ad.get('attended', 0)
+            ar = (attended / total_sessions * 100) if total_sessions else 0
+            combined = float(ep) * 0.7 + float(ar) * 0.3
 
-        student_data = []
+            performers.append({
+                'student_id': s.id, 'student_name': s.get_full_name(),
+                'svc_number': getattr(s, 'svc_number', None),
+                'exam_percentage': round(ep, 2), 'attendance_rate': round(ar, 2),
+                'combined_score': round(combined, 2), 'overall_grade': _calculate_grade(ep),
+            })
 
-        for enrollment in enrollments:
-            student = enrollment.student
-            student_results = all_results.filter(student=student)
+        performers.sort(key=lambda x: x['combined_score'], reverse=True)
+        for i, p in enumerate(performers, 1):
+            p['rank'] = i
 
-            if student_results.exists():
-                total = sum(r.marks_obtained for r in student_results)
-                possible = sum(r.exam.total_marks for r in student_results)
-                percentage = (total / possible * 100) if possible > 0 else 0
-
-                student_data.append({
-                    'student_id': student.id,
-                    'student_name': student.get_full_name(),
-                    'svc_number': getattr(student, 'svc_number', None),
-                    'total_exams': student_results.count(),
-                    'overall_percentage': round(percentage, 2),
-                })
-
-        student_data.sort(key=lambda x: x['overall_percentage'], reverse=True)
-        top_students = student_data[:limit]
-
-        for idx, student in enumerate(top_students, 1):
-            student['rank'] =idx
-
-        return Response({
-            'class':{
-                'id': class_obj.id,
-                'name':class_obj.name,
-            },
-            'limit':limit,
-            'top_performers': top_students,
-        })
+        return Response({'class': class_obj.name, 'top_performers': performers[:limit]})
 
     @action(detail=False, methods=['get'])
     def compare_classes(self, request):
+        class_ids = request.query_params.get('class_ids', '')
+        if not class_ids:
+            return Response({'error': 'class_ids parameter is required (comma-separated)'}, status=400)
 
-        if request.user.role not in ['admin', 'superadmin', 'commandant']:
-            return Response({
-                'error': 'You do not have permission to compare classes.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        ids = [i.strip() for i in class_ids.split(',') if i.strip()]
+        classes = Class.objects.filter(id__in=ids, is_active=True).select_related('course', 'instructor')
 
-        course_id = request.query_params.get('course_id')
-
-        if course_id:
-            classes = Class.objects.filter(
-                course_id = course_id,
-                is_active=True,
-            ).select_related('course', 'instructor'
-        )
-        else:
-            classes = Class.objects.filter(is_active=True).select_related('course', 'instructor')
-
-        class_comparison = []
-
-        for class_obj in classes:
-            all_results = ExamResult.objects.filter(
-                exam__subject__class_obj = class_obj,
-                is_submitted=True,
-                marks_obtained__isnull= False
-            )   .select_related('exam')
-
-            enrollments = Enrollment.objects.filter(
-                class_obj=class_obj,
-                is_active=True
+        comparison = []
+        for cls in classes:
+            enrolled = Enrollment.objects.filter(class_obj=cls, is_active=True).count()
+            results_qs = ExamResult.objects.filter(
+                exam__subject__class_obj=cls, is_submitted=True, marks_obtained__isnull=False
             )
+            ov = results_qs.aggregate(
+                tm=Sum('marks_obtained'), tp=Sum('exam__total_marks'),
+                tc=Count('id'),
+                pc=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
+            )
+            _tm = float(ov['tm'] or 0)
+            _tp = ov['tp'] or 0
+            _tc = ov['tc'] or 0
+            _pc = ov['pc'] or 0
+            avg = (_tm / _tp * 100) if _tp else 0
+            pr = (_pc / _tc * 100) if _tc else 0
 
-            if all_results.exists():
-                total = sum(r.marks_obtained for r in all_results)
-                possible = sum(r.exam.total_marks for r in all_results)
-                avg = (total / possible * 100) if possible > 0 else 0
+            ts = AttendanceSession.objects.filter(class_obj=cls).count()
+            exp = enrolled * ts
+            act = SessionAttendance.objects.filter(session__class_obj=cls).count()
+            ar = (act / exp * 100) if exp else 0
 
-                passing = sum(1 for r in all_results if r.percentage >= 50)
-                pass_rate = (passing / all_results.count() * 100) if all_results.count() > 0 else 0
-
-
-                class_comparison.append({
-                    'class_id': class_obj.id,
-                    'class_name': class_obj.name,
-                    'course': class_obj.course.name if hasattr(class_obj, 'course') else None,
-                    'instructor': class_obj.instructor.get_full_name() if hasattr(class_obj, 'instructor') and class_obj.instructor else None,
-                    'total_students': enrollments.count(),
-                    'total_results': all_results.count(),
-                    'average_percentage': round(avg, 2),
-                    'pass_rate': round(pass_rate, 2),
-                })
-
-        
-        class_comparison.sort(key=lambda x: x['average_percentage'], reverse=True)
-
-        return Response({
-            'total_classes': len(class_comparison),
-            'classes': class_comparison,
-        })
-
-    @action(detail=False, methods=['get'])
-    def export_report(self, request):
-
-        class_id = request.query_params.get('class_id')
-        report_format = request.query_params.get('format', 'summary')
-
-        if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            class_obj = Class.objects.select_related('instructor').get(id=class_id, is_active=True)
-        except Class.DoesNotExist:
-            return Response({'error': 'Class Not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        if not self._has_class_access(request, class_obj):
-            return Response({
-                'error': 'You do not have permission to view this class.'
-            }, status=status.HTTP_403_FORBIDDEN)
-
-        summary_response = self.summary(request)
-
-        if report_format == 'detailed':
-
-            return Response({
-                **summary_response.data,
-                'report_generated_at': timezone.now(),
-                'report_type': 'detailed',
+            comparison.append({
+                'class_id': cls.id, 'class_name': cls.name,
+                'course': cls.course.name if hasattr(cls, 'course') and cls.course else None,
+                'instructor': cls.instructor.get_full_name() if hasattr(cls, 'instructor') and cls.instructor else None,
+                'total_students': enrolled,
+                'total_subjects': Subject.objects.filter(class_obj=cls, is_active=True).count(),
+                'class_average': round(avg, 2), 'pass_rate': round(pr, 2),
+                'attendance_rate': round(ar, 2),
+                'combined_performance': round(float(avg) * 0.7 + float(ar) * 0.3, 2),
             })
-        else:
-            return Response({
-                'class': summary_response.data['class'],
-                'overall_statistics': summary_response.data['overall_statistics'],
-                'grade_distribution': summary_response.data['grade_distribution'],
-                'top_performers': summary_response.data['top_performers'],
-                'subject_performance': summary_response.data['subject_performance'],
-                'report_generated_at':timezone.now(),
-                'report_type':'summary',
-            })
+
+        comparison.sort(key=lambda x: x['combined_performance'], reverse=True)
+        return Response({'comparison': comparison})
 
     @action(detail=False, methods=['get'])
     def trend_analysis(self, request):
-        class_id = request.query_params.get('class_id')  
+        class_id = request.query_params.get('class_id')
         days = int(request.query_params.get('days', 90))
-
         if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'error': 'class_id parameter is required'}, status=400)
         try:
-            class_obj = Class.objects.select_related('course', 'instructor').get(
-                id=class_id, is_active=True
-            )
+            class_obj = Class.objects.get(id=class_id, is_active=True)
         except Class.DoesNotExist:
-            return Response({
-                'error': 'Class Not Found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Class not found'}, status=404)
 
-        if not self._has_class_access(request, class_obj):
-            return Response({
-                'error': 'You do not have permission to view this class.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        cutoff = timezone.now().date() - timedelta(days=days)
+        enrolled = Enrollment.objects.filter(class_obj=class_obj, is_active=True).count()
 
-        cutoff_date = timezone.now().date() - timedelta(days=days)
+        exam_trend = (
+            ExamResult.objects
+            .filter(exam__subject__class_obj=class_obj, exam__is_active=True,
+                    exam__exam_date__gte=cutoff, is_submitted=True, marks_obtained__isnull=False)
+            .values('exam_id', 'exam__title', 'exam__exam_type', 'exam__exam_date', 'exam__subject__name')
+            .annotate(avg_pct=Avg(PCT_EXPR, output_field=FloatField()), cnt=Count('id'))
+            .order_by('exam__exam_date')
+        )
+        trend = [{'date': e['exam__exam_date'], 'type': 'exam', 'exam_title': e['exam__title'],
+                  'subject': e['exam__subject__name'], 'exam_type': e['exam__exam_type'],
+                  'average_percentage': round(e['avg_pct'] or 0, 2),
+                  'students_attempted': e['cnt']} for e in exam_trend]
 
-        exams = Exam.objects.filter(
-            subject__class_obj=class_obj,
-            is_active=True,
-            exam_date__gte=cutoff_date
-        ).select_related('subject').order_by('exam_date')
+        sess_att = (
+            SessionAttendance.objects
+            .filter(session__class_obj=class_obj, session__scheduled_start__gte=cutoff)
+            .values('session_id', 'session__title', 'session__scheduled_start', 'session__subject__name')
+            .annotate(marked=Count('id'))
+        )
+        for s in sess_att:
+            ar = (s['marked'] / enrolled * 100) if enrolled else 0
+            dt = s['session__scheduled_start']
+            trend.append({'date': dt.date() if hasattr(dt, 'date') else dt, 'type': 'attendance',
+                          'session_title': s['session__title'], 'subject': s['session__subject__name'],
+                          'attendance_rate': round(ar, 2), 'students_marked': s['marked']})
 
-        total_enrolled = Enrollment.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).count()
-
-        trend_data = []
-
-        for exam in exams:
-            results = ExamResult.objects.filter(
-                exam=exam,
-                is_submitted=True,
-                marks_obtained__isnull=False  
-            )
-
-            if results.exists():
-                total = sum(r.marks_obtained for r in results)
-                possible = sum(r.exam.total_marks for r in results)  
-                avg = (total / possible * 100) if possible > 0 else 0
-
-                trend_data.append({
-                    'date': exam.exam_date,
-                    'type': 'exam',
-                    'exam_id': exam.id,
-                    'exam_title': exam.title,
-                    'exam_type': exam.exam_type,
-                    'subject_name': exam.subject.name,
-                    'subject_code': getattr(exam.subject, 'subject_code', exam.subject.name),
-                    'average_percentage': round(avg, 2),
-                    'students_attempted': results.count(),
-                    'participation_rate': round((results.count() / total_enrolled * 100), 2) if total_enrolled > 0 else 0,
-                })
-
-        sessions = AttendanceSession.objects.filter(
-            class_obj=class_obj,
-            scheduled_start__gte=cutoff_date
-        ).select_related('subject').order_by('scheduled_start')
-
-        for session in sessions:
-            attendances = SessionAttendance.objects.filter(session=session)
-            present_count = attendances.filter(status='present').count()
-            late_count = attendances.filter(status='late').count()
-
-            att_rate = (attendances.count() / total_enrolled * 100) if total_enrolled > 0 else 0
-
-            trend_data.append({
-                'date': session.scheduled_start.date() if hasattr(session.scheduled_start, 'date') else session.scheduled_start,
-                'type': 'attendance',
-                'session_id': session.id,
-                'session_title': session.title,
-                'subject_name': session.subject.name if session.subject else 'General',
-                'subject_code': getattr(session.subject, 'subject_code', session.subject.name) if session.subject else 'N/A',
-                'attendance_rate': round(att_rate, 2),
-                'students_marked': attendances.count(),
-                'present_count': present_count,
-                'late_count': late_count,
-            })
-
-        trend_data.sort(key=lambda x: x['date'])
-
-        exam_data = [d for d in trend_data if d['type'] == 'exam']
-        attendance_data = [d for d in trend_data if d['type'] == 'attendance']
-
-        avg_exam_percentage = sum(d['average_percentage'] for d in exam_data) / len(exam_data) if len(exam_data) > 0 else 0
-        avg_attendance_rate = sum(d['attendance_rate'] for d in attendance_data) / len(attendance_data) if len(attendance_data) > 0 else 0
-
+        trend.sort(key=lambda x: x['date'])
         return Response({
-            'class': {
-                'id': class_obj.id,
-                'name': class_obj.name,
-                'course': class_obj.course.name if hasattr(class_obj, 'course') else None,
-            },
-            'period': {
-                'start_date': cutoff_date,
-                'end_date': timezone.now().date(),
-                'days': days
-            },
-            'summary': {
-                'total_data_points': len(trend_data),
-                'total_exams': len(exam_data),
-                'total_sessions': len(attendance_data),
-                'average_exam_performance': round(avg_exam_percentage, 2), 
-                'average_attendance_rate': round(avg_attendance_rate, 2),
-                'total_enrolled_students': total_enrolled,
-            },
-            'trend': trend_data,
+            'class': {'id': class_obj.id, 'name': class_obj.name},
+            'period': {'start_date': cutoff, 'end_date': timezone.now().date(), 'days': days},
+            'trend': trend,
         })
 
     @action(detail=False, methods=['get'])
     def attendance_correlation(self, request):
         class_id = request.query_params.get('class_id')
-
         if not class_id:
-            return Response({
-                'error': 'class_id parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'error': 'class_id parameter is required'}, status=400)
         try:
-            class_obj = Class.objects.select_related('course', 'instructor').get(
-                id=class_id, is_active=True
-            )
+            class_obj = Class.objects.get(id=class_id, is_active=True)
         except Class.DoesNotExist:
-            return Response({
-                'error': 'Class Not Found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Class not found'}, status=404)
 
-        if not self._has_class_access(request, class_obj):
-            return Response({
-                'error': 'You do not have permission to view this class.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        enrollments = Enrollment.objects.filter(class_obj=class_obj, is_active=True).select_related('student')
+        results_qs = ExamResult.objects.filter(
+            exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False
+        )
+        att_qs = SessionAttendance.objects.filter(session__class_obj=class_obj)
+        total_sessions = AttendanceSession.objects.filter(class_obj=class_obj).count()
 
-        enrolled_students = Enrollment.objects.filter(
-            class_obj=class_obj,
-            is_active=True
-        ).select_related('student')
+        exam_map = _student_exam_map(results_qs)
+        att_map_data = _student_att_map(att_qs)
 
-        all_results = ExamResult.objects.filter(
-            exam__subject__class_obj=class_obj,
-            is_submitted=True,
-            marks_obtained__isnull=False
-        ).select_related('exam', 'student')
+        data_points = []
+        for enr in enrollments:
+            sid = enr.student_id
+            ed = exam_map.get(sid, {})
+            ad = att_map_data.get(sid, {})
+            st = float(ed.get('total_marks', 0) or 0)
+            sp = ed.get('total_possible', 0) or 0
+            ep = (st / sp * 100) if sp else None
+            attended = ad.get('attended', 0)
+            ar = (attended / total_sessions * 100) if total_sessions else None
 
-        sessions = AttendanceSession.objects.filter(class_obj=class_obj)
-        total_sessions = sessions.count()
+            if ep is not None and ar is not None:
+                data_points.append({
+                    'student_id': enr.student.id, 'student_name': enr.student.get_full_name(),
+                    'attendance_rate': round(ar, 2), 'exam_percentage': round(ep, 2),
+                })
 
-        if total_sessions == 0:
-            return Response({
-                'message': 'No attendance sessions found for this class'
-            })
-
-        correlation_data = []
-
-        for enrollment in enrolled_students:
-            student = enrollment.student
-
-            student_results = all_results.filter(student=student)
-            if student_results.exists():
-                total_marks = sum(float(r.marks_obtained) for r in student_results)
-                possible_marks = sum(r.exam.total_marks for r in student_results)
-                exam_percentage = (total_marks / possible_marks * 100) if possible_marks > 0 else 0
-            else:
-                exam_percentage = 0
-
-            attendances = SessionAttendance.objects.filter(
-                session__class_obj=class_obj,
-                student=student
-            )
-            attendance_rate = (attendances.count() / total_sessions * 100) if total_sessions > 0 else 0
-
-            correlation_data.append({
-                'student_id': student.id,
-                'student_name': student.get_full_name(),
-                'svc_number': getattr(student, 'svc_number', None),
-                'attendance_rate': round(attendance_rate, 2),
-                'exam_percentage': round(exam_percentage, 2)
-            })
-
-        correlation_data.sort(key=lambda x: x['attendance_rate'], reverse=True)
-
-        if len(correlation_data) >= 2:
-            attendance_rates = [d['attendance_rate'] for d in correlation_data]
-            exam_percentages = [d['exam_percentage'] for d in correlation_data]  
-
-            n = len(correlation_data)
-            sum_attendance = sum(attendance_rates)
-            sum_exam = sum(exam_percentages)  
-            sum_attendance_exam = sum(a * e for a, e in zip(attendance_rates, exam_percentages))
-            sum_attendance_sq = sum(a ** 2 for a in attendance_rates)
-            sum_exam_sq = sum(e ** 2 for e in exam_percentages)
-
-            numerator = (n * sum_attendance_exam) - (sum_attendance * sum_exam)
-            denominator_part1 = (n * sum_attendance_sq) - (sum_attendance ** 2)
-            denominator_part2 = (n * sum_exam_sq) - (sum_exam ** 2)
-            denominator = (denominator_part1 * denominator_part2) ** 0.5
-
-            correlation = numerator / denominator if denominator != 0 else 0
-        else:
-            correlation = 0
+        n = len(data_points)
+        correlation = 0
+        interpretation = "Insufficient data to calculate correlation."
+        if n >= 3:
+            x_vals = [d['attendance_rate'] for d in data_points]
+            y_vals = [d['exam_percentage'] for d in data_points]
+            x_mean = sum(x_vals) / n
+            y_mean = sum(y_vals) / n
+            num = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_vals, y_vals))
+            dx = sum((x - x_mean) ** 2 for x in x_vals) ** 0.5
+            dy = sum((y - y_mean) ** 2 for y in y_vals) ** 0.5
+            if dx > 0 and dy > 0:
+                correlation = round(num / (dx * dy), 4)
+                interpretation = _interpret_correlation(correlation)
 
         return Response({
-            'class': {
-                'id': class_obj.id,
-                'name': class_obj.name,
-                'course': class_obj.course.name if hasattr(class_obj, 'course') else None
-            },
-            'correlation_coefficient': round(correlation, 4),
-            'interpretation': _interpret_correlation(correlation),
-            'data_points': len(correlation_data),
-            'total_sessions': total_sessions,
-            'correlation_data': correlation_data
+            'class': {'id': class_obj.id, 'name': class_obj.name},
+            'correlation': correlation,
+            'interpretation': interpretation,
+            'sample_size': n,
+            'data_points': data_points,
         })
-        
-def _calculate_grade(percentage):
-    if percentage >= 91:
-        return 'A'
-    elif percentage >= 86:
-        return 'A-'
-    elif percentage >= 81:
-        return 'B+'
-    elif percentage >= 76:
-        return 'B'
-    elif percentage >= 71:
-        return 'B-'
-    elif percentage >= 65:
-        return 'C+'
-    elif percentage >= 60:
-        return 'C'
-    elif percentage >= 50:
-        return 'C-'
-    else:
-        return 'F'
-
-
-def _interpret_correlation(correlation):
-
-    abs_corr = abs(correlation)
-
-    direction = "positive" if correlation > 0 else "negative"
-
-    if abs_corr >= 0.7:
-        strength = "strong"
-    elif abs_corr >= 0.4:
-        strength = "moderate"
-    elif abs_corr >= 0.2:
-        strength = "weak"
-
-    else:
-        strength = "very weak or no"
-
-
-    return f"There is a {strength} {direction} correlation between attendance and exam performance."
-
-        
