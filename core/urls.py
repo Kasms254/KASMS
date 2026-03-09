@@ -27,7 +27,8 @@ from .commandant_views import (
     CommandantExamResultViewSet,
     CommandantEnrollmentViewSet,
     CommandantNoticeViewSet,
-)from .auth_urls import auth_urlpatterns
+)
+from .auth_urls import auth_urlpatterns
 
 router = DefaultRouter()
 
