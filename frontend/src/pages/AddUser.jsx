@@ -8,6 +8,7 @@ const roles = [
   { value: 'student', label: 'Student', description: 'Can view classes, exams, and results' },
   { value: 'instructor', label: 'Instructor', description: 'Can manage classes and grade exams' },
   { value: 'admin', label: 'Admin', description: 'Full system access' },
+  { value: 'chief_instructor', label: 'Chief Instructor', description: 'Reviews exam reports and oversight of instruction' },
   { value: 'commandant', label: 'Commandant', description: 'Oversight and management' },
 ]
 

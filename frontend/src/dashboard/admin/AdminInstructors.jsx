@@ -56,7 +56,7 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminInstructors() {
+export default function AdminInstructors({ hideActions = false, source = 'admin' }) {
   const toast = useToast()
   const reportError = (msg) => {
     if (!msg) return
@@ -137,43 +137,80 @@ export default function AdminInstructors() {
   useEffect(() => {
     let mounted = true
     setLoading(true)
-
-    Promise.all([
-      api.getAllInstructors(),
-      api.getAllClasses(),
-      api.getAllSubjects(),
-    ])
-      .then(([instructorsData, classesData, subjectsData]) => {
-        if (!mounted) return
-        const list = Array.isArray(instructorsData) ? instructorsData : []
-        const normalized = list.map((it) => ({
-          id: it.id,
-          first_name: it.first_name,
-          last_name: it.last_name,
-          full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
-          svc_number: it.svc_number,
-          email: it.email,
-          phone_number: it.phone_number,
-          rank: normalizeRank(it.rank || it.rank_display),
-          unit: it.unit || '',
-          role: it.role,
-          role_display: it.role_display,
-          is_active: it.is_active,
-          created_at: it.created_at,
-        }))
-        setInstructors(normalized)
-        setClassesList(Array.isArray(classesData) ? classesData : [])
-        setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
-        setError(null)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
+    if (source === 'commandant') {
+      Promise.all([
+        api.getCommandantUsers('role=instructor&page_size=100'),
+        api.getCommandantClasses('is_active=true&page_size=100'),
+      ])
+        .then(([instructorsData, classesData]) => {
+          if (!mounted) return
+          const list = Array.isArray(instructorsData) ? instructorsData : (instructorsData?.results || [])
+          const normalized = list.map((it) => ({
+            id: it.id,
+            first_name: it.first_name,
+            last_name: it.last_name,
+            full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+            svc_number: it.svc_number,
+            email: it.email,
+            phone_number: it.phone_number,
+            rank: normalizeRank(it.rank || it.rank_display),
+            unit: it.unit || '',
+            role: it.role,
+            role_display: it.role_display,
+            is_active: it.is_active,
+            created_at: it.created_at,
+          }))
+          setInstructors(normalized)
+          setClassesList(Array.isArray(classesData) ? classesData : (classesData?.results || []))
+          setSubjectsList([])
+          setError(null)
+        })
+        .catch((err) => {
+          if (!mounted) return
+          setError(err)
+        })
+        .finally(() => {
+          if (!mounted) return
+          setLoading(false)
+        })
+    } else {
+      Promise.all([
+        api.getAllInstructors(),
+        api.getAllClasses(),
+        api.getAllSubjects(),
+      ])
+        .then(([instructorsData, classesData, subjectsData]) => {
+          if (!mounted) return
+          const list = Array.isArray(instructorsData) ? instructorsData : []
+          const normalized = list.map((it) => ({
+            id: it.id,
+            first_name: it.first_name,
+            last_name: it.last_name,
+            full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+            svc_number: it.svc_number,
+            email: it.email,
+            phone_number: it.phone_number,
+            rank: normalizeRank(it.rank || it.rank_display),
+            unit: it.unit || '',
+            role: it.role,
+            role_display: it.role_display,
+            is_active: it.is_active,
+            created_at: it.created_at,
+          }))
+          setInstructors(normalized)
+          setClassesList(Array.isArray(classesData) ? classesData : [])
+          setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
+          setError(null)
+        })
+        .catch((err) => {
+          if (!mounted) return
+          setError(err)
+        })
+        .finally(() => {
+          if (!mounted) return
+          setLoading(false)
+        })
+    }
     return () => { mounted = false }
   }, [])
 
@@ -525,9 +562,11 @@ export default function AdminInstructors() {
           <p className="text-sm text-neutral-500">Manage instructors — quick table view</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
-        </div>
+        {!hideActions && (
+          <div className="flex items-center gap-3">
+            <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          </div>
+        )}
       </header>
 
       {/* Search and Filters */}

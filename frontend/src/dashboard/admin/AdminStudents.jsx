@@ -58,7 +58,7 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminStudents() {
+export default function AdminStudents({ hideActions = false, source = 'admin' }) {
   const navigate = useNavigate()
   const toast = useToast()
   const reportError = (msg) => {
@@ -139,47 +139,84 @@ export default function AdminStudents() {
   const [selectedClass, setSelectedClass] = useState('all')
   const [availableClasses, setAvailableClasses] = useState([])
 
-  // Fetch ALL students and classes once on mount
+  // Fetch ALL students and classes once on mount (supports admin or commandant sources)
   useEffect(() => {
     let mounted = true
     setLoading(true)
 
-    Promise.all([
-      api.getAllStudents(),
-      api.getAllClasses('is_active=true'),
-    ])
-      .then(([studentsData, classesData]) => {
-        if (!mounted) return
-        const list = Array.isArray(studentsData) ? studentsData : []
-        // normalize shape used by this component
-        const mapped = list.map((u) => ({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          svc_number: u.svc_number != null ? String(u.svc_number) : '',
-          email: u.email,
-          phone_number: u.phone_number,
-          rank: normalizeRank(u.rank || u.rank_display),
-          unit: u.unit || '',
-          is_active: u.is_active,
-          created_at: u.created_at,
-          className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
-        }))
-        setStudents(mapped)
-        setAvailableClasses(Array.isArray(classesData) ? classesData : [])
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
+    if (source === 'commandant') {
+      Promise.all([
+        api.getCommandantUsers('role=student&page_size=100'),
+        api.getCommandantClasses('is_active=true&page_size=100'),
+      ])
+        .then(([studentsData, classesData]) => {
+          if (!mounted) return
+          const list = Array.isArray(studentsData) ? studentsData : (studentsData?.results || [])
+          const mapped = list.map((u) => ({
+            id: u.id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+            name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+            svc_number: u.svc_number != null ? String(u.svc_number) : '',
+            email: u.email,
+            phone_number: u.phone_number,
+            rank: normalizeRank(u.rank || u.rank_display),
+            unit: u.unit || '',
+            is_active: u.is_active,
+            created_at: u.created_at,
+            className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
+          }))
+          setStudents(mapped)
+          setAvailableClasses(Array.isArray(classesData) ? classesData : (classesData?.results || []))
+        })
+        .catch((err) => {
+          if (!mounted) return
+          setError(err)
+        })
+        .finally(() => {
+          if (!mounted) return
+          setLoading(false)
+        })
+    } else {
+      Promise.all([
+        api.getAllStudents(),
+        api.getAllClasses('is_active=true'),
+      ])
+        .then(([studentsData, classesData]) => {
+          if (!mounted) return
+          const list = Array.isArray(studentsData) ? studentsData : []
+          // normalize shape used by this component
+          const mapped = list.map((u) => ({
+            id: u.id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+            name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+            svc_number: u.svc_number != null ? String(u.svc_number) : '',
+            email: u.email,
+            phone_number: u.phone_number,
+            rank: normalizeRank(u.rank || u.rank_display),
+            unit: u.unit || '',
+            is_active: u.is_active,
+            created_at: u.created_at,
+            className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
+          }))
+          setStudents(mapped)
+          setAvailableClasses(Array.isArray(classesData) ? classesData : [])
+        })
+        .catch((err) => {
+          if (!mounted) return
+          setError(err)
+        })
+        .finally(() => {
+          if (!mounted) return
+          setLoading(false)
+        })
+    }
+
     return () => { mounted = false }
-  }, [])
+  }, [source])
 
   // Filter and sort students client-side
   const filteredStudents = useMemo(() => {
@@ -595,9 +632,11 @@ export default function AdminStudents() {
           <p className="text-xs sm:text-sm text-neutral-500">Manage student records by class</p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={downloadCSV} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
-        </div>
+        {!hideActions && (
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={downloadCSV} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          </div>
+        )}
       </header>
 
       <section className="grid gap-4 sm:gap-6">
@@ -710,8 +749,8 @@ export default function AdminStudents() {
               icon="Users"
               title="No students found"
               description={searchTerm ? `No students match "${searchTerm}". Try adjusting your search terms.` : "Get started by adding your first student. Students can be enrolled in classes and track their academic progress."}
-              actionLabel={!searchTerm ? "Add Student" : undefined}
-              onAction={!searchTerm ? () => navigate('/dashboard/add/user') : undefined}
+              actionLabel={!searchTerm && !hideActions && source !== 'commandant' ? "Add Student" : undefined}
+              onAction={!searchTerm && !hideActions && source !== 'commandant' ? () => navigate('/dashboard/add/user') : undefined}
             />
           </div>
         ) : (

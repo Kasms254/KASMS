@@ -646,7 +646,10 @@ export default function PerformanceAnalytics() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-20 bg-gray-100 rounded-lg animate-pulse" />
+        <header className="flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
+          <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
+        </header>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => <LoadingSkeleton key={i} type="card" />)}
         </div>
@@ -656,20 +659,15 @@ export default function PerformanceAnalytics() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <header>
-        <h1 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-          <Icons.TrendingUp className="w-6 h-6 md:w-7 md:h-7 text-indigo-600" />
-          Performance Analytics
-        </h1>
-        <p className="text-xs md:text-sm text-gray-500 mt-1">
-          Comprehensive analysis of student performance across classes and subjects
-        </p>
+      <header className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
+        <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
       </header>
 
       {/* View Mode Toggle */}
-      <div className="bg-white rounded-xl border border-gray-200 p-1.5 md:p-2 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
+      <div className="bg-white rounded-xl border border-neutral-200 p-1.5 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
         {/* Class View - visible to non-instructors, or instructors who are a class instructor for at least one class */}
         {(user?.role !== 'instructor' || hasAnyClassInstructorRole) && (
           <button
@@ -712,10 +710,10 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className={`bg-white rounded-xl border p-3 md:p-4 shadow-sm transition-all ${
+      <div className={`bg-white rounded-xl border p-3 md:p-4 transition-all ${
         !selectedClass
           ? 'border-indigo-300 ring-2 ring-indigo-100'
-          : 'border-gray-200'
+          : 'border-neutral-200'
       }`}>
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
           <div className="flex-1 min-w-0 sm:min-w-[200px]">
