@@ -1691,7 +1691,6 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
-
 # remarks on exam-reports
 class ExamReportRemark(models.Model):
     ROLE_CHOICES = [
