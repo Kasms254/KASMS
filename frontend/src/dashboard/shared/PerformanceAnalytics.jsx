@@ -1078,13 +1078,13 @@ export default function PerformanceAnalytics() {
       )}
 
       {/* Class Comparison Section - only show in class view */}
-      {viewMode === 'class' && classComparison?.comparison && classComparison.comparison.length > 0 && (
+      {viewMode === 'class' && classComparison?.classes && classComparison.classes.length > 0 && (
         <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
           <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Icons.BarChart2 className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
             Class Performance Comparison
           </h3>
-          <ClassPerformanceBarChart classes={classComparison.comparison} />
+          <ClassPerformanceBarChart classes={classComparison.classes} />
         </section>
       )}
 

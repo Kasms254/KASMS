@@ -27,8 +27,8 @@ function CustomTooltip({ active, payload }) {
       <div className="space-y-1.5 border-t border-gray-100 pt-2">
         <div className="flex justify-between items-center gap-4">
           <span className="text-xs text-gray-500">Avg Score</span>
-          <span className={`text-sm font-bold ${d.class_average >= 76 ? 'text-emerald-600' : d.class_average >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-            {(d.class_average || 0).toFixed(1)}%
+          <span className={`text-sm font-bold ${d.average_percentage >= 76 ? 'text-emerald-600' : d.average_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+            {(d.average_percentage || 0).toFixed(1)}%
           </span>
         </div>
         <div className="flex justify-between items-center gap-4">
@@ -49,7 +49,7 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function ClassPerformanceBarChart({ classes }) {
-  const [metric, setMetric] = useState('class_average')
+  const [metric, setMetric] = useState('average_percentage')
   const [sortOrder, setSortOrder] = useState('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
@@ -83,10 +83,10 @@ export default function ClassPerformanceBarChart({ classes }) {
   const handleMetricChange = (m) => { setMetric(m); setCurrentPage(1) }
   const handleSearch = (e) => { setSearchTerm(e.target.value); setCurrentPage(1) }
 
-  const metricLabel = metric === 'class_average' ? 'Average Score (%)' : 'Pass Rate (%)'
+  const metricLabel = metric === 'average_percentage' ? 'Average Score (%)' : 'Pass Rate (%)'
 
   const avgScore = filteredClasses.length
-    ? (filteredClasses.reduce((s, c) => s + (c.class_average || 0), 0) / filteredClasses.length).toFixed(1)
+    ? (filteredClasses.reduce((s, c) => s + (c.average_percentage || 0), 0) / filteredClasses.length).toFixed(1)
     : '0.0'
   const avgPass = filteredClasses.length
     ? (filteredClasses.reduce((s, c) => s + (c.pass_rate || 0), 0) / filteredClasses.length).toFixed(1)
@@ -136,8 +136,8 @@ export default function ClassPerformanceBarChart({ classes }) {
         <div className="flex gap-2">
           <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
             <button
-              onClick={() => handleMetricChange('class_average')}
-              className={`px-3 py-2 text-xs font-semibold transition-colors ${metric === 'class_average' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              onClick={() => handleMetricChange('average_percentage')}
+              className={`px-3 py-2 text-xs font-semibold transition-colors ${metric === 'average_percentage' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               Avg Score
             </button>
