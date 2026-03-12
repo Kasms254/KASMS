@@ -9,6 +9,8 @@ from .views import (
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
+    # meetings
+    MeetingNotificationViewSet, MeetingViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
@@ -18,7 +20,6 @@ from .performance_viewsets import(
 from .auth_urls import auth_urlpatterns
 
 router = DefaultRouter()
-
 # admin routes
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'courses', CourseViewSet, basename='course')
@@ -26,7 +27,6 @@ router.register(r'classes', ClassViewSet, basename='class')
 router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 router.register(r'subjects', SubjectViewSet, basename='subject')
 router.register(r'notices', NoticeViewSet, basename='notice')
-
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
@@ -71,11 +71,14 @@ router.register(r'certificates', CertificateViewSet, basename='certificate')
 router.register(r"marks-entry", MarksEntryViewSet, basename="marks-entry")
 router.register(r"admin/roster", AdminRosterViewSet, basename="admin-roster")
 
-
 # departments
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
 router.register(r'result-edit-requests', ResultEditRequestViewSet, basename='result-edit-request')
+
+# meetings
+router.register(r'meetings', MeetingViewSet, basename='meeting')
+router.register(r'meeting-notifications', MeetingNotificationViewSet, basename='meeting-notification')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

@@ -3,7 +3,7 @@ from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
     ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, TwoFactorCode,
-    Department, DepartmentMembership, ResultEditRequest
+    Department, DepartmentMembership, ResultEditRequest,Meeting, MeetingParticipant, MeetingNotification
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -349,10 +349,40 @@ class ResultEditRequestAdmin(admin.ModelAdmin):
     search_fields = ['requested_by__svc_number', 'exam_result__id']
     readonly_fields = ['created_at', 'updated_at']
 
+# meetings
 @admin.register(TwoFactorCode)
 class TwoFactorCodeAdmin(admin.ModelAdmin):
     list_display = ('user', 'code', 'is_used', 'attempts', 'expires_at', 'created_at')
     list_filter = ('is_used',)
     search_fields = ('user__svc_number', 'user__email')
     readonly_fields = ('id', 'code', 'created_at')
-    ordering = ('-created_at',)
+    ordering = ['-created_at']
+
+class MeetingParticipantInline(admin.TabularInline):
+    model = MeetingParticipant
+    extra = 0
+    readonly_fields = ('user', 'role', 'joined_at', 'left_at')
+
+@admin.register(Meeting)
+class MeetingAdmin(admin.ModelAdmin):
+    list_display = [
+        'title', 'meeting_code', 'status', 'created_by',
+        'scheduled_start', 'provider', 'school',
+    ]
+    list_filter = ['status', 'provider', 'school']
+    search_fields = ['title', 'meeting_code', 'created_by__svc_number']
+    readonly_fields = ['meeting_code', 'join_token', 'created_at', 'updated_at']
+    filter_horizontal = ['classes']
+    inlines = [MeetingParticipantInline]
+    date_hierarchy = 'scheduled_start'
+
+@admin.register(MeetingParticipant)
+class MeetingParticipantAdmin(admin.ModelAdmin):
+    list_display = ['user', 'meeting', 'role', 'joined_at', 'left_at']
+    list_filter = ['role']
+    search_fields = ['user__svc_number', 'meeting__meeting_code']
+
+@admin.register(MeetingNotification)
+class MeetingNotificationAdmin(admin.ModelAdmin):
+    list_display = ['meeting', 'channel', 'send_at', 'sent']
+    list_filter = ['channel', 'sent']

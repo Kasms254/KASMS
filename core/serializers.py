@@ -2,12 +2,13 @@ from rest_framework import serializers
 from .models import (
     StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
-)
+    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog,
+    Meeting,MeetingParticipant,MeetingNotification)
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -2162,3 +2163,166 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
         if s.rank:
             return s.get_rank_display()
         return None
+
+# meeting
+class MeetingListSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.SerializerMethodField()
+    class_names = serializers.SerializerMethodField()
+    participant_count = serializers.SerializerMethodField()
+    join_url = serializers.ReadOnlyField()
+    is_joinable = serializers.ReadOnlyField()
+    video_room_name = serializers.ReadOnlyField()
+
+    class Meta:
+        model = Meeting
+        fields = [
+            'id', 'title', 'description', 'meeting_code', 'status',
+            'scheduled_start', 'scheduled_end', 'provider',
+            'created_by', 'created_by_name',
+            'class_names', 'participant_count',
+            'join_url', 'is_joinable', 'video_room_name',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'meeting_code', 'status', 'created_at']
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name()
+
+    def get_class_names(self, obj):
+        return list(obj.classes.values_list('name', flat=True))
+
+    def get_participant_count(self, obj):
+        return obj.participants.filter(left_at__isnull=True).count()
+
+class MeetingCreateSerializer(serializers.ModelSerializer):
+    class_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=True,
+        help_text='List of Class UUIDs this meeting targets',
+    )
+
+    class Meta:
+        model = Meeting
+        fields = [
+            'id', 'title', 'description',
+            'scheduled_start', 'scheduled_end',
+            'provider', 'max_participants', 'is_recorded',
+            'class_ids',
+        ]
+        read_only_fields = ['id']
+
+    def validate_class_ids(self, value):
+        from .models import Class
+        user = self.context['request'].user
+        school = user.school
+
+        classes = Class.all_objects.filter(id__in=value, school=school)
+        if classes.count() != len(value):
+            raise serializers.ValidationError(
+                'One or more class IDs are invalid or do not belong to your school.'
+            )
+
+        if user.active_role == 'instructor':
+            taught_ids = set(
+                Class.all_objects.filter(
+                    id__in=value,
+                    school=school,
+                ).filter(
+                    Q(instructor=user) |
+                    Q(subjects__instructor=user)
+                ).values_list('id', flat=True)
+            )
+            requested_ids = set(str(v) for v in value)
+            taught_ids = set(str(v) for v in taught_ids)
+            unauthorized = requested_ids - taught_ids
+            if unauthorized:
+                raise serializers.ValidationError(
+                    'You can only create meetings for classes you teach.'
+                )
+
+        return value
+
+    def validate_scheduled_start(self, value):
+        from django.utils import timezone
+        if value < timezone.now():
+            raise serializers.ValidationError(
+                'Scheduled start must be in the future.'
+            )
+        return value
+
+    def validate(self, data):
+        start = data.get('scheduled_start')
+        end = data.get('scheduled_end')
+        if start and end and end <= start:
+            raise serializers.ValidationError({
+                'scheduled_end': 'End time must be after start time.'
+            })
+        return data
+
+    def create(self, validated_data):
+        class_ids = validated_data.pop('class_ids')
+        user = self.context['request'].user
+        validated_data['created_by'] = user
+        validated_data['school'] = user.school
+
+        meeting = Meeting.objects.create(**validated_data)
+        meeting.classes.set(class_ids)
+        return meeting
+
+    def update(self, instance, validated_data):
+        class_ids = validated_data.pop('class_ids', None)
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        instance.save()
+        if class_ids is not None:
+            instance.classes.set(class_ids)
+        return instance
+
+class MeetingDetailSerializer(MeetingListSerializer):
+    participants = serializers.SerializerMethodField()
+
+    class Meta(MeetingListSerializer.Meta):
+        fields = MeetingListSerializer.Meta.fields + [
+            'join_token', 'actual_start', 'actual_end',
+            'is_recorded', 'recording_url', 'max_participants',
+            'participants',
+        ]
+
+    def get_participants(self, obj):
+        return MeetingParticipantSerializer(
+            obj.participants.select_related('user').order_by('-joined_at'),
+            many=True,
+        ).data
+
+class MeetingParticipantSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    svc_number = serializers.CharField(source='user.svc_number', read_only=True)
+
+    class Meta:
+        model = MeetingParticipant
+        fields = [
+            'id', 'user', 'user_name', 'svc_number',
+            'role', 'joined_at', 'left_at',
+        ]
+        read_only_fields = ['id', 'joined_at']
+
+    def get_user_name(self, obj):
+        return obj.user.get_full_name()
+
+class MeetingJoinSerializer(serializers.Serializer):
+    join_token = serializers.CharField(max_length=64)
+
+class MeetingNotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MeetingNotification
+        fields = [
+            'id', 'meeting', 'channel', 'send_at', 'sent', 'created_at',
+        ]
+        read_only_fields = ['id', 'sent', 'created_at']
+
+
+
+
+
+

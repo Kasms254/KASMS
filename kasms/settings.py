@@ -185,6 +185,7 @@ SIMPLE_JWT = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'core.authentication.CookieJWTAuthentication',
+        "accounts.authentication.CookieJWTAuthentication",
         
     ],
     'DEFAULT_PERMISSION_CLASSES': [

@@ -2,8 +2,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework import permissions
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .managers import get_current_school
-from .models import DepartmentMembership
-
+from .models import DepartmentMembership,Enrollment
 
 class IsSuperAdmin(BasePermission):
 
@@ -170,7 +169,6 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
-
 class ForcePasswordChangePermission(BasePermission):
 
     def has_permission(self, request, view):
@@ -211,8 +209,7 @@ class IsInstructorOfSubject(BasePermission):
         if request.user.role in ["admin", "superadmin"]:
             return True
         return obj.exam.subject.instructor == request.user
-        
-        
+            
 class IsAdminOnly(BasePermission):
     message = "Only administrators can access this resource."
 
@@ -268,5 +265,62 @@ class IsHODOrAdmin(BasePermission):
             is_active=True,
         ).exists()
 
-        
+#meeting
+
+class CanCreateMeeting(BasePermission):
+    message = "Only instructors and administrators can create meetings."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return request.user.active_role in ('instructor', 'admin', 'superadmin')
+
+class CanManageMeeting(BasePermission):
+    message = "You can only manage meetings you created."
+
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.active_role in ('admin', 'superadmin'):
+            return True
+        return obj.created_by == request.user
+
+class CanJoinMeeting(BasePermission):
+    message = "You are not authorized to join this meeting."
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+
+        if obj.created_by == user:
+            return True
+        if user.active_role in ('admin', 'superadmin'):
+            return True
+
+        meeting_class_ids = set(obj.classes.values_list('id', flat=True))
+
+        if user.active_role == 'student':
+            enrolled_class_ids = set(
+                Enrollment.all_objects.filter(
+                    student=user, is_active=True,
+                    class_obj_id__in=meeting_class_ids,
+                ).values_list('class_obj_id', flat=True)
+            )
+            return bool(enrolled_class_ids & meeting_class_ids)
+
+        if user.active_role == 'instructor':
+            from .models import Class, Subject
+            teaches_class = Class.all_objects.filter(
+                id__in=meeting_class_ids, instructor=user,
+            ).exists()
+            teaches_subject = Subject.all_objects.filter(
+                class_obj_id__in=meeting_class_ids, instructor=user,
+            ).exists()
+            return teaches_class or teaches_subject
+
+        if user.active_role == 'commandant':
+            return True
+
+        return False
 
