@@ -4,6 +4,7 @@ import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 
+
 function initials(name = '') {
   return name
     .split(' ')
@@ -128,6 +129,18 @@ export default function AdminInstructors() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
+  const [exportLoading, setExportLoading] = useState(false)
+  // Popover state for "+N more" badges
+  const [openPopover, setOpenPopover] = useState(null)
+
+  useEffect(() => {
+    if (!openPopover) return
+    function handleClickOutside(e) {
+      if (!e.target.closest('[data-popover]')) setOpenPopover(null)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openPopover])
 
   // Debounce search input 300ms
   useEffect(() => {
@@ -135,12 +148,16 @@ export default function AdminInstructors() {
     return () => clearTimeout(t)
   }, [searchTerm])
 
+  // Reset to page 1 when class filter changes
+  useEffect(() => { setPage(1) }, [selectedClass])
+
   // Server-side paginated instructors
   const { data: instructorsData, isPending: loading, error } = useQuery({
-    queryKey: ['instructors', { page, pageSize, search: debouncedSearch }],
+    queryKey: ['instructors', { page, pageSize, search: debouncedSearch, selectedClass }],
     queryFn: () => {
       const params = new URLSearchParams({ page, page_size: pageSize })
       if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
       return api.getInstructorsPaginated(params.toString())
     },
     placeholderData: (prev) => prev,
@@ -176,13 +193,8 @@ export default function AdminInstructors() {
   const classesList = classesQueryData?.results ?? []
   const subjectsList = subjectsQueryData?.results ?? []
 
-  // Client-side class filter on current page only (instructors are few)
-  const instructors = selectedClass === 'all'
-    ? allInstructors
-    : allInstructors.filter((it) => {
-        const instructorClasses = getInstructorClasses(it.id)
-        return instructorClasses.some(c => String(c.id) === String(selectedClass))
-      })
+  // Filtering is now server-side; use results directly
+  const instructors = allInstructors
 
   const totalCount = instructorsData?.count ?? 0
   const totalPages = instructorsData?.total_pages ?? 1
@@ -444,28 +456,24 @@ export default function AdminInstructors() {
     }
   }
 
-  function downloadCSV() {
-    // Service No first, then Rank, Name, Unit, then the rest
-    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone', 'Role', 'Active', 'Created']]
-    instructors.forEach((it) => {
-      const svc = it.svc_number || ''
-      const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
-      const email = it.email || ''
-      const phone = it.phone_number || ''
-      const role = it.role_display || it.role || ''
-      const active = it.is_active ? 'Yes' : 'No'
-      const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, getRankDisplay(it.rank) || '', name, it.unit || '', email, phone, role, active, created])
-    })
-
-    const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'instructors.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  async function downloadCSV() {
+    setExportLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      const blob = await api.exportInstructorsCSV(params.toString())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'instructors.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      reportError('Failed to export CSV: ' + (err.message || String(err)))
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   function getInstructorClasses(instId) {
@@ -497,7 +505,9 @@ export default function AdminInstructors() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+            {exportLoading ? 'Exporting…' : 'Download CSV'}
+          </button>
         </div>
       </header>
 
@@ -625,7 +635,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{cls.length - 3} more</span> : null}
+                            {cls.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                {openPopover === `${it.id}-cls` && (
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -642,7 +661,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{subjects.length - 3} more</span> : null}
+                            {subjects.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                {openPopover === `${it.id}-sub` && (
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -694,7 +722,16 @@ export default function AdminInstructors() {
                                     {cls.slice(0, 2).map((c, idx) => (
                                       <span key={idx} className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</span>
                                     ))}
-                                    {cls.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 2}</span>}
+                                    {cls.length > 2 && (
+                                      <div className="relative inline-block" data-popover>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 2}</button>
+                                        {openPopover === `${it.id}-cls` && (
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {cls.slice(2).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {subjects && subjects.length > 0 && (
@@ -702,7 +739,16 @@ export default function AdminInstructors() {
                                     {subjects.slice(0, 2).map((s, idx) => (
                                       <span key={idx} className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</span>
                                     ))}
-                                    {subjects.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 2}</span>}
+                                    {subjects.length > 2 && (
+                                      <div className="relative inline-block" data-popover>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 2}</button>
+                                        {openPopover === `${it.id}-sub` && (
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {subjects.slice(2).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {(!cls || cls.length === 0) && (!subjects || subjects.length === 0) && <span className="text-sm text-neutral-500">-</span>}
@@ -768,7 +814,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
                             ))}
-                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 3} more</span> : null}
+                            {cls.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                {openPopover === `${it.id}-cls` && (
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{c.name || c.class_obj_name || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -789,7 +844,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
                             ))}
-                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 3} more</span> : null}
+                            {subjects.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                {openPopover === `${it.id}-sub` && (
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{s.name || s.subject_code || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}

@@ -130,6 +130,7 @@ export default function AdminStudents() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
+  const [exportLoading, setExportLoading] = useState(false)
 
 
   // Search and filter state
@@ -184,20 +185,24 @@ export default function AdminStudents() {
 
 
 
-  function downloadCSV() {
-    // Export Service No first, then Rank, Name, Unit, Class, Email, Phone, Active
-    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Class', 'Email', 'Phone', 'Active']]
-
-    students.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
-
-    const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'students.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  async function downloadCSV() {
+    setExportLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      const blob = await api.exportStudentsCSV(params.toString())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'students.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      reportError('Failed to export CSV: ' + (err.message || String(err)))
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   // ----- Edit / Delete handlers -----
@@ -542,7 +547,9 @@ export default function AdminStudents() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={downloadCSV} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+            {exportLoading ? 'Exporting…' : 'Download CSV'}
+          </button>
         </div>
       </header>
 

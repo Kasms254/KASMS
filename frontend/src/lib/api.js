@@ -1050,6 +1050,22 @@ export async function getInstructorsPaginated(params = '') {
   return request(`/api/users/instructors/${qs}`)
 }
 
+export async function exportStudentsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/students/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
+}
+
+export async function exportInstructorsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/instructors/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
+}
+
 export async function getUserEnrollments(userId) {
   return request(`/api/users/${userId}/enrollments/`)
 }
@@ -1668,6 +1684,8 @@ export default {
   // Paginated versions
   getStudentsPaginated,
   getInstructorsPaginated,
+  exportStudentsCSV,
+  exportInstructorsCSV,
   getClassesPaginated,
   getCoursesPaginated,
   getNoticesPaginated,
