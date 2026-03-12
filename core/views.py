@@ -5518,6 +5518,9 @@ class MeetingViewSet(viewsets.ModelViewSet):
             'created_by', 'school',
         ).prefetch_related('classes', 'participants')
 
+        if user.active_role != 'superadmin':
+            qs = qs.filter(school=user.school)
+
         if user.active_role in ('admin', 'superadmin', 'commandant'):
             return qs
         if user.active_role == 'instructor':
@@ -5596,12 +5599,14 @@ class MeetingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        active_count = meeting.participants.filter(left_at__isnull=True).count()
-        if active_count >= meeting.max_participants:
-            return Response(
-                {'detail': 'Meeting has reached its participant limit.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        participant = meeting.participants.filter(user=request.user).first()
+        if not participant or participant.left_at is not None:
+            active_count = meeting.participants.filter(left_at__isnull=True).count()
+            if active_count >= meeting.max_participants:
+                return Response(
+                    {'detail': 'Meeting has reached its participant limit.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         role = (
             MeetingParticipant.Role.HOST
@@ -5642,8 +5647,8 @@ class MeetingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='upcoming')
     def upcoming(self, request):
         qs = self.get_queryset().filter(
-            status__in=[Meeting.Status.SCHEDULED, Meeting.Status.LIVE],
-            scheduled_start__gte=timezone.now(),
+            Q(status=Meeting.Status.SCHEDULED, scheduled_start__gte=timezone.now())
+            | Q(status=Meeting.Status.LIVE)
         ).order_by('scheduled_start')
         page = self.paginate_queryset(qs)
         if page is not None:
@@ -5671,6 +5676,12 @@ class MeetingNotificationViewSet(viewsets.ModelViewSet):
         return MeetingNotification.objects.filter(
             meeting__school=self.request.user.school,
         )
+
+    def perform_create(self, serializer):
+        meeting = serializer.validated_data['meeting']
+        if meeting.school != self.request.user.school:
+            raise PermissionDenied('You can only create notifications for meetings in your school.')
+        serializer.save(school=meeting.school)
 
 
 

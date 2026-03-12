@@ -2198,7 +2198,7 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
     class_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
-        required=True,
+        required=False,
         help_text='List of Class UUIDs this meeting targets',
     )
 
@@ -2252,6 +2252,12 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
+
+        if self.instance is None and not data.get('class_ids'):
+            raise serializers.ValidationError({
+                'class_ids': 'This field is required when creating a meeting.'
+            })
+            
         start = data.get('scheduled_start')
         end = data.get('scheduled_end')
         if start and end and end <= start:
