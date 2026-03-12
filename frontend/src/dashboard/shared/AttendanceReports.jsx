@@ -455,42 +455,87 @@ export default function AttendanceReports() {
               {/* Charts */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Pie Chart - Status Distribution */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="font-semibold mb-4">Attendance Distribution</h3>
-                  <div className="h-64">
-                    {getPieChartData().some(d => d.value > 0) ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={getPieChartData().filter(d => d.value > 0)}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={80}
-                            paddingAngle={2}
-                            dataKey="value"
-                            label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                            labelLine={{ stroke: '#666', strokeWidth: 1 }}
-                          >
-                            {getPieChartData().filter(d => d.value > 0).map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value, name) => [value, name]} />
-                          <Legend
-                            verticalAlign="bottom"
-                            height={36}
-                            formatter={(value) => <span className="text-sm text-gray-700">{value}</span>}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                        <Target className="w-12 h-12 mb-2 text-gray-300" />
-                        <p className="text-sm">No attendance data available</p>
-                      </div>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-base font-bold text-gray-800">Attendance Distribution</h3>
+                    {classSummary?.total_records > 0 && (
+                      <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+                        {classSummary.total_records} records
+                      </span>
                     )}
                   </div>
+                  {getPieChartData().some(d => d.value > 0) ? (
+                    <>
+                      <div className="h-56 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 10, right: 20, bottom: 0, left: 20 }}>
+                            <Pie
+                              data={getPieChartData().filter(d => d.value > 0)}
+                              cx="50%"
+                              cy="90%"
+                              startAngle={180}
+                              endAngle={0}
+                              innerRadius={70}
+                              outerRadius={110}
+                              paddingAngle={3}
+                              dataKey="value"
+                              stroke="none"
+                              label={({ name, percent, cx, cy: pcy, midAngle, outerRadius: or }) => {
+                                const RADIAN = Math.PI / 180
+                                const radius = or + 26
+                                const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                                const y = pcy + radius * Math.sin(-midAngle * RADIAN)
+                                return (
+                                  <text
+                                    x={x} y={y}
+                                    fill="#1f2937"
+                                    textAnchor={x > cx ? 'start' : 'end'}
+                                    dominantBaseline="central"
+                                    fontSize={11}
+                                    fontWeight={700}
+                                  >
+                                    {`${name} ${(percent * 100).toFixed(1)}%`}
+                                  </text>
+                                )
+                              }}
+                              labelLine={{ stroke: '#d1d5db', strokeWidth: 1 }}
+                            >
+                              {getPieChartData().filter(d => d.value > 0).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              content={({ payload }) => {
+                                if (!payload?.length) return null
+                                const d = payload[0].payload
+                                const total = getPieChartData().reduce((s, x) => s + x.value, 0)
+                                return (
+                                  <div className="bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                    <p className="font-semibold mb-0.5">{d.name}</p>
+                                    <p>{d.value} students &nbsp;<span className="text-gray-300">({total ? ((d.value / total) * 100).toFixed(1) : 0}%)</span></p>
+                                  </div>
+                                )
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      {/* Custom legend pills */}
+                      <div className="flex flex-wrap justify-center gap-2 mt-2">
+                        {getPieChartData().filter(d => d.value > 0).map((entry) => (
+                          <div key={entry.name} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: entry.fill + '18', color: entry.fill }}>
+                            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: entry.fill }} />
+                            {entry.name}: {entry.value}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-56 flex flex-col items-center justify-center text-gray-400">
+                      <Target className="w-12 h-12 mb-2 text-gray-200" />
+                      <p className="text-sm">No attendance data available</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Bar Chart - Student Performance */}
