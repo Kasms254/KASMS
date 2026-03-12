@@ -10,6 +10,9 @@ from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager, DepartmentMembershipManager
 from django.core.validators import RegexValidator
 from django.db import models, transaction
+import secrets
+
+
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -118,7 +121,6 @@ class SchoolMembership(models.Model):
         INSTRUCTOR = 'instructor', 'Instructor'
         ADMIN = 'admin', 'Admin'
         COMMANDANT = 'commandant', 'Commandant'
-        CHIEF_INSTRUCTOR = 'chief_instructor', 'Chief Instructor'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -410,7 +412,6 @@ class User(AbstractUser):
         ('instructor', 'Instructor'),
         ('student', 'Student'),
         ('commandant', 'Commandant'),
-        ('chief_instructor', 'Chief Instructor'),
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
@@ -1690,65 +1691,5 @@ class CertificateDownloadLog(models.Model):
     class Meta:
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
-
-# remarks on exam-reports
-class ExamReportRemark(models.Model):
-    ROLE_CHOICES = [
-        ('commandant', 'Commandant'),
-        ('chief_instructor', 'Chief Instructor'),
-    ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    school = models.ForeignKey(
-        School, on_delete=models.CASCADE,
-        related_name='exam_report_remarks',
-        null=True, blank=True,
-    )
-    exam_report = models.ForeignKey(
-        ExamReport, on_delete=models.CASCADE,
-        related_name='remarks',
-    )
-    author = models.ForeignKey(
-        User, on_delete=models.CASCADE,
-        related_name='exam_report_remarks',
-    )
-    author_role = models.CharField(
-        max_length=20,
-        choices=ROLE_CHOICES,
-        help_text='Role of the author when the remark was made.',
-    )
-    remark = models.TextField(
-        help_text='Commandant / Chief Instructor remark on class performance.',
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    objects = TenantAwareManager()
-    all_objects = models.Manager()
-
-    class Meta:
-        db_table = 'exam_report_remarks'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['exam_report', 'author_role']),
-            models.Index(fields=['school', 'created_at']),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['exam_report', 'author_role'],
-                name='unique_remark_per_role_per_report',
-            ),
-        ]
-
-    def __str__(self):
-        return (
-            f"{self.get_author_role_display()} remark on "
-            f"Report#{self.exam_report_id}"
-        )
-
-    def save(self, *args, **kwargs):
-        if not self.school and self.exam_report:
-            self.school = self.exam_report.school
-        super().save(*args, **kwargs)
-
 
 

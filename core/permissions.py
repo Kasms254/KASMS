@@ -5,6 +5,7 @@ from .managers import get_current_school
 from .models import DepartmentMembership
 
 
+
 class IsSuperAdmin(BasePermission):
 
     message = "Only superadmins can perform this action."
@@ -166,7 +167,6 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
-
 class ForcePasswordChangePermission(BasePermission):
 
     def has_permission(self, request, view):
@@ -207,8 +207,7 @@ class IsInstructorOfSubject(BasePermission):
         if request.user.role in ["admin", "superadmin"]:
             return True
         return obj.exam.subject.instructor == request.user
-        
-        
+             
 class IsAdminOnly(BasePermission):
     message = "Only administrators can access this resource."
 

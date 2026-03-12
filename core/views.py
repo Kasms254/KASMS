@@ -2,20 +2,13 @@ from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest, ExamReportRemark)
+ Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
-from .serializers import (
-    ExamReportRemarkSerializer,
-    DashboardClassSerializer,
-    DashboardDepartmentSerializer,
-    DashboardCertificateSerializer,
-    DashboardExamReportSerializer,
-)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -44,7 +37,7 @@ from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-
+from rest_framework import viewsets, status, permissions
 
 class TenantFilterMixin:
 
@@ -127,8 +120,6 @@ class SchoolViewSet(viewsets.ModelViewSet):
         return [IsSchoolAdmin()]
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return School.objects.none()
         queryset = School.objects.all()
         user = self.request.user
 
@@ -5213,15 +5204,12 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "formatted_index": class_obj.format_index(int(new_number)),
         })
 # Departments
-
 class DepartmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Department.objects.none()
         user = self.request.user
         qs = Department.objects.select_related('school').prefetch_related(
             'department_memberships__user'
@@ -5333,8 +5321,6 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return ResultEditRequest.objects.none()
         user = self.request.user
         base = ResultEditRequest.objects.select_related(
             'exam_result__exam__subject',
@@ -5503,4 +5489,3 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
-
