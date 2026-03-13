@@ -247,7 +247,7 @@ def verify_2fa_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if two_fa.code != code:
+    if not secrets.compare_digest(two_fa.code, code):
         two_fa.attempts += 1
         two_fa.save(update_fields=['attempts'])
         remaining = max_attempts - two_fa.attempts
