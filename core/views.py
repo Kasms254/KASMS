@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
+from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
@@ -38,6 +39,10 @@ from .services import close_class,issue_certificate, CertificateGenerator, Certi
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
+class PageSizeAwarePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 class TenantFilterMixin:
 
@@ -835,6 +840,7 @@ class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
     search_fields = ['name', 'course__name', 'instructor__first_name']
@@ -1120,6 +1126,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'class_obj', 'instructor'] 
     search_fields = ['name', 'class_obj__name', 'instructor__first_name']
@@ -2611,7 +2618,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_edit_requests': pending_edit_requests_count,
             'is_hod': bool(hod_dept_ids),
         })
-
 # students
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
@@ -3248,8 +3254,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'end_date': end_date,
             'exam_count': upcoming_exams.count(),
             'exams':ExamSerializer(upcoming_exams, many=True).data
-        })
-    
+        })   
 # attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
@@ -4985,9 +4990,7 @@ class CertificatePublicVerificationView(APIView):
             'status': certificate.status,
             'status_display': certificate.get_status_display(),
         })
-
 # student indexes
-
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5122,8 +5125,6 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
-
-
 class AdminRosterViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsAdminOnly]
@@ -5206,7 +5207,6 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "formatted_index": class_obj.format_index(int(new_number)),
         })
 # Departments
-
 class DepartmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = DepartmentSerializer
