@@ -10,6 +10,8 @@ from datetime import timedelta
 from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAwareManager, DepartmentMembershipManager
 from django.core.validators import RegexValidator
 from django.db import models, transaction
+import secrets
+import string
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -1586,11 +1588,13 @@ class Certificate(models.Model):
         return f"{school_code}/{year}/{count:04d}"
 
     def _generate_verification_code(self):
-        data = (
-            f"{self.student_id}-{self.enrollment_id}-"
-            f"{timezone.now().isoformat()}-{uuid.uuid4()}"
-        )
-        return hashlib.sha256(data.encode()).hexdigest()[:32].upper()
+
+        raw = secrets.token_hex(16).upper()
+        return raw
+
+    def format_verification_code_for_display(code):
+
+        return "-".join(code[i:i+4] for i in range(0, len(code), 4))
 
     def revoke(self, user, reason=''):
         self.status = 'revoked'

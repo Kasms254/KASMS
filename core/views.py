@@ -4923,30 +4923,22 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         except Certificate.DoesNotExist:
             return Response({
                 'is_valid': False,
-                'error': 'Certificate not found',
-                'message': 'No certificate exists with this verification code.',
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Certificate could not be verified.',
+            }, status=status.HTTP_200_OK)
 
-        data = {
+        certificate.record_view()
+
+        return Response({
             'is_valid': certificate.is_valid,
             'certificate_number': certificate.certificate_number,
             'student_name': certificate.student_name,
-            'student_svc_number': certificate.student_svc_number,
-            'student_rank': certificate.student_rank,
             'course_name': certificate.course_name,
             'class_name': certificate.class_name,
             'school_name': certificate.school.name if certificate.school else '',
-            'final_grade': certificate.final_grade,
-            'final_percentage': certificate.final_percentage,
-            'issued_at': certificate.issued_at,
             'completion_date': certificate.completion_date,
             'status': certificate.status,
             'status_display': certificate.get_status_display(),
-        }
-        if certificate.status == 'revoked':
-            data['revocation_reason'] = certificate.revocation_reason
-            data['revoked_at'] = certificate.revoked_at
-        return Response(data)
+        })
 
     @action(detail=False, methods=['get'])
     def my_certificates(self, request):
@@ -5107,32 +5099,7 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-class CertificatePublicVerificationView(APIView):
 
-    permission_classes = [AllowAny]
-
-    def get(self, request, verification_code):
-        try:
-            certificate = Certificate.all_objects.select_related('school').get(
-                verification_code=verification_code.upper(),
-            )
-        except Certificate.DoesNotExist:
-            return Response({
-                'is_valid': False,
-                'error': 'Certificate not found',
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({
-            'is_valid': certificate.is_valid,
-            'certificate_number': certificate.certificate_number,
-            'student_name': certificate.student_name,
-            'course_name': certificate.course_name,
-            'class_name': certificate.class_name,
-            'school_name': certificate.school.name if certificate.school else '',
-            'completion_date': certificate.completion_date,
-            'status': certificate.status,
-            'status_display': certificate.get_status_display(),
-        })
 # student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
