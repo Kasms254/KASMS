@@ -580,6 +580,12 @@ class UserViewSet(viewsets.ModelViewSet):
     def instructors(self, request):
         queryset = self.get_queryset().filter(role='instructor', is_active=True)
         
+        class_obj_id  = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                Q(instructed_classes__id=class_obj_id) |
+                Q(subjects__class_obj_id=class_obj_id, subjects__is_active=True)
+            ).distinct()
         search_query = request.query_params.get('search', '').strip()
         if search_query:
             queryset = queryset.filter(
@@ -615,6 +621,13 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
         else:
             queryset = queryset.filter(is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                enrollments__class_obj_id = class_obj_id,
+                enrollments__is_active = True
+            ).distinct()
         
         search_query = request.query_params.get('search', '').strip()
         if search_query:
