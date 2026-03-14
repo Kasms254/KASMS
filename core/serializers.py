@@ -8,6 +8,8 @@ from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
+from datetime import date as _date, datetime as _datetime
+
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -877,11 +879,19 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
 
+class SafeDateTimeField(serializers.DateTimeField):
+    def to_representation(self, value):
+        if isinstance(value, _date) and not isinstance(value, _datetime):
+            from django.utils import timezone as _tz
+            value = _tz.make_aware(_datetime.combine(value, _datetime.min.time()))
+        return super().to_representation(value)
+
 class NoticeSerializer(serializers.ModelSerializer):
 
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
@@ -1131,12 +1141,14 @@ class BulkAttendanceSerializer(serializers.Serializer):
                 raise serializers.ValidationError(f"Invalid status: {record['status']}")
         return value
 
+
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     subject_name = serializers.CharField(
         source='subject.name', read_only=True, allow_null=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,

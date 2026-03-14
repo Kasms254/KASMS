@@ -373,10 +373,12 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         class_id = request.query_params.get('class_id')
         if not class_id:
-            return Response(
-                {'error': 'class_id query parameter is required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({
+                'class': None,
+                'total_enrolled': 0,
+                'total_sessions': 0,
+                'sessions': [],
+            })
 
         try:
             class_obj = Class.all_objects.get(id=class_id, school=school)

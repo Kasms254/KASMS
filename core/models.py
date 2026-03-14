@@ -12,6 +12,7 @@ from django.core.validators import RegexValidator
 from django.db import models, transaction
 import secrets
 import string
+from datetime import date, datetime
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -120,6 +121,7 @@ class SchoolMembership(models.Model):
         INSTRUCTOR = 'instructor', 'Instructor'
         ADMIN = 'admin', 'Admin'
         COMMANDANT = 'commandant', 'Commandant'
+        CHIEF_INSTRUCTOR = 'chief instructor', 'Chief Instructor'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -411,6 +413,7 @@ class User(AbstractUser):
         ('instructor', 'Instructor'),
         ('student', 'Student'),
         ('commandant', 'Commandant'),
+        ('chief_instructor', 'Chief Instructor')
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
@@ -674,15 +677,22 @@ class Notice(models.Model):
         return f"{self.title} ({self.get_priority_display()})"
 
     def save(self, *args, **kwargs):
-        if self.expiry_date and self.expiry_date < timezone.now():
-            self.is_active = False
+        if self.expiry_date:
+            expiry = self.expiry_date
+            if isinstance(expiry, date) and not isinstance(expiry, datetime):
+                expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+            if expiry < timezone.now():
+                self.is_active = False
         super().save(*args, **kwargs)
 
     @property
     def is_expired(self):
         if not self.expiry_date:
             return False
-        return self.expiry_date < timezone.now()
+        expiry = self.expiry_date
+        if isinstance(expiry, date) and not isinstance(expiry, datetime):
+            expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+        return expiry < timezone.now()
 
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
@@ -988,17 +998,22 @@ class ClassNotice(models.Model):
         return f"{self.title} — {self.class_obj.name}"
 
     def save(self, *args, **kwargs):
-        if not self.school and self.class_obj:
-            self.school = self.class_obj.school
-        if self.expiry_date and self.expiry_date < timezone.now():
-            self.is_active = False
+        if self.expiry_date:
+            expiry = self.expiry_date
+            if isinstance(expiry, date) and not isinstance(expiry, datetime):
+                expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+            if expiry < timezone.now():
+                self.is_active = False
         super().save(*args, **kwargs)
 
     @property
     def is_expired(self):
         if not self.expiry_date:
             return False
-        return self.expiry_date < timezone.now()
+        expiry = self.expiry_date
+        if isinstance(expiry, date) and not isinstance(expiry, datetime):
+            expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+        return expiry < timezone.now()
 
 class ClassNoticeReadStatus(models.Model):
 

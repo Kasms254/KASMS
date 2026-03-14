@@ -17,8 +17,8 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsCommandantOrChiefInstructor,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -494,8 +494,8 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_permissions(self):
-        if self.action == "enrollments":
-            return [IsAuthenticated()]
+        if self.action in ['enrollments', 'students', 'instructors']:
+            return [IsAuthenticated(), IsCommandantOrChiefInstructor()]
         return super().get_permissions()
 
     def get_serializer_class(self):
@@ -1268,7 +1268,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin, ReadOnlyForCommandantOrChiefInstructor]
     pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'class_obj', 'instructor'] 
@@ -1370,7 +1370,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
     def my_subjects(self, request):
         if request.user.role != 'instructor':
@@ -1387,6 +1386,10 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+        return [IsAuthenticated(), IsAdmin()]
 class NoticeActionMixin:
 
     read_status_model = None
