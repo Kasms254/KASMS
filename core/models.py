@@ -1034,6 +1034,42 @@ class ExamResultNotificationReadStatus(models.Model):
     def __str__(self):
         return f"{self.user.username} read result for {self.exam_result.exam.title}"
 
+class ExamReportRemark(models.Model):
+
+    AUTHOR_ROLE_CHOICES = [
+        ('commandant', 'Commandant'),
+        ('chief_instructor', 'Chief Instructor'),
+        ('instructor', 'Instructor'),
+    ]
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='exam_report_remarks', null=True, blank=True,
+    )
+    exam_report = models.ForeignKey(
+        ExamReport, on_delete=models.CASCADE,
+        related_name='remarks',
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='exam_report_remarks',
+    )
+    author_role = models.CharField(
+        max_length=20, choices=AUTHOR_ROLE_CHOICES,
+    )
+    remark = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'exam_report_remarks'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Remark by {self.author} on {self.exam_report.title}"
 # Attendance
 class AttendanceSession(models.Model):
 
