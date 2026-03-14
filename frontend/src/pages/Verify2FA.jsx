@@ -25,7 +25,7 @@ export default function Verify2FA() {
     if (user) {
       navigate('/dashboard', { replace: true })
     } else if (!twoFAEmail) {
-      navigate('/login', { replace: true })
+      navigate('/', { replace: true })
     }
   }, [twoFAEmail, user, authLoading, navigate])
 
