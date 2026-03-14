@@ -372,13 +372,47 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'No school context.'}, status=400)
 
         class_id = request.query_params.get('class_id')
+
+        # No class_id → return a summary list for ALL active classes in the school
         if not class_id:
-            return Response({
-                'class': None,
-                'total_enrolled': 0,
-                'total_sessions': 0,
-                'sessions': [],
-            })
+            classes = Class.all_objects.filter(
+                school=school, is_active=True
+            ).select_related('course').prefetch_related(
+                'attendance_sessions', 'enrollments'
+            ).order_by('name')
+
+            result = []
+            for cls in classes:
+                total_enrolled = cls.enrollments.filter(is_active=True).count()
+                sessions_qs = AttendanceSession.all_objects.filter(class_obj=cls)
+                total_sessions = sessions_qs.count()
+                completed_sessions = sessions_qs.filter(status='completed').count()
+
+                # Compute overall attendance rate across all completed sessions
+                total_present = 0
+                total_possible = 0
+                for session in sessions_qs.filter(status='completed'):
+                    present = session.session_attendances.filter(
+                        status__in=['present', 'late']
+                    ).count()
+                    total_present += present
+                    total_possible += total_enrolled
+
+                attendance_rate = round(
+                    total_present / total_possible * 100, 2
+                ) if total_possible > 0 else 0
+
+                result.append({
+                    'class_id': cls.id,
+                    'class_name': cls.name,
+                    'course_name': cls.course.name if cls.course else None,
+                    'total_enrolled': total_enrolled,
+                    'total_sessions': total_sessions,
+                    'completed_sessions': completed_sessions,
+                    'attendance_rate': attendance_rate,
+                })
+
+            return Response(result)
 
         try:
             class_obj = Class.all_objects.get(id=class_id, school=school)

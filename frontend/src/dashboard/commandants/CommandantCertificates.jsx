@@ -85,7 +85,7 @@ export default function CommandantCertificates() {
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                 <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Top Class</p>
                 <p className="text-sm font-medium text-black truncate">
-                  {summary.by_class[0]?.class_name || summary.by_class[0]?.class_obj || '—'}
+                  {summary.by_class[0]?.class_name || '—'}
                 </p>
                 <p className="text-2xl font-semibold text-black mt-1">{summary.by_class[0]?.count ?? '—'}</p>
               </div>
@@ -99,8 +99,8 @@ export default function CommandantCertificates() {
             <h3 className="text-sm font-semibold text-black mb-3">Certificates by Class</h3>
             <div className="space-y-2">
               {summary.by_class.map((item) => (
-                <div key={item.class_obj || item.class_name} className="flex items-center justify-between">
-                  <span className="text-sm text-neutral-700">{item.class_name || item.class_obj}</span>
+                <div key={item.class_name} className="flex items-center justify-between">
+                  <span className="text-sm text-neutral-700">{item.class_name}</span>
                   <span className="text-sm font-semibold text-black">{item.count}</span>
                 </div>
               ))}

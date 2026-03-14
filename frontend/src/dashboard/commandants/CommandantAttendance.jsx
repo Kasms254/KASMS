@@ -29,6 +29,15 @@ export default function CommandantAttendance() {
   const [totalPages, setTotalPages] = useState(1)
   const PAGE_SIZE = 20
 
+  // By Class pagination
+  const CLASS_PAGE_SIZE = 9
+  const [classPage, setClassPage] = useState(1)
+  const totalClassPages = Math.ceil(classSummary.length / CLASS_PAGE_SIZE)
+  const paginatedClasses = classSummary.slice(
+    (classPage - 1) * CLASS_PAGE_SIZE,
+    classPage * CLASS_PAGE_SIZE
+  )
+
   const reportError = useCallback((msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
@@ -183,22 +192,26 @@ export default function CommandantAttendance() {
               <EmptyState icon="TrendingUp" title="No class attendance data" description="Attendance summaries will appear here once sessions are recorded." />
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {classSummary.map((cls) => {
-                const rate = cls.attendance_rate ?? (
-                  cls.present_count != null && cls.total_count
-                    ? Math.round((cls.present_count / cls.total_count) * 100)
-                    : null
-                )
+              {paginatedClasses.map((cls) => {
+                const rate = cls.attendance_rate ?? 0
                 return (
-                  <div key={cls.class_id || cls.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+                  <div key={cls.class_id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 flex-shrink-0">
                         <LucideIcons.TrendingUp className="w-4 h-4" strokeWidth={1.5} />
                       </div>
-                      <p className="text-sm font-medium text-black truncate">{cls.class_name || cls.name}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-black truncate">{cls.class_name}</p>
+                        <p className="text-xs text-neutral-500 truncate">{cls.course_name || '—'}</p>
+                      </div>
                     </div>
                     <dl className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <dt className="text-neutral-500">Enrolled</dt>
+                        <dd className="font-medium text-black">{cls.total_enrolled ?? '—'}</dd>
+                      </div>
                       <div className="flex justify-between text-sm">
                         <dt className="text-neutral-500">Sessions</dt>
                         <dd className="font-medium text-black">{cls.total_sessions ?? '—'}</dd>
@@ -228,6 +241,32 @@ export default function CommandantAttendance() {
                 )
               })}
             </div>
+
+            {/* Pagination */}
+            {totalClassPages > 1 && (
+              <div className="flex items-center justify-between bg-white rounded-xl border border-neutral-200 px-4 py-3">
+                <p className="text-xs text-neutral-500">
+                  Page {classPage} of {totalClassPages} · {classSummary.length} classes
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    disabled={classPage <= 1}
+                    onClick={() => setClassPage(p => p - 1)}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 disabled:opacity-40 transition"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={classPage >= totalClassPages}
+                    onClick={() => setClassPage(p => p + 1)}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
           )
         )}
       </section>

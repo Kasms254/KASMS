@@ -46,6 +46,10 @@ const SENTENCE_CASE_CONFIG = {
     'grade_letter',
     'average_grade_letter',
     'final_grade',
+    'author_role',  // Preserve role values used in comparisons (commandant, chief_instructor, instructor)
+    'marking_method', // Preserve enum values
+    'session_type',   // Preserve enum values
+    'notification_type', // Preserve enum values
   ]
 }
 
@@ -1673,6 +1677,18 @@ export async function getCommandantExamReportDetail(id) {
   return request(`/api/commandant/exam-reports/${id}/detailed_report/`)
 }
 
+export async function createExamReport(payload) {
+  return request('/api/exam-reports/', { method: 'POST', body: payload })
+}
+
+export async function getExamReportByExam(examId) {
+  return request(`/api/exam-reports/by_exam/${examId}/`)
+}
+
+export async function addExamReportRemark(reportId, remark) {
+  return request(`/api/exam-reports/${reportId}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
 export async function addCommandantExamReportRemark(id, remark) {
   return request(`/api/commandant/exam-reports/${id}/add_remark/`, { method: 'POST', body: { remark } })
 }
@@ -1694,6 +1710,22 @@ export async function getCommandantEnrollments(params = '') {
 export async function getCommandantNotices(params = '') {
   const q = params ? `?${params}` : ''
   return request(`/api/commandant/notices/${q}`)
+}
+
+export async function createCommandantNotice(data) {
+  const body = new FormData()
+  body.append('title', data.title)
+  body.append('content', data.content)
+  body.append('priority', data.priority || 'medium')
+  if (data.expiry_date) {
+    body.append('expiry_date', data.expiry_date)
+  }
+  body.append('is_active', data.is_active !== false)
+  
+  return request('/api/commandant/notices/', {
+    method: 'POST',
+    body
+  })
 }
 
 export default {
@@ -1747,6 +1779,9 @@ export default {
   getExams,
   getMyExams,
   createExam,
+  createExamReport,
+  getExamReportByExam,
+  addExamReportRemark,
   getExamResults,
   getMyResults,
   generateExamResults,
@@ -1926,4 +1961,5 @@ export default {
   getCommandantExamResults,
   getCommandantEnrollments,
   getCommandantNotices,
+  createCommandantNotice,
 }

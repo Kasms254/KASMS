@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { getCommandantNotices } from '../../lib/api'
+import * as LucideIcons from 'lucide-react'
+import EmptyState from '../../components/EmptyState'
+import ModernDatePicker from '../../components/ModernDatePicker'
+import { getCommandantNotices, createCommandantNotice } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
 const PRIORITY_CLASSES = {
@@ -22,11 +25,84 @@ export default function CommandantNotices() {
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
 
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    title: '',
+    content: '',
+    priority: 'medium',
+    expiry_date: '',
+    is_active: true,
+  })
+  const [errors, setErrors] = useState({})
+
   const reportError = useCallback((msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
   }, [toast])
+
+  const updateForm = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const resetForm = () => {
+    setForm({
+      title: '',
+      content: '',
+      priority: 'medium',
+      expiry_date: '',
+      is_active: true,
+    })
+    setErrors({})
+  }
+
+  const handleCreateNotice = async (e) => {
+    e.preventDefault()
+    
+    // Basic validation
+    const newErrors = {}
+    if (!form.title?.trim()) newErrors.title = 'Title is required'
+    if (!form.content?.trim()) newErrors.content = 'Content is required'
+    if (form.priority && !['low', 'medium', 'high', 'urgent'].includes(form.priority)) {
+      newErrors.priority = 'Invalid priority'
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+
+    setSaving(true)
+    try {
+      await createCommandantNotice({
+        title: form.title.trim(),
+        content: form.content.trim(),
+        priority: form.priority,
+        expiry_date: form.expiry_date || null,
+        is_active: form.is_active,
+      })
+      toast.success?.('Notice created successfully') || toast.showToast?.('Notice created successfully', { type: 'success' })
+      resetForm()
+      setModalOpen(false)
+      
+      // Reload notices
+      setCurrentPage(1)
+    } catch (err) {
+      const errData = err?.response?.data || err
+      if (typeof errData === 'object') {
+        setErrors(errData)
+        if (errData.non_field_errors) {
+          reportError(Array.isArray(errData.non_field_errors) ? errData.non_field_errors[0] : errData.non_field_errors)
+        }
+      } else {
+        reportError(err?.message || 'Failed to create notice')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const hasActiveFilters = useMemo(() => (
     searchTerm.trim() !== '' || filterPriority !== '' || filterStatus !== ''
@@ -95,6 +171,13 @@ export default function CommandantNotices() {
           <h1 className="text-2xl sm:text-3xl font-bold">Notices</h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">School-wide announcements and notices</p>
         </div>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium whitespace-nowrap"
+        >
+          <LucideIcons.Plus size={18} />
+          Create Notice
+        </button>
       </header>
 
       {/* Search and Filter Section */}
@@ -227,6 +310,127 @@ export default function CommandantNotices() {
           </div>
         </div>
       </div>
+
+      {/* Create Notice Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-black">Create New Notice</h2>
+              <button
+                onClick={() => { setModalOpen(false); resetForm() }}
+                className="text-neutral-500 hover:text-neutral-700 transition"
+              >
+                <LucideIcons.X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNotice} className="p-6 space-y-5">
+              {/* Title Field */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.title}
+                  onChange={(e) => updateForm('title', e.target.value)}
+                  placeholder="Notice title"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition ${
+                    errors.title ? 'border-red-500 bg-red-50' : 'border-neutral-300 focus:ring-indigo-500'
+                  }`}
+                />
+                {errors.title && <p className="text-red-600 text-sm mt-1">{errors.title}</p>}
+              </div>
+
+              {/* Content Field */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Content <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={form.content}
+                  onChange={(e) => updateForm('content', e.target.value)}
+                  placeholder="Notice content"
+                  rows={5}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition resize-none ${
+                    errors.content ? 'border-red-500 bg-red-50' : 'border-neutral-300 focus:ring-indigo-500'
+                  }`}
+                />
+                {errors.content && <p className="text-red-600 text-sm mt-1">{errors.content}</p>}
+              </div>
+
+              {/* Priority Field */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Priority</label>
+                <select
+                  value={form.priority}
+                  onChange={(e) => updateForm('priority', e.target.value)}
+                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+
+              {/* Expiry Date Field */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Expiry Date <span className="text-neutral-500 text-xs">(Optional)</span></label>
+                <ModernDatePicker
+                  value={form.expiry_date}
+                  onChange={(date) => updateForm('expiry_date', date)}
+                  placeholder="Select expiry date"
+                />
+              </div>
+
+              {/* Is Active Checkbox */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(e) => updateForm('is_active', e.target.checked)}
+                    className="w-4 h-4 border-neutral-300 rounded focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-neutral-700">Active</span>
+                  <span className="text-xs text-neutral-500">(Inactive notices won't be visible)</span>
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end pt-4 border-t border-neutral-200">
+                <button
+                  type="button"
+                  onClick={() => { setModalOpen(false); resetForm() }}
+                  disabled={saving}
+                  className="px-6 py-2 border border-neutral-300 rounded-lg text-neutral-700 font-medium hover:bg-neutral-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <LucideIcons.Save size={18} />
+                      Create Notice
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

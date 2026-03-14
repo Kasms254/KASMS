@@ -2279,7 +2279,10 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.CharField(source='created_by.svc_number', read_only=True)
     exams_count = serializers.IntegerField(source='exams.count', read_only=True)
+    exam_ids = serializers.PrimaryKeyRelatedField(source='exams', many=True, read_only=True)
     total_students = serializers.IntegerField(read_only=True)
     average_performance = serializers.FloatField(read_only=True)
     remarks_list = ExamReportRemarkSerializer(
@@ -2293,7 +2296,7 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'subject', 'subject_name',
             'class_obj', 'class_name', 'course_name', 'report_date',
-            'created_by', 'created_by_name', 'exams_count',
+            'created_by', 'created_by_name', 'created_by_rank', 'created_by_svc_number', 'exams_count', 'exam_ids',
             'total_students', 'average_performance',
             'remarks_list', 'commandant_remark', 'chief_instructor_remark',
             'created_at', 'updated_at',
@@ -2301,6 +2304,9 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
 
     def get_commandant_remark(self, obj):
         remark = obj.remarks.filter(author_role='commandant').first()
