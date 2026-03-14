@@ -2169,10 +2169,8 @@ class MeetingListSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     class_names = serializers.SerializerMethodField()
     participant_count = serializers.SerializerMethodField()
-    join_url = serializers.ReadOnlyField()
     is_joinable = serializers.ReadOnlyField()
-    video_room_name = serializers.ReadOnlyField()
-
+ 
     class Meta:
         model = Meeting
         fields = [
@@ -2180,20 +2178,24 @@ class MeetingListSerializer(serializers.ModelSerializer):
             'scheduled_start', 'scheduled_end', 'provider',
             'created_by', 'created_by_name',
             'class_names', 'participant_count',
-            'join_url', 'is_joinable', 'video_room_name',
+            'is_joinable',
             'created_at',
         ]
         read_only_fields = ['id', 'meeting_code', 'status', 'created_at']
-
+ 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name()
-
+ 
     def get_class_names(self, obj):
+        if hasattr(obj, '_prefetched_objects_cache') and 'classes' in obj._prefetched_objects_cache:
+            return [c.name for c in obj.classes.all()]
         return list(obj.classes.values_list('name', flat=True))
-
+ 
     def get_participant_count(self, obj):
+        if hasattr(obj, 'active_participant_count'):
+            return obj.active_participant_count
         return obj.participants.filter(left_at__isnull=True).count()
-
+ 
 class MeetingCreateSerializer(serializers.ModelSerializer):
     class_ids = serializers.ListField(
         child=serializers.UUIDField(),
@@ -2201,7 +2203,7 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
         required=False,
         help_text='List of Class UUIDs this meeting targets',
     )
-
+ 
     class Meta:
         model = Meeting
         fields = [
@@ -2211,18 +2213,18 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
             'class_ids',
         ]
         read_only_fields = ['id']
-
+ 
     def validate_class_ids(self, value):
         from .models import Class
         user = self.context['request'].user
         school = user.school
-
+ 
         classes = Class.all_objects.filter(id__in=value, school=school)
         if classes.count() != len(value):
             raise serializers.ValidationError(
                 'One or more class IDs are invalid or do not belong to your school.'
             )
-
+ 
         if user.active_role == 'instructor':
             taught_ids = set(
                 Class.all_objects.filter(
@@ -2240,9 +2242,9 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'You can only create meetings for classes you teach.'
                 )
-
+ 
         return value
-
+ 
     def validate_scheduled_start(self, value):
         from django.utils import timezone
         if value < timezone.now():
@@ -2250,9 +2252,9 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
                 'Scheduled start must be in the future.'
             )
         return value
-
+ 
     def validate(self, data):
-
+ 
         if self.instance is None and not data.get('class_ids'):
             raise serializers.ValidationError({
                 'class_ids': 'This field is required when creating a meeting.'
@@ -2265,17 +2267,17 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
                 'scheduled_end': 'End time must be after start time.'
             })
         return data
-
+ 
     def create(self, validated_data):
         class_ids = validated_data.pop('class_ids')
         user = self.context['request'].user
         validated_data['created_by'] = user
         validated_data['school'] = user.school
-
+ 
         meeting = Meeting.objects.create(**validated_data)
         meeting.classes.set(class_ids)
         return meeting
-
+ 
     def update(self, instance, validated_data):
         class_ids = validated_data.pop('class_ids', None)
         for attr, val in validated_data.items():
@@ -2284,27 +2286,39 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
         if class_ids is not None:
             instance.classes.set(class_ids)
         return instance
-
+ 
 class MeetingDetailSerializer(MeetingListSerializer):
     participants = serializers.SerializerMethodField()
-
+    join_url = serializers.ReadOnlyField()
+    video_room_name = serializers.ReadOnlyField()
+    join_token = serializers.SerializerMethodField()
+ 
     class Meta(MeetingListSerializer.Meta):
         fields = MeetingListSerializer.Meta.fields + [
-            'join_token', 'actual_start', 'actual_end',
+            'join_token', 'join_url', 'video_room_name',
+            'actual_start', 'actual_end',
             'is_recorded', 'recording_url', 'max_participants',
             'participants',
         ]
-
+ 
+    def get_join_token(self, obj):
+        request = self.context.get('request')
+        if request and request.user:
+            user = request.user
+            if obj.created_by == user or user.active_role in ('admin', 'superadmin'):
+                return obj.join_token
+        return None
+ 
     def get_participants(self, obj):
         return MeetingParticipantSerializer(
             obj.participants.select_related('user').order_by('-joined_at'),
             many=True,
         ).data
-
+ 
 class MeetingParticipantSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
     svc_number = serializers.CharField(source='user.svc_number', read_only=True)
-
+ 
     class Meta:
         model = MeetingParticipant
         fields = [
@@ -2312,13 +2326,13 @@ class MeetingParticipantSerializer(serializers.ModelSerializer):
             'role', 'joined_at', 'left_at',
         ]
         read_only_fields = ['id', 'joined_at']
-
+ 
     def get_user_name(self, obj):
         return obj.user.get_full_name()
-
+ 
 class MeetingJoinSerializer(serializers.Serializer):
     join_token = serializers.CharField(max_length=64)
-
+ 
 class MeetingNotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = MeetingNotification
@@ -2326,9 +2340,3 @@ class MeetingNotificationSerializer(serializers.ModelSerializer):
             'id', 'meeting', 'channel', 'send_at', 'sent', 'created_at',
         ]
         read_only_fields = ['id', 'sent', 'created_at']
-
-
-
-
-
-

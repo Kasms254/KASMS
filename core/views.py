@@ -18,7 +18,7 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,CanManageMeeting,
                             IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, CanCreateMeeting,CanManageMeeting,CanJoinMeeting,)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
@@ -5605,7 +5605,6 @@ class ExamResultViewSetPatch:
         }, status=status.HTTP_200_OK)
 
 # meeting viewsets
-
 class MeetingViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated, BelongsToSameSchool]
@@ -5621,7 +5620,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
         perms = super().get_permissions()
         if self.action in ('create',):
             perms.append(CanCreateMeeting())
-        if self.action in ('update', 'partial_update', 'destroy', 'start', 'end'):
+        if self.action in ('update', 'partial_update', 'destroy', 'start', 'end', 'cancel'):
             perms.append(CanManageMeeting())
         return perms
 
@@ -5629,7 +5628,12 @@ class MeetingViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Meeting.objects.select_related(
             'created_by', 'school',
-        ).prefetch_related('classes', 'participants')
+        ).prefetch_related('classes', 'participants').annotate(
+            active_participant_count=Count(
+                'participants',
+                filter=Q(participants__left_at__isnull=True),
+            )
+        )
 
         if user.active_role != 'superadmin':
             qs = qs.filter(school=user.school)
@@ -5671,7 +5675,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
             meeting=meeting, user=request.user,
             defaults={'role': MeetingParticipant.Role.HOST},
         )
-        return Response(MeetingDetailSerializer(meeting).data)
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='end')
     def end(self, request, pk=None):
@@ -5685,7 +5689,18 @@ class MeetingViewSet(viewsets.ModelViewSet):
             left_at=timezone.now()
         )
         meeting.end()
-        return Response(MeetingDetailSerializer(meeting).data)
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        meeting = self.get_object()  # triggers CanManageMeeting
+        if meeting.status not in (Meeting.Status.SCHEDULED,):
+            return Response(
+                {'detail': f'Cannot cancel a meeting with status "{meeting.status}".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        meeting.cancel()
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
 
     @action(
         detail=False, methods=['post'], url_path='join',
@@ -5698,6 +5713,13 @@ class MeetingViewSet(viewsets.ModelViewSet):
         meeting = get_object_or_404(
             Meeting, join_token=serializer.validated_data['join_token'],
         )
+
+        user = request.user
+        if user.active_role != 'superadmin' and meeting.school and meeting.school != user.school:
+            return Response(
+                {'detail': 'You are not authorized to join this meeting.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         perm = CanJoinMeeting()
         if not perm.has_object_permission(request, self, meeting):
@@ -5735,7 +5757,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
             participant.save(update_fields=['left_at'])
 
         return Response({
-            'meeting': MeetingDetailSerializer(meeting).data,
+            'meeting': MeetingDetailSerializer(meeting, context={'request': request}).data,
             'participant_id': str(participant.id),
             'video_config': {
                 'provider': meeting.provider,
@@ -5790,14 +5812,16 @@ class MeetingNotificationViewSet(viewsets.ModelViewSet):
             meeting__school=self.request.user.school,
         )
 
+    def _validate_meeting_school(self, serializer):
+        meeting = serializer.validated_data.get('meeting')
+        if meeting and meeting.school != self.request.user.school:
+            raise PermissionDenied('You can only manage notifications for meetings in your school.')
+
     def perform_create(self, serializer):
+        self._validate_meeting_school(serializer)
         meeting = serializer.validated_data['meeting']
-        if meeting.school != self.request.user.school:
-            raise PermissionDenied('You can only create notifications for meetings in your school.')
         serializer.save(school=meeting.school)
 
-
-
-
-
-
+    def perform_update(self, serializer):
+        self._validate_meeting_school(serializer)
+        serializer.save()
