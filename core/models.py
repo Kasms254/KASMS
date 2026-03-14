@@ -1362,7 +1362,7 @@ class AttendanceSessionLog(models.Model):
 
 class PersonalNotification(models.Model):
 
-    NOTIFICATION_TYPE_CHOICES = [('exam_result', 'Exam Result'), ('general', 'General'), ('alert', 'Alert')]
+    NOTIFICATION_TYPE_CHOICES = [('exam_result', 'Exam Result'),('exam_report_remark', 'Exam Report Remark'), ('general', 'General'), ('alert', 'Alert')]
     PRIORITY_CHOICES = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='personal_notifications', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='personal_notifications')

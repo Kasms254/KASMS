@@ -2201,6 +2201,24 @@ class ExamReportRemarkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Remark cannot be empty.")
         return value.strip()
 
+class AddRemarkSerializer(serializers.Serializer):
+    remark = serializers.CharField(
+        max_length=5000,
+        trim_whitespace=True,
+        error_messages={
+            'blank': 'Remark cannot be empty.',
+            'required': 'Remark text is required.',
+        },
+    )
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                "Remark must be at least 10 characters long."
+            )
+        return cleaned
+        
 class DashboardClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)

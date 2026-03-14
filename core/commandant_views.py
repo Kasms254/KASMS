@@ -7,14 +7,14 @@ from django.db.models import (
     Q, Count, Avg, Sum, Case, When, IntegerField, Value, F,
 )
 from django.utils import timezone
-
+from django.db import transaction
 from .models import (
     User, School, Department, DepartmentMembership,
     Course, Class, Subject, Enrollment, StudentIndex,
     Exam, ExamResult, ExamReport, ExamReportRemark,
     Attendance, AttendanceSession, SessionAttendance,
     Certificate, CertificateTemplate,
-    Notice, SchoolMembership,
+    Notice, SchoolMembership,PersonalNotification,
 )
 from .serializers import (
     UserListSerializer, CourseSerializer, SubjectSerializer,
@@ -23,7 +23,7 @@ from .serializers import (
     AttendanceSessionListSerializer,
     CertificateSerializer, CertificateListSerializer,
     CertificateTemplateSerializer, SchoolMembershipSerializer,
-    DepartmentSerializer, DepartmentMembershipSerializer,
+    DepartmentSerializer, DepartmentMembershipSerializer, AddRemarkSerializer,
 )
 
 from .serializers import (
@@ -541,44 +541,89 @@ class CommandantExamReportViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post', 'put'])
     def add_remark(self, request, pk=None):
-
         report = self.get_object()
         user = request.user
-        remark_text = request.data.get('remark', '').strip()
-
-        if not remark_text:
-            return Response(
-                {'error': 'Remark text is required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         if user.role not in ('commandant', 'chief_instructor'):
             return Response(
                 {'error': 'Only Commandant or Chief Instructor can add remarks.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
+ 
+        serializer = AddRemarkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        remark_text = serializer.validated_data['remark']
+ 
         school = _get_school(user)
-
-        remark_obj, created = ExamReportRemark.all_objects.update_or_create(
-            exam_report=report,
-            author_role=user.role,
-            defaults={
-                'author': user,
-                'remark': remark_text,
-                'school': school,
-            },
-        )
-
-        serializer = ExamReportRemarkSerializer(remark_obj)
+ 
+        with transaction.atomic():
+            remark_obj, created = ExamReportRemark.all_objects.update_or_create(
+                exam_report=report,
+                author_role=user.role,
+                defaults={
+                    'author': user,
+                    'remark': remark_text,
+                    'school': school,
+                },
+            )
+ 
+            self._notify_instructors(report, remark_obj, user, school)
+ 
+        out_serializer = ExamReportRemarkSerializer(remark_obj)
         return Response(
             {
-                'message': 'Remark added successfully.' if created else 'Remark updated successfully.',
-                'remark': serializer.data,
+                'message': (
+                    'Remark added successfully.'
+                    if created
+                    else 'Remark updated successfully.'
+                ),
+                'remark': out_serializer.data,
             },
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+ 
+    @staticmethod
+    def _notify_instructors(report, remark_obj, author, school):
 
+        recipients = set()
+        if report.subject and report.subject.instructor_id:
+            recipients.add(report.subject.instructor_id)
+ 
+        if report.class_obj and report.class_obj.instructor_id:
+            recipients.add(report.class_obj.instructor_id)
+ 
+        if not recipients:
+            return
+ 
+        role_display = author.get_role_display() if hasattr(author, 'get_role_display') else author.role.replace('_', ' ').title()
+        author_display = (
+            f"{author.get_rank_display() + ' ' if author.rank else ''}"
+            f"{author.get_full_name()}"
+        )
+ 
+        title = f"Remark on: {report.title}"
+ 
+        content = (
+            f"{role_display} {author_display} has added a remark on the "
+            f"exam report \"{report.title}\" for {report.subject.name} "
+            f"({report.class_obj.name}).\n\n"
+            f"Remark:\n{remark_obj.remark}"
+        )
+ 
+        notifications = [
+            PersonalNotification(
+                school=school,
+                user_id=uid,
+                notification_type='exam_report_remark',
+                priority='high',
+                title=title,
+                content=content,
+                created_by=author,
+                is_active=True,
+            )
+            for uid in recipients
+        ]
+ 
+        PersonalNotification.objects.bulk_create(notifications)
     @action(detail=True, methods=['get'])
     def remarks(self, request, pk=None):
         """List all remarks on this exam report."""
