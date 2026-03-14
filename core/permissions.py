@@ -281,8 +281,10 @@ class CanManageMeeting(BasePermission):
     def has_object_permission(self, request, view, obj):
         if not request.user.is_authenticated:
             return False
+        # Superadmin can manage any meeting
         if request.user.active_role == 'superadmin':
             return True
+        # All other roles must belong to the same school
         if obj.school and obj.school != request.user.school:
             return False
         if request.user.active_role in ('admin', 'commandant'):
@@ -327,6 +329,3 @@ class CanJoinMeeting(BasePermission):
             return True
  
         return False
- 
- 
-

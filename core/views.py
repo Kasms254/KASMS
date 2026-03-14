@@ -5608,6 +5608,7 @@ class ExamResultViewSetPatch:
 class MeetingViewSet(viewsets.ModelViewSet):
 
     permission_classes = [permissions.IsAuthenticated, BelongsToSameSchool]
+    pagination_class = PageSizeAwarePagination
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -5714,6 +5715,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
             Meeting, join_token=serializer.validated_data['join_token'],
         )
 
+        # Enforce school scope — only superadmins may cross schools
         user = request.user
         if user.active_role != 'superadmin' and meeting.school and meeting.school != user.school:
             return Response(
@@ -5804,6 +5806,28 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
 
 class MeetingNotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = MeetingNotificationSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructor]
+
+    def get_queryset(self):
+        return MeetingNotification.objects.filter(
+            meeting__school=self.request.user.school,
+        )
+
+    def _validate_meeting_school(self, serializer):
+        """Ensure the meeting belongs to the requesting user's school."""
+        meeting = serializer.validated_data.get('meeting')
+        if meeting and meeting.school != self.request.user.school:
+            raise PermissionDenied('You can only manage notifications for meetings in your school.')
+
+    def perform_create(self, serializer):
+        self._validate_meeting_school(serializer)
+        meeting = serializer.validated_data['meeting']
+        serializer.save(school=meeting.school)
+
+    def perform_update(self, serializer):
+        self._validate_meeting_school(serializer)
+        serializer.save()
     serializer_class = MeetingNotificationSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructor]
 

@@ -2187,21 +2187,23 @@ class MeetingListSerializer(serializers.ModelSerializer):
         return obj.created_by.get_full_name()
  
     def get_class_names(self, obj):
+        # Use prefetch cache when available to avoid N+1
         if hasattr(obj, '_prefetched_objects_cache') and 'classes' in obj._prefetched_objects_cache:
             return [c.name for c in obj.classes.all()]
         return list(obj.classes.values_list('name', flat=True))
  
     def get_participant_count(self, obj):
+        # Use annotation if available, otherwise fall back to queryset
         if hasattr(obj, 'active_participant_count'):
             return obj.active_participant_count
         return obj.participants.filter(left_at__isnull=True).count()
  
 class MeetingCreateSerializer(serializers.ModelSerializer):
     class_ids = serializers.ListField(
-        child=serializers.UUIDField(),
+        child=serializers.IntegerField(),
         write_only=True,
         required=False,
-        help_text='List of Class UUIDs this meeting targets',
+        help_text='List of Class IDs this meeting targets',
     )
  
     class Meta:
@@ -2259,9 +2261,23 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'class_ids': 'This field is required when creating a meeting.'
             })
-            
+ 
+        # Resolve effective start/end, falling back to the instance on partial updates
         start = data.get('scheduled_start')
         end = data.get('scheduled_end')
+ 
+        if self.instance is not None:
+            start = start or self.instance.scheduled_start
+            end = end if 'scheduled_end' in data else self.instance.scheduled_end
+ 
+            # On update, ensure a still-scheduled meeting isn't left with a past start time
+            if self.instance.status == 'scheduled':
+                from django.utils import timezone
+                if start and start < timezone.now():
+                    raise serializers.ValidationError({
+                        'scheduled_start': 'Scheduled start must be in the future for a scheduled meeting.'
+                    })
+ 
         if start and end and end <= start:
             raise serializers.ValidationError({
                 'scheduled_end': 'End time must be after start time.'
@@ -2269,7 +2285,11 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
         return data
  
     def create(self, validated_data):
-        class_ids = validated_data.pop('class_ids')
+        class_ids = validated_data.pop('class_ids', None)
+        if not class_ids:
+            raise serializers.ValidationError({
+                'class_ids': 'This field is required when creating a meeting.'
+            })
         user = self.context['request'].user
         validated_data['created_by'] = user
         validated_data['school'] = user.school
@@ -2302,6 +2322,7 @@ class MeetingDetailSerializer(MeetingListSerializer):
         ]
  
     def get_join_token(self, obj):
+        """Only expose the raw join_token to the meeting creator or admins."""
         request = self.context.get('request')
         if request and request.user:
             user = request.user
