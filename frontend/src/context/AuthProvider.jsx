@@ -3,7 +3,7 @@ import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
 
-const INACTIVITY_TIMEOUT_MS = 1 * 60 * 1000 // 30 minutes
+const INACTIVITY_TIMEOUT_MS = 90 * 60 * 1000 // 30 minutes
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)

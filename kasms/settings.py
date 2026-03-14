@@ -55,8 +55,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
-
 ROOT_URLCONF = "kasms.urls"
 
 TEMPLATES = [
@@ -202,6 +200,17 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES':{
+        'anon' : '100/hour',
+        'user' : '1000/hour',
+        'certificate_verify_burst': '10/min',
+        'certificate_verify_sustained': '50/hour',
+    },
 }
 
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([
@@ -246,7 +255,6 @@ AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
-
 CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:3000",
     "http://localhost:5173",
@@ -287,16 +295,41 @@ TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
 TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
 
 
-SWAGGER_SETTINGS = {
-    'USE_SESSION_AUTH': True,
-    'LOGIN_URL': '/admin/login/',
-    'LOGOUT_URL': '/admin/logout/',
-    'SECURITY_DEFINITIONS': {
-        'Cookie': {
-            'type': 'apiKey',
-            'name': 'access_token',
-            'in': 'cookie',
-            'description': 'HTTP-only cookie (set by /api/auth/login/)',
+CERT_VERIFY_LOCKOUT_THRESHOLD = 20
+CERT_VERIFY_LOCKOUT_WINDOW = 900
+CERT_VERIFY_LOCKOUT_DURATION = 1800
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+        'json': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'verification_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'logs/certificate_verification.log',
+            'maxBytes': 10 * 1024 * 1024,   # 10 MB
+            'backupCount': 10,
+            'formatter': 'json',
+        },
+    },
+    'loggers': {
+        'certificate.verification': {
+            'handlers': ['console', 'verification_file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }

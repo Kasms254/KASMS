@@ -279,7 +279,7 @@ export async function getStudents() {
 
 export async function getStudentsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/students${qs}`)
+  return request(`/api/users/students/${qs}`)
 }
 
 // Fetch ALL students by iterating through all pages
@@ -295,7 +295,7 @@ export async function getAllStudents(params = '') {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -942,8 +942,8 @@ export async function getClassTopPerformers(classId, limit = 10) {
   return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
 }
 
-export async function compareClasses(courseId = null) {
-  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
+export async function compareClasses(classIds = []) {
+  const qs = classIds.length > 0 ? `?class_ids=${classIds.map(encodeURIComponent).join(',')}` : ''
   return request(`/api/class-performance/compare_classes/${qs}`)
 }
 
@@ -1035,7 +1035,7 @@ export async function getAllInstructors() {
       allInstructors = [...allInstructors, ...results]
 
       // Check if there are more pages
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -1047,7 +1047,23 @@ export async function getAllInstructors() {
 
 export async function getInstructorsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/instructors${qs}`)
+  return request(`/api/users/instructors/${qs}`)
+}
+
+export async function exportStudentsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/students/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
+}
+
+export async function exportInstructorsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/instructors/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
 }
 
 export async function getUserEnrollments(userId) {
@@ -1760,6 +1776,8 @@ export default {
   // Paginated versions
   getStudentsPaginated,
   getInstructorsPaginated,
+  exportStudentsCSV,
+  exportInstructorsCSV,
   getClassesPaginated,
   getCoursesPaginated,
   getNoticesPaginated,

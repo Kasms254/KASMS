@@ -21,6 +21,7 @@
     ]
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.23.24",
     "html5-qrcode": "^2.3.8",

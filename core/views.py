@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
+from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
@@ -27,7 +28,7 @@ from dateutil import parser
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
-from django.http import HttpResponse, FileResponse
+from django.http import HttpResponse, FileResponse, StreamingHttpResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
@@ -38,6 +39,10 @@ from .services import close_class,issue_certificate, CertificateGenerator, Certi
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
+class PageSizeAwarePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 class TenantFilterMixin:
 
@@ -575,6 +580,12 @@ class UserViewSet(viewsets.ModelViewSet):
     def instructors(self, request):
         queryset = self.get_queryset().filter(role='instructor', is_active=True)
         
+        class_obj_id  = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                Q(instructed_classes__id=class_obj_id) |
+                Q(subjects__class_obj_id=class_obj_id, subjects__is_active=True)
+            ).distinct()
         search_query = request.query_params.get('search', '').strip()
         if search_query:
             queryset = queryset.filter(
@@ -610,6 +621,13 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
         else:
             queryset = queryset.filter(is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                enrollments__class_obj_id = class_obj_id,
+                enrollments__is_active = True
+            ).distinct()
         
         search_query = request.query_params.get('search', '').strip()
         if search_query:
@@ -723,6 +741,136 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
+    @action(detail=False, methods=['get'], url_path='students/export_csv')
+    def export_students_csv(self, request):
+        MAX_EXPORT_ROWS = 50000
+
+        queryset = self.get_queryset().filter(role='student')
+
+        is_active_param = request.query_params.get('is_active', None)
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
+        else:
+            queryset = queryset.filter(is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                enrollments__class_obj_id=class_obj_id,
+                enrollments__is_active=True
+            ).distinct()
+
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(svc_number__icontains=search_query)
+            )
+
+        queryset = queryset.select_related('school').prefetch_related(
+            'enrollments', 'enrollments__class_obj'
+        ).order_by('first_name', 'last_name')[:MAX_EXPORT_ROWS]
+
+        def csv_rows():
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                'SVC Number', 'First Name', 'Last Name', 'Email',
+                'Phone Number', 'Rank', 'Unit', 'Class', 'Active', 'Date Joined'
+            ])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            for user in queryset.iterator(chunk_size=500):
+                enrollment = next(
+                    (e for e in user.enrollments.all() if e.is_active),
+                    None
+                )
+                class_name = enrollment.class_obj.name if enrollment and enrollment.class_obj else ''
+                writer.writerow([
+                    user.svc_number,
+                    user.first_name,
+                    user.last_name,
+                    user.email,
+                    user.phone_number,
+                    user.get_rank_display() if user.rank else '',
+                    user.unit or '',
+                    class_name,
+                    'Yes' if user.is_active else 'No',
+                    user.date_joined.strftime('%Y-%m-%d') if user.date_joined else '',
+                ])
+                yield output.getvalue()
+                output.seek(0)
+                output.truncate(0)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="students_export_{timestamp}.csv"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='instructors/export_csv')
+    def export_instructors_csv(self, request):
+        MAX_EXPORT_ROWS = 50000
+
+        queryset = self.get_queryset().filter(role='instructor', is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                Q(instructed_classes__id=class_obj_id) |
+                Q(subjects__class_obj_id=class_obj_id, subjects__is_active=True)
+            ).distinct()
+
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(svc_number__icontains=search_query)
+            )
+
+        queryset = queryset.select_related('school').order_by(
+            'first_name', 'last_name'
+        )[:MAX_EXPORT_ROWS]
+
+        def csv_rows():
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                'SVC Number', 'First Name', 'Last Name', 'Email',
+                'Phone Number', 'Rank', 'Unit', 'Active', 'Date Joined'
+            ])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            for user in queryset.iterator(chunk_size=500):
+                writer.writerow([
+                    user.svc_number,
+                    user.first_name,
+                    user.last_name,
+                    user.email,
+                    user.phone_number,
+                    user.get_rank_display() if user.rank else '',
+                    user.unit or '',
+                    'Yes' if user.is_active else 'No',
+                    user.date_joined.strftime('%Y-%m-%d') if user.date_joined else '',
+                ])
+                yield output.getvalue()
+                output.seek(0)
+                output.truncate(0)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="instructors_export_{timestamp}.csv"'
+        return response
+
 class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
     
     permission_classes = [IsAuthenticated]
@@ -835,6 +983,7 @@ class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
     search_fields = ['name', 'course__name', 'instructor__first_name']
@@ -1120,6 +1269,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'class_obj', 'instructor'] 
     search_fields = ['name', 'class_obj__name', 'instructor__first_name']
@@ -2611,7 +2761,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_edit_requests': pending_edit_requests_count,
             'is_hod': bool(hod_dept_ids),
         })
-
 # students
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
@@ -3248,8 +3397,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'end_date': end_date,
             'exam_count': upcoming_exams.count(),
             'exams':ExamSerializer(upcoming_exams, many=True).data
-        })
-    
+        })   
 # attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
@@ -4775,30 +4923,22 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         except Certificate.DoesNotExist:
             return Response({
                 'is_valid': False,
-                'error': 'Certificate not found',
-                'message': 'No certificate exists with this verification code.',
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Certificate could not be verified.',
+            }, status=status.HTTP_200_OK)
 
-        data = {
+        certificate.record_view()
+
+        return Response({
             'is_valid': certificate.is_valid,
             'certificate_number': certificate.certificate_number,
             'student_name': certificate.student_name,
-            'student_svc_number': certificate.student_svc_number,
-            'student_rank': certificate.student_rank,
             'course_name': certificate.course_name,
             'class_name': certificate.class_name,
             'school_name': certificate.school.name if certificate.school else '',
-            'final_grade': certificate.final_grade,
-            'final_percentage': certificate.final_percentage,
-            'issued_at': certificate.issued_at,
             'completion_date': certificate.completion_date,
             'status': certificate.status,
             'status_display': certificate.get_status_display(),
-        }
-        if certificate.status == 'revoked':
-            data['revocation_reason'] = certificate.revocation_reason
-            data['revoked_at'] = certificate.revoked_at
-        return Response(data)
+        })
 
     @action(detail=False, methods=['get'])
     def my_certificates(self, request):
@@ -4959,32 +5099,6 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-class CertificatePublicVerificationView(APIView):
-
-    permission_classes = [AllowAny]
-
-    def get(self, request, verification_code):
-        try:
-            certificate = Certificate.all_objects.select_related('school').get(
-                verification_code=verification_code.upper(),
-            )
-        except Certificate.DoesNotExist:
-            return Response({
-                'is_valid': False,
-                'error': 'Certificate not found',
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({
-            'is_valid': certificate.is_valid,
-            'certificate_number': certificate.certificate_number,
-            'student_name': certificate.student_name,
-            'course_name': certificate.course_name,
-            'class_name': certificate.class_name,
-            'school_name': certificate.school.name if certificate.school else '',
-            'completion_date': certificate.completion_date,
-            'status': certificate.status,
-            'status_display': certificate.get_status_display(),
-        })
 
 # student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
@@ -5121,7 +5235,6 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
-
 class AdminRosterViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsAdminOnly]

@@ -5,7 +5,7 @@ from .views import (
     # for the admin
     UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet,AdminRosterViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView, CertificatePublicVerificationView,
+    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
@@ -29,6 +29,7 @@ from .commandant_views import (
     CommandantNoticeViewSet,
 )
 from .auth_urls import auth_urlpatterns
+from .secure_certificate_verification import SecureCertificatePublicVerificationView
 
 router = DefaultRouter()
 
@@ -123,7 +124,7 @@ urlpatterns = [
     path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
     ,),
     path('auth/', include((auth_urlpatterns, 'auth'))),
-
+    path('certificates/public/verify/', SecureCertificatePublicVerificationView.as_view(), name='certificate-public-verify',),
 
 
 ]
