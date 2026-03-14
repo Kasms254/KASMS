@@ -50,26 +50,36 @@ img, picture, video, canvas, svg, iframe, embed, object {
   }
 }
 
-/* Modern thin scrollbar for sidebar — only visible when content overflows
-   (e.g. smaller desktop heights or higher zoom levels) */
+/* Modern scrollbar: hidden by default, shown when hovering the sidebar */
 .sidebar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255 255 255 / 0.2) transparent;
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 .sidebar::-webkit-scrollbar {
-  width: 4px;
+  width: 0;
+  height: 0;
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar:hover {
+  scrollbar-width: auto; /* use default (wider) in Firefox */
+  scrollbar-color: #ffffff transparent; /* solid white thumb in Firefox */
+}
+
+.sidebar:hover::-webkit-scrollbar {
+  width: 20px; /* increased width for WebKit browsers */
+}
+
+.sidebar:hover::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+.sidebar:hover::-webkit-scrollbar-thumb {
+  background: #ffffff; /* solid white thumb for WebKit browsers */
   border-radius: 9999px;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.08) inset; /* subtle inner contrast */
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
+.sidebar:hover::-webkit-scrollbar-thumb:hover {
+  background: #e5e7eb; /* slightly off-white on hover */
 }

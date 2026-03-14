@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
-import { getRankSortIndex } from '../../lib/rankOrder'
+
 
 function initials(name = '') {
   return name
@@ -58,18 +59,14 @@ function getRankDisplay(raw) {
 
 export default function AdminInstructors() {
   const toast = useToast()
+  const queryClient = useQueryClient()
   const reportError = (msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-    // Error already shown via toast
   }
-  const [instructors, setInstructors] = useState([])
-  const [classesList, setClassesList] = useState([])
-  const [subjectsList, setSubjectsList] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   // pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -132,87 +129,75 @@ export default function AdminInstructors() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
+  const [exportLoading, setExportLoading] = useState(false)
+  // Popover state for "+N more" badges
+  const [openPopover, setOpenPopover] = useState(null)
 
-  // Fetch ALL instructors, classes, and subjects once on mount
   useEffect(() => {
-    let mounted = true
-    setLoading(true)
-
-    Promise.all([
-      api.getAllInstructors(),
-      api.getAllClasses(),
-      api.getAllSubjects(),
-    ])
-      .then(([instructorsData, classesData, subjectsData]) => {
-        if (!mounted) return
-        const list = Array.isArray(instructorsData) ? instructorsData : []
-        const normalized = list.map((it) => ({
-          id: it.id,
-          first_name: it.first_name,
-          last_name: it.last_name,
-          full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
-          svc_number: it.svc_number,
-          email: it.email,
-          phone_number: it.phone_number,
-          rank: normalizeRank(it.rank || it.rank_display),
-          unit: it.unit || '',
-          role: it.role,
-          role_display: it.role_display,
-          is_active: it.is_active,
-          created_at: it.created_at,
-        }))
-        setInstructors(normalized)
-        setClassesList(Array.isArray(classesData) ? classesData : [])
-        setSubjectsList(Array.isArray(subjectsData) ? subjectsData : [])
-        setError(null)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
-
-  // Filter and sort instructors client-side
-  const filteredInstructors = useMemo(() => {
-    let filtered = instructors
-
-    // Filter by class
-    if (selectedClass !== 'all') {
-      filtered = filtered.filter((it) => {
-        const instructorClasses = getInstructorClasses(it.id)
-        return instructorClasses.some(c => String(c.id) === String(selectedClass))
-      })
+    if (!openPopover) return
+    function handleClickOutside(e) {
+      if (!e.target.closest('[data-popover]')) setOpenPopover(null)
     }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openPopover])
 
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase()
-      filtered = filtered.filter((it) =>
-        (it.full_name || '').toLowerCase().includes(q) ||
-        (it.email || '').toLowerCase().includes(q) ||
-        (it.svc_number || '').toLowerCase().includes(q) ||
-        (it.rank || '').toLowerCase().includes(q) ||
-        (it.unit || '').toLowerCase().includes(q)
-      )
-    }
+  // Debounce search input 300ms
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(searchTerm); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [searchTerm])
 
-    // Sort by rank: senior first
-    filtered.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
-    return filtered
-  }, [instructors, selectedClass, classesList, searchTerm])
+  // Reset to page 1 when class filter changes
+  useEffect(() => { setPage(1) }, [selectedClass])
 
-  // Client-side pagination
-  const totalCount = filteredInstructors.length
-  const totalPages = Math.ceil(totalCount / pageSize)
-  const paginatedInstructors = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredInstructors.slice(start, start + pageSize)
-  }, [filteredInstructors, page, pageSize])
+  // Server-side paginated instructors
+  const { data: instructorsData, isPending: loading, error } = useQuery({
+    queryKey: ['instructors', { page, pageSize, search: debouncedSearch, selectedClass }],
+    queryFn: () => {
+      const params = new URLSearchParams({ page, page_size: pageSize })
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      return api.getInstructorsPaginated(params.toString())
+    },
+    placeholderData: (prev) => prev,
+  })
+
+  const allInstructors = (instructorsData?.results ?? []).map((it) => ({
+    id: it.id,
+    first_name: it.first_name,
+    last_name: it.last_name,
+    full_name: it.full_name || `${it.first_name || ''} ${it.last_name || ''}`.trim(),
+    svc_number: it.svc_number,
+    email: it.email,
+    phone_number: it.phone_number,
+    rank: normalizeRank(it.rank || it.rank_display),
+    unit: it.unit || '',
+    role: it.role,
+    role_display: it.role_display,
+    is_active: it.is_active,
+    created_at: it.created_at,
+  }))
+
+  // Classes/subjects for display in cards (cached 10 min)
+  const { data: classesQueryData } = useQuery({
+    queryKey: ['classes', 'active'],
+    queryFn: () => api.getClassesPaginated('is_active=true&page_size=500'),
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: subjectsQueryData } = useQuery({
+    queryKey: ['subjects', 'active'],
+    queryFn: () => api.getSubjectsPaginated('is_active=true&page_size=500'),
+    staleTime: 10 * 60 * 1000,
+  })
+  const classesList = classesQueryData?.results ?? []
+  const subjectsList = subjectsQueryData?.results ?? []
+
+  // Filtering is now server-side; use results directly
+  const instructors = allInstructors
+
+  const totalCount = instructorsData?.count ?? 0
+  const totalPages = instructorsData?.total_pages ?? 1
 
   function handleDelete(it) {
     setConfirmDelete(it)
@@ -223,13 +208,12 @@ export default function AdminInstructors() {
     setDeletingId(it.id)
     try {
       await api.deleteUser(it.id)
-      setInstructors((s) => s.filter((x) => x.id !== it.id))
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
       // close confirm modal and edit modal if open
       setConfirmDelete(null)
       closeEdit()
       toast?.success?.('Instructor deleted successfully') || toast?.showToast?.('Instructor deleted successfully', { type: 'success' })
     } catch (err) {
-      setError(err)
       reportError('Failed to delete instructor: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
@@ -242,13 +226,12 @@ export default function AdminInstructors() {
     try {
       if (it.is_active) {
         await api.deactivateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: false } : x))
         toast?.success?.('Instructor deactivated successfully') || toast?.showToast?.('Instructor deactivated successfully', { type: 'success' })
       } else {
         await api.activateUser(it.id)
-        setInstructors((s) => s.map((x) => x.id === it.id ? { ...x, is_active: true } : x))
         toast?.success?.('Instructor activated successfully') || toast?.showToast?.('Instructor activated successfully', { type: 'success' })
       }
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
     } catch (err) {
       reportError('Failed to update status: ' + (err.message || String(err)))
     } finally {
@@ -435,7 +418,7 @@ export default function AdminInstructors() {
         is_active: updated.is_active,
         created_at: updated.created_at,
       }
-      setInstructors((s) => s.map((x) => (x.id === norm.id ? { ...x, ...norm } : x)))
+      queryClient.invalidateQueries({ queryKey: ['instructors'] })
       closeEdit()
       toast?.success?.('Instructor updated successfully') || toast?.showToast?.('Instructor updated successfully', { type: 'success' })
     } catch (err) {
@@ -473,28 +456,24 @@ export default function AdminInstructors() {
     }
   }
 
-  function downloadCSV() {
-    // Service No first, then Rank, Name, Unit, then the rest
-    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Email', 'Phone', 'Role', 'Active', 'Created']]
-    filteredInstructors.forEach((it) => {
-      const svc = it.svc_number || ''
-      const name = it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || '')
-      const email = it.email || ''
-      const phone = it.phone_number || ''
-      const role = it.role_display || it.role || ''
-      const active = it.is_active ? 'Yes' : 'No'
-      const created = it.created_at ? new Date(it.created_at).toLocaleString() : ''
-      rows.push([svc, getRankDisplay(it.rank) || '', name, it.unit || '', email, phone, role, active, created])
-    })
-
-    const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'instructors.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  async function downloadCSV() {
+    setExportLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      const blob = await api.exportInstructorsCSV(params.toString())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'instructors.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      reportError('Failed to export CSV: ' + (err.message || String(err)))
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   function getInstructorClasses(instId) {
@@ -526,7 +505,9 @@ export default function AdminInstructors() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+            {exportLoading ? 'Exporting…' : 'Download CSV'}
+          </button>
         </div>
       </header>
 
@@ -538,10 +519,7 @@ export default function AdminInstructors() {
             <div className="relative flex-1">
               <input
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value)
-                  setPage(1)
-                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search instructors..."
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
@@ -611,7 +589,7 @@ export default function AdminInstructors() {
         <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
       ) : loading ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading instructors…</div>
-      ) : paginatedInstructors.length === 0 ? (
+      ) : instructors.length === 0 ? (
         <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
       ) : (
         <>
@@ -631,7 +609,7 @@ export default function AdminInstructors() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedInstructors.map((it) => (
+                {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
@@ -657,7 +635,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{cls.length - 3} more</span> : null}
+                            {cls.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                {openPopover === `${it.id}-cls` && (
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -674,7 +661,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
-                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap">+{subjects.length - 3} more</span> : null}
+                            {subjects.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                {openPopover === `${it.id}-sub` && (
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -701,7 +697,7 @@ export default function AdminInstructors() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedInstructors.map((it) => (
+                  {instructors.map((it) => (
                     <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                       <td className="px-3 py-3">
                         <div className="min-w-0">
@@ -726,7 +722,16 @@ export default function AdminInstructors() {
                                     {cls.slice(0, 2).map((c, idx) => (
                                       <span key={idx} className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</span>
                                     ))}
-                                    {cls.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 2}</span>}
+                                    {cls.length > 2 && (
+                                      <div className="relative inline-block" data-popover>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 2}</button>
+                                        {openPopover === `${it.id}-cls` && (
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {cls.slice(2).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {subjects && subjects.length > 0 && (
@@ -734,7 +739,16 @@ export default function AdminInstructors() {
                                     {subjects.slice(0, 2).map((s, idx) => (
                                       <span key={idx} className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</span>
                                     ))}
-                                    {subjects.length > 2 && <span className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 2}</span>}
+                                    {subjects.length > 2 && (
+                                      <div className="relative inline-block" data-popover>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 2}</button>
+                                        {openPopover === `${it.id}-sub` && (
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {subjects.slice(2).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {(!cls || cls.length === 0) && (!subjects || subjects.length === 0) && <span className="text-sm text-neutral-500">-</span>}
@@ -757,7 +771,7 @@ export default function AdminInstructors() {
 
           {/* Mobile Card View (small screens) */}
           <div className="md:hidden space-y-4">
-            {paginatedInstructors.map((it) => (
+            {instructors.map((it) => (
               <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
                 {/* Header with name */}
                 <div className="mb-4">
@@ -800,7 +814,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
                             ))}
-                            {cls.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{cls.length - 3} more</span> : null}
+                            {cls.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                {openPopover === `${it.id}-cls` && (
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{c.name || c.class_obj_name || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -821,7 +844,16 @@ export default function AdminInstructors() {
                             {labels.map((l, idx) => (
                               <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
                             ))}
-                            {subjects.length > 3 ? <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full">+{subjects.length - 3} more</span> : null}
+                            {subjects.length > 3 ? (
+                              <div className="relative inline-block" data-popover>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                {openPopover === `${it.id}-sub` && (
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{s.name || s.subject_code || '-'}</div>)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })()}
@@ -864,7 +896,7 @@ export default function AdminInstructors() {
               {/* Page numbers */}
               <div className="flex items-center gap-1">
                 {(() => {
-                  const totalPages = Math.ceil(totalCount / pageSize)
+                  // totalPages comes from server response
                   const pages = []
                   const maxVisible = 5
 
@@ -951,8 +983,8 @@ export default function AdminInstructors() {
 
               {/* Next button */}
               <button
-                onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
-                disabled={page >= Math.ceil(totalCount / pageSize)}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
                 className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />

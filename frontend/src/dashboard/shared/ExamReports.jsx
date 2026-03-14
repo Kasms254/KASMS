@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
@@ -169,10 +170,6 @@ export default function ExamReports() {
   const isAdmin = user?.role === 'admin'
 
   // State
-  const [loading, setLoading] = useState(true)
-  const [exams, setExams] = useState([])
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
   
   // Filters
   const [selectedClass, setSelectedClass] = useState('')
@@ -182,8 +179,6 @@ export default function ExamReports() {
   
   // Selected exam for detail view
   const [selectedExam, setSelectedExam] = useState(null)
-  const [examResults, setExamResults] = useState([])
-  const [loadingResults, setLoadingResults] = useState(false)
 
   // Comprehensive results
   const [showComprehensive, setShowComprehensive] = useState(false)
@@ -197,40 +192,33 @@ export default function ExamReports() {
   const examsPerPage = 10
   const resultsPerPage = 10
 
-  // Fetch initial data
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      try {
-        const [examsData, classesData, subjectsData] = await Promise.all([
-          isAdmin ? api.getExams() : api.getMyExams(),
-          isAdmin ? api.getAllClasses() : api.getMyClasses(),
-          isAdmin ? api.getAllSubjects() : api.getMySubjects()
-        ])
+  // Fetch initial data with React Query (cached 5 min)
+  const { data: examsQueryData, isPending: loadingExams } = useQuery({
+    queryKey: ['exams', isAdmin],
+    queryFn: () => isAdmin ? api.getExams() : api.getMyExams(),
+  })
+  const { data: classesQueryData } = useQuery({
+    queryKey: ['classes', 'active', isAdmin],
+    queryFn: () => isAdmin ? api.getAllClasses() : api.getMyClasses(),
+    staleTime: 10 * 60 * 1000,
+  })
+  const { data: subjectsQueryData } = useQuery({
+    queryKey: ['subjects', 'active', isAdmin],
+    queryFn: () => isAdmin ? api.getAllSubjects() : api.getMySubjects(),
+    staleTime: 10 * 60 * 1000,
+  })
 
-        // Handle both direct arrays and paginated responses {count, results}
-        setExams(Array.isArray(examsData) ? examsData : (examsData?.results || []))
-        setClasses(Array.isArray(classesData) ? classesData : (classesData?.results || []))
-        setSubjects(Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results || []))
-      } catch {
-        toast?.showError?.('Failed to load exam data')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+  const loading = loadingExams
+  const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
+  const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
+  const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
 
   // Filter exams based on selections
   const filteredExams = useMemo(() => {
     // Don't show any exams if no class is selected
-    if (!selectedClass) {
-      setExamListPage(1)
-      return []
-    }
+    if (!selectedClass) return []
 
-    const filtered = exams.filter(exam => {
+    return exams.filter(exam => {
       // Class filter is required
       if (exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
         // Try matching via subject
@@ -241,17 +229,16 @@ export default function ExamReports() {
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
-      
+
       // Only show exams that have results
-      const hasResults = exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
-      if (!hasResults) return false
-      
-      return true
+      return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
-    // Reset to page 1 when filters change
-    setExamListPage(1)
-    return filtered
   }, [exams, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
+
+  // Reset exam list page when filters change (must be outside useMemo)
+  useEffect(() => {
+    setExamListPage(1)
+  }, [selectedClass, selectedSubject, selectedExamType, dateRange])
 
   // Paginated exams for list view
   const paginatedExams = useMemo(() => {
@@ -268,26 +255,16 @@ export default function ExamReports() {
     return subjects.filter(s => s.class_obj === parseInt(selectedClass) || s.class_id === parseInt(selectedClass))
   }, [subjects, selectedClass])
 
-  // Load exam results when an exam is selected
-  useEffect(() => {
-    if (!selectedExam) {
-      setExamResults([])
-      return
-    }
-    async function loadResults() {
-      setLoadingResults(true)
-      try {
-        const results = await api.getExamResults(selectedExam.id)
-        setExamResults(Array.isArray(results) ? results : (results?.results || []))
-      } catch {
-        toast?.showError?.('Failed to load exam results')
-      } finally {
-        setLoadingResults(false)
-      }
-    }
-    loadResults()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExam])
+  // Load exam results when an exam is selected (cached per exam)
+  const { data: examResultsData, isPending: loadingResults } = useQuery({
+    queryKey: ['exam-results', selectedExam?.id],
+    queryFn: () => api.getExamResults(selectedExam.id),
+    enabled: !!selectedExam,
+    staleTime: 5 * 60 * 1000,
+  })
+  const examResults = examResultsData
+    ? (Array.isArray(examResultsData) ? examResultsData : (examResultsData?.results ?? []))
+    : []
 
   // Calculate statistics for selected exam
   const examStats = useMemo(() => {
