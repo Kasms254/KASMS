@@ -194,6 +194,12 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'Video',
+        label: 'Meetings',
+        href: '/list/meetings',
+        visible: ['admin', 'instructor', 'student'],
+      },
+      {
         icon: 'Bell',
         label: 'Notifications',
         href: '/list/notifications',
