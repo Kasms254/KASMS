@@ -15,6 +15,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
+
 def get_subject_completion_status(subject, student):
     
     final_exam = Exam.all_objects.filter(
@@ -860,3 +861,57 @@ class CertificateGenerator:
         )
         c.save()
         return buf.getvalue()
+
+
+def generate_jaas_jwt(user, room_name, is_moderator=False):
+
+    import time
+ 
+    try:
+        import jwt as pyjwt
+    except ImportError:
+        logger.warning(
+            'PyJWT is not installed. JaaS JWT generation skipped. '
+            'Install with: pip install PyJWT'
+        )
+        return None
+ 
+    app_id = getattr(settings, 'JITSI_APP_ID', '')
+    api_key_id = getattr(settings, 'JITSI_API_KEY_ID', '')
+    private_key = getattr(settings, 'JITSI_API_KEY_SECRET', '')
+ 
+    if not all([app_id, api_key_id, private_key]):
+        return None
+ 
+    now = int(time.time())
+    payload = {
+        'iss': 'chat',
+        'aud': 'jitsi',
+        'sub': app_id,
+        'room': room_name,
+        'exp': now + 7200,
+        'nbf': now,
+        'context': {
+            'user': {
+                'id': str(user.id),
+                'name': user.get_full_name() or getattr(user, 'svc_number', str(user.id)),
+                'email': user.email or '',
+                'moderator': is_moderator,
+            },
+            'features': {
+                'livestreaming': False,
+                'outbound-call': False,
+                'transcription': False,
+                'recording': is_moderator,
+            },
+        },
+    }
+ 
+    token = pyjwt.encode(
+        payload,
+        private_key,
+        algorithm='RS256',
+        headers={'kid': api_key_id, 'typ': 'JWT'},
+    )
+ 
+    return token       

@@ -673,16 +673,19 @@ class Notice(models.Model):
     def __str__(self):
         return f"{self.title} ({self.get_priority_display()})"
 
-    def save(self, *args, **kwargs):
-        if self.expiry_date and self.expiry_date < timezone.now():
+def save(self, *args, **kwargs):
+    if self.expiry_date:
+        expiry = self.expiry_date if isinstance(self.expiry_date, dt) else timezone.make_aware(dt.combine(self.expiry_date, dt.min.time()))
+        if expiry < timezone.now():
             self.is_active = False
-        super().save(*args, **kwargs)
+    super().save(*args, **kwargs)
 
-    @property
-    def is_expired(self):
-        if not self.expiry_date:
-            return False
-        return self.expiry_date < timezone.now()
+@property
+def is_expired(self):
+    if not self.expiry_date:
+        return False
+    expiry = self.expiry_date if isinstance(self.expiry_date, dt) else timezone.make_aware(dt.combine(self.expiry_date, dt.min.time()))
+    return expiry < timezone.now()
 
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
@@ -1694,20 +1697,19 @@ class CertificateDownloadLog(models.Model):
         ordering = ['-downloaded_at']
 
 # meeting
-
 def generate_meeting_code():
     return secrets.token_urlsafe(8)[:10].upper()
-
+ 
 def generate_join_token():
     return secrets.token_urlsafe(32)
-
+ 
 class Meeting(models.Model):
     class Status(models.TextChoices):
         SCHEDULED = 'scheduled', 'Scheduled'
         LIVE      = 'live',      'Live'
         ENDED     = 'ended',     'Ended'
         CANCELLED = 'cancelled', 'Cancelled'
-
+ 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         'School', on_delete=models.CASCADE, related_name='meetings',
@@ -1723,7 +1725,7 @@ class Meeting(models.Model):
         max_length=64, unique=True, default=generate_join_token,
         help_text='Secret token embedded in the join URL',
     )
-
+ 
     created_by = models.ForeignKey(
         'User', on_delete=models.CASCADE, related_name='meetings_created',
     )
@@ -1740,7 +1742,7 @@ class Meeting(models.Model):
     )
     actual_start = models.DateTimeField(null=True, blank=True)
     actual_end = models.DateTimeField(null=True, blank=True)
-
+ 
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.SCHEDULED,
     )
@@ -1758,7 +1760,7 @@ class Meeting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
-
+ 
     class Meta:
         db_table = 'meetings'
         ordering = ['-scheduled_start']
@@ -1769,51 +1771,55 @@ class Meeting(models.Model):
             models.Index(fields=['meeting_code']),
             models.Index(fields=['join_token']),
         ]
-
+ 
     def __str__(self):
         return f"{self.title} ({self.meeting_code})"
-
+ 
     def save(self, *args, **kwargs):
         if not self.school and self.created_by:
             self.school = self.created_by.school
         super().save(*args, **kwargs)
-
+ 
     @property
     def join_url(self):
         return f"/meetings/join/{self.join_token}"
-
+ 
     @property
     def is_joinable(self):
         return self.status in (self.Status.SCHEDULED, self.Status.LIVE)
-
+ 
     @property
     def video_room_name(self):
-        if self.provider == 'jitsi':
-            school_code = self.school.code if self.school else 'GEN'
-            return f"{school_code}-{self.meeting_code}"
-        return self.provider_room_id or self.meeting_code
-
+        from django.conf import settings
+        school_code = self.school.code if self.school else 'GEN'
+        base_name = f"{school_code}-{self.meeting_code}"
+ 
+        if self.provider == 'jitsi' and getattr(settings, 'JITSI_APP_ID', ''):
+            return f"{settings.JITSI_APP_ID}/{base_name}"
+ 
+        return self.provider_room_id or base_name
+ 
     def start(self):
         self.status = self.Status.LIVE
         self.actual_start = timezone.now()
         self.save(update_fields=['status', 'actual_start', 'updated_at'])
-
+ 
     def end(self):
         self.status = self.Status.ENDED
         self.actual_end = timezone.now()
         self.save(update_fields=['status', 'actual_end', 'updated_at'])
-
+ 
     def cancel(self):
         self.status = self.Status.CANCELLED
         self.save(update_fields=['status', 'updated_at'])
-
+ 
 class MeetingParticipant(models.Model):
-
+ 
     class Role(models.TextChoices):
         HOST       = 'host',       'Host'
         CO_HOST    = 'co_host',    'Co-Host'
         PARTICIPANT = 'participant','Participant'
-
+ 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         'School', on_delete=models.CASCADE,
@@ -1830,30 +1836,30 @@ class MeetingParticipant(models.Model):
     )
     joined_at = models.DateTimeField(auto_now_add=True)
     left_at = models.DateTimeField(null=True, blank=True)
-
+ 
     objects = TenantAwareManager()
     all_objects = models.Manager()
-
+ 
     class Meta:
         db_table = 'meeting_participants'
         ordering = ['-joined_at']
         indexes = [
             models.Index(fields=['meeting', 'user']),
         ]
-
+ 
     def __str__(self):
         return f"{self.user.svc_number} in {self.meeting.meeting_code}"
-
+ 
     def save(self, *args, **kwargs):
         if not self.school and self.meeting:
             self.school = self.meeting.school
         super().save(*args, **kwargs)
-
+ 
 class MeetingNotification(models.Model):
     class Channel(models.TextChoices):
         EMAIL  = 'email',  'Email'
         IN_APP = 'in_app', 'In-App'
-
+ 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         'School', on_delete=models.CASCADE,
@@ -1870,29 +1876,19 @@ class MeetingNotification(models.Model):
     )
     sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
+ 
     objects = TenantAwareManager()
     all_objects = models.Manager()
-
+ 
     class Meta:
         db_table = 'meeting_notifications'
         ordering = ['send_at']
-
+ 
     def __str__(self):
         return f"Notification for {self.meeting.meeting_code} at {self.send_at}"
-
+ 
     def save(self, *args, **kwargs):
         if not self.school and self.meeting:
             self.school = self.meeting.school
         super().save(*args, **kwargs)
-
-
-
-
-
-
-
-
-
- 
 

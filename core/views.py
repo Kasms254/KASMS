@@ -5711,11 +5711,15 @@ class MeetingViewSet(viewsets.ModelViewSet):
         serializer = MeetingJoinSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        meeting = get_object_or_404(
-            Meeting, join_token=serializer.validated_data['join_token'],
-        )
+        join_token = serializer.validated_data.get('join_token')
+        meeting_code = serializer.validated_data.get('meeting_code')
 
-        # Enforce school scope — only superadmins may cross schools
+
+        if join_token:
+            meeting = get_object_or_404(Meeting.all_objects, join_token=join_token)
+        else:
+            meeting = get_object_or_404(Meeting.all_objects, meeting_code=meeting_code)
+
         user = request.user
         if user.active_role != 'superadmin' and meeting.school and meeting.school != user.school:
             return Response(
@@ -5745,9 +5749,10 @@ class MeetingViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        is_host = meeting.created_by == request.user
         role = (
             MeetingParticipant.Role.HOST
-            if meeting.created_by == request.user
+            if is_host
             else MeetingParticipant.Role.PARTICIPANT
         )
         participant, created = MeetingParticipant.objects.get_or_create(
@@ -5758,15 +5763,30 @@ class MeetingViewSet(viewsets.ModelViewSet):
             participant.left_at = None
             participant.save(update_fields=['left_at'])
 
+        from django.conf import settings as django_settings
+        jitsi_domain = 'meet.jit.si'
+        jaas_jwt = None
+
+        if meeting.provider == 'jitsi' and getattr(django_settings, 'JITSI_APP_ID', ''):
+            jitsi_domain = getattr(django_settings, 'JITSI_DOMAIN', '8x8.vc')
+            from .services import generate_jaas_jwt
+            jaas_jwt = generate_jaas_jwt(
+                user=request.user,
+                room_name=meeting.video_room_name,
+                is_moderator=is_host or user.active_role in ('admin', 'superadmin'),
+            )
+
         return Response({
             'meeting': MeetingDetailSerializer(meeting, context={'request': request}).data,
             'participant_id': str(participant.id),
             'video_config': {
                 'provider': meeting.provider,
                 'room_name': meeting.video_room_name,
+                'domain': jitsi_domain,
                 'display_name': request.user.get_full_name(),
                 'user_email': request.user.email,
-                'is_host': meeting.created_by == request.user,
+                'is_host': is_host,
+                'jwt': jaas_jwt,
             },
         })
 
@@ -5804,30 +5824,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
             )
         return Response(MeetingListSerializer(qs, many=True).data)
 
-
 class MeetingNotificationViewSet(viewsets.ModelViewSet):
-    serializer_class = MeetingNotificationSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructor]
-
-    def get_queryset(self):
-        return MeetingNotification.objects.filter(
-            meeting__school=self.request.user.school,
-        )
-
-    def _validate_meeting_school(self, serializer):
-        """Ensure the meeting belongs to the requesting user's school."""
-        meeting = serializer.validated_data.get('meeting')
-        if meeting and meeting.school != self.request.user.school:
-            raise PermissionDenied('You can only manage notifications for meetings in your school.')
-
-    def perform_create(self, serializer):
-        self._validate_meeting_school(serializer)
-        meeting = serializer.validated_data['meeting']
-        serializer.save(school=meeting.school)
-
-    def perform_update(self, serializer):
-        self._validate_meeting_school(serializer)
-        serializer.save()
     serializer_class = MeetingNotificationSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructor]
 

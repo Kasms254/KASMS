@@ -332,3 +332,8 @@ LOGGING = {
         },
     },
 }
+
+JITSI_APP_ID = os.getenv('JITSI_APP_ID', '')         
+JITSI_API_KEY_ID = os.getenv('JITSI_API_KEY_ID', '')    
+JITSI_API_KEY_SECRET = os.getenv('JITSI_API_KEY_SECRET', '')  
+JITSI_DOMAIN = os.getenv('JITSI_DOMAIN', '8x8.vc') 

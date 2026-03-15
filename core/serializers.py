@@ -9,6 +9,7 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
+from datetime import datetime as dt
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -878,11 +879,19 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
 
+class SafeDateTimeField(serializers.DateTimeField):
+    def to_representation(self, value):
+        if value and not isinstance(value, dt):
+            from django.utils import timezone as tz
+            value = tz.make_aware(dt.combine(value, dt.min.time()))
+        return super().to_representation(value)
+
 class NoticeSerializer(serializers.ModelSerializer):
 
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
@@ -1142,6 +1151,7 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
     read_at = serializers.SerializerMethodField()
@@ -2187,13 +2197,11 @@ class MeetingListSerializer(serializers.ModelSerializer):
         return obj.created_by.get_full_name()
  
     def get_class_names(self, obj):
-        # Use prefetch cache when available to avoid N+1
         if hasattr(obj, '_prefetched_objects_cache') and 'classes' in obj._prefetched_objects_cache:
             return [c.name for c in obj.classes.all()]
         return list(obj.classes.values_list('name', flat=True))
  
     def get_participant_count(self, obj):
-        # Use annotation if available, otherwise fall back to queryset
         if hasattr(obj, 'active_participant_count'):
             return obj.active_participant_count
         return obj.participants.filter(left_at__isnull=True).count()
@@ -2262,7 +2270,6 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
                 'class_ids': 'This field is required when creating a meeting.'
             })
  
-        # Resolve effective start/end, falling back to the instance on partial updates
         start = data.get('scheduled_start')
         end = data.get('scheduled_end')
  
@@ -2270,7 +2277,6 @@ class MeetingCreateSerializer(serializers.ModelSerializer):
             start = start or self.instance.scheduled_start
             end = end if 'scheduled_end' in data else self.instance.scheduled_end
  
-            # On update, ensure a still-scheduled meeting isn't left with a past start time
             if self.instance.status == 'scheduled':
                 from django.utils import timezone
                 if start and start < timezone.now():
@@ -2322,7 +2328,6 @@ class MeetingDetailSerializer(MeetingListSerializer):
         ]
  
     def get_join_token(self, obj):
-        """Only expose the raw join_token to the meeting creator or admins."""
         request = self.context.get('request')
         if request and request.user:
             user = request.user
@@ -2352,9 +2357,18 @@ class MeetingParticipantSerializer(serializers.ModelSerializer):
         return obj.user.get_full_name()
  
 class MeetingJoinSerializer(serializers.Serializer):
-    join_token = serializers.CharField(max_length=64)
+    join_token = serializers.CharField(max_length=64, required=False)
+    meeting_code = serializers.CharField(max_length=20, required=False)
+ 
+    def validate(self, data):
+        if not data.get('join_token') and not data.get('meeting_code'):
+            raise serializers.ValidationError(
+                'Either join_token or meeting_code is required.'
+            )
+        return data
  
 class MeetingNotificationSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = MeetingNotification
         fields = [
