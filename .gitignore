@@ -39,3 +39,4 @@ db.sqlite3
 datadump.json
 api.js
 test_meetings.py
+jitsi_private.pk
