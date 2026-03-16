@@ -5,6 +5,7 @@ from .managers import get_current_school
 from .models import DepartmentMembership
 
 
+
 class IsSuperAdmin(BasePermission):
 
     message = "Only superadmins can perform this action."
@@ -32,7 +33,7 @@ class IsAdmin(BasePermission):
 class IsAdminOrInstructor(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin']
+        return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin', 'commandant', 'chief_instructor']
     
 class IsInstructor(BasePermission):
 
@@ -87,9 +88,9 @@ class IsInstructorOfClassOrAdmin(BasePermission):
 class IsAdminOrCommandant(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'superadmin']
+        return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'chief_instructor','superadmin']
 
-class  ReadOnlyForCommandant(permissions.BasePermission):
+class ReadOnlyForCommandant(BasePermission):
 
     def has_permission(self, request, view):
 
@@ -98,17 +99,13 @@ class  ReadOnlyForCommandant(permissions.BasePermission):
 
         user_role = getattr(request.user, 'role', None)
 
-        if user_role == 'admin':
+        if user_role in ('admin', 'superadmin'):
             return True
 
-        
-        if user_role == "commandant":
-            return request.method in permissions.SAFE_METHODS
+        if user_role in ('commandant', 'chief_instructor'):
+            return request.method in SAFE_METHODS
 
         return False
-
-
-    message = "You do not have permission to perform this action"
 
 class BelongsToSameSchool(BasePermission):
 
@@ -170,7 +167,6 @@ class CanAccessSchoolData(BasePermission):
         
         return True
 
-
 class ForcePasswordChangePermission(BasePermission):
 
     def has_permission(self, request, view):
@@ -211,8 +207,7 @@ class IsInstructorOfSubject(BasePermission):
         if request.user.role in ["admin", "superadmin"]:
             return True
         return obj.exam.subject.instructor == request.user
-        
-        
+             
 class IsAdminOnly(BasePermission):
     message = "Only administrators can access this resource."
 
@@ -256,7 +251,6 @@ class IsHODOfDepartment(BasePermission):
         ).exists()
 
 class IsHODOrAdmin(BasePermission):
-
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
@@ -268,5 +262,43 @@ class IsHODOrAdmin(BasePermission):
             is_active=True,
         ).exists()
 
-        
+class IsChiefInstructor(BasePermission):
+    message = "Only the Chief Instructor can perform this action."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == 'chief_instructor'
+        )
+
+class IsCommandantOrChiefInstructor(BasePermission):
+
+    message = "Only Commandant, Chief Instructor, or Admin can access this."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in [
+                'commandant', 'chief_instructor', 'admin', 'superadmin'
+            ]
+        )
+
+class ReadOnlyForCommandantOrChiefInstructor(BasePermission):
+
+    message = "You do not have permission to perform this action."
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user_role = getattr(request.user, 'role', None)
+
+        if user_role in ('admin', 'superadmin'):
+            return True
+
+        if user_role in ('commandant', 'chief_instructor'):
+            return request.method in SAFE_METHODS
+
+        return False
+
 

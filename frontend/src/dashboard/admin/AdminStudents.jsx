@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useNavigate } from 'react-router-dom'
-import { getRankSortIndex } from '../../lib/rankOrder'
 
 function initials(name = '') {
   return name
@@ -58,17 +58,15 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminStudents() {
+export default function AdminStudents({ hideActions = false, source = 'admin' }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const queryClient = useQueryClient()
   const reportError = (msg) => {
     if (!msg) return
     if (toast?.error) return toast.error(msg)
     if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
   }
-  const [students, setStudents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   // Pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -132,106 +130,79 @@ export default function AdminStudents() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
   const [togglingId, setTogglingId] = useState(null)
+  const [exportLoading, setExportLoading] = useState(false)
 
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState('all')
-  const [availableClasses, setAvailableClasses] = useState([])
 
-  // Fetch ALL students and classes once on mount
+  // Debounce search input 300ms to avoid a request on every keystroke
   useEffect(() => {
-    let mounted = true
-    setLoading(true)
+    const t = setTimeout(() => { setDebouncedSearch(searchTerm); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [searchTerm])
 
-    Promise.all([
-      api.getAllStudents(),
-      api.getAllClasses('is_active=true'),
-    ])
-      .then(([studentsData, classesData]) => {
-        if (!mounted) return
-        const list = Array.isArray(studentsData) ? studentsData : []
-        // normalize shape used by this component
-        const mapped = list.map((u) => ({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-          svc_number: u.svc_number != null ? String(u.svc_number) : '',
-          email: u.email,
-          phone_number: u.phone_number,
-          rank: normalizeRank(u.rank || u.rank_display),
-          unit: u.unit || '',
-          is_active: u.is_active,
-          created_at: u.created_at,
-          className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
-        }))
-        setStudents(mapped)
-        setAvailableClasses(Array.isArray(classesData) ? classesData : [])
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-      })
-      .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [])
+  // Server-side paginated students
+  const { data: studentsData, isPending: loading, error } = useQuery({
+    queryKey: ['students', { page, pageSize, search: debouncedSearch, classId: selectedClass }],
+    queryFn: () => {
+      const params = new URLSearchParams({ page, page_size: pageSize })
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      return api.getStudentsPaginated(params.toString())
+    },
+    placeholderData: (prev) => prev,
+  })
 
-  // Filter and sort students client-side
-  const filteredStudents = useMemo(() => {
-    let filtered = students
+  const students = (studentsData?.results ?? []).map((u) => ({
+    id: u.id,
+    first_name: u.first_name,
+    last_name: u.last_name,
+    full_name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+    name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+    svc_number: u.svc_number != null ? String(u.svc_number) : '',
+    email: u.email,
+    phone_number: u.phone_number,
+    rank: normalizeRank(u.rank || u.rank_display),
+    unit: u.unit || '',
+    is_active: u.is_active,
+    created_at: u.created_at,
+    className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
+  }))
 
-    // Filter by class
-    if (selectedClass !== 'all') {
-      const selectedClassName = availableClasses.find(c => c.id === parseInt(selectedClass))?.name || ''
-      filtered = filtered.filter((u) => u.className === selectedClassName)
+  const totalCount = studentsData?.count ?? 0
+  const totalPages = studentsData?.total_pages ?? 1
+
+  // Classes list for filter dropdown and edit modal (cached 10 min)
+  const { data: classesQueryData } = useQuery({
+    queryKey: ['classes', 'active'],
+    queryFn: () => api.getClassesPaginated('is_active=true&page_size=500'),
+    staleTime: 10 * 60 * 1000,
+  })
+  const availableClasses = classesQueryData?.results ?? []
+
+
+
+  async function downloadCSV() {
+    setExportLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedClass !== 'all') params.set('class_obj', selectedClass)
+      const blob = await api.exportStudentsCSV(params.toString())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'students.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      reportError('Failed to export CSV: ' + (err.message || String(err)))
+    } finally {
+      setExportLoading(false)
     }
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase()
-      filtered = filtered.filter((u) =>
-        (u.name || '').toLowerCase().includes(q) ||
-        (u.email || '').toLowerCase().includes(q) ||
-        (u.svc_number || '').toLowerCase().includes(q) ||
-        (u.rank || '').toLowerCase().includes(q) ||
-        (u.className || '').toLowerCase().includes(q)
-      )
-    }
-
-    // Sort by rank: senior first
-    filtered.sort((a, b) => getRankSortIndex(a.rank) - getRankSortIndex(b.rank))
-    return filtered
-  }, [students, selectedClass, availableClasses, searchTerm])
-
-  // Client-side pagination
-  const totalCount = filteredStudents.length
-  const totalPages = Math.ceil(totalCount / pageSize)
-  const paginatedStudents = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredStudents.slice(start, start + pageSize)
-  }, [filteredStudents, page, pageSize])
-
-
-
-  function downloadCSV() {
-    // Export Service No first, then Rank, Name, Unit, Class, Email, Phone, Active
-    const rows = [['Service No', 'Rank', 'Name', 'Unit', 'Class', 'Email', 'Phone', 'Active']]
-
-    filteredStudents.forEach((st) => rows.push([st.svc_number || '', getRankDisplay(st.rank) || '', st.name || '', st.unit || '', st.className || '', st.email || '', st.phone_number || '', st.is_active ? 'Yes' : 'No']))
-
-    const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'students.csv'
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   // ----- Edit / Delete handlers -----
@@ -252,14 +223,10 @@ export default function AdminStudents() {
       // ensure class_obj is a string (select values are strings) and fall back to empty
       class_obj: st.class_obj ? String(st.class_obj) : '',
     })
-    // fetch classes (if not loaded) and the student's enrollments to get active class
-    if (classesList.length === 0) {
-      api.getAllClasses('is_active=true').then((c) => {
-        const list = Array.isArray(c) ? c : []
-        // normalize ids to strings so <select> option values always match
-        const normalized = list.map((cls) => ({ ...cls, id: cls.id != null ? String(cls.id) : cls.id }))
-        setClassesList(normalized)
-      }).catch(() => {})
+    // Populate classesList from already-fetched React Query data (no extra API call)
+    if (classesList.length === 0 && availableClasses.length > 0) {
+      const normalized = availableClasses.map((cls) => ({ ...cls, id: cls.id != null ? String(cls.id) : cls.id }))
+      setClassesList(normalized)
     }
     api.getUserEnrollments(st.id).then((d) => {
       const list = Array.isArray(d) ? d : (d && Array.isArray(d.results) ? d.results : d && d.results ? d.results : (d && d.enrollments) || [])
@@ -367,28 +334,26 @@ export default function AdminStudents() {
         created_at: updated.created_at,
         className: newClassName,
       }
-      setStudents((s) => s.map((x) => (x.id === norm.id ? norm : x)))
       // if class changed, create a new enrollment
       try {
-        const selectedClass = editForm.class_obj
+        const selectedClassId = editForm.class_obj
         const currentClassId = currentEnrollment && currentEnrollment.class_obj ? (typeof currentEnrollment.class_obj === 'object' ? currentEnrollment.class_obj.id : currentEnrollment.class_obj) : null
-        if (selectedClass && String(selectedClass) !== String(currentClassId)) {
+        if (selectedClassId && String(selectedClassId) !== String(currentClassId)) {
           // check if there's an existing enrollment record for this class
           const existing = enrollmentsList && enrollmentsList.find((e) => {
             const cid = typeof e.class_obj === 'object' && e.class_obj !== null ? e.class_obj.id : e.class_obj
-            return String(cid) === String(selectedClass)
+            return String(cid) === String(selectedClassId)
           })
 
           // Before creating/reactivating, withdraw any other active enrollments so the student
           // is active in only one class at a time on the backend.
           const activeOthers = (enrollmentsList || []).filter((e) => {
             const cid = typeof e.class_obj === 'object' && e.class_obj !== null ? e.class_obj.id : e.class_obj
-            return e.is_active && String(cid) !== String(selectedClass)
+            return e.is_active && String(cid) !== String(selectedClassId)
           })
           for (const a of activeOthers) {
             try {
               await api.withdrawEnrollment(a.id)
-              // update local copy
               setEnrollmentsList((lst) => lst.map((x) => x.id === a.id ? { ...x, is_active: false } : x))
             } catch (err) {
               // non-fatal: continue but inform user
@@ -396,30 +361,19 @@ export default function AdminStudents() {
           }
 
           if (existing) {
-            if (existing.is_active) {
-              // already active — nothing to do
-            } else {
-              // reactivate existing enrollment instead of creating duplicate
+            if (!existing.is_active) {
               await api.reactivateEnrollment(existing.id)
-              // update local state to reflect reactivation
               setCurrentEnrollment({ ...existing, is_active: true })
               setEnrollmentsList((lst) => lst.map((e) => e.id === existing.id ? { ...e, is_active: true } : e))
             }
           } else {
-            // POST enrollment { student, class_obj }
-            await api.addEnrollment({ student: editingStudent.id, class_obj: selectedClass })
-          }
-
-          // update local student's className from classesList if available
-          const cls = classesList.find((c) => String(c.id) === String(selectedClass))
-          if (cls) {
-            setStudents((s) => s.map((x) => (x.id === norm.id ? { ...x, className: cls.name } : x)))
+            await api.addEnrollment({ student: editingStudent.id, class_obj: selectedClassId })
           }
         }
-          } catch (err) {
-            // enrollment error: inform user via toast
-            reportError('Failed to update enrollment: ' + (err.message || String(err)))
-          }
+      } catch (err) {
+        reportError('Failed to update enrollment: ' + (err.message || String(err)))
+      }
+      queryClient.invalidateQueries({ queryKey: ['students'] })
       closeEdit()
       toast?.success?.('Student updated successfully') || toast?.showToast?.('Student updated successfully', { type: 'success' })
     } catch (err) {
@@ -469,14 +423,12 @@ export default function AdminStudents() {
     setDeletingId(st.id)
     try {
       await api.deleteUser(st.id)
-      setStudents((s) => s.filter((x) => x.id !== st.id))
+      queryClient.invalidateQueries({ queryKey: ['students'] })
       // close confirm modal and also the edit modal if open
       setConfirmDelete(null)
       closeEdit()
       toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
-      setError(err)
-      // prefer toast later; keep simple for now
       reportError('Failed to delete student: ' + (err.message || String(err)))
     } finally {
       setDeletingId(null)
@@ -489,13 +441,12 @@ export default function AdminStudents() {
     try {
       if (st.is_active) {
         await api.deactivateUser(st.id)
-        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: false } : x))
         toast?.success?.('Student deactivated successfully') || toast?.showToast?.('Student deactivated successfully', { type: 'success' })
       } else {
         await api.activateUser(st.id)
-        setStudents((s) => s.map((x) => x.id === st.id ? { ...x, is_active: true } : x))
         toast?.success?.('Student activated successfully') || toast?.showToast?.('Student activated successfully', { type: 'success' })
       }
+      queryClient.invalidateQueries({ queryKey: ['students'] })
     } catch (err) {
       reportError('Failed to update status: ' + (err.message || String(err)))
     } finally {
@@ -596,7 +547,9 @@ export default function AdminStudents() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={downloadCSV} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">Download CSV</button>
+          <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+            {exportLoading ? 'Exporting…' : 'Download CSV'}
+          </button>
         </div>
       </header>
 
@@ -609,7 +562,7 @@ export default function AdminStudents() {
               <div className="relative flex-1">
                 <input
                   value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search students..."
                   className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 />
@@ -704,21 +657,21 @@ export default function AdminStudents() {
               variant="minimal"
             />
           </div>
-        ) : paginatedStudents.length === 0 ? (
+        ) : students.length === 0 ? (
           <div className="bg-white rounded-xl border border-neutral-200">
             <EmptyState
               icon="Users"
               title="No students found"
               description={searchTerm ? `No students match "${searchTerm}". Try adjusting your search terms.` : "Get started by adding your first student. Students can be enrolled in classes and track their academic progress."}
-              actionLabel={!searchTerm ? "Add Student" : undefined}
-              onAction={!searchTerm ? () => navigate('/dashboard/add/user') : undefined}
+              actionLabel={!searchTerm && !hideActions && source !== 'commandant' ? "Add Student" : undefined}
+              onAction={!searchTerm && !hideActions && source !== 'commandant' ? () => navigate('/dashboard/add/user') : undefined}
             />
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
             {/* Mobile Card View */}
             <div className="lg:hidden p-4 space-y-3">
-              {paginatedStudents.map((st) => (
+              {students.map((st) => (
                 <div key={st.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -767,7 +720,7 @@ export default function AdminStudents() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 bg-white">
-                  {paginatedStudents.map((st) => (
+                  {students.map((st) => (
                     <tr key={st.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
@@ -1056,7 +1009,6 @@ export default function AdminStudents() {
               {/* Page numbers */}
               <div className="flex items-center gap-1">
                 {(() => {
-                  const totalPages = Math.ceil(totalCount / pageSize)
                   const pages = []
                   const maxVisible = 5
 
@@ -1111,8 +1063,8 @@ export default function AdminStudents() {
 
               {/* Next button */}
               <button
-                onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
-                disabled={page >= Math.ceil(totalCount / pageSize)}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
                 className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 aria-label="Next page"
               >

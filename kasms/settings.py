@@ -9,10 +9,6 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 
@@ -20,7 +16,10 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,192.168.2.254"
+).split(",")
 
 
 # Application definition
@@ -39,6 +38,7 @@ INSTALLED_APPS = [
     # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
+    "drf_yasg",
 ]
 
 MIDDLEWARE = [
@@ -54,8 +54,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-
 
 ROOT_URLCONF = "kasms.urls"
 
@@ -95,11 +93,28 @@ DATABASES = {
         "PASSWORD": os.getenv('DB_PASSWORD', default='kasms_password'),
         "HOST": os.getenv('HOST', default='localhost'),
         "PORT": os.getenv('PORT', default='5432'),
+        "CONN_MAX_AGE": 600,
         
     }
     #  "default": dj_database_url.config(
     #     default=os.environ.get("DATABASE_URL")
     # )
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": os.getenv(
+            "CACHE_BACKEND",
+            "django.core.cache.backends.redis.RedisCache"
+            if os.getenv("REDIS_URL")
+            else "django.core.cache.backends.locmem.LocMemCache",
+        ),
+        "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
+        "TIMEOUT": 300,  
+        "OPTIONS": {
+            "MAX_ENTRIES": 5000,
+        },
+    }
 }
 
 # Password validation
@@ -185,22 +200,27 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES':{
+        'anon' : '100/hour',
+        'user' : '1000/hour',
+        'certificate_verify_burst': '10/min',
+        'certificate_verify_sustained': '50/hour',
+    },
 }
 
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([
     "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
-    "http://192.168.2.254",
-    "http://192.168.2.254:8080",
-
-]
+    "http://localhost:8000",
+])).split(",")
 
 CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -235,17 +255,12 @@ AUTHENTICATION_BACKENDS = [
     'core.backends.SvcNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
-
-CSRF_TRUSTED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:3000",
-    "https://kasms.onrender.com",
-    "https://kasms.vercel.app",
-    "http://localhost:8000",
     "http://localhost:5173",
     "http://localhost:5174",
-    "http://192.168.2.254",
-    "http://192.168.2.254:8080",
-]
+    "http://localhost:8000",
+])).split(",")
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_NAME = "csrftoken"
@@ -275,6 +290,46 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # 2FA settings
-TWO_FA_CODE_LENGTH = 6
-TWO_FA_CODE_EXPIRY_MINUTES = 5
-TWO_FA_MAX_ATTEMPTS = 5
+TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
+TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
+TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
+
+
+CERT_VERIFY_LOCKOUT_THRESHOLD = 20
+CERT_VERIFY_LOCKOUT_WINDOW = 900
+CERT_VERIFY_LOCKOUT_DURATION = 1800
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+        'json': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'verification_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'logs/certificate_verification.log',
+            'maxBytes': 10 * 1024 * 1024,   # 10 MB
+            'backupCount': 10,
+            'formatter': 'json',
+        },
+    },
+    'loggers': {
+        'certificate.verification': {
+            'handlers': ['console', 'verification_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

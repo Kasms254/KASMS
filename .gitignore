@@ -38,3 +38,6 @@ dist/
 db.sqlite3
 datadump.json
 api.js
+
+jitsi_private.pk
+core/tests/test_meetings.py

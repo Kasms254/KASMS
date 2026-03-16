@@ -1,14 +1,16 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
-from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
+from rest_framework.pagination import PageNumberPagination
+from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
-    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
+    ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
-    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
+    DashboardExamReportSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -16,8 +18,8 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsCommandantOrChiefInstructor,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -27,7 +29,7 @@ from dateutil import parser
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 import io
 import csv
-from django.http import HttpResponse, FileResponse
+from django.http import HttpResponse, FileResponse, StreamingHttpResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
@@ -37,7 +39,11 @@ from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-
+from rest_framework import viewsets, status, permissions
+class PageSizeAwarePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 class TenantFilterMixin:
 
@@ -177,30 +183,49 @@ class SchoolViewSet(viewsets.ModelViewSet):
     def statistics(self, request, pk=None):
 
         school = self.get_object()
-
    
+        membership_stats = SchoolMembership.all_objects.filter(
+            school=school, status='active'
+        ).aggregate(
+            total=Count('id'),
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+            admins=Count('id', filter=Q(role='admin')),
+            commandants=Count('id', filter=Q(role='commandant')),
+        )
+
+        academic_stats = School.objects.filter(id=school.id).aggregate(
+            courses=Count('courses', filter=Q(courses__is_active=True)),
+            classes=Count('classes', filter=Q(classes__is_active=True)),
+            subjects=Count('subjects', filter=Q(subjects__is_active=True)),
+            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True)),
+        )
+
+        current_students = membership_stats['students'] or 0
+        current_instructors = membership_stats['instructors'] or 0
+
         stats = {
             'users': {
-                'total': school.memberships.filter(status='active').count(),
-                'students': school.memberships.filter(role='student', status='active').count(),
-                'instructors': school.memberships.filter(role='instructor', status='active').count(),
-                'admins': school.memberships.filter(role='admin', status='active').count(),
-                'commandants': school.memberships.filter(role='commandant', status='active').count(),
+                'total': membership_stats['total'] or 0,
+                'students': current_students,
+                'instructors': current_instructors,
+                'admins': membership_stats['admins'] or 0,
+                'commandants': membership_stats['commandants'] or 0,
             },
             'academic':{
-                'courses':school.courses.filter(is_active=True).count(),
-                'classes': school.classes.filter(is_active= True).count(),
-                'subjects': school.subjects.filter(is_active=True).count(),
-                'active_enrollments': school.enrollments.filter(is_active=True).count(),
+                'courses': academic_stats['courses'] or 0,
+                'classes': academic_stats['classes'] or 0,
+                'subjects': academic_stats['subjects'] or 0,
+                'active_enrollments': academic_stats['active_enrollments'] or 0,
             },
             'limits':{
                 'max_students': school.max_students,
-                'current_students':school.current_student_count,
-                'student_capacity_used': round((school.current_student_count / school.max_students) * 100, 2),
+                'current_students': current_students,
+                'student_capacity_used': round((current_students / school.max_students) * 100, 2) if school.max_students else 0,
                 'max_instructors': school.max_instructors,
-                'current_instructors':school.current_instructor_count,
-                'instructor_capacity_used':round((school.current_instructor_count /school.max_instructors) * 100, 2),
-                'within_limits':school.is_within_limits
+                'current_instructors': current_instructors,
+                'instructor_capacity_used': round((current_instructors / school.max_instructors) * 100, 2) if school.max_instructors else 0,
+                'within_limits': current_students <= school.max_students and current_instructors <= school.max_instructors
             },
             'subscription':{
                 'start_date':school.subscription_start,
@@ -470,8 +495,8 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_permissions(self):
-        if self.action == "enrollments":
-            return [IsAuthenticated()]
+        if self.action in ['enrollments', 'students', 'instructors']:
+            return [IsAuthenticated(), IsCommandantOrChiefInstructor()]
         return super().get_permissions()
 
     def get_serializer_class(self):
@@ -556,6 +581,12 @@ class UserViewSet(viewsets.ModelViewSet):
     def instructors(self, request):
         queryset = self.get_queryset().filter(role='instructor', is_active=True)
         
+        class_obj_id  = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                Q(instructed_classes__id=class_obj_id) |
+                Q(subjects__class_obj_id=class_obj_id, subjects__is_active=True)
+            ).distinct()
         search_query = request.query_params.get('search', '').strip()
         if search_query:
             queryset = queryset.filter(
@@ -591,6 +622,13 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
         else:
             queryset = queryset.filter(is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                enrollments__class_obj_id = class_obj_id,
+                enrollments__is_active = True
+            ).distinct()
         
         search_query = request.query_params.get('search', '').strip()
         if search_query:
@@ -704,6 +742,136 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': f'Password for user {user.username} has been reset'  
         })
     
+    @action(detail=False, methods=['get'], url_path='students/export_csv')
+    def export_students_csv(self, request):
+        MAX_EXPORT_ROWS = 50000
+
+        queryset = self.get_queryset().filter(role='student')
+
+        is_active_param = request.query_params.get('is_active', None)
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=is_active_param.lower() in ['true', '1'])
+        else:
+            queryset = queryset.filter(is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                enrollments__class_obj_id=class_obj_id,
+                enrollments__is_active=True
+            ).distinct()
+
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(svc_number__icontains=search_query)
+            )
+
+        queryset = queryset.select_related('school').prefetch_related(
+            'enrollments', 'enrollments__class_obj'
+        ).order_by('first_name', 'last_name')[:MAX_EXPORT_ROWS]
+
+        def csv_rows():
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                'SVC Number', 'First Name', 'Last Name', 'Email',
+                'Phone Number', 'Rank', 'Unit', 'Class', 'Active', 'Date Joined'
+            ])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            for user in queryset.iterator(chunk_size=500):
+                enrollment = next(
+                    (e for e in user.enrollments.all() if e.is_active),
+                    None
+                )
+                class_name = enrollment.class_obj.name if enrollment and enrollment.class_obj else ''
+                writer.writerow([
+                    user.svc_number,
+                    user.first_name,
+                    user.last_name,
+                    user.email,
+                    user.phone_number,
+                    user.get_rank_display() if user.rank else '',
+                    user.unit or '',
+                    class_name,
+                    'Yes' if user.is_active else 'No',
+                    user.date_joined.strftime('%Y-%m-%d') if user.date_joined else '',
+                ])
+                yield output.getvalue()
+                output.seek(0)
+                output.truncate(0)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="students_export_{timestamp}.csv"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='instructors/export_csv')
+    def export_instructors_csv(self, request):
+        MAX_EXPORT_ROWS = 50000
+
+        queryset = self.get_queryset().filter(role='instructor', is_active=True)
+
+        class_obj_id = request.query_params.get('class_obj', '').strip()
+        if class_obj_id:
+            queryset = queryset.filter(
+                Q(instructed_classes__id=class_obj_id) |
+                Q(subjects__class_obj_id=class_obj_id, subjects__is_active=True)
+            ).distinct()
+
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(username__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(svc_number__icontains=search_query)
+            )
+
+        queryset = queryset.select_related('school').order_by(
+            'first_name', 'last_name'
+        )[:MAX_EXPORT_ROWS]
+
+        def csv_rows():
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                'SVC Number', 'First Name', 'Last Name', 'Email',
+                'Phone Number', 'Rank', 'Unit', 'Active', 'Date Joined'
+            ])
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            for user in queryset.iterator(chunk_size=500):
+                writer.writerow([
+                    user.svc_number,
+                    user.first_name,
+                    user.last_name,
+                    user.email,
+                    user.phone_number,
+                    user.get_rank_display() if user.rank else '',
+                    user.unit or '',
+                    'Yes' if user.is_active else 'No',
+                    user.date_joined.strftime('%Y-%m-%d') if user.date_joined else '',
+                ])
+                yield output.getvalue()
+                output.seek(0)
+                output.truncate(0)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="instructors_export_{timestamp}.csv"'
+        return response
+
 class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
     
     permission_classes = [IsAuthenticated]
@@ -816,6 +984,7 @@ class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'course', 'instructor']
     search_fields = ['name', 'course__name', 'instructor__first_name']
@@ -1100,7 +1269,8 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin, ReadOnlyForCommandantOrChiefInstructor]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'class_obj', 'instructor'] 
     search_fields = ['name', 'class_obj__name', 'instructor__first_name']
@@ -1201,7 +1371,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
     def my_subjects(self, request):
         if request.user.role != 'instructor':
@@ -1218,6 +1387,10 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+        return [IsAuthenticated(), IsAdmin()]
 class NoticeActionMixin:
 
     read_status_model = None
@@ -1592,7 +1765,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['subject', 'exam_type', 'is_active']
+    filterset_fields = ['subject', 'exam_type', 'is_active', 'subject__class_obj']
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
@@ -2378,11 +2551,37 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         serializer.save(school=school, created_by = self.request.user)
 
     
+    @action(detail=False, methods=['get'], url_path='by_exam/(?P<exam_id>[^/.]+)')
+    def by_exam(self, request, exam_id=None):
+        report = self.get_queryset().filter(exams__id=exam_id).prefetch_related('remarks', 'exams').first()
+        if not report:
+            return Response({'detail': 'No report found for this exam.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DashboardExamReportSerializer(report, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def add_remark(self, request, pk=None):
+        report = self.get_object()
+        serializer = AddRemarkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        remark_obj, created = ExamReportRemark.all_objects.update_or_create(
+            exam_report=report,
+            author_role='instructor',
+            defaults={
+                'remark': serializer.validated_data['remark'],
+                'author': request.user,
+                'school': report.school,
+            }
+        )
+        return Response(
+            ExamReportRemarkSerializer(remark_obj).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
     @action(detail=True, methods=['get'])
     def detailed_report(self, request, pk=None):
 
         report = self.get_object()
-        exam_ids = report.exams.values._list('id', flat=True)
+        exam_ids = report.exams.values_list('id', flat=True)
 
         enrollments = Enrollment.objects.filter(
 
@@ -2452,13 +2651,16 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             class_q,
             school=school,
             is_active=True
-        ).distinct()
+        ).distinct().select_related('course', 'instructor').annotate(
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+        )
 
         my_subjects = Subject.all_objects.filter(
             subject_q,
             school=school,
             is_active=True
-        ).distinct()
+        ).distinct().select_related('instructor', 'class_obj', 'class_obj__course')
 
         my_students_count = Enrollment.all_objects.filter(
             class_obj__in=my_classes,
@@ -2589,7 +2791,6 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             'pending_edit_requests': pending_edit_requests_count,
             'is_hod': bool(hod_dept_ids),
         })
-
 # students
 class StudentDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
@@ -3226,8 +3427,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'end_date': end_date,
             'exam_count': upcoming_exams.count(),
             'exams':ExamSerializer(upcoming_exams, many=True).data
-        })
-    
+        })   
 # attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
@@ -4043,7 +4243,6 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
             session_qs = session_qs.filter(scheduled_start__date__lte=end_date)
 
-
         sessions = session_qs.order_by('-scheduled_start')
 
         enrolled_students = User.objects.filter(
@@ -4053,41 +4252,46 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             is_active=True
         ).distinct()
 
-        student_stats =[]
+        student_att_stats = SessionAttendance.objects.filter(
+            session__in=sessions
+        ).values('student_id').annotate(
+            attended=Count('id'),
+            present=Count('id', filter=Q(status='present')),
+            late=Count('id', filter=Q(status='late')),
+            excused=Count('id', filter=Q(status='excused')),
+        )
+        att_map = {s['student_id']: s for s in student_att_stats}
+
+        total_sessions_count = sessions.count()
+        student_stats = []
 
         for student in enrolled_students:
-            attendances = SessionAttendance.objects.filter(
-                session__in =sessions,
-                student = student
-            )
+            att_data = att_map.get(student.id, {})
+            attended = att_data.get('attended', 0)
+            present = att_data.get('present', 0)
+            late = att_data.get('late', 0)
+            excused = att_data.get('excused', 0)
+            absent = total_sessions_count - attended
 
-            total_sessions = sessions.count()
-            attended = attendances.count()
-            present = attendances.filter(status='present').count()
-            late = attendances.filter(status='late').count()
-            absent = total_sessions - attended
-
-            attendance_rate = (attended / total_sessions * 100) if total_sessions > 0 else 0
-            punctuality_rate  =(present/attended * 100) if attended > 0 else 0
+            attendance_rate = (attended / total_sessions_count * 100) if total_sessions_count > 0 else 0
+            punctuality_rate = (present / attended * 100) if attended > 0 else 0
 
             student_stats.append({
                 'student_id': student.id,
-                'student_name':student.get_full_name(),
-                'svc_number':student.svc_number,
-                'total_sessions':total_sessions,
-                'attended':attended,
-                'present':present,
-                'late':late,
-                'absent':absent,
-                'excused':attendances.filter(status='excused').count(),
-                'attendance_rate':round(attendance_rate, 2),
-                'punctuality_rate':round(punctuality_rate, 2)
-
-                            })
+                'student_name': student.get_full_name(),
+                'svc_number': student.svc_number,
+                'total_sessions': total_sessions_count,
+                'attended': attended,
+                'present': present,
+                'late': late,
+                'absent': absent,
+                'excused': excused,
+                'attendance_rate': round(attendance_rate, 2),
+                'punctuality_rate': round(punctuality_rate, 2)
+            })
 
         student_stats.sort(key=lambda x: x['attendance_rate'], reverse=True)
 
-        total_sessions_count = sessions.count()
         total_attendances = SessionAttendance.objects.filter(
             session__in = sessions
         ).count()
@@ -4115,7 +4319,7 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             },
             'student_statistics': student_stats
         })
-
+        
     @action(detail=False, methods=['get'])
     def student_detail(self, request):
         
@@ -4749,30 +4953,22 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         except Certificate.DoesNotExist:
             return Response({
                 'is_valid': False,
-                'error': 'Certificate not found',
-                'message': 'No certificate exists with this verification code.',
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Certificate could not be verified.',
+            }, status=status.HTTP_200_OK)
 
-        data = {
+        certificate.record_view()
+
+        return Response({
             'is_valid': certificate.is_valid,
             'certificate_number': certificate.certificate_number,
             'student_name': certificate.student_name,
-            'student_svc_number': certificate.student_svc_number,
-            'student_rank': certificate.student_rank,
             'course_name': certificate.course_name,
             'class_name': certificate.class_name,
             'school_name': certificate.school.name if certificate.school else '',
-            'final_grade': certificate.final_grade,
-            'final_percentage': certificate.final_percentage,
-            'issued_at': certificate.issued_at,
             'completion_date': certificate.completion_date,
             'status': certificate.status,
             'status_display': certificate.get_status_display(),
-        }
-        if certificate.status == 'revoked':
-            data['revocation_reason'] = certificate.revocation_reason
-            data['revoked_at'] = certificate.revoked_at
-        return Response(data)
+        })
 
     @action(detail=False, methods=['get'])
     def my_certificates(self, request):
@@ -4933,35 +5129,8 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-class CertificatePublicVerificationView(APIView):
-
-    permission_classes = [AllowAny]
-
-    def get(self, request, verification_code):
-        try:
-            certificate = Certificate.all_objects.select_related('school').get(
-                verification_code=verification_code.upper(),
-            )
-        except Certificate.DoesNotExist:
-            return Response({
-                'is_valid': False,
-                'error': 'Certificate not found',
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({
-            'is_valid': certificate.is_valid,
-            'certificate_number': certificate.certificate_number,
-            'student_name': certificate.student_name,
-            'course_name': certificate.course_name,
-            'class_name': certificate.class_name,
-            'school_name': certificate.school.name if certificate.school else '',
-            'completion_date': certificate.completion_date,
-            'status': certificate.status,
-            'status_display': certificate.get_status_display(),
-        })
 
 # student indexes
-
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5096,8 +5265,6 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
-
-
 class AdminRosterViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsAdminOnly]
@@ -5180,7 +5347,6 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "formatted_index": class_obj.format_index(int(new_number)),
         })
 # Departments
-
 class DepartmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = DepartmentSerializer

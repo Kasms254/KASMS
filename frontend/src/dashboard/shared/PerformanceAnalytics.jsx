@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
@@ -289,6 +291,10 @@ function TopPerformersList({ performers }) {
 
 // Attendance-Performance Correlation Display
 function AttendanceCorrelation({ data }) {
+  const [page, setPage] = useState(1)
+  const [metric, setMetric] = useState('attendance_rate')
+  const ITEMS_PER_PAGE = 10
+
   if (!data || data.message) {
     return <p className="text-sm text-gray-500">{data?.message || 'No correlation data available'}</p>
   }
@@ -309,9 +315,13 @@ function AttendanceCorrelation({ data }) {
     return 'bg-gray-100'
   }
 
-  const correlationPoints = data.correlation_data || []
-  const maxAttendance = Math.max(...correlationPoints.map(p => p.attendance_rate), 100)
-  const maxExam = Math.max(...correlationPoints.map(p => p.exam_percentage), 100)
+  const correlationPoints = [...(data.correlation_data || [])].sort((a, b) => b[metric] - a[metric])
+  const totalPages = Math.ceil(correlationPoints.length / ITEMS_PER_PAGE)
+  const pageData = correlationPoints.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+
+  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#84cc16']
+
+  const chartHeight = Math.max(320, pageData.length * 52)
 
   return (
     <div className="space-y-4">
@@ -336,37 +346,120 @@ function AttendanceCorrelation({ data }) {
         {data.interpretation}
       </p>
 
-      {/* Scatter Plot Visualization */}
+      {/* Bar Chart */}
       {correlationPoints.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs font-medium text-gray-500 mb-2">
-            Attendance vs Exam Performance ({data.data_points} students)
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          {/* Header */}
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
+              <button
+                onClick={() => { setMetric('attendance_rate'); setPage(1) }}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${metric === 'attendance_rate' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                Attendance
+              </button>
+              <button
+                onClick={() => { setMetric('exam_percentage'); setPage(1) }}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-gray-300 ${metric === 'exam_percentage' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                Exam Score
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, correlationPoints.length)} of {correlationPoints.length} students
+            </p>
           </div>
-          <div className="relative h-48 bg-gray-50 rounded-lg p-4">
-            {/* Y-axis label */}
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 -rotate-90 text-xs text-gray-500 origin-center whitespace-nowrap">
-              Exam %
-            </div>
-            {/* X-axis label */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-xs text-gray-500">
-              Attendance %
-            </div>
-            {/* Plot area */}
-            <div className="ml-4 mb-4 h-full relative border-l border-b border-gray-300">
-              {correlationPoints.slice(0, 50).map((point, idx) => {
-                const x = (point.attendance_rate / maxAttendance) * 100
-                const y = 100 - (point.exam_percentage / maxExam) * 100
-                return (
-                  <div
-                    key={idx}
-                    className="absolute w-2 h-2 bg-indigo-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 hover:bg-indigo-700 hover:w-3 hover:h-3 transition-all cursor-pointer"
-                    style={{ left: `${x}%`, top: `${y}%` }}
-                    title={`${point.student_name}: Attendance ${point.attendance_rate}%, Exam ${point.exam_percentage}%`}
+
+          {/* Chart */}
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={chartHeight}>
+              <RechartsBarChart
+                data={pageData}
+                layout="vertical"
+                margin={{ top: 4, right: 60, left: 4, bottom: 4 }}
+                barSize={30}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tickFormatter={v => `${v}%`}
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="student_name"
+                  width={130}
+                  tick={{ fontSize: 12, fill: '#374151', fontWeight: 500 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={v => v?.length > 16 ? v.slice(0, 15) + '…' : v}
+                />
+                <RechartsTooltip
+                  cursor={{ fill: 'rgba(99,102,241,0.06)' }}
+                  content={({ payload }) => {
+                    if (!payload?.length) return null
+                    const d = payload[0].payload
+                    return (
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
+                        <p className="font-semibold text-gray-800 mb-2">{d.student_name}</p>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-500">Attendance</span>
+                          <span className="font-bold text-indigo-600">{(d.attendance_rate || 0).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-500">Exam Score</span>
+                          <span className="font-bold text-emerald-600">{(d.exam_percentage || 0).toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+                <Bar dataKey={metric} radius={[0, 6, 6, 0]} background={{ fill: '#f9fafb', radius: [0, 6, 6, 0] }}>
+                  {pageData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                  <LabelList
+                    dataKey={metric}
+                    position="right"
+                    formatter={v => `${(v || 0).toFixed(1)}%`}
+                    style={{ fontSize: 12, fontWeight: 700, fill: '#374151' }}
                   />
-                )
-              })}
-            </div>
+                </Bar>
+              </RechartsBarChart>
+            </ResponsiveContainer>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronsLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
+                  return (
+                    <button key={p} onClick={() => setPage(p)} className={`min-w-[2rem] px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${page === p ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                      {p}
+                    </button>
+                  )
+                })}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronRight className="w-4 h-4 text-gray-600" />
+                </button>
+                <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronsRight className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -492,10 +585,7 @@ export default function PerformanceAnalytics() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, _setError] = useState(null)
 
   // Selected filters
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '')
@@ -503,40 +593,63 @@ export default function PerformanceAnalytics() {
   // Instructors default to 'subject' view since they don't have access to class-level analytics
   const [viewMode, setViewMode] = useState(user?.role === 'instructor' ? 'subject' : 'class')
 
-  // Analytics data
-  const [classPerformance, setClassPerformance] = useState(null)
-  const [subjectPerformance, setSubjectPerformance] = useState(null)
-  const [subjectComparison, setSubjectComparison] = useState(null)
-  const [classComparison, setClassComparison] = useState(null)
-  const [trendData, setTrendData] = useState(null)
-  const [correlationData, setCorrelationData] = useState(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  // Analytics data (cached per class/subject selection)
+  const { data: classPerformance, isPending: loadingClassPerf } = useQuery({
+    queryKey: ['class-performance', selectedClass],
+    queryFn: () => api.getClassPerformanceSummary(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: subjectComparison } = useQuery({
+    queryKey: ['subject-comparison', selectedClass],
+    queryFn: () => api.compareSubjects(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: correlationData } = useQuery({
+    queryKey: ['attendance-correlation', selectedClass],
+    queryFn: () => api.getAttendanceCorrelation(selectedClass).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: subjectPerformance } = useQuery({
+    queryKey: ['subject-performance', selectedSubject],
+    queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
+    enabled: viewMode === 'subject' && !!selectedSubject,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: trendData } = useQuery({
+    queryKey: ['subject-trends', selectedSubject],
+    queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
+    enabled: viewMode === 'trends' && !!selectedSubject,
+    staleTime: 5 * 60 * 1000,
+  })
+  const analyticsLoading = loadingClassPerf
 
-  // Load classes and subjects on mount
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true)
-      try {
-        const [classesResp, subjectsResp] = await Promise.all([
-          user?.role === 'instructor' ? api.getMyClasses() : api.getAllClasses('is_active=true'),
-          user?.role === 'instructor' ? api.getMySubjects() : api.getAllSubjects('is_active=true'),
-        ])
+  // Load classes and subjects (cached 10 min)
+  const isInstructor = user?.role === 'instructor'
+  const { data: classesResp, isPending: loading } = useQuery({
+    queryKey: ['classes', 'active', isInstructor],
+    queryFn: () => isInstructor ? api.getMyClasses() : api.getAllClasses('is_active=true'),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!user,
+  })
+  const { data: subjectsResp } = useQuery({
+    queryKey: ['subjects', 'active', isInstructor],
+    queryFn: () => isInstructor ? api.getMySubjects() : api.getAllSubjects('is_active=true'),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!user,
+  })
+  const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
+  const subjects = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results ?? [])
 
-        // Handle both direct arrays and paginated responses {count, results}
-        const classList = Array.isArray(classesResp) ? classesResp : (classesResp?.results || [])
-        const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results || [])
-
-        setClasses(classList)
-        setSubjects(subjectList)
-      } catch (err) {
-        // Silently handle data load error
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [user])
+  const classIds = classes.map(c => c.id)
+  const { data: classComparison } = useQuery({
+    queryKey: ['class-comparison', classIds.join(',')],
+    queryFn: () => api.compareClasses(classIds).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass && classIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  })
 
   // Filter subjects by selected class
   const filteredSubjects = useMemo(() => {
@@ -580,60 +693,6 @@ export default function PerformanceAnalytics() {
     }
   }, [isClassInstructor, user, viewMode, selectedClass])
 
-  // Load analytics when class/subject changes
-  useEffect(() => {
-    async function loadAnalytics() {
-      // Don't load analytics if required filters aren't selected
-      if (viewMode === 'class' && !selectedClass) {
-        setClassPerformance(null)
-        setSubjectComparison(null)
-        setClassComparison(null)
-        return
-      }
-
-      if ((viewMode === 'subject' || viewMode === 'trends') && !selectedSubject) {
-        setSubjectPerformance(null)
-        setTrendData(null)
-        return
-      }
-
-      setAnalyticsLoading(true)
-      setError(null)
-
-      try {
-        if (viewMode === 'class' && selectedClass) {
-          const [perf, comparison, correlation] = await Promise.all([
-            api.getClassPerformanceSummary(selectedClass).catch(() => null),
-            api.compareSubjects(selectedClass).catch(() => null),
-            api.getAttendanceCorrelation(selectedClass).catch(() => null),
-          ])
-          setClassPerformance(perf)
-          setSubjectComparison(comparison)
-          setCorrelationData(correlation)
-        } else if (viewMode === 'subject' && selectedSubject) {
-          const perf = await api.getSubjectPerformanceSummary(selectedSubject).catch(() => null)
-          setSubjectPerformance(perf)
-        } else if (viewMode === 'trends' && selectedSubject) {
-          const trends = await api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null)
-          setTrendData(trends)
-        }
-
-        // Also load class comparison for overview when in class view
-        if (viewMode === 'class' && selectedClass) {
-          const classComp = await api.compareClasses().catch(() => null)
-          setClassComparison(classComp)
-        }
-
-      } catch (err) {
-        // Silently handle analytics load error
-        setError(err.message)
-      } finally {
-        setAnalyticsLoading(false)
-      }
-    }
-
-    loadAnalytics()
-  }, [selectedClass, selectedSubject, viewMode])
 
   // Update URL params
   useEffect(() => {
@@ -646,7 +705,10 @@ export default function PerformanceAnalytics() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-20 bg-gray-100 rounded-lg animate-pulse" />
+        <header className="flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
+          <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
+        </header>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => <LoadingSkeleton key={i} type="card" />)}
         </div>
@@ -656,20 +718,15 @@ export default function PerformanceAnalytics() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <header>
-        <h1 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-          <Icons.TrendingUp className="w-6 h-6 md:w-7 md:h-7 text-indigo-600" />
-          Performance Analytics
-        </h1>
-        <p className="text-xs md:text-sm text-gray-500 mt-1">
-          Comprehensive analysis of student performance across classes and subjects
-        </p>
+      <header className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
+        <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
       </header>
 
       {/* View Mode Toggle */}
-      <div className="bg-white rounded-xl border border-gray-200 p-1.5 md:p-2 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
+      <div className="bg-white rounded-xl border border-neutral-200 p-1.5 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
         {/* Class View - visible to non-instructors, or instructors who are a class instructor for at least one class */}
         {(user?.role !== 'instructor' || hasAnyClassInstructorRole) && (
           <button
@@ -712,10 +769,10 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className={`bg-white rounded-xl border p-3 md:p-4 shadow-sm transition-all ${
+      <div className={`bg-white rounded-xl border p-3 md:p-4 transition-all ${
         !selectedClass
           ? 'border-indigo-300 ring-2 ring-indigo-100'
-          : 'border-gray-200'
+          : 'border-neutral-200'
       }`}>
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
           <div className="flex-1 min-w-0 sm:min-w-[200px]">

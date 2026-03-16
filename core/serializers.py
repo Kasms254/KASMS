@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, ExamReportRemark,Subject, Notice, Exam, ExamReport, PersonalNotification,
     Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
     SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
 )
@@ -8,6 +8,8 @@ from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
+from datetime import date as _date, datetime as _datetime
+
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -704,6 +706,16 @@ class ClassSerializer(serializers.ModelSerializer):
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
     
+    def get_subjects_count(self, obj):
+        if hasattr(obj, '_subjects_count'):
+            return obj._subjects_count
+        return obj.subjects.filter(is_active=True).count()
+
+    def get_current_enrollment(self, obj):
+        if hasattr(obj, '_current_enrollment'):
+            return obj._current_enrollment
+        return obj.enrollments.filter(is_active=True).count()
+
     def validate(self, attrs):
         start_date = attrs.get('start_date', self.instance.start_date if self.instance else None)
         end_date = attrs.get('end_date', self.instance.end_date if self.instance else None)
@@ -867,11 +879,19 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         
         return attrs
 
+class SafeDateTimeField(serializers.DateTimeField):
+    def to_representation(self, value):
+        if isinstance(value, _date) and not isinstance(value, _datetime):
+            from django.utils import timezone as _tz
+            value = _tz.make_aware(_datetime.combine(value, _datetime.min.time()))
+        return super().to_representation(value)
+
 class NoticeSerializer(serializers.ModelSerializer):
 
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
@@ -989,13 +1009,13 @@ class ExamResultSerializer(serializers.ModelSerializer):
             index = StudentIndex.all_objects.filter(
                 enrollment__student=obj.student,
                 class_obj=obj.exam.subject.class_obj,
-            ).first()
+            ).select_related('class_obj').first()
             if index:
                 return index.class_obj.format_index(int(index.index_number))
         except Exception:
             pass
         return None
-
+        
     def validate_marks_obtained(self, value):
         if value is not None:
             exam = self.instance.exam if self.instance else None
@@ -1121,12 +1141,14 @@ class BulkAttendanceSerializer(serializers.Serializer):
                 raise serializers.ValidationError(f"Invalid status: {record['status']}")
         return value
 
+
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     subject_name = serializers.CharField(
         source='subject.name', read_only=True, allow_null=True,
     )
+    expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
@@ -1515,6 +1537,7 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     effective_colors = serializers.SerializerMethodField(read_only=True)
     has_logo = serializers.SerializerMethodField(read_only=True)
     has_signature = serializers.SerializerMethodField(read_only=True)
+    is_active = serializers.BooleanField(default=True)
 
     class Meta:
         model = CertificateTemplate
@@ -2151,3 +2174,144 @@ class AdminStudentIndexRosterSerializer(serializers.ModelSerializer):
         if s.rank:
             return s.get_rank_display()
         return None
+
+class ExamReportRemarkSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField(read_only=True)
+    author_rank = serializers.CharField(source='author.get_rank_display', read_only=True)
+    author_svc_number = serializers.CharField(source='author.svc_number', read_only=True)
+    author_role_display = serializers.CharField(source='get_author_role_display', read_only=True)
+
+    class Meta:
+        model = ExamReportRemark
+        fields = [
+            'id', 'exam_report', 'author', 'author_name', 'author_rank',
+            'author_svc_number', 'author_role', 'author_role_display',
+            'remark', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'author', 'author_role', 'school',
+            'created_at', 'updated_at',
+        ]
+
+    def get_author_name(self, obj):
+        return obj.author.get_full_name() if obj.author else None
+
+    def validate_remark(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Remark cannot be empty.")
+        return value.strip()
+
+class AddRemarkSerializer(serializers.Serializer):
+    remark = serializers.CharField(
+        max_length=5000,
+        trim_whitespace=True,
+        error_messages={
+            'blank': 'Remark cannot be empty.',
+            'required': 'Remark text is required.',
+        },
+    )
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                "Remark must be at least 10 characters long."
+            )
+        return cleaned
+        
+class DashboardClassSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    course_code = serializers.CharField(source='course.code', read_only=True)
+    instructor_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(
+        source='department.name', read_only=True, default=None
+    )
+    current_enrollment = serializers.IntegerField(read_only=True)
+    enrollment_status = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Class
+        fields = [
+            'id', 'name', 'class_code', 'course', 'course_name', 'course_code',
+            'instructor', 'instructor_name', 'department', 'department_name',
+            'start_date', 'end_date', 'capacity', 'current_enrollment',
+            'enrollment_status', 'is_active', 'is_closed',
+        ]
+
+    def get_instructor_name(self, obj):
+        return obj.instructor.get_full_name() if obj.instructor else None
+
+class DashboardDepartmentSerializer(serializers.ModelSerializer):
+    course_count = serializers.SerializerMethodField(read_only=True)
+    class_count = serializers.SerializerMethodField(read_only=True)
+    hod_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'name', 'code', 'description', 'is_active',
+            'course_count', 'class_count', 'hod_name',
+        ]
+
+    def get_course_count(self, obj):
+        return obj.courses.filter(is_active=True).count()
+
+    def get_class_count(self, obj):
+        return obj.classes.filter(is_active=True).count()
+
+    def get_hod_name(self, obj):
+        hod = obj.hod
+        return hod.get_full_name() if hod else None
+
+class DashboardCertificateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Certificate
+        fields = [
+            'id', 'certificate_number', 'student_name', 'student_svc_number',
+            'student_rank', 'course_name', 'class_name', 'final_grade',
+            'final_percentage', 'attendance_percentage', 'status',
+            'issued_at', 'completion_date',
+        ]
+
+class DashboardExamReportSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.CharField(source='created_by.svc_number', read_only=True)
+    exams_count = serializers.IntegerField(source='exams.count', read_only=True)
+    exam_ids = serializers.PrimaryKeyRelatedField(source='exams', many=True, read_only=True)
+    total_students = serializers.IntegerField(read_only=True)
+    average_performance = serializers.FloatField(read_only=True)
+    remarks_list = ExamReportRemarkSerializer(
+        source='remarks', many=True, read_only=True
+    )
+    commandant_remark = serializers.SerializerMethodField(read_only=True)
+    chief_instructor_remark = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ExamReport
+        fields = [
+            'id', 'title', 'description', 'subject', 'subject_name',
+            'class_obj', 'class_name', 'course_name', 'report_date',
+            'created_by', 'created_by_name', 'created_by_rank', 'created_by_svc_number', 'exams_count', 'exam_ids',
+            'total_students', 'average_performance',
+            'remarks_list', 'commandant_remark', 'chief_instructor_remark',
+            'created_at', 'updated_at',
+        ]
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+
+    def get_commandant_remark(self, obj):
+        remark = obj.remarks.filter(author_role='commandant').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None
+
+    def get_chief_instructor_remark(self, obj):
+        remark = obj.remarks.filter(author_role='chief_instructor').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None

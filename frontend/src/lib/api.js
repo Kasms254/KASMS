@@ -38,6 +38,7 @@ const SENTENCE_CASE_CONFIG = {
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
+    'template_type', // Preserve certificate template type choice values
     'grade', // Preserve grade values (e.g. A-, B+, C-)
     'overall_grade',
     'performance_grade',
@@ -45,6 +46,10 @@ const SENTENCE_CASE_CONFIG = {
     'grade_letter',
     'average_grade_letter',
     'final_grade',
+    'author_role',  // Preserve role values used in comparisons (commandant, chief_instructor, instructor)
+    'marking_method', // Preserve enum values
+    'session_type',   // Preserve enum values
+    'notification_type', // Preserve enum values
   ]
 }
 
@@ -278,7 +283,7 @@ export async function getStudents() {
 
 export async function getStudentsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/students${qs}`)
+  return request(`/api/users/students/${qs}`)
 }
 
 // Fetch ALL students by iterating through all pages
@@ -294,7 +299,7 @@ export async function getAllStudents(params = '') {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
-      hasMore = data && data.total_pages && page < data.total_pages
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -941,8 +946,8 @@ export async function getClassTopPerformers(classId, limit = 10) {
   return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
 }
 
-export async function compareClasses(courseId = null) {
-  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
+export async function compareClasses(classIds = []) {
+  const qs = classIds.length > 0 ? `?class_ids=${classIds.map(encodeURIComponent).join(',')}` : ''
   return request(`/api/class-performance/compare_classes/${qs}`)
 }
 
@@ -1033,7 +1038,8 @@ export async function getAllInstructors() {
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allInstructors = [...allInstructors, ...results]
 
-      hasMore = data && data.total_pages && page < data.total_pages
+      // Check if there are more pages
+      hasMore = data && data.current_page < data.total_pages
       page++
     } catch {
       hasMore = false
@@ -1045,7 +1051,23 @@ export async function getAllInstructors() {
 
 export async function getInstructorsPaginated(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/users/instructors${qs}`)
+  return request(`/api/users/instructors/${qs}`)
+}
+
+export async function exportStudentsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/students/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
+}
+
+export async function exportInstructorsCSV(params = '') {
+  const qs = params ? `?${params}` : ''
+  const url = `${API_BASE}/api/users/instructors/export_csv/${qs}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
 }
 
 export async function getUserEnrollments(userId) {
@@ -1376,6 +1398,22 @@ export async function createCertificateTemplate(payload) {
 
 export async function updateCertificateTemplate(id, payload) {
   if (!id) throw new Error('id is required')
+  const hasFile = payload && (
+    payload.custom_logo instanceof File ||
+    payload.signature_image instanceof File ||
+    payload.secondary_signature_image instanceof File
+  )
+  if (hasFile) {
+    const fd = new FormData()
+    Object.keys(payload || {}).forEach(k => {
+      const v = payload[k]
+      if (v === undefined || v === null) return
+      if (v instanceof File) fd.append(k, v)
+      else if (typeof v === 'object') fd.append(k, JSON.stringify(v))
+      else fd.append(k, String(v))
+    })
+    return requestMultipart(`/api/certificate_templates/${id}/`, { method: 'PATCH', formData: fd })
+  }
   return request(`/api/certificate_templates/${id}/`, { method: 'PATCH', body: payload })
 }
 
@@ -1570,6 +1608,126 @@ export async function bulkSubmitMarks(payload) {
   return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
 }
 
+// ─── Commandant / Chief Instructor ────────────────────────────────────────────
+
+export async function getCommandantOverview() {
+  return request('/api/commandant/overview/')
+}
+
+export async function getCommandantDepartments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/departments/${q}`)
+}
+
+export async function getCommandantDepartmentDetails(id) {
+  return request(`/api/commandant/departments/${id}/details/`)
+}
+
+export async function getCommandantClasses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/classes/${q}`)
+}
+
+export async function getCommandantClassStudents(id) {
+  return request(`/api/commandant/classes/${id}/students/`)
+}
+
+export async function getCommandantClassSubjects(id) {
+  return request(`/api/commandant/classes/${id}/subjects/`)
+}
+
+export async function getCommandantCourses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/courses/${q}`)
+}
+
+export async function getCommandantUsers(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/users/${q}`)
+}
+
+export async function getCommandantUsersSummary() {
+  return request('/api/commandant/users/summary/')
+}
+
+export async function getCommandantAttendance(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/attendance/${q}`)
+}
+
+export async function getCommandantAttendanceClassSummary() {
+  return request('/api/commandant/attendance/class_summary/')
+}
+
+export async function getCommandantCertificates(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/certificates/${q}`)
+}
+
+export async function getCommandantCertificatesSummary() {
+  return request('/api/commandant/certificates/summary/')
+}
+
+export async function getCommandantExamReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/exam-reports/${q}`)
+}
+
+export async function getCommandantExamReportDetail(id) {
+  return request(`/api/commandant/exam-reports/${id}/detailed_report/`)
+}
+
+export async function createExamReport(payload) {
+  return request('/api/exam-reports/', { method: 'POST', body: payload })
+}
+
+export async function getExamReportByExam(examId) {
+  return request(`/api/exam-reports/by_exam/${examId}/`)
+}
+
+export async function addExamReportRemark(reportId, remark) {
+  return request(`/api/exam-reports/${reportId}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
+export async function addCommandantExamReportRemark(id, remark) {
+  return request(`/api/commandant/exam-reports/${id}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
+export async function getCommandantPendingRemarks() {
+  return request('/api/commandant/exam-reports/pending_remarks/')
+}
+
+export async function getCommandantExamResults(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/exam-results/${q}`)
+}
+
+export async function getCommandantEnrollments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/enrollments/${q}`)
+}
+
+export async function getCommandantNotices(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/notices/${q}`)
+}
+
+export async function createCommandantNotice(data) {
+  const body = new FormData()
+  body.append('title', data.title)
+  body.append('content', data.content)
+  body.append('priority', data.priority || 'medium')
+  if (data.expiry_date) {
+    body.append('expiry_date', data.expiry_date)
+  }
+  body.append('is_active', data.is_active !== false)
+  
+  return request('/api/commandant/notices/', {
+    method: 'POST',
+    body
+  })
+}
+
 export default {
   login,
   changePassword,
@@ -1621,6 +1779,9 @@ export default {
   getExams,
   getMyExams,
   createExam,
+  createExamReport,
+  getExamReportByExam,
+  addExamReportRemark,
   getExamResults,
   getMyResults,
   generateExamResults,
@@ -1650,6 +1811,8 @@ export default {
   // Paginated versions
   getStudentsPaginated,
   getInstructorsPaginated,
+  exportStudentsCSV,
+  exportInstructorsCSV,
   getClassesPaginated,
   getCoursesPaginated,
   getNoticesPaginated,
@@ -1777,4 +1940,26 @@ export default {
   getMarksEntryResults,
   updateMarksEntry,
   bulkSubmitMarks,
+  // Commandant / Chief Instructor
+  getCommandantOverview,
+  getCommandantDepartments,
+  getCommandantDepartmentDetails,
+  getCommandantClasses,
+  getCommandantClassStudents,
+  getCommandantClassSubjects,
+  getCommandantCourses,
+  getCommandantUsers,
+  getCommandantUsersSummary,
+  getCommandantAttendance,
+  getCommandantAttendanceClassSummary,
+  getCommandantCertificates,
+  getCommandantCertificatesSummary,
+  getCommandantExamReports,
+  getCommandantExamReportDetail,
+  addCommandantExamReportRemark,
+  getCommandantPendingRemarks,
+  getCommandantExamResults,
+  getCommandantEnrollments,
+  getCommandantNotices,
+  createCommandantNotice,
 }
