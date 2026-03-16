@@ -1664,6 +1664,11 @@ export async function joinMeeting(joinToken) {
   return request('/api/meetings/join/', { method: 'POST', body: { join_token: joinToken } })
 }
 
+export async function joinMeetingByCode(meetingCode) {
+  if (!meetingCode) throw new Error('meetingCode is required')
+  return request('/api/meetings/join/', { method: 'POST', body: { meeting_code: meetingCode } })
+}
+
 export async function leaveMeeting(id) {
   if (!id) throw new Error('id is required')
   return request(`/api/meetings/${id}/leave/`, { method: 'POST' })
@@ -1895,6 +1900,7 @@ export default {
   endMeeting,
   cancelMeeting,
   joinMeeting,
+  joinMeetingByCode,
   leaveMeeting,
   getMeetingNotifications,
 }

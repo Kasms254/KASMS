@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { JitsiMeeting } from '@jitsi/react-sdk'
 import {
   Video, Plus, Play, Square, X, Users, Clock, Calendar,
   Search, Loader2, PhoneOff, PhoneCall, Edit2, Trash2,
@@ -35,7 +34,7 @@ const EMPTY_FORM = {
   scheduled_end: '',
   class_ids: [],
   provider: 'jitsi',
-  max_participants: 100,
+  max_participants: 25,
   is_recorded: false,
 }
 
@@ -220,7 +219,7 @@ export default function Meetings() {
       scheduled_end: toLocalInput(meeting.scheduled_end),
       class_ids: [],
       provider: meeting.provider || 'jitsi',
-      max_participants: meeting.max_participants || 100,
+      max_participants: meeting.max_participants || 25,
       is_recorded: meeting.is_recorded || false,
     })
     setFormErrors({})
@@ -361,13 +360,19 @@ export default function Meetings() {
   async function handleJoinMeeting(meeting) {
     setActionLoading(prev => ({ ...prev, [meeting.id]: 'joining' }))
     try {
-      // Fetch detail to get join_token (visible to creator/admin)
-      const detail = await api.getMeeting(meeting.id)
-      if (!detail?.join_token) {
-        toast.error('Join token not available. Ask the meeting host to share the join link.')
-        return
+      let joinData
+      if (isStudent) {
+        // Students are authorized by enrollment — join directly with the meeting code
+        joinData = await api.joinMeetingByCode(meeting.meeting_code)
+      } else {
+        // Hosts/admins use the secret join_token fetched from detail
+        const detail = await api.getMeeting(meeting.id)
+        if (!detail?.join_token) {
+          toast.error('Join token not available.')
+          return
+        }
+        joinData = await api.joinMeeting(detail.join_token)
       }
-      const joinData = await api.joinMeeting(detail.join_token)
       setActiveRoom({ meeting: joinData.meeting, videoConfig: joinData.video_config })
     } catch (err) {
       toast.error(err.message || 'Failed to join meeting')
@@ -602,6 +607,8 @@ export default function Meetings() {
       {activeRoom && createPortal(
         <JitsiRoomOverlay
           roomName={activeRoom.videoConfig.room_name}
+          domain={activeRoom.videoConfig.domain}
+          jwt={activeRoom.videoConfig.jwt}
           displayName={activeRoom.videoConfig.display_name}
           email={activeRoom.videoConfig.user_email}
           isHost={activeRoom.videoConfig.is_host}
@@ -704,8 +711,8 @@ function MeetingCard({
           </button>
         )}
 
-        {/* Join (live meeting) */}
-        {isLive && (canManage || canCreate) && (
+        {/* Join (live meeting — all roles) */}
+        {isLive && (
           <button
             onClick={onJoin}
             disabled={!!actionLoading}
@@ -895,9 +902,10 @@ function MeetingFormModal({ title, form, errors, loading, classes, isEdit, onCha
                 value={form.max_participants}
                 onChange={onChange}
                 min={2}
-                max={500}
+                max={25}
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
+              <p className="text-xs text-neutral-400 mt-1">Max 25 (JaaS free plan)</p>
             </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -939,12 +947,71 @@ function MeetingFormModal({ title, form, errors, loading, classes, isEdit, onCha
 
 // ─── Jitsi Room Full-Screen Overlay ──────────────────────────────────────────
 
-function JitsiRoomOverlay({ roomName, displayName, email, isHost, meeting, canEnd, onLeave, onEnd }) {
-  const [jitsiApi, setJitsiApi] = useState(null)
+function JitsiRoomOverlay({ roomName, domain, jwt, displayName, email, isHost, meeting, canEnd, onLeave, onEnd }) {
+  const containerRef = useRef(null)
+  const apiRef = useRef(null)
+
+  useEffect(() => {
+    const scriptId = '__jaas_external_api__'
+    function initApi() {
+      if (!containerRef.current) return
+      const api = new window.JitsiMeetExternalAPI(domain || '8x8.vc', {
+        roomName,
+        jwt: jwt || undefined,
+        parentNode: containerRef.current,
+        width: '100%',
+        height: '100%',
+        userInfo: {
+          displayName: displayName || 'Participant',
+          email: email || '',
+        },
+        configOverwrite: {
+          startWithAudioMuted: !isHost,
+          startWithVideoMuted: false,
+          prejoinPageEnabled: false,
+          disableDeepLinking: true,
+          enableWelcomePage: false,
+        },
+        interfaceConfigOverwrite: {
+          TOOLBAR_BUTTONS: [
+            'microphone', 'camera', 'desktop', 'chat',
+            'raisehand', 'tileview', 'participants-pane', 'fullscreen',
+          ],
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_BRAND_WATERMARK: false,
+          SHOW_POWERED_BY: false,
+        },
+      })
+      api.addEventListeners({ readyToClose: onLeave })
+      apiRef.current = api
+    }
+
+    if (window.JitsiMeetExternalAPI) {
+      initApi()
+    } else if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script')
+      script.id = scriptId
+      script.src = `https://${domain || '8x8.vc'}/libs/external_api.min.js`
+      script.async = true
+      script.onload = initApi
+      document.head.appendChild(script)
+    } else {
+      // Script tag exists but not loaded yet — wait for it
+      const existing = document.getElementById(scriptId)
+      existing.addEventListener('load', initApi, { once: true })
+    }
+
+    return () => {
+      if (apiRef.current) {
+        try { apiRef.current.dispose() } catch { /* ignore */ }
+        apiRef.current = null
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleLeave() {
-    if (jitsiApi) {
-      try { jitsiApi.executeCommand('hangup') } catch { /* ignore */ }
+    if (apiRef.current) {
+      try { apiRef.current.executeCommand('hangup') } catch { /* ignore */ }
     }
     onLeave()
   }
@@ -984,36 +1051,7 @@ function JitsiRoomOverlay({ roomName, displayName, email, isHost, meeting, canEn
       </div>
 
       {/* Jitsi iframe container */}
-      <div className="flex-1 relative">
-        <JitsiMeeting
-          domain="meet.jit.si"
-          roomName={roomName}
-          userInfo={{ displayName: displayName || 'Participant', email: email || '' }}
-          configOverwrite={{
-            startWithAudioMuted: !isHost,
-            startWithVideoMuted: false,
-            prejoinPageEnabled: false,
-            disableDeepLinking: true,
-            enableWelcomePage: false,
-          }}
-          interfaceConfigOverwrite={{
-            TOOLBAR_BUTTONS: [
-              'microphone', 'camera', 'desktop', 'chat',
-              'raisehand', 'tileview', 'participants-pane', 'fullscreen',
-            ],
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_BRAND_WATERMARK: false,
-            SHOW_POWERED_BY: false,
-          }}
-          onReadyToClose={handleLeave}
-          onApiReady={externalApi => setJitsiApi(externalApi)}
-          getIFrameRef={iframeRef => {
-            iframeRef.style.height = '100%'
-            iframeRef.style.width = '100%'
-            iframeRef.style.border = 'none'
-          }}
-        />
-      </div>
+      <div ref={containerRef} className="flex-1" />
     </div>
   )
 }
