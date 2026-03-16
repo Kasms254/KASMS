@@ -57,7 +57,7 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminInstructors() {
+export default function AdminInstructors({ hideActions = false, source = 'admin' }) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const reportError = (msg) => {

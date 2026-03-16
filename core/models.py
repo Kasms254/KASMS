@@ -12,6 +12,7 @@ from django.core.validators import RegexValidator
 from django.db import models, transaction
 import secrets
 import string
+from datetime import date, datetime
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -120,6 +121,7 @@ class SchoolMembership(models.Model):
         INSTRUCTOR = 'instructor', 'Instructor'
         ADMIN = 'admin', 'Admin'
         COMMANDANT = 'commandant', 'Commandant'
+        CHIEF_INSTRUCTOR = 'chief instructor', 'Chief Instructor'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -411,6 +413,7 @@ class User(AbstractUser):
         ('instructor', 'Instructor'),
         ('student', 'Student'),
         ('commandant', 'Commandant'),
+        ('chief_instructor', 'Chief Instructor')
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
@@ -674,15 +677,22 @@ class Notice(models.Model):
         return f"{self.title} ({self.get_priority_display()})"
 
     def save(self, *args, **kwargs):
-        if self.expiry_date and self.expiry_date < timezone.now():
-            self.is_active = False
+        if self.expiry_date:
+            expiry = self.expiry_date
+            if isinstance(expiry, date) and not isinstance(expiry, datetime):
+                expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+            if expiry < timezone.now():
+                self.is_active = False
         super().save(*args, **kwargs)
 
     @property
     def is_expired(self):
         if not self.expiry_date:
             return False
-        return self.expiry_date < timezone.now()
+        expiry = self.expiry_date
+        if isinstance(expiry, date) and not isinstance(expiry, datetime):
+            expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+        return expiry < timezone.now()
 
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)
@@ -901,9 +911,9 @@ class ExamReport(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exam_reports')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='exam_reports')
     exams = models.ManyToManyField(Exam, related_name='reports', blank=True)
-    report_date = models.DateField(default=timezone.now)
+    report_date = models.DateField(default=date.today)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_reports_created')
-    created_at = models.DateField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = TenantAwareManager()
@@ -988,17 +998,22 @@ class ClassNotice(models.Model):
         return f"{self.title} — {self.class_obj.name}"
 
     def save(self, *args, **kwargs):
-        if not self.school and self.class_obj:
-            self.school = self.class_obj.school
-        if self.expiry_date and self.expiry_date < timezone.now():
-            self.is_active = False
+        if self.expiry_date:
+            expiry = self.expiry_date
+            if isinstance(expiry, date) and not isinstance(expiry, datetime):
+                expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+            if expiry < timezone.now():
+                self.is_active = False
         super().save(*args, **kwargs)
 
     @property
     def is_expired(self):
         if not self.expiry_date:
             return False
-        return self.expiry_date < timezone.now()
+        expiry = self.expiry_date
+        if isinstance(expiry, date) and not isinstance(expiry, datetime):
+            expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
+        return expiry < timezone.now()
 
 class ClassNoticeReadStatus(models.Model):
 
@@ -1034,6 +1049,42 @@ class ExamResultNotificationReadStatus(models.Model):
     def __str__(self):
         return f"{self.user.username} read result for {self.exam_result.exam.title}"
 
+class ExamReportRemark(models.Model):
+
+    AUTHOR_ROLE_CHOICES = [
+        ('commandant', 'Commandant'),
+        ('chief_instructor', 'Chief Instructor'),
+        ('instructor', 'Instructor'),
+    ]
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='exam_report_remarks', null=True, blank=True,
+    )
+    exam_report = models.ForeignKey(
+        ExamReport, on_delete=models.CASCADE,
+        related_name='remarks',
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='exam_report_remarks',
+    )
+    author_role = models.CharField(
+        max_length=20, choices=AUTHOR_ROLE_CHOICES,
+    )
+    remark = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'exam_report_remarks'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Remark by {self.author} on {self.exam_report.title}"
 # Attendance
 class AttendanceSession(models.Model):
 
@@ -1311,7 +1362,7 @@ class AttendanceSessionLog(models.Model):
 
 class PersonalNotification(models.Model):
 
-    NOTIFICATION_TYPE_CHOICES = [('exam_result', 'Exam Result'), ('general', 'General'), ('alert', 'Alert')]
+    NOTIFICATION_TYPE_CHOICES = [('exam_result', 'Exam Result'),('exam_report_remark', 'Exam Report Remark'), ('general', 'General'), ('alert', 'Alert')]
     PRIORITY_CHOICES = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='personal_notifications', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='personal_notifications')
@@ -1693,7 +1744,4 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
-
-
- 
 

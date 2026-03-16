@@ -58,7 +58,7 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminStudents() {
+export default function AdminStudents({ hideActions = false, source = 'admin' }) {
   const navigate = useNavigate()
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -663,8 +663,8 @@ export default function AdminStudents() {
               icon="Users"
               title="No students found"
               description={searchTerm ? `No students match "${searchTerm}". Try adjusting your search terms.` : "Get started by adding your first student. Students can be enrolled in classes and track their academic progress."}
-              actionLabel={!searchTerm ? "Add Student" : undefined}
-              onAction={!searchTerm ? () => navigate('/dashboard/add/user') : undefined}
+              actionLabel={!searchTerm && !hideActions && source !== 'commandant' ? "Add Student" : undefined}
+              onAction={!searchTerm && !hideActions && source !== 'commandant' ? () => navigate('/dashboard/add/user') : undefined}
             />
           </div>
         ) : (

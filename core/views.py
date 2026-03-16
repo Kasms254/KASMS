@@ -1,15 +1,16 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
-from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
+from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
-    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
+    ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
-    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
+    DashboardExamReportSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -17,8 +18,8 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsCommandantOrChiefInstructor,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -38,7 +39,7 @@ from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-
+from rest_framework import viewsets, status, permissions
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -494,8 +495,8 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_permissions(self):
-        if self.action == "enrollments":
-            return [IsAuthenticated()]
+        if self.action in ['enrollments', 'students', 'instructors']:
+            return [IsAuthenticated(), IsCommandantOrChiefInstructor()]
         return super().get_permissions()
 
     def get_serializer_class(self):
@@ -1268,7 +1269,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin, ReadOnlyForCommandantOrChiefInstructor]
     pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'class_obj', 'instructor'] 
@@ -1370,7 +1371,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor])
     def my_subjects(self, request):
         if request.user.role != 'instructor':
@@ -1387,6 +1387,10 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+        return [IsAuthenticated(), IsAdmin()]
 class NoticeActionMixin:
 
     read_status_model = None
@@ -1761,7 +1765,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['subject', 'exam_type', 'is_active']
+    filterset_fields = ['subject', 'exam_type', 'is_active', 'subject__class_obj']
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
@@ -2547,11 +2551,37 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         serializer.save(school=school, created_by = self.request.user)
 
     
+    @action(detail=False, methods=['get'], url_path='by_exam/(?P<exam_id>[^/.]+)')
+    def by_exam(self, request, exam_id=None):
+        report = self.get_queryset().filter(exams__id=exam_id).prefetch_related('remarks', 'exams').first()
+        if not report:
+            return Response({'detail': 'No report found for this exam.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DashboardExamReportSerializer(report, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def add_remark(self, request, pk=None):
+        report = self.get_object()
+        serializer = AddRemarkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        remark_obj, created = ExamReportRemark.all_objects.update_or_create(
+            exam_report=report,
+            author_role='instructor',
+            defaults={
+                'remark': serializer.validated_data['remark'],
+                'author': request.user,
+                'school': report.school,
+            }
+        )
+        return Response(
+            ExamReportRemarkSerializer(remark_obj).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
     @action(detail=True, methods=['get'])
     def detailed_report(self, request, pk=None):
 
         report = self.get_object()
-        exam_ids = report.exams.values._list('id', flat=True)
+        exam_ids = report.exams.values_list('id', flat=True)
 
         enrollments = Enrollment.objects.filter(
 

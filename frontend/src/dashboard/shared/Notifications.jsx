@@ -197,6 +197,9 @@ export default function Notifications() {
   const [modalOpen, setModalOpen] = useState(false)
   const [filter, setFilter] = useState('all')
   const [toast, setToast] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 15
   const modalRef = useRef(null)
 
   // Filter and group items
@@ -209,7 +212,24 @@ export default function Notifications() {
     return filtered
   }, [items, filter])
 
-  const groupedItems = useMemo(() => groupByDate(filteredItems), [filteredItems])
+  // Calculate pagination based on filtered items
+  const paginatedItems = useMemo(() => {
+    const total = filteredItems.length
+    const totalPagesCalc = Math.ceil(total / itemsPerPage)
+    
+    // Reset to page 1 if current page exceeds total pages
+    if (currentPage > totalPagesCalc && totalPagesCalc > 0) {
+      setCurrentPage(1)
+    }
+    
+    const startIdx = (currentPage - 1) * itemsPerPage
+    const endIdx = startIdx + itemsPerPage
+    
+    setTotalPages(totalPagesCalc)
+    return filteredItems.slice(startIdx, endIdx)
+  }, [filteredItems, currentPage, itemsPerPage])
+
+  const groupedItems = useMemo(() => groupByDate(paginatedItems), [paginatedItems])
 
   const unreadCount = useMemo(() => items.filter(i => !i.read).length, [items])
 
@@ -479,7 +499,7 @@ export default function Notifications() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setFilter(tab.key)}
+                onClick={() => { setFilter(tab.key); setCurrentPage(1) }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   filter === tab.key
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -520,25 +540,43 @@ export default function Notifications() {
             {filteredItems.length === 0 ? (
               <EmptyState filter={filter} />
             ) : (
-              <div className="divide-y divide-neutral-100">
-                {groupedItems.map(([groupName, groupItems]) => (
-                  <div key={groupName} className="p-4">
-                    <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3 px-3">
-                      {groupName}
-                    </h3>
-                    <div className="space-y-2">
-                      {groupItems.map(item => (
-                        <NotificationItem
-                          key={`${item.kind}-${item.id}-${item._date?.getTime()||0}`}
-                          item={item}
-                          onDetails={handleOpenDetails}
-                          onMarkRead={handleMarkRead}
-                        />
-                      ))}
+              <>
+                <div className="divide-y divide-neutral-100">
+                  {groupedItems.map(([groupName, groupItems]) => (
+                    <div key={groupName} className="p-4">
+                      <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3 px-3">
+                        {groupName}
+                      </h3>
+                      <div className="space-y-2">
+                        {groupItems.map(item => (
+                          <NotificationItem
+                            key={`${item.kind}-${item.id}-${item._date?.getTime()||0}`}
+                            item={item}
+                            onDetails={handleOpenDetails}
+                            onMarkRead={handleMarkRead}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-neutral-200">
+                    <div className="text-sm text-neutral-600">
+                      Showing page {currentPage} of {totalPages} ({filteredItems.length} total notifications)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+                      <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+                      <div className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium">{currentPage}</div>
+                      <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+                      <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
