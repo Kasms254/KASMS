@@ -91,6 +91,7 @@ export default function Meetings() {
 
   // Active Jitsi room
   const [activeRoom, setActiveRoom] = useState(null)
+  const jitsiApiRef = useRef(null)
 
   // Per-meeting action loading: { [meetingId]: 'starting' | 'ending' | 'cancelling' | null }
   const [actionLoading, setActionLoading] = useState({})
@@ -337,6 +338,10 @@ export default function Meetings() {
     setActionLoading(prev => ({ ...prev, [meeting.id]: action }))
     try {
       if (action === 'end') {
+        if (jitsiApiRef.current) {
+          try { jitsiApiRef.current.executeCommand('endConference') } catch { /* ignore */ }
+          jitsiApiRef.current = null
+        }
         await api.endMeeting(meeting.id)
         toast.success('Meeting ended')
         if (activeRoom?.meeting?.id === meeting.id) setActiveRoom(null)
@@ -457,7 +462,7 @@ export default function Meetings() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Meetings</h1>
+          <h1 className="text-2xl font-bold text-black">Online Classes</h1>
           <p className="text-sm text-neutral-500 mt-0.5">Virtual video meetings and lectures</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -588,20 +593,23 @@ export default function Meetings() {
         />
       )}
 
-      {/* Confirm Modal */}
-      <ConfirmModal
-        open={confirmModal.open}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmLabel={
-          confirmModal.action === 'end' ? 'End Meeting'
-          : confirmModal.action === 'cancel' ? 'Cancel Meeting'
-          : 'Delete'
-        }
-        confirmVariant="danger"
-        onConfirm={handleConfirmAction}
-        onCancel={() => setConfirmModal(prev => ({ ...prev, open: false }))}
-      />
+      {/* Confirm Modal — portalled so it renders above the Jitsi overlay (z-[200]) */}
+      {confirmModal.open && createPortal(
+        <ConfirmModal
+          open={confirmModal.open}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={
+            confirmModal.action === 'end' ? 'End Meeting'
+            : confirmModal.action === 'cancel' ? 'Cancel Meeting'
+            : 'Delete'
+          }
+          confirmVariant="danger"
+          onConfirm={handleConfirmAction}
+          onCancel={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+        />,
+        document.body
+      )}
 
       {/* Jitsi Room — full-screen portal */}
       {activeRoom && createPortal(
@@ -616,6 +624,7 @@ export default function Meetings() {
           canEnd={canManage(activeRoom.meeting)}
           onLeave={handleLeaveRoom}
           onEnd={handleEndFromRoom}
+          apiRef={jitsiApiRef}
         />,
         document.body
       )}
@@ -905,7 +914,7 @@ function MeetingFormModal({ title, form, errors, loading, classes, isEdit, onCha
                 max={25}
                 className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
-              <p className="text-xs text-neutral-400 mt-1">Max 25 (JaaS free plan)</p>
+              <p className="text-xs text-neutral-400 mt-1">Max 25 </p>
             </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -947,7 +956,7 @@ function MeetingFormModal({ title, form, errors, loading, classes, isEdit, onCha
 
 // ─── Jitsi Room Full-Screen Overlay ──────────────────────────────────────────
 
-function JitsiRoomOverlay({ roomName, domain, jwt, displayName, email, isHost, meeting, canEnd, onLeave, onEnd }) {
+function JitsiRoomOverlay({ roomName, domain, jwt, displayName, email, isHost, meeting, canEnd, onLeave, onEnd, apiRef: externalApiRef }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
 
@@ -966,17 +975,18 @@ function JitsiRoomOverlay({ roomName, domain, jwt, displayName, email, isHost, m
           email: email || '',
         },
         configOverwrite: {
-          startWithAudioMuted: !isHost,
+          startWithAudioMuted: false,
           startWithVideoMuted: false,
-          prejoinPageEnabled: false,
+          prejoinPageEnabled: isHost,
+          prejoinConfig: { enabled: isHost },
           disableDeepLinking: true,
           enableWelcomePage: false,
-        },
-        interfaceConfigOverwrite: {
-          TOOLBAR_BUTTONS: [
+          toolbarButtons: [
             'microphone', 'camera', 'desktop', 'chat',
             'raisehand', 'tileview', 'participants-pane', 'fullscreen',
           ],
+        },
+        interfaceConfigOverwrite: {
           SHOW_JITSI_WATERMARK: false,
           SHOW_BRAND_WATERMARK: false,
           SHOW_POWERED_BY: false,
@@ -984,6 +994,7 @@ function JitsiRoomOverlay({ roomName, domain, jwt, displayName, email, isHost, m
       })
       api.addEventListeners({ readyToClose: onLeave })
       apiRef.current = api
+      if (externalApiRef) externalApiRef.current = api
     }
 
     if (window.JitsiMeetExternalAPI) {

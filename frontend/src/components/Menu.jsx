@@ -195,7 +195,7 @@ const menuItems = [
       },
       {
         icon: 'Video',
-        label: 'Meetings',
+        label: 'Online Classes',
         href: '/list/meetings',
         visible: ['admin', 'instructor', 'student'],
       },
