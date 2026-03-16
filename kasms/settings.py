@@ -332,3 +332,15 @@ LOGGING = {
         },
     },
 }
+
+JITSI_APP_ID = os.getenv('JITSI_APP_ID', '')         
+JITSI_API_KEY_ID = os.getenv('JITSI_API_KEY_ID', '')    
+JITSI_API_KEY_SECRET = os.getenv('JITSI_API_KEY_SECRET', '')  
+JITSI_DOMAIN = os.getenv('JITSI_DOMAIN', '8x8.vc') 
+
+_jitsi_key_file = os.getenv('JITSI_API_KEY_FILE', '')
+if _jitsi_key_file and os.path.isfile(_jitsi_key_file):
+    with open(_jitsi_key_file, 'r') as _f:
+        JITSI_API_KEY_SECRET = _f.read()
+else:
+    JITSI_API_KEY_SECRET = os.getenv('JITSI_API_KEY_SECRET', '').replace('\\n', '\n')

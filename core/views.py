@@ -3,13 +3,14 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest)
+ Department, DepartmentMembership, ResultEditRequest, Meeting, MeetingParticipant, MeetingNotification, Enrollment)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
-    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer, MeetingListSerializer,
+    MeetingCreateSerializer,MeetingDetailSerializer,MeetingParticipantSerializer,MeetingJoinSerializer,MeetingNotificationSerializer,)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -17,8 +18,8 @@ from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subq
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool)
+from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,CanManageMeeting,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, CanCreateMeeting,CanManageMeeting,CanJoinMeeting,)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -38,7 +39,7 @@ from rest_framework.viewsets import GenericViewSet
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-
+from rest_framework import viewsets, status, permissions
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -5602,3 +5603,246 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
+
+# meeting viewsets
+class MeetingViewSet(viewsets.ModelViewSet):
+
+    permission_classes = [permissions.IsAuthenticated, BelongsToSameSchool]
+    pagination_class = PageSizeAwarePagination
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return MeetingCreateSerializer
+        if self.action == 'retrieve':
+            return MeetingDetailSerializer
+        return MeetingListSerializer
+
+    def get_permissions(self):
+        perms = super().get_permissions()
+        if self.action in ('create',):
+            perms.append(CanCreateMeeting())
+        if self.action in ('update', 'partial_update', 'destroy', 'start', 'end', 'cancel'):
+            perms.append(CanManageMeeting())
+        return perms
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Meeting.objects.select_related(
+            'created_by', 'school',
+        ).prefetch_related('classes', 'participants').annotate(
+            active_participant_count=Count(
+                'participants',
+                filter=Q(participants__left_at__isnull=True),
+            )
+        )
+
+        if user.active_role != 'superadmin':
+            qs = qs.filter(school=user.school)
+
+        if user.active_role in ('admin', 'superadmin', 'commandant'):
+            return qs
+        if user.active_role == 'instructor':
+            from .models import Class, Subject
+            my_class_ids = list(
+                Class.all_objects.filter(
+                    Q(instructor=user) | Q(subjects__instructor=user),
+                    school=user.school,
+                ).values_list('id', flat=True).distinct()
+            )
+            return qs.filter(
+                Q(created_by=user) | Q(classes__id__in=my_class_ids)
+            ).distinct()
+
+        if user.active_role == 'student':
+            enrolled_class_ids = list(
+                Enrollment.all_objects.filter(
+                    student=user, is_active=True,
+                ).values_list('class_obj_id', flat=True)
+            )
+            return qs.filter(classes__id__in=enrolled_class_ids).distinct()
+
+        return qs.none()
+
+    @action(detail=True, methods=['post'], url_path='start')
+    def start(self, request, pk=None):
+        meeting = self.get_object()  # triggers CanManageMeeting
+        if meeting.status not in (Meeting.Status.SCHEDULED,):
+            return Response(
+                {'detail': f'Cannot start a meeting with status "{meeting.status}".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        meeting.start()
+        MeetingParticipant.objects.get_or_create(
+            meeting=meeting, user=request.user,
+            defaults={'role': MeetingParticipant.Role.HOST},
+        )
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='end')
+    def end(self, request, pk=None):
+        meeting = self.get_object()
+        if meeting.status != Meeting.Status.LIVE:
+            return Response(
+                {'detail': 'Only live meetings can be ended.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        meeting.participants.filter(left_at__isnull=True).update(
+            left_at=timezone.now()
+        )
+        meeting.end()
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        meeting = self.get_object()  # triggers CanManageMeeting
+        if meeting.status not in (Meeting.Status.SCHEDULED,):
+            return Response(
+                {'detail': f'Cannot cancel a meeting with status "{meeting.status}".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        meeting.cancel()
+        return Response(MeetingDetailSerializer(meeting, context={'request': request}).data)
+
+    @action(
+        detail=False, methods=['post'], url_path='join',
+        serializer_class=MeetingJoinSerializer,
+    )
+    def join(self, request):
+        serializer = MeetingJoinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        join_token = serializer.validated_data.get('join_token')
+        meeting_code = serializer.validated_data.get('meeting_code')
+
+
+        if join_token:
+            meeting = get_object_or_404(Meeting.all_objects, join_token=join_token)
+        else:
+            meeting = get_object_or_404(Meeting.all_objects, meeting_code=meeting_code)
+
+        user = request.user
+        if user.active_role != 'superadmin' and meeting.school and meeting.school != user.school:
+            return Response(
+                {'detail': 'You are not authorized to join this meeting.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        perm = CanJoinMeeting()
+        if not perm.has_object_permission(request, self, meeting):
+            return Response(
+                {'detail': perm.message},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not meeting.is_joinable:
+            return Response(
+                {'detail': f'Meeting is {meeting.status} and cannot be joined.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        participant = meeting.participants.filter(user=request.user).first()
+        if not participant or participant.left_at is not None:
+            active_count = meeting.participants.filter(left_at__isnull=True).count()
+            if active_count >= meeting.max_participants:
+                return Response(
+                    {'detail': 'Meeting has reached its participant limit.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        is_host = meeting.created_by == request.user
+        role = (
+            MeetingParticipant.Role.HOST
+            if is_host
+            else MeetingParticipant.Role.PARTICIPANT
+        )
+        participant, created = MeetingParticipant.objects.get_or_create(
+            meeting=meeting, user=request.user,
+            defaults={'role': role},
+        )
+        if not created and participant.left_at:
+            participant.left_at = None
+            participant.save(update_fields=['left_at'])
+
+        from django.conf import settings as django_settings
+        jitsi_domain = 'meet.jit.si'
+        jaas_jwt = None
+
+        if meeting.provider == 'jitsi' and getattr(django_settings, 'JITSI_APP_ID', ''):
+            jitsi_domain = getattr(django_settings, 'JITSI_DOMAIN', '8x8.vc')
+            from .services import generate_jaas_jwt
+            jaas_jwt = generate_jaas_jwt(
+                user=request.user,
+                room_name=meeting.video_room_name,
+                is_moderator=is_host or user.active_role in ('admin', 'superadmin'),
+            )
+
+        return Response({
+            'meeting': MeetingDetailSerializer(meeting, context={'request': request}).data,
+            'participant_id': str(participant.id),
+            'video_config': {
+                'provider': meeting.provider,
+                'room_name': meeting.video_room_name,
+                'domain': jitsi_domain,
+                'display_name': request.user.get_full_name(),
+                'user_email': request.user.email,
+                'is_host': is_host,
+                'jwt': jaas_jwt,
+            },
+        })
+
+    @action(detail=True, methods=['post'], url_path='leave')
+    def leave(self, request, pk=None):
+        meeting = self.get_object()
+        participant = meeting.participants.filter(
+            user=request.user, left_at__isnull=True,
+        ).first()
+        if participant:
+            participant.left_at = timezone.now()
+            participant.save(update_fields=['left_at'])
+        return Response({'detail': 'Left the meeting.'})
+
+    @action(detail=False, methods=['get'], url_path='upcoming')
+    def upcoming(self, request):
+        qs = self.get_queryset().filter(
+            Q(status=Meeting.Status.SCHEDULED, scheduled_start__gte=timezone.now())
+            | Q(status=Meeting.Status.LIVE)
+        ).order_by('scheduled_start')
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            return self.get_paginated_response(
+                MeetingListSerializer(page, many=True).data
+            )
+        return Response(MeetingListSerializer(qs, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='my-meetings')
+    def my_meetings(self, request):
+        qs = self.get_queryset().filter(created_by=request.user)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            return self.get_paginated_response(
+                MeetingListSerializer(page, many=True).data
+            )
+        return Response(MeetingListSerializer(qs, many=True).data)
+
+class MeetingNotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = MeetingNotificationSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructor]
+
+    def get_queryset(self):
+        return MeetingNotification.objects.filter(
+            meeting__school=self.request.user.school,
+        )
+
+    def _validate_meeting_school(self, serializer):
+        meeting = serializer.validated_data.get('meeting')
+        if meeting and meeting.school != self.request.user.school:
+            raise PermissionDenied('You can only manage notifications for meetings in your school.')
+
+    def perform_create(self, serializer):
+        self._validate_meeting_school(serializer)
+        meeting = serializer.validated_data['meeting']
+        serializer.save(school=meeting.school)
+
+    def perform_update(self, serializer):
+        self._validate_meeting_school(serializer)
+        serializer.save()

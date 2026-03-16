@@ -39,6 +39,10 @@ const SENTENCE_CASE_CONFIG = {
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
     'template_type', // Preserve certificate template type choice values
+    'join_token', // Preserve meeting join token (case-sensitive secret)
+    'meeting_code', // Preserve meeting code
+    'video_room_name', // Preserve Jitsi room name
+    'provider_room_id', // Preserve provider room ID
     'grade', // Preserve grade values (e.g. A-, B+, C-)
     'overall_grade',
     'performance_grade',
@@ -1604,6 +1608,77 @@ export async function bulkSubmitMarks(payload) {
   return request('/api/marks-entry/bulk-submit/', { method: 'POST', body: payload })
 }
 
+// =====================
+// Meetings API
+// =====================
+
+export async function getMeetings(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/meetings/${qs}`)
+}
+
+export async function getUpcomingMeetings() {
+  return request('/api/meetings/upcoming/')
+}
+
+export async function getMyMeetings() {
+  return request('/api/meetings/my-meetings/')
+}
+
+export async function getMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/`)
+}
+
+export async function createMeeting(payload) {
+  return request('/api/meetings/', { method: 'POST', body: payload })
+}
+
+export async function updateMeeting(id, payload) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/`, { method: 'DELETE' })
+}
+
+export async function startMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/start/`, { method: 'POST' })
+}
+
+export async function endMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/end/`, { method: 'POST' })
+}
+
+export async function cancelMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/cancel/`, { method: 'POST' })
+}
+
+export async function joinMeeting(joinToken) {
+  if (!joinToken) throw new Error('joinToken is required')
+  return request('/api/meetings/join/', { method: 'POST', body: { join_token: joinToken } })
+}
+
+export async function joinMeetingByCode(meetingCode) {
+  if (!meetingCode) throw new Error('meetingCode is required')
+  return request('/api/meetings/join/', { method: 'POST', body: { meeting_code: meetingCode } })
+}
+
+export async function leaveMeeting(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/meetings/${id}/leave/`, { method: 'POST' })
+}
+
+export async function getMeetingNotifications(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/meeting-notifications/${qs}`)
+}
+
 export default {
   login,
   changePassword,
@@ -1813,4 +1888,19 @@ export default {
   getMarksEntryResults,
   updateMarksEntry,
   bulkSubmitMarks,
+  // Meetings
+  getMeetings,
+  getUpcomingMeetings,
+  getMyMeetings,
+  getMeeting,
+  createMeeting,
+  updateMeeting,
+  deleteMeeting,
+  startMeeting,
+  endMeeting,
+  cancelMeeting,
+  joinMeeting,
+  joinMeetingByCode,
+  leaveMeeting,
+  getMeetingNotifications,
 }

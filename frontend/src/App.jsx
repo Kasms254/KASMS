@@ -46,6 +46,7 @@ const StudentCertificates = lazy(() => import('./dashboard/students/StudentCerti
 const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTemplates'))
 const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const Meetings = lazy(() => import('./dashboard/shared/Meetings'))
 
 // Department & HOD components
 const Departments = lazy(() => import('./dashboard/admin/Departments'))
@@ -155,6 +156,11 @@ const App = () => {
 			{/* Notifications (all authenticated users) */}
 			<Route path="/list/notifications" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Notifications />} />
+			</Route>
+
+			{/* Meetings (all authenticated users) */}
+			<Route path="/list/meetings" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+				<Route index element={<Meetings />} />
 			</Route>
 
 			{/* Class notices (instructors) */}
