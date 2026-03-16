@@ -50,6 +50,7 @@ export default function Courses() {
   // delete confirmation modal state
   const [confirmDeleteCourse, setConfirmDeleteCourse] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     getDepartments().then(setDepartments).catch(() => {})
@@ -60,7 +61,8 @@ export default function Courses() {
     ;(async () => {
       setLoading(true)
       try {
-        const params = `page=${currentPage}&page_size=${pageSize}`
+        let params = `page=${currentPage}&page_size=${pageSize}`
+        if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
         const data = await getCoursesPaginated(params)
         const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
 
@@ -88,12 +90,13 @@ export default function Courses() {
         setLoading(false)
       }
     })()
-  }, [reportError, currentPage, pageSize])
+  }, [reportError, currentPage, pageSize, search])
 
   async function load() {
     setLoading(true)
     try {
-      const params = `page=${currentPage}&page_size=${pageSize}`
+      let params = `page=${currentPage}&page_size=${pageSize}`
+      if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
       const data = await getCoursesPaginated(params)
       const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
 
@@ -165,7 +168,14 @@ export default function Courses() {
           <h2 className="text-lg sm:text-xl font-semibold text-black">Courses</h2>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage Courses — Create, Edit, and View Course Details and Their Active Classes.</p>
         </div>
-        <div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => { setSearch(sanitizeInput(e.target.value)); setCurrentPage(1) }}
+            className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
           <button
             onClick={() => setAddModalOpen(true)}
             className="w-full sm:w-auto bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition"
