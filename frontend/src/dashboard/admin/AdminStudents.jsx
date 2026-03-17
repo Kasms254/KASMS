@@ -156,6 +156,7 @@ export default function AdminStudents() {
     placeholderData: (prev) => prev,
   })
 
+  const _RANK_ORDER_STUDENTS = Object.fromEntries(RANK_OPTIONS.map((r, i) => [r.value, i]))
   const students = (studentsData?.results ?? []).map((u) => ({
     id: u.id,
     first_name: u.first_name,
@@ -170,7 +171,7 @@ export default function AdminStudents() {
     is_active: u.is_active,
     created_at: u.created_at,
     className: u.class_name || u.class || u.class_obj_name || u.className || 'Unassigned',
-  }))
+  })).sort((a, b) => (_RANK_ORDER_STUDENTS[a.rank] ?? 99) - (_RANK_ORDER_STUDENTS[b.rank] ?? 99))
 
   const totalCount = studentsData?.count ?? 0
   const totalPages = studentsData?.total_pages ?? 1

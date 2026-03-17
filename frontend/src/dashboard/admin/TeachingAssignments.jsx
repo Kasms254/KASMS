@@ -4,6 +4,45 @@ import ConfirmModal from '../../components/ConfirmModal'
 import * as api from '../../lib/api'
 import * as LucideIcons from 'lucide-react'
 
+const RANK_LABELS = {
+  colonel: 'Colonel',
+  lieutenant_colonel: 'Lieutenant Colonel',
+  major: 'Major',
+  captain: 'Captain',
+  lieutenant: 'Lieutenant',
+  warrant_officer_i: 'Warrant Officer I',
+  warrant_officer_ii: 'Warrant Officer II',
+  senior_sergeant: 'Senior Sergeant',
+  sergeant: 'Sergeant',
+  corporal: 'Corporal',
+  private: 'Private',
+}
+
+// Lower number = more senior
+const RANK_ORDER = {
+  colonel: 1,
+  lieutenant_colonel: 2,
+  major: 3,
+  captain: 4,
+  lieutenant: 5,
+  warrant_officer_i: 6,
+  warrant_officer_ii: 7,
+  senior_sergeant: 8,
+  sergeant: 9,
+  corporal: 10,
+  private: 11,
+}
+
+function rankOrder(assignment) {
+  const raw = (assignment.instructor?.rank || assignment.instructor?.rank_display || assignment.instructor_rank || '').toLowerCase()
+  return RANK_ORDER[raw] ?? 99
+}
+
+function formatRank(rank) {
+  if (!rank) return '-'
+  return RANK_LABELS[rank.toLowerCase()] || rank
+}
+
 export default function TeachingAssignments() {
   const toast = useToast()
   const [assignments, setAssignments] = useState([])
@@ -52,7 +91,9 @@ export default function TeachingAssignments() {
       }
 
       const filtered = q ? results.filter(matchesQuery) : results
-      setAssignments(filtered.filter(s => s.instructor))
+      const withInstructor = filtered.filter(s => s.instructor)
+      withInstructor.sort((a, b) => rankOrder(a) - rankOrder(b))
+      setAssignments(withInstructor)
       setTotalCount(typeof data.count === 'number' ? data.count : filtered.length)
       setPage(p)
       setPageSize(ps)
@@ -205,7 +246,7 @@ export default function TeachingAssignments() {
                 {assignments.map((a) => (
                   <tr key={a.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc_number || a.instructor_svc || (typeof a.instructor === 'string' ? a.instructor : '-')}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{formatRank(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-black">{
                       a.instructor_name || (a.instructor?.first_name ? `${a.instructor.first_name} ${a.instructor.last_name || ''}` : (a.instructor?.svc_number || a.instructor))
                     }</td>
@@ -254,7 +295,7 @@ export default function TeachingAssignments() {
                           }</div>
                           <div className="text-xs text-neutral-500">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc_number || a.instructor_svc || '-'}</div>
                           {(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank) && (
-                            <div className="text-xs text-neutral-600">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank}</div>
+                            <div className="text-xs text-neutral-600">{formatRank(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank)}</div>
                           )}
                         </div>
                       </td>
@@ -304,7 +345,7 @@ export default function TeachingAssignments() {
                   {(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank) && (
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank}</span>
+                      <span className="text-sm text-neutral-700">{formatRank(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank)}</span>
                     </div>
                   )}
 

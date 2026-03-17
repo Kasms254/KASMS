@@ -193,8 +193,9 @@ export default function AdminInstructors() {
   const classesList = classesQueryData?.results ?? []
   const subjectsList = subjectsQueryData?.results ?? []
 
-  // Filtering is now server-side; use results directly
-  const instructors = allInstructors
+  // Filtering is now server-side; sort by rank senior → junior
+  const RANK_ORDER = Object.fromEntries(RANK_OPTIONS.map((r, i) => [r.value, i]))
+  const instructors = [...allInstructors].sort((a, b) => (RANK_ORDER[a.rank] ?? 99) - (RANK_ORDER[b.rank] ?? 99))
 
   const totalCount = instructorsData?.count ?? 0
   const totalPages = instructorsData?.total_pages ?? 1

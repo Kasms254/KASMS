@@ -125,18 +125,18 @@ export default function StudentAttendance() {
     }
   }
 
-  // Start QR scanner
-  async function startScanner() {
-    setScannerError('')
-    setShowScanner(true)
+  // Initialize camera after showScanner state causes qr-reader div to mount
+  useEffect(() => {
+    if (!showScanner) return
 
-    // Wait for DOM element to be ready
-    setTimeout(async () => {
+    let cancelled = false
+
+    async function initScanner() {
       try {
         const html5QrCode = new Html5Qrcode('qr-reader')
+        if (cancelled) return
         html5QrCodeRef.current = html5QrCode
 
-        // Responsive QR box: 70% of the smaller viewport dimension, capped at 250
         const vw = window.innerWidth
         const vh = window.innerHeight
         const boxSize = Math.min(Math.floor(Math.min(vw, vh) * 0.6), 250)
@@ -148,9 +148,8 @@ export default function StudentAttendance() {
         }
 
         const onSuccess = (decodedText) => handleQRCodeScanned(decodedText)
-        const onFailure = () => {} // QR not found yet — keep scanning
+        const onFailure = () => {}
 
-        // Try rear camera first, then fall back to any available camera
         try {
           await html5QrCode.start(
             { facingMode: 'environment' },
@@ -159,7 +158,6 @@ export default function StudentAttendance() {
             onFailure
           )
         } catch {
-          // Rear camera failed — enumerate devices and try the first one
           const devices = await Html5Qrcode.getCameras()
           if (devices && devices.length > 0) {
             await html5QrCode.start(
@@ -173,13 +171,25 @@ export default function StudentAttendance() {
           }
         }
       } catch (err) {
-        console.error('Scanner error:', err)
-        setScannerError(
-          err.message || 'Failed to start camera. Please check camera permissions and ensure you are on HTTPS.'
-        )
-        setShowScanner(false)
+        if (!cancelled) {
+          console.error('Scanner error:', err)
+          setScannerError(
+            err.message || 'Failed to start camera. Please check camera permissions and ensure you are on HTTPS.'
+          )
+          setShowScanner(false)
+        }
       }
-    }, 100)
+    }
+
+    initScanner()
+
+    return () => { cancelled = true }
+  }, [showScanner]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start QR scanner
+  function startScanner() {
+    setScannerError('')
+    setShowScanner(true)
   }
 
   // Stop QR scanner
