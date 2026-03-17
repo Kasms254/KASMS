@@ -69,6 +69,7 @@ export default function ClassesList(){
   // delete confirmation modal state
   const [confirmDeleteClass, setConfirmDeleteClass] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [search, setSearch] = useState('')
   const toast = useToast()
   const reportError = useCallback((msg) => {
     if (!msg) return
@@ -86,7 +87,8 @@ export default function ClassesList(){
       if (user && user.role === 'instructor') {
         try {
           // Filter by instructor and active status with pagination
-          const params = `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+          let params = `instructor=${user.id}&is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+          if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
           data = await getClassesPaginated(params)
         } catch {
           // If filtering fails, fall back to fetching all classes and filter locally
@@ -102,7 +104,8 @@ export default function ClassesList(){
         }
       } else {
         // Non-instructor: filter by is_active with pagination
-        const params = `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+        let params = `is_active=${showOnlyActive}&page=${currentPage}&page_size=${pageSize}`
+        if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
         try {
           data = await getClassesPaginated(params)
         } catch {
@@ -156,7 +159,7 @@ export default function ClassesList(){
     }catch{
       reportError('Failed to load classes')
     }finally{ setLoading(false) }
-  }, [reportError, showOnlyActive, user, currentPage, pageSize])
+  }, [reportError, showOnlyActive, user, currentPage, pageSize, search])
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
@@ -266,6 +269,13 @@ export default function ClassesList(){
             <span className="hidden sm:inline">Show Only Inactive Classes</span>
             <span className="sm:hidden">Only Inactive</span>
           </label>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => { setSearch(sanitizeInput(e.target.value)); setCurrentPage(1) }}
+            className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
             {user && user.role === 'admin' && (
               <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add Class</button>
             )}
