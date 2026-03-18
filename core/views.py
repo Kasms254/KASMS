@@ -1387,10 +1387,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated(), IsAdminOrInstructor()]
-        return [IsAuthenticated(), IsAdmin()]
 class NoticeActionMixin:
 
     read_status_model = None
