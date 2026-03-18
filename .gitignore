@@ -40,3 +40,6 @@ datadump.json
 api.js
 jitsi_private.pk
 core/tests/test_meetings.py
+jaas_private.pem
+jaas_public.pem
+debug_jass_jwt.py
