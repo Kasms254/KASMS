@@ -457,6 +457,25 @@ export default function ExamReports() {
     setComprehensiveData(null)
   }, [selectedClass])
 
+  // Push a browser history entry when entering comprehensive view so the back button works
+  useEffect(() => {
+    if (showComprehensive) {
+      window.history.pushState({ comprehensiveView: true }, '')
+    }
+  }, [showComprehensive])
+
+  // Close comprehensive view when the user presses browser back
+  useEffect(() => {
+    const handlePopState = () => {
+      if (showComprehensive) {
+        setShowComprehensive(false)
+        setComprehensiveData(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [showComprehensive])
+
   // Load comprehensive results for selected class
   const handleViewComprehensive = useCallback(async () => {
     if (!selectedClass) return

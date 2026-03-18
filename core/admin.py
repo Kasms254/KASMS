@@ -291,9 +291,12 @@ class BiometricRecordAdmin(TenantAdminMixin, admin.ModelAdmin):
 class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ['title', 'subject', 'class_obj', 'report_date', 'school']
     raw_id_fields = ['subject', 'class_obj', 'created_by']
-
+    
     def get_queryset(self, request):
-        return ExamReport.all_objects.select_related('subject', 'class_obj', 'school')
+        list_display = ('id', 'name', 'short_name', 'short_name', 'max_students', 'max_instructors')
+        list_filter = ['is_active']
+        search_fields = ['name']
+        ordering = ['-name']
 
 @admin.register(Certificate)
 class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):

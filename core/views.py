@@ -1,16 +1,15 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
-from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
+from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport,PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
-    ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
+    ExamReportSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
-    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer)
+    ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -1388,7 +1387,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
         })
   
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'my_subjects']:
             return [IsAuthenticated(), IsAdminOrInstructor()]
         return [IsAuthenticated(), IsAdmin()]
 class NoticeActionMixin:
@@ -1764,8 +1763,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.select_related('subject', 'created_by').prefetch_related('attachments').all()
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['subject', 'exam_type', 'is_active', 'subject__class_obj']
+    filterset_fields = ['subject', 'exam_type', 'is_active']
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
@@ -2551,37 +2551,11 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         serializer.save(school=school, created_by = self.request.user)
 
     
-    @action(detail=False, methods=['get'], url_path='by_exam/(?P<exam_id>[^/.]+)')
-    def by_exam(self, request, exam_id=None):
-        report = self.get_queryset().filter(exams__id=exam_id).prefetch_related('remarks', 'exams').first()
-        if not report:
-            return Response({'detail': 'No report found for this exam.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(DashboardExamReportSerializer(report, context={'request': request}).data)
-
-    @action(detail=True, methods=['post'])
-    def add_remark(self, request, pk=None):
-        report = self.get_object()
-        serializer = AddRemarkSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        remark_obj, created = ExamReportRemark.all_objects.update_or_create(
-            exam_report=report,
-            author_role='instructor',
-            defaults={
-                'remark': serializer.validated_data['remark'],
-                'author': request.user,
-                'school': report.school,
-            }
-        )
-        return Response(
-            ExamReportRemarkSerializer(remark_obj).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        )
-
     @action(detail=True, methods=['get'])
     def detailed_report(self, request, pk=None):
 
         report = self.get_object()
-        exam_ids = report.exams.values_list('id', flat=True)
+        exam_ids = report.exams.values._list('id', flat=True)
 
         enrollments = Enrollment.objects.filter(
 

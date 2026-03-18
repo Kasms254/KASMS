@@ -911,9 +911,9 @@ class ExamReport(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exam_reports')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='exam_reports')
     exams = models.ManyToManyField(Exam, related_name='reports', blank=True)
-    report_date = models.DateField(default=date.today)
+    report_date = models.DateField(default=timezone.now)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_reports_created')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = TenantAwareManager()

@@ -698,8 +698,8 @@ export async function getMySubjects() {
 
 // Exams endpoints
 export async function getExams(params = '') {
-  const qs = params ? `?${params}` : ''
-  const data = await request(`/api/exams/${qs}`)
+  const base = params ? `${params}&page_size=1000` : 'page_size=1000'
+  const data = await request(`/api/exams/?${base}`)
   if (data && Array.isArray(data.results)) return data.results
   return data
 }
