@@ -424,8 +424,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
       )}
 
       {/* Desktop Table — with sticky left columns when subjects > 5 */}
-      <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200" style={{ position: 'relative' }}>
-        <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 5 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined}>
+      <div className="hidden md:block overflow-x-auto w-full bg-white rounded-lg border border-gray-200" style={{ position: 'relative' }}>
+        <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 0 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined}>
           <thead>
             <tr className="border-b-2 border-gray-200 bg-gray-50">
               {/* ── Sticky left columns ── */}

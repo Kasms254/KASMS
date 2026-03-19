@@ -58,7 +58,7 @@ export default function Layout() {
         </aside>
 
         {/* Main area */}
-        <div className={`flex-1 min-h-screen flex flex-col w-full lg:w-auto transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+        <div className={`flex-1 min-w-0 min-h-screen flex flex-col w-full lg:w-auto transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
           <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
             <NavBar
               collapsed={collapsed}
