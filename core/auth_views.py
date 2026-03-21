@@ -1,12 +1,10 @@
 import secrets
 import logging
 from datetime import timedelta
-
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -21,6 +19,88 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
 logger = logging.getLogger(__name__)
 
+
+LOGIN_MAX_ATTEMPTS = getattr(settings, 'LOGIN_MAX_ATTEMPTS', 5)
+LOGIN_LOCKOUT_DURATION = getattr(settings, 'LOGIN_LOCKOUT_DURATION', 1800)
+LOGIN_ATTEMPT_WINDOW = getattr(settings, 'LOGIN_ATTEMPT_WINDOW', 300)
+
+
+def _get_client_ip(request):
+    x_forwarded_for = request.meta.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+def _cache_keys(svc_number, ip_address):
+
+    safe_svc = (svc_number or 'unknown').replace(' ', '_')
+    return {
+        'acct_failures':    f'login:failures:acct:{safe_svc}',
+        'acc_lockout':      f'login:lockout:acct:{safe_svc}',
+        'ip_failures':      f'login:failures:ip:{ip_address}',
+        'ip_lockout':       f'login:lockout:ip:{ip_address}',
+    }
+
+def _check_lockout(svc_number, ip_address):
+
+    keys = _cache_keys(svc_number, ip_address)
+
+    acct_locked_until = cache.get(keys['acct_lockout'])
+    ip_locked_until = cache.get(kesy['ip_lockout'])
+
+    if acct_locked_until:
+        remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
+        minutes = remaining // 60 + (1 if remaining % 60 else 0)
+        return True, (
+            f'Account locked due to too many failed login attempts,'
+            f'Try again in {minutes} minute(s)'
+        ), remaining
+
+    if ip_locked_until:
+        remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
+        minutes = remaining // 60 + (1 if remaining % 60 else 0)
+        return True, (
+            f'Account locked due to too many failed login attempts,'
+            f'Try again in {minutes} minute(s)'
+        ), remaining
+
+    return False, None, 0
+
+def _record_failed_login(svc_number, ip_address):
+
+    keys = _cache_keys(svc_number, ip_address)
+    locked = False
+
+    for counter_key, lockout_key in [
+        (keys['acct_failures'], keys['acct_lockout']),
+        (keys['ip_failures'], keys['ip_lockout']),
+    ]:
+        count = cache.get(counter_key, 0) + 1
+        cache.set(counter_key, count, timeout=LOGIN_ATTEMPT_WINDOW)
+ 
+        if count >= LOGIN_MAX_ATTEMPTS:
+            lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
+            cache.set(lockout_key, lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
+            locked = True
+            logger.warning(
+                'Login lockout triggered | key=%s | attempts=%d',
+                counter_key, count,
+                extra={'event': 'login_lockout'},
+            )
+
+    acct_count = cache.get(keys['acct_failures'], 0)
+    remaining = max(0, LOGIN_MAX_ATTEMPTS - acct_count)
+ 
+    return locked, remaining
+
+def _clear_failed_login(svc_number, ip_address):
+    keys = _cache_keys(svc_number, ip_address)
+    cache.delete_many([
+        keys['acct_failures'],
+        keys['acct_lockout'],
+        keys['ip_failures'],
+        keys['ip_lockout'],
+    ])
 def _set_token_cookies(response, access, refresh):
     secure = getattr(settings, 'JWT_COOKIE_SECURE', True)
     samesite = getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax')
@@ -47,7 +127,6 @@ def _set_token_cookies(response, access, refresh):
     response.set_cookie(refresh_name, refresh, max_age=refresh_max_age, **common)
     return response
 
-
 def _clear_token_cookies(response):
     access_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
     refresh_name = getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'refresh_token')
@@ -57,7 +136,6 @@ def _clear_token_cookies(response):
         response.delete_cookie(name, path='/', domain=domain)
     return response
 
-
 def _get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return str(refresh.access_token), str(refresh)
@@ -65,7 +143,6 @@ def _get_tokens_for_user(user):
 def _generate_otp():
     length = getattr(settings, 'TWO_FA_CODE_LENGTH', 6)
     return ''.join([str(secrets.randbelow(10)) for _ in range(length)])
-
 
 def _send_2fa_email(user, code):
     subject = 'Your KASMS Login Verification Code'
@@ -90,7 +167,6 @@ def _send_2fa_email(user, code):
         logger.error('Failed to send 2FA email to %s: %s', user.email, exc)
         return False
 
-
 def _create_2fa_code(user):
 
     TwoFactorCode.objects.filter(user=user, is_used=False).update(is_used=True)
@@ -102,7 +178,6 @@ def _create_2fa_code(user):
         code=code,
         expires_at=timezone.now() + timedelta(minutes=expiry_minutes),
     )
-
 
 def _mask_email(email):
     if not email or '@' not in email:
@@ -138,7 +213,6 @@ def csrf_token_view(request):
 
     return Response({'detail': 'CSRF cookie set'})
 
-
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -146,24 +220,71 @@ def login_view(request):
 
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
+    ip_address = _get_client_ip(request)
+
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    if is_locked:
+        logger.warning(
+            'Blocked login attempt (locked out) | svc=%s | ip=%s',
+            svc_number, ip_address,
+            extra={'event': 'login_blocked'},
+        )
+        return Response(
+            {
+                'error': lockout_msg,
+                'locked': True,
+                'retry_after_seconds': remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None:
+        is_now_locked, remaining = _record_failed_login(svc_number, ip_address)
+        logger.info(
+            'Failed login attempt | svc=%s | ip=%s | remaining=%d',
+            svc_number, ip_address, remaining,
+        )
+ 
+        error_msg = 'Invalid credentials.'
+        if is_now_locked:
+            minutes = LOGIN_LOCKOUT_DURATION // 60
+            error_msg = (
+                f'Account locked after {LOGIN_MAX_ATTEMPTS} failed attempts. '
+                f'Try again in {minutes} minutes.'
+            )
+            return Response(
+                {
+                    'error': error_msg,
+                    'locked': True,
+                    'retry_after_seconds': LOGIN_LOCKOUT_DURATION,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+ 
+        if remaining <= 2:
+            error_msg = (
+                f'Invalid credentials. {remaining} attempt(s) remaining '
+                f'before your account is locked.'
+            )
+ 
         return Response(
-            {'error': 'Invalid credentials'},
+            {'error': error_msg, 'remaining_attempts': remaining},
             status=status.HTTP_401_UNAUTHORIZED,
         )
-
+ 
     if not user.is_active:
         return Response(
             {'error': 'Account disabled'},
             status=status.HTTP_403_FORBIDDEN,
         )
-
+ 
+    _clear_failed_login(svc_number, ip_address)
+ 
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
     ).select_related('school')
-
+ 
     if user.role != 'superadmin' and not memberships.exists():
         history = SchoolMembership.all_objects.filter(
             user=user,
@@ -172,34 +293,33 @@ def login_view(request):
             'error': 'No active school membership.',
             'school_history': SchoolMembershipSerializer(history, many=True).data,
         }, status=status.HTTP_403_FORBIDDEN)
-
+ 
     if user.role == 'student':
         can_login, error_msg = check_student_can_login(user)
         if not can_login:
             return Response({'error': error_msg}, status=status.HTTP_403_FORBIDDEN)
-
+ 
     if not user.email:
         return Response(
             {'error': 'No email address on file. Contact your administrator.'},
             status=status.HTTP_403_FORBIDDEN,
         )
-
+ 
     two_fa = _create_2fa_code(user)
     email_sent = _send_2fa_email(user, two_fa.code)
-
+ 
     if not email_sent:
         return Response(
             {'error': 'Failed to send verification email. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
+ 
     return Response({
         'message': '2FA code sent to your email.',
         'requires_2fa': True,
         'email': _mask_email(user.email),
         'svc_number': user.svc_number,
     }, status=status.HTTP_200_OK)
-
 
 @csrf_exempt
 @api_view(['POST'])
@@ -208,45 +328,58 @@ def verify_2fa_view(request):
     svc_number = request.data.get('svc_number')
     code = request.data.get('code', '').strip()
     password = request.data.get('password')
-
+    ip_address = _get_client_ip(request)
+ 
     if not svc_number or not code or not password:
         return Response(
             {'error': 'svc_number, password, and code are required.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
+ 
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    if is_locked:
+        return Response(
+            {
+                'error': lockout_msg,
+                'locked': True,
+                'retry_after_seconds': remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+ 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
+        _record_failed_login(svc_number, ip_address)
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
-
+ 
     max_attempts = getattr(settings, 'TWO_FA_MAX_ATTEMPTS', 5)
     recent_failures = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         created_at__gte=timezone.now() - timedelta(minutes=15),
     ).first()
-
+ 
     if recent_failures and recent_failures.attempts >= max_attempts:
         return Response(
             {'error': 'Too many failed attempts. Please request a new code.'},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
-
+ 
     two_fa = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         expires_at__gt=timezone.now(),
     ).order_by('-created_at').first()
-
+ 
     if not two_fa:
         return Response(
             {'error': 'No valid verification code found. Please login again.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
+ 
     if not secrets.compare_digest(two_fa.code, code):
         two_fa.attempts += 1
         two_fa.save(update_fields=['attempts'])
@@ -255,69 +388,82 @@ def verify_2fa_view(request):
             {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
+ 
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
-
+ 
+    _clear_failed_login(svc_number, ip_address)
+ 
     access, refresh = _get_tokens_for_user(user)
     user_data = UserListSerializer(user).data
-
+ 
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
     ).select_related('school')
-
+ 
     response_data = {
         'message': 'Login successful',
         'must_change_password': user.must_change_password,
         'user': user_data,
     }
-
+ 
     if memberships.count() > 1:
         response_data['available_schools'] = [
             {'code': m.school.code, 'name': m.school.name, 'role': m.role}
             for m in memberships
         ]
-
+ 
     response = Response(response_data, status=status.HTTP_200_OK)
     return _set_token_cookies(response, access, refresh)
-
-
+ 
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_2fa_view(request):
-
+ 
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
-
+    ip_address = _get_client_ip(request)
+ 
     if not svc_number or not password:
         return Response(
             {'error': 'svc_number and password are required.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
+ 
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    if is_locked:
+        return Response(
+            {
+                'error': lockout_msg,
+                'locked': True,
+                'retry_after_seconds': remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+ 
     from django.contrib.auth import authenticate
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
+        _record_failed_login(svc_number, ip_address)
         return Response(
             {'message': 'If the account exists, a new code has been sent.'},
             status=status.HTTP_200_OK,
         )
-
+ 
     if not user.email:
         return Response(
             {'error': 'No email address on file. Contact your administrator.'},
             status=status.HTTP_403_FORBIDDEN,
         )
-
+ 
     two_fa = _create_2fa_code(user)
     _send_2fa_email(user, two_fa.code)
-
+ 
     return Response({
         'message': 'A new verification code has been sent.',
         'email': _mask_email(user.email),
     }, status=status.HTTP_200_OK)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -334,7 +480,6 @@ def logout_view(request):
 
     response = Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
     return _clear_token_cookies(response)
-
 
 @csrf_exempt
 @api_view(['POST'])
@@ -375,13 +520,11 @@ def token_refresh_view(request):
     response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
     return _set_token_cookies(response, access, refresh)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):
     serializer = UserListSerializer(request.user)
     return Response(serializer.data)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -427,7 +570,6 @@ def change_password_view(request):
         status=status.HTTP_200_OK,
     )
     return _set_token_cookies(response, access, refresh)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
