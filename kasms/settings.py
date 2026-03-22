@@ -15,12 +15,10 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
-
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1,192.168.2.254"
 ).split(",")
-
 
 # Application definition
 
@@ -75,11 +73,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "kasms.wsgi.application"
 
-
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-
 
 # AUTH_USER_MODEL = "users.User"
 
@@ -269,7 +264,6 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
-
 JWT_COOKIE_SECURE = not DEBUG
 JWT_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 JWT_COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None) 
@@ -293,7 +287,6 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
 TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
 TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
-
 
 CERT_VERIFY_LOCKOUT_THRESHOLD = 20
 CERT_VERIFY_LOCKOUT_WINDOW = 900
@@ -333,3 +326,7 @@ LOGGING = {
         },
     },
 }
+
+LOGIN_MAX_ATTEMPTS = int(os.getenv('LOGIN_MAX_ATTEMPTS', 5))
+LOGIN_LOCKOUT_DURATION = int(os.getenv('LOGIN_LOCKOUT_DURATION', 1800))
+LOGIN_ATTEMPT_WINDOW = int(os.getenv('LOGIN_ATTEMPT_WINDOW', 300))
