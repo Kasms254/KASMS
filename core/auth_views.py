@@ -11,7 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-
+from django.core.cache import cache
 from .models import Enrollment, SchoolMembership, TwoFactorCode
 from .serializers import UserListSerializer, SchoolMembershipSerializer
 from django.contrib.auth.password_validation import validate_password
@@ -26,7 +26,7 @@ LOGIN_ATTEMPT_WINDOW = getattr(settings, 'LOGIN_ATTEMPT_WINDOW', 300)
 
 
 def _get_client_ip(request):
-    x_forwarded_for = request.meta.get('HTTP_X_FORWARDED_FOR')
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', 'unknown')
@@ -36,7 +36,7 @@ def _cache_keys(svc_number, ip_address):
     safe_svc = (svc_number or 'unknown').replace(' ', '_')
     return {
         'acct_failures':    f'login:failures:acct:{safe_svc}',
-        'acc_lockout':      f'login:lockout:acct:{safe_svc}',
+        'acct_lockout':      f'login:lockout:acct:{safe_svc}',
         'ip_failures':      f'login:failures:ip:{ip_address}',
         'ip_lockout':       f'login:lockout:ip:{ip_address}',
     }
@@ -46,7 +46,7 @@ def _check_lockout(svc_number, ip_address):
     keys = _cache_keys(svc_number, ip_address)
 
     acct_locked_until = cache.get(keys['acct_lockout'])
-    ip_locked_until = cache.get(kesy['ip_lockout'])
+    ip_locked_until = cache.get(keys['ip_lockout'])
 
     if acct_locked_until:
         remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
