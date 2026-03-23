@@ -8,7 +8,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
 from django.conf import settings
 from django.core.cache import cache
-
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,27 @@ class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         if hasattr(request, 'user') and request.user.is_authenticated:
+            self._stamp_activity(request.user)
             return None
 
         user = get_user_from_jwt(request)
         if user:
             request.user = user
             request._jwt_user = user
+            self._stamp_activity(user)
         else:
             request._jwt_user = None
 
         return None
+
+    @staticmethod
+    def _stamp_activity(user):
+        timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+        cache.set(
+            f'user_last_activity:{user.id}',
+            timezone.now().isoformat(),
+            timeout = timeout * 2,
+        )
 
 class TenantMiddleware(MiddlewareMixin):
 
