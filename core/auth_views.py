@@ -37,7 +37,6 @@ def _cache_keys(svc_number):
     return {
         'acct_failures':    f'login:failures:acct:{safe_svc}',
         'acct_lockout':      f'login:lockout:acct:{safe_svc}',
-
     }
 
 def _check_lockout(svc_number):
@@ -71,10 +70,10 @@ def _record_failed_login(svc_number):
         lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
         cache.set(lockout_key, lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
         locked = True
-        logger.warning (
+        logger.warning(
             'Login lockout triggered | key=%s | attempts=%d',
             counter_key, count,
-            extra = {'event': 'login_logout'},
+            extra={'event': 'login_lockout'},
         )
 
     remaining = max(0, LOGIN_MAX_ATTEMPTS - count)
@@ -82,6 +81,7 @@ def _record_failed_login(svc_number):
     return locked, remaining
 
 def _clear_failed_login(svc_number):
+
     keys = _cache_keys(svc_number)
     cache.delete_many([
         keys['acct_failures'],
@@ -208,7 +208,7 @@ def login_view(request):
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
 
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
     if is_locked:
         logger.warning(
             'Blocked login attempt (locked out) | svc=%s | ip=%s',
@@ -226,7 +226,7 @@ def login_view(request):
 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None:
-        is_now_locked, remaining = _record_failed_login(svc_number, ip_address)
+        is_now_locked, remaining = _record_failed_login(svc_number)
         logger.info(
             'Failed login attempt | svc=%s | ip=%s | remaining=%d',
             svc_number, ip_address, remaining,
@@ -264,8 +264,6 @@ def login_view(request):
             {'error': 'Account disabled'},
             status=status.HTTP_403_FORBIDDEN,
         )
- 
-    _clear_failed_login(svc_number, ip_address)
  
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
@@ -322,7 +320,7 @@ def verify_2fa_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
  
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
     if is_locked:
         return Response(
             {
@@ -335,7 +333,7 @@ def verify_2fa_view(request):
  
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number, ip_address)
+        _record_failed_login(svc_number)
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
@@ -378,7 +376,7 @@ def verify_2fa_view(request):
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
  
-    _clear_failed_login(svc_number, ip_address)
+    _clear_failed_login(svc_number)
  
     access, refresh = _get_tokens_for_user(user)
     user_data = UserListSerializer(user).data
@@ -417,7 +415,7 @@ def resend_2fa_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
  
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
     if is_locked:
         return Response(
             {
@@ -431,7 +429,7 @@ def resend_2fa_view(request):
     from django.contrib.auth import authenticate
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number, ip_address)
+        _record_failed_login(svc_number)
         return Response(
             {'message': 'If the account exists, a new code has been sent.'},
             status=status.HTTP_200_OK,
@@ -472,12 +470,12 @@ def logout_view(request):
 @permission_classes([AllowAny])
 def token_refresh_view(request):
 
-    refresh_name = getattr(settings, 'JWt_REFRESH_COOKIE_NAME', 'refresh_token')
+    refresh_name = getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'refresh_token')
     raw_refresh = request.COOKIES.get(refresh_name)
 
     if not raw_refresh:
         return Response(
-            {'error': 'No refresh token provided'},
+            {'error': 'No refresh token provided.'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -485,31 +483,29 @@ def token_refresh_view(request):
         old_refresh = RefreshToken(raw_refresh)
     except TokenError:
         response = Response(
-            {'error': 'Refresh Token in invalid or expired'},
-            status= status.HTTP_401_UNAUTHORIZED,
+            {'error': 'Refresh token is invalid or expired.'},
+            status=status.HTTP_401_UNAUTHORIZED,
         )
-        return _clear_token_cookies(request)
+        return _clear_token_cookies(response)
 
     user_id = old_refresh.payload.get('user_id')
     inactivity_timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
     last_activity_iso = cache.get(f'user_last_activity:{user_id}')
 
     if last_activity_iso is None:
-
         try:
             old_refresh.blacklist()
-            
         except TokenError:
             pass
         response = Response(
-            {'error': 'Session expired due to inactivity. Please log in again'},
+            {'error': 'Session expired due to inactivity. Please log in again.'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
 
     last_activity = timezone.datetime.fromisoformat(last_activity_iso)
     idle_seconds = (timezone.now() - last_activity).total_seconds()
- 
+
     if idle_seconds > inactivity_timeout:
         try:
             old_refresh.blacklist()
@@ -520,7 +516,30 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-        
+
+    try:
+        old_refresh.blacklist()
+    except TokenError:
+        response = Response(
+            {'error': 'Refresh token is invalid or expired.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        return _clear_token_cookies(response)
+
+    from .models import User
+    try:
+        user = User.all_objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        response = Response(
+            {'error': 'User not found.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        return _clear_token_cookies(response)
+
+    access, refresh = _get_tokens_for_user(user)
+    response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
+    return _set_token_cookies(response, access, refresh)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):

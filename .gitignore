@@ -43,3 +43,6 @@ core/tests/test_meetings.py
 jaas_private.pem
 jaas_public.pem
 debug_jass_jwt.py
+
+tests.py
+

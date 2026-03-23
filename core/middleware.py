@@ -1,5 +1,6 @@
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
+from django.utils import timezone 
 from .models import School, User, Enrollment,SchoolMembership
 from .managers import set_current_school, get_current_school,clear_current_school
 from .cookie_utils import ACCESS_COOKIE_NAME
@@ -8,7 +9,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
 from django.conf import settings
 from django.core.cache import cache
-from django.utils import timezone
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,27 +60,29 @@ class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         if hasattr(request, 'user') and request.user.is_authenticated:
-            self._stamp_activity(request.user)
+            self._stamp_activity(request.user)  
             return None
 
         user = get_user_from_jwt(request)
         if user:
             request.user = user
             request._jwt_user = user
-            self._stamp_activity(user)
+            self._stamp_activity(user)  
         else:
             request._jwt_user = None
 
         return None
 
+
     @staticmethod
     def _stamp_activity(user):
-        timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+        timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)  
         cache.set(
             f'user_last_activity:{user.id}',
             timezone.now().isoformat(),
-            timeout = timeout * 2,
+            timeout=timeout * 2, 
         )
+   
 
 class TenantMiddleware(MiddlewareMixin):
 
@@ -231,9 +234,3 @@ class StudentEnrollmentMiddleware(MiddlewareMixin):
             }, status=403)
 
         return None
-
-
-
-
-
-
