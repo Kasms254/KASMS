@@ -97,7 +97,8 @@ class SecureCertificatePublicVerificationView(APIView):
         start_time = time.monotonic()
         ip_address = get_client_ip(request)
         request_id = uuid.uuid4().hex[:12]
-        verification_code = (request.data.get("verification_code") or "").strip()
+        raw_code = request.data.get("verification_code")
+        verification_code = str(raw_code).strip() if raw_code is not None else ""
 
 
         if check_ip_lockout(ip_address):
@@ -206,7 +207,3 @@ class SecureCertificatePublicVerificationView(APIView):
             verification_logger.info("Certificate verified", extra=log_data)
         else:
             verification_logger.warning("Certificate verification failed", extra=log_data)
-
-            
-
-

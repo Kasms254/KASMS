@@ -1,4 +1,5 @@
 import secrets
+import uuid
 import logging
 from datetime import timedelta
 from django.conf import settings
@@ -31,76 +32,105 @@ def _get_client_ip(request):
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', 'unknown')
 
-def _cache_keys(svc_number, ip_address):
-
+def _cache_keys(svc_number, ip_address=None):
     safe_svc = (svc_number or 'unknown').replace(' ', '_')
-    return {
-        'acct_failures':    f'login:failures:acct:{safe_svc}',
-        'acct_lockout':      f'login:lockout:acct:{safe_svc}',
-        'ip_failures':      f'login:failures:ip:{ip_address}',
-        'ip_lockout':       f'login:lockout:ip:{ip_address}',
+    keys = {
+        'acct_failures':  f'login:failures:acct:{safe_svc}',
+        'acct_lockout':   f'login:lockout:acct:{safe_svc}',
     }
+    if ip_address:
+        keys['ip_failures'] = f'login:failures:ip:{ip_address}'
+        keys['ip_lockout']  = f'login:lockout:ip:{ip_address}'
+    return keys
 
-def _check_lockout(svc_number, ip_address):
 
+def _check_lockout(svc_number, ip_address=None):
     keys = _cache_keys(svc_number, ip_address)
 
     acct_locked_until = cache.get(keys['acct_lockout'])
-    ip_locked_until = cache.get(keys['ip_lockout'])
-
     if acct_locked_until:
         remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
         minutes = remaining // 60 + (1 if remaining % 60 else 0)
         return True, (
-            f'Account locked due to too many failed login attempts,'
+            f'Account locked due to too many failed login attempts, '
             f'Try again in {minutes} minute(s)'
         ), remaining
 
-    if ip_locked_until:
-        remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
-        minutes = remaining // 60 + (1 if remaining % 60 else 0)
-        return True, (
-            f'Account locked due to too many failed login attempts,'
-            f'Try again in {minutes} minute(s)'
-        ), remaining
+    if ip_address:
+        ip_locked_until = cache.get(keys['ip_lockout'])
+        if ip_locked_until:
+            remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
+            minutes = remaining // 60 + (1 if remaining % 60 else 0)
+            return True, (
+                f'Too many failed login attempts from this location. '
+                f'Try again in {minutes} minute(s)'
+            ), remaining
 
     return False, None, 0
 
-def _record_failed_login(svc_number, ip_address):
-
+def _record_failed_login(svc_number, ip_address=None):
     keys = _cache_keys(svc_number, ip_address)
     locked = False
 
-    for counter_key, lockout_key in [
-        (keys['acct_failures'], keys['acct_lockout']),
-        (keys['ip_failures'], keys['ip_lockout']),
-    ]:
-        count = cache.get(counter_key, 0) + 1
-        cache.set(counter_key, count, timeout=LOGIN_ATTEMPT_WINDOW)
- 
-        if count >= LOGIN_MAX_ATTEMPTS:
+    acct_count = cache.get(keys['acct_failures'], 0) + 1
+    cache.set(keys['acct_failures'], acct_count, timeout=LOGIN_ATTEMPT_WINDOW)
+
+    if acct_count >= LOGIN_MAX_ATTEMPTS:
+        lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
+        cache.set(keys['acct_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
+        locked = True
+        logger.warning(
+            'Login lockout triggered | key=%s | attempts=%d',
+            keys['acct_failures'], acct_count,
+            extra={'event': 'login_lockout'},
+        )
+
+    if ip_address and 'ip_failures' in keys:
+        ip_limit = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
+        ip_count = cache.get(keys['ip_failures'], 0) + 1
+        cache.set(keys['ip_failures'], ip_count, timeout=LOGIN_ATTEMPT_WINDOW)
+
+        if ip_count >= ip_limit:
             lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-            cache.set(lockout_key, lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
+            cache.set(keys['ip_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
             locked = True
             logger.warning(
-                'Login lockout triggered | key=%s | attempts=%d',
-                counter_key, count,
-                extra={'event': 'login_lockout'},
+                'IP login lockout triggered | ip=%s | attempts=%d',
+                ip_address, ip_count,
+                extra={'event': 'ip_login_lockout'},
             )
 
-    acct_count = cache.get(keys['acct_failures'], 0)
     remaining = max(0, LOGIN_MAX_ATTEMPTS - acct_count)
- 
     return locked, remaining
 
-def _clear_failed_login(svc_number, ip_address):
+def _clear_failed_login(svc_number, ip_address=None):
     keys = _cache_keys(svc_number, ip_address)
-    cache.delete_many([
-        keys['acct_failures'],
-        keys['acct_lockout'],
-        keys['ip_failures'],
-        keys['ip_lockout'],
-    ])
+    cache.delete_many(list(keys.values()))
+
+def _get_tokens_for_user(user, session_id=None):
+
+    if session_id is None:
+        session_id = uuid.uuid4().hex
+
+    refresh = RefreshToken.for_user(user)
+    refresh['session_id'] = session_id
+
+    access_token = refresh.access_token
+    access_token['session_id'] = session_id
+
+    return str(access_token), str(refresh), session_id
+
+def _stamp_initial_activity(user, session_id):
+    """Seed the per-session activity cache key at login so the first
+    token refresh does not treat a missing key as inactivity."""
+    timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+    cache_key = f'user_last_activity:{user.id}:{session_id}'
+    cache.set(
+        cache_key,
+        timezone.now().isoformat(),
+        timeout=timeout * 2,
+    )
+
 def _set_token_cookies(response, access, refresh):
     secure = getattr(settings, 'JWT_COOKIE_SECURE', True)
     samesite = getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax')
@@ -135,10 +165,6 @@ def _clear_token_cookies(response):
     for name in (access_name, refresh_name):
         response.delete_cookie(name, path='/', domain=domain)
     return response
-
-def _get_tokens_for_user(user):
-    refresh = RefreshToken.for_user(user)
-    return str(refresh.access_token), str(refresh)
 
 def _generate_otp():
     length = getattr(settings, 'TWO_FA_CODE_LENGTH', 6)
@@ -280,7 +306,7 @@ def login_view(request):
         )
  
     _clear_failed_login(svc_number, ip_address)
- 
+
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
     ).select_related('school')
@@ -394,7 +420,9 @@ def verify_2fa_view(request):
  
     _clear_failed_login(svc_number, ip_address)
  
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, session_id = _get_tokens_for_user(user)
+    _stamp_initial_activity(user, session_id)
+
     user_data = UserListSerializer(user).data
  
     memberships = SchoolMembership.all_objects.filter(
@@ -485,18 +513,62 @@ def logout_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh_view(request):
-
+ 
     refresh_name = getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'refresh_token')
     raw_refresh = request.COOKIES.get(refresh_name)
-
+ 
     if not raw_refresh:
         return Response(
             {'error': 'No refresh token provided.'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
-
+ 
     try:
         old_refresh = RefreshToken(raw_refresh)
+    except TokenError:
+        response = Response(
+            {'error': 'Refresh token is invalid or expired.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        return _clear_token_cookies(response)
+ 
+    user_id = old_refresh.payload.get('user_id')
+    session_id = old_refresh.payload.get('session_id')
+    inactivity_timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+
+    if session_id:
+        activity_cache_key = f'user_last_activity:{user_id}:{session_id}'
+    else:
+        activity_cache_key = f'user_last_activity:{user_id}'
+ 
+    last_activity_iso = cache.get(activity_cache_key)
+ 
+    if last_activity_iso is None:
+        try:
+            old_refresh.blacklist()
+        except TokenError:
+            pass
+        response = Response(
+            {'error': 'Session expired due to inactivity. Please log in again.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        return _clear_token_cookies(response)
+
+    last_activity = timezone.datetime.fromisoformat(last_activity_iso)
+    idle_seconds = (timezone.now() - last_activity).total_seconds()
+ 
+    if idle_seconds > inactivity_timeout:
+        try:
+            old_refresh.blacklist()
+        except TokenError:
+            pass
+        response = Response(
+            {'error': 'Session expired due to inactivity. Please log in again.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        return _clear_token_cookies(response)
+ 
+    try:
         old_refresh.blacklist()
     except TokenError:
         response = Response(
@@ -504,8 +576,7 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-
-    user_id = old_refresh.payload.get('user_id')
+ 
     from .models import User
     try:
         user = User.all_objects.get(id=user_id, is_active=True)
@@ -516,7 +587,10 @@ def token_refresh_view(request):
         )
         return _clear_token_cookies(response)
 
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, new_session_id = _get_tokens_for_user(user, session_id=session_id)
+    if not session_id:
+        _stamp_initial_activity(user, new_session_id)
+ 
     response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
     return _set_token_cookies(response, access, refresh)
 
@@ -564,7 +638,8 @@ def change_password_view(request):
     user.must_change_password = False
     user.save()
 
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, session_id = _get_tokens_for_user(user)
+    _stamp_initial_activity(user, session_id)
     response = Response(
         {'message': 'Password changed successfully'},
         status=status.HTTP_200_OK,

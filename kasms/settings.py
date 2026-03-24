@@ -47,6 +47,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.CookieJWTAuthenticationMiddleware",
     "core.middleware.TenantMiddleware",
     "core.middleware.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -287,6 +288,8 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 TWO_FA_CODE_LENGTH = int(os.getenv('TWO_FA_CODE_LENGTH', 6))
 TWO_FA_CODE_EXPIRY_MINUTES = int(os.getenv('TWO_FA_CODE_EXPIRY_MINUTES', 5))
 TWO_FA_MAX_ATTEMPTS = int(os.getenv('TWO_FA_MAX_ATTEMPTS', 5))
+
+INACTIVITY_TIMEOUT = int(os.getenv('INACTIVITY_TIMEOUT', 900))
 
 CERT_VERIFY_LOCKOUT_THRESHOLD = 20
 CERT_VERIFY_LOCKOUT_WINDOW = 900
