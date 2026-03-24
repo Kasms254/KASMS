@@ -47,6 +47,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.CookieJWTAuthenticationMiddleware",
     "core.middleware.TenantMiddleware",
     "core.middleware.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

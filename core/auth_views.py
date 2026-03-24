@@ -31,62 +31,90 @@ def _get_client_ip(request):
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', 'unknown')
 
-def _cache_keys(svc_number):
-
+def _cache_keys(svc_number, ip_address=None):
     safe_svc = (svc_number or 'unknown').replace(' ', '_')
-    return {
-        'acct_failures':    f'login:failures:acct:{safe_svc}',
-        'acct_lockout':      f'login:lockout:acct:{safe_svc}',
+    keys = {
+        'acct_failures':  f'login:failures:acct:{safe_svc}',
+        'acct_lockout':   f'login:lockout:acct:{safe_svc}',
     }
+    if ip_address:
+        keys['ip_failures'] = f'login:failures:ip:{ip_address}'
+        keys['ip_lockout']  = f'login:lockout:ip:{ip_address}'
+    return keys
 
-def _check_lockout(svc_number):
 
-    keys = _cache_keys(svc_number)
+def _check_lockout(svc_number, ip_address=None):
+    keys = _cache_keys(svc_number, ip_address)
 
     acct_locked_until = cache.get(keys['acct_lockout'])
-
     if acct_locked_until:
         remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
         minutes = remaining // 60 + (1 if remaining % 60 else 0)
         return True, (
-            f'Account locked due to too many failed login attempts,'
+            f'Account locked due to too many failed login attempts, '
             f'Try again in {minutes} minute(s)'
         ), remaining
 
+    if ip_address:
+        ip_locked_until = cache.get(keys['ip_lockout'])
+        if ip_locked_until:
+            remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
+            minutes = remaining // 60 + (1 if remaining % 60 else 0)
+            return True, (
+                f'Too many failed login attempts from this location. '
+                f'Try again in {minutes} minute(s)'
+            ), remaining
+
     return False, None, 0
 
-def _record_failed_login(svc_number):
-
-    keys = _cache_keys(svc_number)
+def _record_failed_login(svc_number, ip_address=None):
+    keys = _cache_keys(svc_number, ip_address)
     locked = False
 
-    counter_key = keys['acct_failures']
-    lockout_key = keys['acct_lockout']
+    acct_count = cache.get(keys['acct_failures'], 0) + 1
+    cache.set(keys['acct_failures'], acct_count, timeout=LOGIN_ATTEMPT_WINDOW)
 
-    count = cache.get(counter_key, 0) + 1
-    cache.set(counter_key, count, timeout=LOGIN_ATTEMPT_WINDOW)
-
-    if count >= LOGIN_MAX_ATTEMPTS:
+    if acct_count >= LOGIN_MAX_ATTEMPTS:
         lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-        cache.set(lockout_key, lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
+        cache.set(keys['acct_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
         locked = True
         logger.warning(
             'Login lockout triggered | key=%s | attempts=%d',
-            counter_key, count,
+            keys['acct_failures'], acct_count,
             extra={'event': 'login_lockout'},
         )
 
-    remaining = max(0, LOGIN_MAX_ATTEMPTS - count)
+    if ip_address and 'ip_failures' in keys:
+        ip_limit = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
+        ip_count = cache.get(keys['ip_failures'], 0) + 1
+        cache.set(keys['ip_failures'], ip_count, timeout=LOGIN_ATTEMPT_WINDOW)
 
+        if ip_count >= ip_limit:
+            lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
+            cache.set(keys['ip_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
+            locked = True
+            logger.warning(
+                'IP login lockout triggered | ip=%s | attempts=%d',
+                ip_address, ip_count,
+                extra={'event': 'ip_login_lockout'},
+            )
+
+    remaining = max(0, LOGIN_MAX_ATTEMPTS - acct_count)
     return locked, remaining
 
-def _clear_failed_login(svc_number):
+def _clear_failed_login(svc_number, ip_address=None):
+    keys = _cache_keys(svc_number, ip_address)
+    cache.delete_many(list(keys.values()))
 
-    keys = _cache_keys(svc_number)
-    cache.delete_many([
-        keys['acct_failures'],
-        keys['acct_lockout'],
-    ])
+def _stamp_initial_activity(user):
+
+    timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+    cache.set(
+        f'user_last_activity:{user.id}',
+        timezone.now().isoformat(),
+        timeout=timeout * 2,
+    )
+
 def _set_token_cookies(response, access, refresh):
     secure = getattr(settings, 'JWT_COOKIE_SECURE', True)
     samesite = getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax')
@@ -208,7 +236,7 @@ def login_view(request):
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
 
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
     if is_locked:
         logger.warning(
             'Blocked login attempt (locked out) | svc=%s | ip=%s',
@@ -226,7 +254,7 @@ def login_view(request):
 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None:
-        is_now_locked, remaining = _record_failed_login(svc_number)
+        is_now_locked, remaining = _record_failed_login(svc_number, ip_address)
         logger.info(
             'Failed login attempt | svc=%s | ip=%s | remaining=%d',
             svc_number, ip_address, remaining,
@@ -320,7 +348,7 @@ def verify_2fa_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
  
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
     if is_locked:
         return Response(
             {
@@ -333,7 +361,7 @@ def verify_2fa_view(request):
  
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number)
+        _record_failed_login(svc_number, ip_address)
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
@@ -376,7 +404,8 @@ def verify_2fa_view(request):
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
  
-    _clear_failed_login(svc_number)
+    _clear_failed_login(svc_number, ip_address)
+    _stamp_initial_activity(user)
  
     access, refresh = _get_tokens_for_user(user)
     user_data = UserListSerializer(user).data
@@ -415,7 +444,7 @@ def resend_2fa_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
  
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number)
+    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
     if is_locked:
         return Response(
             {
@@ -429,7 +458,7 @@ def resend_2fa_view(request):
     from django.contrib.auth import authenticate
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number)
+        _record_failed_login(svc_number, ip_address)
         return Response(
             {'message': 'If the account exists, a new code has been sent.'},
             status=status.HTTP_200_OK,
