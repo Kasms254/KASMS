@@ -1,7 +1,6 @@
-import uuid
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
-from django.utils import timezone 
+from django.utils import timezone
 from .models import School, User, Enrollment,SchoolMembership
 from .managers import set_current_school, get_current_school,clear_current_school
 from .cookie_utils import ACCESS_COOKIE_NAME

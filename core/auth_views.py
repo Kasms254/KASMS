@@ -305,6 +305,8 @@ def login_view(request):
             status=status.HTTP_403_FORBIDDEN,
         )
  
+    _clear_failed_login(svc_number, ip_address)
+
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
     ).select_related('school')
@@ -533,7 +535,7 @@ def token_refresh_view(request):
     user_id = old_refresh.payload.get('user_id')
     session_id = old_refresh.payload.get('session_id')
     inactivity_timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
- 
+
     if session_id:
         activity_cache_key = f'user_last_activity:{user_id}:{session_id}'
     else:
@@ -551,7 +553,7 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
- 
+
     last_activity = timezone.datetime.fromisoformat(last_activity_iso)
     idle_seconds = (timezone.now() - last_activity).total_seconds()
  
