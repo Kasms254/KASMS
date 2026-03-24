@@ -511,16 +511,16 @@ def logout_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh_view(request):
-
+ 
     refresh_name = getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'refresh_token')
     raw_refresh = request.COOKIES.get(refresh_name)
-
+ 
     if not raw_refresh:
         return Response(
             {'error': 'No refresh token provided.'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
-
+ 
     try:
         old_refresh = RefreshToken(raw_refresh)
     except TokenError:
@@ -529,19 +529,18 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-
+ 
     user_id = old_refresh.payload.get('user_id')
     session_id = old_refresh.payload.get('session_id')
     inactivity_timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
-
-
+ 
     if session_id:
         activity_cache_key = f'user_last_activity:{user_id}:{session_id}'
     else:
         activity_cache_key = f'user_last_activity:{user_id}'
-
+ 
     last_activity_iso = cache.get(activity_cache_key)
-
+ 
     if last_activity_iso is None:
         try:
             old_refresh.blacklist()
@@ -552,10 +551,10 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-
+ 
     last_activity = timezone.datetime.fromisoformat(last_activity_iso)
     idle_seconds = (timezone.now() - last_activity).total_seconds()
-
+ 
     if idle_seconds > inactivity_timeout:
         try:
             old_refresh.blacklist()
@@ -566,7 +565,7 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-
+ 
     try:
         old_refresh.blacklist()
     except TokenError:
@@ -575,7 +574,7 @@ def token_refresh_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
         return _clear_token_cookies(response)
-
+ 
     from .models import User
     try:
         user = User.all_objects.get(id=user_id, is_active=True)
@@ -586,7 +585,10 @@ def token_refresh_view(request):
         )
         return _clear_token_cookies(response)
 
-    access, refresh, _ = _get_tokens_for_user(user, session_id=session_id)
+    access, refresh, new_session_id = _get_tokens_for_user(user, session_id=session_id)
+    if not session_id:
+        _stamp_initial_activity(user, new_session_id)
+ 
     response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
     return _set_token_cookies(response, access, refresh)
 
