@@ -1,3 +1,4 @@
+import uuid
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
 from django.utils import timezone 
@@ -12,6 +13,10 @@ from django.core.cache import cache
 
 
 logger = logging.getLogger(__name__)
+
+ACTIVITY_EXEMPT_PATHS = getattr(settings, 'ACTIVITY_EXEMPT_PATHS', [
+    '/api/auth/token/refresh/',
+])
 
 def get_user_from_jwt(request):
 
@@ -60,30 +65,54 @@ class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         if hasattr(request, 'user') and request.user.is_authenticated:
-            self._stamp_activity(request.user)  
+            self._stamp_activity_if_allowed(request)
             return None
 
         user = get_user_from_jwt(request)
         if user:
             request.user = user
             request._jwt_user = user
-            self._stamp_activity(user)  
+            self._stamp_activity_if_allowed(request)
         else:
             request._jwt_user = None
 
         return None
 
+    @classmethod
+    def _stamp_activity_if_allowed(cls, request):
+
+        for path in ACTIVITY_EXEMPT_PATHS:
+            if request.path.rstrip('/') == path.rstrip('/'):
+                return
+        cls._stamp_activity(request)
 
     @staticmethod
-    def _stamp_activity(user):
-        timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)  
+    def _stamp_activity(request):
+
+        user = request.user
+        if not user or not getattr(user, 'is_authenticated', False):
+            return
+
+  
+        session_id = None
+        cookie_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
+        raw_token = request.COOKIES.get(cookie_name)
+        if raw_token:
+            try:
+                token = AccessToken(raw_token)
+                session_id = token.get('session_id')
+            except TokenError:
+                pass
+
+        cache_key = f'user_last_activity:{user.id}:{session_id}' if session_id else f'user_last_activity:{user.id}'
+
+        timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
         cache.set(
-            f'user_last_activity:{user.id}',
+            cache_key,
             timezone.now().isoformat(),
             timeout=timeout * 2, 
         )
    
-
 class TenantMiddleware(MiddlewareMixin):
 
     EXEMPT_PATHS = [

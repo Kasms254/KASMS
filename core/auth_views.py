@@ -1,4 +1,5 @@
 import secrets
+import uuid
 import logging
 from datetime import timedelta
 from django.conf import settings
@@ -106,11 +107,26 @@ def _clear_failed_login(svc_number, ip_address=None):
     keys = _cache_keys(svc_number, ip_address)
     cache.delete_many(list(keys.values()))
 
-def _stamp_initial_activity(user):
+def _get_tokens_for_user(user, session_id=None):
 
+    if session_id is None:
+        session_id = uuid.uuid4().hex
+
+    refresh = RefreshToken.for_user(user)
+    refresh['session_id'] = session_id
+
+    access_token = refresh.access_token
+    access_token['session_id'] = session_id
+
+    return str(access_token), str(refresh), session_id
+
+def _stamp_initial_activity(user, session_id):
+    """Seed the per-session activity cache key at login so the first
+    token refresh does not treat a missing key as inactivity."""
     timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
+    cache_key = f'user_last_activity:{user.id}:{session_id}'
     cache.set(
-        f'user_last_activity:{user.id}',
+        cache_key,
         timezone.now().isoformat(),
         timeout=timeout * 2,
     )
@@ -149,10 +165,6 @@ def _clear_token_cookies(response):
     for name in (access_name, refresh_name):
         response.delete_cookie(name, path='/', domain=domain)
     return response
-
-def _get_tokens_for_user(user):
-    refresh = RefreshToken.for_user(user)
-    return str(refresh.access_token), str(refresh)
 
 def _generate_otp():
     length = getattr(settings, 'TWO_FA_CODE_LENGTH', 6)
@@ -405,9 +417,10 @@ def verify_2fa_view(request):
     two_fa.save(update_fields=['is_used'])
  
     _clear_failed_login(svc_number, ip_address)
-    _stamp_initial_activity(user)
  
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, session_id = _get_tokens_for_user(user)
+    _stamp_initial_activity(user, session_id)
+
     user_data = UserListSerializer(user).data
  
     memberships = SchoolMembership.all_objects.filter(
@@ -518,8 +531,16 @@ def token_refresh_view(request):
         return _clear_token_cookies(response)
 
     user_id = old_refresh.payload.get('user_id')
+    session_id = old_refresh.payload.get('session_id')
     inactivity_timeout = getattr(settings, 'INACTIVITY_TIMEOUT', 900)
-    last_activity_iso = cache.get(f'user_last_activity:{user_id}')
+
+
+    if session_id:
+        activity_cache_key = f'user_last_activity:{user_id}:{session_id}'
+    else:
+        activity_cache_key = f'user_last_activity:{user_id}'
+
+    last_activity_iso = cache.get(activity_cache_key)
 
     if last_activity_iso is None:
         try:
@@ -565,7 +586,7 @@ def token_refresh_view(request):
         )
         return _clear_token_cookies(response)
 
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, _ = _get_tokens_for_user(user, session_id=session_id)
     response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
     return _set_token_cookies(response, access, refresh)
 
@@ -613,7 +634,8 @@ def change_password_view(request):
     user.must_change_password = False
     user.save()
 
-    access, refresh = _get_tokens_for_user(user)
+    access, refresh, session_id = _get_tokens_for_user(user)
+    _stamp_initial_activity(user, session_id)
     response = Response(
         {'message': 'Password changed successfully'},
         status=status.HTTP_200_OK,
