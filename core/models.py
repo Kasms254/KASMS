@@ -1744,4 +1744,97 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
+class BiometricDevice(models.Model):
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('maintenance', 'Under Maintenance'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_devices')
+    name = models.CharField(max_length=200, help_text='e.g. NOC')
+    device_type = models.CharField(max_length=50, default='zkteco_f22')
+
+    ip_address = models.GenericIPAddressField()
+    port = models.IntegerField(default=4370)
+    serial_number = models.CharField(max_length=100, blank=True)
+    firmware_version = models.CharField(max_length=100, blank=True)
+    location_description = models.CharField(
+        max_length=300, blank=True, help_text='Physical location of the device'
+    )
+    status= models.CharField(
+        max_length =20, choices=STATUS_CHOICES, default='active'
+    )
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    last_sync_status = models.CharField(max_length=50, blank=True)
+    last_sync_records = models.IntegerField(default=0)
+    total_synced_records = models.IntegerField(default=0)
+    sync_interval_seconds = models.IntegerField(
+        default=30, help_text='HOw often to poll this device (seconds)'
+    )
+    time_offset_seconds = models.IntegerField(
+        default=0,
+        help_text='Offset to apply if the device clock differs from server'
+    )
+    connection_timeout = models.IntegerField(default=5)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'biometric_devices'
+        unique_together = ['school', 'ip_address', 'port']
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.ip_address}:{self.port})'
+
+class BiometricUserMapping(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_user_mappings')
+    device = models.ForeignKey(
+        BiometricDevice, on_delete=models.CASCADE, related_name='user_mappings'
+    )
+    device_user_id = models.CharField(
+        max_length=100, 
+        help_text= 'The user_id stored on the ZKTeco device'
+    )
+    device_user_name = models.CharField(
+        max_length=200, blank=True,
+        help_text='Name stored on the device (for reference)'
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='biometric_mappings',
+        limit_choices_to={'role': 'student'}
+    )
+    is_active = models.BooleanField(default=True)
+    mapped_at = models.DateTimeField(auto_now_add=True)
+    mapped_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='biometric_mappings_created'
+    )
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'biometric_user_mappings'
+        unique_together = ['device', 'device_user_id']
+        indexes = [
+            models.Index(fields=['device_user_id', 'device']),
+            models.Index(fields=['student', 'device']),
+        ]
+
+    def __str__(self):
+        return f'Device {self.device_user_id} -> {self.student.svc_number}'
+
+
+
+
+    
+
 

@@ -3,14 +3,14 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice)
 from .serializers import (
     CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer)
+    DashboardExamReportSerializer, BiometrciUserMappingSerializer, BiometricDeviceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -40,6 +40,9 @@ from .services import close_class,issue_certificate, CertificateGenerator, Certi
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
+from core.services.zkteco_service import ZKTecoSyncService
+
+
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -1396,7 +1399,6 @@ class NoticeActionMixin:
         return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
 
     def _annotate_read_status(self, qs):
-        """Annotate queryset with the current user's read_at timestamp."""
         user = self.request.user
         if not user.is_authenticated:
             return qs
@@ -1526,7 +1528,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsAdmin()]
+            return [IsAuthenticated(), IsAdmin(), IsCommandantOrChiefInstructor()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -2500,6 +2502,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             qs = qs.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
+
 
         return qs
 
@@ -5125,7 +5128,6 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-
 # student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
@@ -5628,3 +5630,94 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
+
+# Biometric attendance
+class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricDevice.objects.all()
+    serializer_class = BiometricDeviceSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    filterset_fields = ['status', 'is_active']
+    search_fields = ['name', 'ip_address', 'serial_number']
+
+    @action(detail=True, methods=['post'])
+    def trigger_sync(self, request, pk=None):
+
+        device = self.get_object()
+        from core.tasks import sync_single_device
+        task = sync_single_device.delay(str(device.id))
+        return Response({
+            'status': sync_started,
+            'task_id': task.id,
+            'device': device.name            
+                    })
+
+    @action(detail=True, methods=['get'])
+    def device_users(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        users = service.fetch_device_users()
+        return Response({'users': users, 'count': len(users)})
+
+
+    @action(detail=True, methods=['post'])
+    def sync_clock(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        success = service.sync_device_time()
+        return Response({
+            'status': 'success' if success else 'failed'
+        })
+
+    
+    @action(detail=True, methods=['post'])
+    def auto_map_users(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        debvice_users =service.fetch_device_users()
+
+        mapped =0
+        unmapped = []
+        for du in device_users:
+            student = User.objects.filter(
+                svc_number = d['user_id'],
+                role = 'student',
+                is_active = True,
+                school = device.school
+            ).first()
+
+            if student:
+                BiometricUserMapping.objects.get_or_create(
+                    device=device,
+                    device_user_id=du['user_id'],
+                    defaults = {
+                        'school': device.school,
+                        'student': student,
+                        'device_user_name': du['name'],
+                        'mapped_by': request.user
+                    }
+                )
+                mapped += 1
+
+            else:
+                unmapped.append(du)
+
+        return Response({
+            'mapped': mapped,
+            'unmapped': unmapped,
+            'unmapped_count': len(unmapped)
+                    })
+
+class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricUserMapping.objects.select_related(
+        'student', 'device'
+    ).all()
+
+    serializer_class = BiometricUserMappingSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstrcutor]
+    filterset_fields = ['device', 'student', 'is_active']
+
+
