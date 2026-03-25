@@ -31,9 +31,8 @@ class ZKTecoSyncService:
         except Exception as e:
             logger.error (f'Failed to connect to {self.device.name}: {e}')
             self.device.last_sync_status= f'connection_failed: {str(e)[:200]}'
-
-        self.device.save(update_fields=['last_sync_status'])
-        return False
+            self.device.save(update_fields=['last_sync_status'])
+            return False
 
     def disconnect(self):
         if self.conn:
@@ -57,25 +56,26 @@ class ZKTecoSyncService:
                 if self.device.last_sync_at:
                     cutoff = self.device.last_sync_at = timedelta(minutes=5)
                     raw_logs = [l for l in raw_logs if l.timestamp >= cutoff.replace(tzinfo=None)]
-                    created = 0
-                    processed = 0
-                    errors = []
+                    
+                created = 0
+                processed = 0
+                errors = []
 
-                    for log in raw_logs:
-                        try:
-                            result = self._process_single_log(log)
-                            if result == 'created':
+                for log in raw_logs:
+                    try:
+                        result = self._process_single_log(log)
+                        if result == 'created':
                                 created += 1
-                            elif result == 'processed':
+                        elif result == 'processed':
                                 created += 1
                                 processed += 1
-                        except Exception as e:
+                    except Exception as e:
                             errors.append(f'UserID {log.user_id}: {str(e)}')
                             logger.error(f'Error processing log: {e}', exc_info=True)
 
-                    self._update_sync_status('success', created)
+                self._update_sync_status('success', created)
 
-                    return {
+                return {
                         'status': 'success',
                         'created': 'created',
                         'processed': 'processed',
@@ -137,7 +137,7 @@ class ZKTecoSyncService:
     
     def _resolve_student(self, device_user_id):
         mapping = BiometricUserMapping.objects.filter(
-            device = self.device,
+            device=self.device,
             device_user_id=device_user_id,
             is_active=True
         ).select_related('student').first()
@@ -146,27 +146,28 @@ class ZKTecoSyncService:
             return mapping.student
 
         student = User.objects.filter(
-            svc_number = device_user_id,
-            role = 'student', 
+            svc_number=device_user_id,
+            role='student',
             is_active=True,
-            school = self.device.school
+            school=self.device.school
         ).first()
 
         if student:
             BiometricUserMapping.objects.get_or_create(
-                device = self.device,
-                device_user_id = device_user_id,
+                device=self.device,
+                device_user_id=device_user_id,
                 defaults={
                     'school': self.device.school,
-                    'student': student
+                    'student': student,
                 }
             )
             return student
-            logger.warning(
-                f'No student found for device user_id={device_user_id} '
-                f'on device {self.device.name}'
-            )
-            return None
+
+        logger.warning(
+            f'No student found for device user_id={device_user_id} '
+            f'on device {self.device.name}'
+        )
+        return None
 
     def _get_verification_type(self, punch):
         types = {0: 'password', 1: 'fingerprint', 2: 'card'}
