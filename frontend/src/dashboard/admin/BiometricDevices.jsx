@@ -639,7 +639,7 @@ export default function BiometricDevices() {
                     <div className="font-medium text-sm text-black">{m.student_name || m.student}</div>
                     <div className="text-xs text-neutral-500 mt-0.5">{m.student_svc || ''}</div>
                     <div className="text-xs text-neutral-400 mt-1">Device ID: <span className="font-mono">{m.device_user_id}</span></div>
-                    <div className="text-xs text-neutral-400">{m.device_name || ''}</div>
+                    <div className="text-xs text-neutral-400">{devices.find(d => d.id === m.device)?.name || ''}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
