@@ -5670,7 +5670,6 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         users = service.fetch_device_users()
         return Response({'users': users, 'count': len(users)})
 
-
     @action(detail=True, methods=['post'])
     def sync_clock(self, request, pk=None):
 
@@ -5680,7 +5679,6 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         return Response({
             'status': 'success' if success else 'failed'
         })
-
     
     @action(detail=True, methods=['post'])
     def auto_map_users(self, request, pk=None):
@@ -5728,7 +5726,7 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     ).all()
 
     serializer_class = BiometricUserMappingSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    permission_classes = [IsAuthenticated, IsAdminOnly]
     filterset_fields = ['device', 'student', 'is_active']
 
 
