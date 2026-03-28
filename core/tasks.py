@@ -1,20 +1,21 @@
 import logging
 from celery import shared_task
 from django.core.cache import cache
-from django.utils import timezone
-from core.models import BiometricDevice
-from core.services.zkteco_service import ZKTecoSyncService
+
 logger = logging.getLogger('biometric.sync')
 
 
 @shared_task(bind=True, max_retries=0)
 def sync_all_devices(self):
+    from core.models import BiometricDevice
+    from core.services.zkteco_service import ZKTecoSyncService
+
     devices = BiometricDevice.objects.filter(
         status='active', is_active=True
     )
+
     results = []
     for device in devices:
-
         lock_key = f'biometric_sync:{device.id}'
         if cache.get(lock_key):
             logger.debug(f'Skipping {device.name}: sync in progress')
@@ -22,7 +23,6 @@ def sync_all_devices(self):
 
         try:
             cache.set(lock_key, True, timeout=120)
-
             service = ZKTecoSyncService(device)
             result = service.fetch_and_store_logs()
             results.append({
@@ -36,23 +36,29 @@ def sync_all_devices(self):
 
     return results
 
+
 @shared_task
 def sync_single_device(device_id):
+    from core.models import BiometricDevice
+    from core.services.zkteco_service import ZKTecoSyncService
+
     try:
-        device = BiometricDevice.objects.get(id=device_id,
-        is_active=True)
+        device = BiometricDevice.objects.get(id=device_id, is_active=True)
         service = ZKTecoSyncService(device)
         return service.fetch_and_store_logs()
     except BiometricDevice.DoesNotExist:
-        return {'status': 'error', 'message': 'Device not found'
-        }
+        return {'status': 'error', 'message': 'Device not found'}
+
 
 @shared_task
 def process_pending_records():
-    
+    from core.models import BiometricRecord
+    from django.utils import timezone
+    from datetime import timedelta
+
     pending = BiometricRecord.objects.filter(
-        processed = False,
-        scan_time__gte=timezone.now()- timezone.timedelta(hours=24)
+        processed=False,
+        scan_time__gte=timezone.now() - timedelta(hours=24)
     ).select_related('student')
 
     processed = 0
@@ -64,13 +70,15 @@ def process_pending_records():
         except Exception as e:
             logger.error(f'Error processing record {record.id}: {e}')
 
-    return {'processed': processed, 'pending': pending.count()}
+    return {'processed': processed, 'total_pending': pending.count()}
 
 
 @shared_task
 def sync_device_clocks():
+    from core.models import BiometricDevice
+    from core.services.zkteco_service import ZKTecoSyncService
 
-    devices  = BiometricDevice.objects.filter(
+    devices = BiometricDevice.objects.filter(
         status='active', is_active=True
     )
     for device in devices:
@@ -79,5 +87,3 @@ def sync_device_clocks():
             service.sync_device_time()
         except Exception as e:
             logger.error(f'Clock sync failed for {device.name}: {e}')
-
-            

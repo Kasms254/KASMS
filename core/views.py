@@ -1759,7 +1759,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         status_data['has_certificate'] = hasattr(enrollment, 'certificate')
 
         return Response(status_data)
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 

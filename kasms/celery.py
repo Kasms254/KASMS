@@ -1,4 +1,5 @@
 from celery import Celery
+import os
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kasms.settings')
 
