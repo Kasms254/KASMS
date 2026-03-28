@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import useToast from '../../hooks/useToast'
 import { getBiometricRecords, processPendingBiometrics } from '../../lib/api'
 
@@ -18,6 +20,9 @@ function processedBadge(processed, errorMessage) {
 const DEVICE_TYPE_OPTIONS = ['zkteco', 'fingerprint', 'other']
 
 export default function BiometricRecords() {
+  const [searchParams] = useSearchParams()
+  const sessionId = searchParams.get('session') || ''
+  const navigate = useNavigate()
   const toast = useToast()
 
   const reportError = useCallback((msg) => {
@@ -52,6 +57,7 @@ export default function BiometricRecords() {
       if (filterProcessed !== '') parts.push(`processed=${filterProcessed}`)
       if (filterDeviceType) parts.push(`device_type=${filterDeviceType}`)
       if (filterDeviceId.trim()) parts.push(`device_id=${encodeURIComponent(filterDeviceId.trim())}`)
+      if (sessionId) parts.push(`session=${sessionId}`)
       const data = await getBiometricRecords(parts.join('&'))
       const list = Array.isArray(data) ? data : (data?.results ?? [])
       if (data?.count !== undefined) {
@@ -64,7 +70,7 @@ export default function BiometricRecords() {
     } finally {
       setRecordsLoading(false)
     }
-  }, [currentPage, search, filterProcessed, filterDeviceType, filterDeviceId, reportError])
+  }, [currentPage, search, filterProcessed, filterDeviceType, filterDeviceId, sessionId, reportError])
 
   useEffect(() => { loadRecords() }, [loadRecords])
 
@@ -88,6 +94,15 @@ export default function BiometricRecords() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
+          {sessionId && (
+            <button
+              onClick={() => navigate('/list/attendance-sessions')}
+              className="flex items-center gap-2 text-neutral-600 hover:text-black mb-4 transition text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Sessions
+            </button>
+          )}
           <h2 className="text-lg sm:text-xl font-semibold text-black">Biometric Records</h2>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">View fingerprint scan history and attendance processing status.</p>
         </div>

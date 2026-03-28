@@ -106,12 +106,6 @@ const menuItems = [
         ],
       },
       {
-        icon: 'ScanLine',
-        label: 'Biometric Records',
-        href: '/list/biometric-records',
-        visible: ['instructor'],
-      },
-      {
         icon: 'LayoutDashboard',
         label: 'HOD Dashboard',
         href: '/dashboard/hod',

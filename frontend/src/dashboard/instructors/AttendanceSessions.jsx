@@ -457,13 +457,6 @@ export default function AttendanceSessions() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={handleShowBiometric}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-          >
-            <Fingerprint className="w-5 h-5" />
-            Biometric
-          </button>
-          <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
           >
@@ -551,6 +544,7 @@ export default function AttendanceSessions() {
                 onShowStats={() => handleShowStats(session)}
                 onExport={() => handleExportCSV(session)}
                 onDelete={() => setConfirmModal({ open: true, action: 'delete', session })}
+                onBiometricRecords={() => navigate(`/list/biometric-records?session=${session.id}`)}
                 formatDateTime={formatDateTime}
               />
             ))}
@@ -1033,7 +1027,7 @@ export default function AttendanceSessions() {
 }
 
 // Session Card Component
-function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onShowStats, onExport, onDelete, formatDateTime }) {
+function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onShowStats, onExport, onDelete, onBiometricRecords, formatDateTime }) {
   const [showMenu, setShowMenu] = useState(false)
 
   return (
@@ -1108,6 +1102,15 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
                 >
                   <UserCheck className="w-4 h-4" />
                   <span className="hidden sm:inline">Mark</span>
+                </button>
+              )}
+              {session.enable_biometric && (
+                <button
+                  onClick={onBiometricRecords}
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  <span className="hidden sm:inline">Biometrics</span>
                 </button>
               )}
               <button

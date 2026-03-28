@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Users, Clock, Calendar, CheckCircle, AlertCircle,
-  RefreshCw, Download, Search, ChevronLeft, ChevronRight, X
+  RefreshCw, Download, Search, ChevronLeft, ChevronRight, X, Fingerprint
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -38,6 +38,7 @@ export default function SessionAttendance() {
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [methodFilter, setMethodFilter] = useState('')
 
   // Pagination for unmarked students
   const [unmarkedPage, setUnmarkedPage] = useState(1)
@@ -141,7 +142,7 @@ export default function SessionAttendance() {
     return name.toLowerCase().includes(search) || svc.toLowerCase().includes(search) || rank.toLowerCase().includes(search)
   })
 
-  // Filter marked students by search and status
+  // Filter marked students by search, status, and marking method
   const filteredMarked = attendanceRecords.filter(record => {
     const name = record.student_name || ''
     const svc = record.student_svc_number || ''
@@ -149,7 +150,8 @@ export default function SessionAttendance() {
     const search = searchTerm.toLowerCase()
     const matchesSearch = name.toLowerCase().includes(search) || svc.toLowerCase().includes(search) || rank.toLowerCase().includes(search)
     const matchesStatus = !statusFilter || record.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesMethod = !methodFilter || record.marking_method === methodFilter
+    return matchesSearch && matchesStatus && matchesMethod
   })
 
   // Paginated data
@@ -246,6 +248,15 @@ export default function SessionAttendance() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {session.enable_biometric && (
+              <button
+                onClick={() => navigate(`/list/biometric-records?session=${session.id}`)}
+                className="px-3 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition flex items-center gap-2"
+              >
+                <Fingerprint className="w-4 h-4" />
+                <span className="hidden sm:inline">Biometric Records</span>
+              </button>
+            )}
             <button
               onClick={loadData}
               className="px-3 py-2 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition flex items-center gap-2"
@@ -329,10 +340,23 @@ export default function SessionAttendance() {
                 <option value="excused">Excused</option>
               </select>
             </div>
+            <div className="w-full sm:w-48">
+              <select
+                value={methodFilter}
+                onChange={(e) => { setMethodFilter(e.target.value); setMarkedPage(1) }}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black"
+              >
+                <option value="">All Methods</option>
+                <option value="qr_scan">QR Scan</option>
+                <option value="manual">Manual</option>
+                <option value="biometric">Biometric</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
           {/* Filter summary */}
-          {(searchTerm || statusFilter) && (
+          {(searchTerm || statusFilter || methodFilter) && (
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
               <span className="text-xs text-neutral-600">Active filters:</span>
               {searchTerm && (
@@ -347,6 +371,14 @@ export default function SessionAttendance() {
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
                   Status: {statusFilter}
                   <button onClick={() => { setStatusFilter(''); setMarkedPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {methodFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Method: {methodFilter.replace('_', ' ')}
+                  <button onClick={() => { setMethodFilter(''); setMarkedPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
