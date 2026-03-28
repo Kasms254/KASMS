@@ -292,7 +292,9 @@ export default function ClassesList(){
                 className="h-full flex flex-col"
               >
                 <div className="flex flex-col flex-1">
-                  <div className="truncate" title={c.instructor_name || c.instructor || 'TBD'}>Instructor: {c.instructor_name || c.instructor || 'TBD'}</div>
+                  <div className="truncate" title={[c.instructor_svc_number, getRankLabel(c.instructor_rank), c.instructor_name].filter(Boolean).join(' ')}>
+                    Instructor: {c.instructor_svc_number && <span>{c.instructor_svc_number} </span>}{c.instructor_rank && <span>{getRankLabel(c.instructor_rank)} </span>}{c.instructor_name || c.instructor || 'TBD'}
+                  </div>
                   <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
                   <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
                     <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{c.students_count != null ? `${c.students_count} Students` : '— Students'}</span>
