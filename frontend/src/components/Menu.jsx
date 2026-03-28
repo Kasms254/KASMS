@@ -86,6 +86,32 @@ const menuItems = [
         ],
       },
       {
+        groupKey: 'biometrics',
+        icon: 'Fingerprint',
+        label: 'Biometrics',
+        visible: ['admin'],
+        children: [
+          {
+            icon: 'Fingerprint',
+            label: 'Biometric Devices',
+            href: '/list/biometric-devices',
+            visible: ['admin'],
+          },
+          {
+            icon: 'ScanLine',
+            label: 'Biometric Records',
+            href: '/list/biometric-records',
+            visible: ['admin'],
+          },
+        ],
+      },
+      {
+        icon: 'ScanLine',
+        label: 'Biometric Records',
+        href: '/list/biometric-records',
+        visible: ['instructor'],
+      },
+      {
         icon: 'LayoutDashboard',
         label: 'HOD Dashboard',
         href: '/dashboard/hod',
@@ -306,6 +332,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
   const [openGroups, setOpenGroups] = React.useState({
     departments: location.pathname === '/list/departments' || location.pathname === '/list/department-members',
     certificates: location.pathname === '/list/certificates' || location.pathname === '/list/certificate-templates',
+    biometrics: location.pathname === '/list/biometric-devices' || location.pathname === '/list/biometric-records',
   })
 
   async function handleLogout() {

@@ -26,6 +26,9 @@ const SENTENCE_CASE_CONFIG = {
     'longitude',
     'device_id',
     'biometric_id',
+    'device_user_id',  // Must match exactly what ZKTeco device stores
+    'device_type',     // Enum choice value (e.g. zkteco_f22)
+    'ip_address',      // Network address, preserve exact format
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
     'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
@@ -608,6 +611,66 @@ export async function processPendingBiometrics() {
 // Get unprocessed biometric records
 export async function getUnprocessedBiometrics() {
   return request('/api/biometric-records/unprocessed/')
+}
+
+// ============================
+// Biometric Devices API
+// ============================
+
+export async function getBiometricDevices(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/biometric-devices/${qs}`)
+}
+
+export async function createBiometricDevice(payload) {
+  return request('/api/biometric-devices/', { method: 'POST', body: payload })
+}
+
+export async function updateBiometricDevice(id, payload) {
+  return request(`/api/biometric-devices/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteBiometricDevice(id) {
+  return request(`/api/biometric-devices/${id}/`, { method: 'DELETE' })
+}
+
+export async function triggerBiometricDeviceSync(id) {
+  return request(`/api/biometric-devices/${id}/trigger_sync/`, { method: 'POST' })
+}
+
+export async function syncBiometricDeviceNow(id) {
+  return request(`/api/biometric-devices/${id}/sync_now/`, { method: 'POST' })
+}
+
+export async function getBiometricDeviceUsers(id) {
+  return request(`/api/biometric-devices/${id}/device_users/`)
+}
+
+export async function syncBiometricDeviceClock(id) {
+  return request(`/api/biometric-devices/${id}/sync_clock/`, { method: 'POST' })
+}
+
+export async function autoMapBiometricUsers(id) {
+  return request(`/api/biometric-devices/${id}/auto_map_users/`, { method: 'POST' })
+}
+
+// Biometric User Mappings
+
+export async function getBiometricUserMappings(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/biometric-user-mappings/${qs}`)
+}
+
+export async function createBiometricUserMapping(payload) {
+  return request('/api/biometric-user-mappings/', { method: 'POST', body: payload })
+}
+
+export async function updateBiometricUserMapping(id, payload) {
+  return request(`/api/biometric-user-mappings/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteBiometricUserMapping(id) {
+  return request(`/api/biometric-user-mappings/${id}/`, { method: 'DELETE' })
 }
 
 // =====================
@@ -1849,6 +1912,21 @@ export default {
   syncBiometricRecords,
   processPendingBiometrics,
   getUnprocessedBiometrics,
+  // Biometric Devices
+  getBiometricDevices,
+  createBiometricDevice,
+  updateBiometricDevice,
+  deleteBiometricDevice,
+  triggerBiometricDeviceSync,
+  syncBiometricDeviceNow,
+  getBiometricDeviceUsers,
+  syncBiometricDeviceClock,
+  autoMapBiometricUsers,
+  // Biometric User Mappings
+  getBiometricUserMappings,
+  createBiometricUserMapping,
+  updateBiometricUserMapping,
+  deleteBiometricUserMapping,
   // Attendance Reports
   getClassAttendanceSummary,
   getStudentAttendanceDetail,
