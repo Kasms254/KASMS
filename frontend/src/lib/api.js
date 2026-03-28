@@ -53,6 +53,16 @@ const SENTENCE_CASE_CONFIG = {
     'marking_method', // Preserve enum values
     'session_type',   // Preserve enum values
     'notification_type', // Preserve enum values
+    'name',           // Class, course, subject, department names — preserve as admin typed
+    'title',          // Titles typed by admin
+    'description',    // Descriptions typed by admin
+    'class_name',     // Class name variants
+    'course_name',    // Course name variants
+    'subject_name',   // Subject name variants
+    'display_name',   // Display name variants
+    'department_name',// Department name variants
+    'unit_name',      // Unit name variants
+    'rank',  
   ]
 }
 
