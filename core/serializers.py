@@ -2340,7 +2340,10 @@ class BiometricDeviceSerializer(serializers.ModelSerializer):
         return 'Offline'
 
 
-class BiometrciUserMappingSerializer(serializers.ModelSerializer):
+class BiometricUserMappingSerializer(serializers.ModelSerializer):
+    student = serializers.PrimaryKeyRelatedField(
+            queryset = User.all_objects.filter(role='student', is_active=True)
+        )
     student_name = serializers.CharField(
         source='student.get_full_name', read_only=True
     )

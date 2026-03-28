@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
 from zk import ZK
+import pytz
 
 from core.models import(
     BiometricDevice, BiometricUserMapping, BiometricRecord, 
@@ -53,15 +54,15 @@ class ZKTecoSyncService:
                 self._update_sync_status('success', 0)
                 return {'status': 'success', 'created': 0, 'processed': 0}
 
-                if self.device.last_sync_at:
-                    cutoff = self.device.last_sync_at = timedelta(minutes=5)
-                    raw_logs = [l for l in raw_logs if l.timestamp >= cutoff.replace(tzinfo=None)]
+            if self.device.last_sync_at:
+                    cutoff = self.device.last_sync_at - timedelta(minutes=5)
+                    raw_logs = [l for l in raw_logs if l.timestamp > cutoff.replace(tzinfo=None)]
                     
-                created = 0
-                processed = 0
-                errors = []
+            created = 0
+            processed = 0
+            errors = []
 
-                for log in raw_logs:
+            for log in raw_logs:
                     try:
                         result = self._process_single_log(log)
                         if result == 'created':
@@ -73,13 +74,13 @@ class ZKTecoSyncService:
                             errors.append(f'UserID {log.user_id}: {str(e)}')
                             logger.error(f'Error processing log: {e}', exc_info=True)
 
-                self._update_sync_status('success', created)
+            self._update_sync_status('success', created)
 
-                return {
+            return {
                         'status': 'success',
-                        'created': 'created',
-                        'processed': 'processed',
-                        'errors': 'errors',
+                        'created': created,
+                        'processed': processed,
+                        'errors': errors,
                         'total_fetched': len(raw_logs),
                     }
         except Exception as e:
@@ -91,7 +92,12 @@ class ZKTecoSyncService:
         
     
     def _process_single_log(self, log):
-        scan_time = timezone.make_aware(log.timestamp)
+        
+        real_local = log.timestamp - timedelta(hours=5)
+        device_tz = pytz.timezone('Africa/Nairobi')
+        scan_time = device_tz.localize(real_local)
+
+
         if self.device.time_offset_seconds:
             scan_time += timedelta(seconds=self.device.time_offset_seconds)
 
@@ -149,7 +155,8 @@ class ZKTecoSyncService:
             svc_number=device_user_id,
             role='student',
             is_active=True,
-            school=self.device.school
+            school_memberships__school = self.device.school,
+            school_memberships__status = 'active'
         ).first()
 
         if student:
@@ -217,8 +224,12 @@ class ZKTecoSyncService:
         if not self.connect():
             return False
         try:
-            self.conn.set_time(timezone.now())
-            logger.info(f'Time synced for {self.device.name}')
+            from datetime import datetime, timedelta
+            import pytz
+            local_tz = pytz.timezone('Africa/Nairobi')
+            local_now = datetime.now(local_tz).replace(tzinfo=None)
+            adjusted = local_now - timedelta(hours=5)
+            self.conn.set_time(adjusted)
             return True
         finally:
             self.disconnect()

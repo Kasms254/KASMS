@@ -105,7 +105,7 @@ commandant_router.register(r'notices',        CommandantNoticeViewSet,       bas
 
 # biometric
 router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
-route.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
+router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

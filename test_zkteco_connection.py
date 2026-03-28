@@ -1,6 +1,6 @@
 from zk import ZK
 
-DEVICE_IP = '192.168.1.201'
+DEVICE_IP = '192.168.97.201'
 DEVICE_PORT = 4370
 
 zk = ZK(DEVICE_IP, port=DEVICE_PORT, timeout=5)

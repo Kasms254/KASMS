@@ -5,12 +5,13 @@ from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Sub
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
  Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice)
 from .serializers import (
-    CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+
+    CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer, BiometrciUserMappingSerializer, BiometricDeviceSerializer)
+    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -41,7 +42,10 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
 from core.services.zkteco_service import ZKTecoSyncService
-
+from datetime import datetime
+from django.db.models import Sum
+import logging
+logger = logging.getLogger(__name__)
 
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
@@ -458,7 +462,7 @@ class UserViewSetWithSchool(viewsets.ModelViewSet):
             blocking_enrollment = active_enrollments.first()
 
         return Response({
-            'student': UserSerializerWithSchool(student).data,
+            'student': UserListSerializer(student).data,
             'can_enroll_in_current_school':can_enroll,
             'current_school':{
                 'id':str(current_school.id),
@@ -3524,7 +3528,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         if session.end_session():
 
             marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
-            unmarked_students = User.objects.filter(
+            unmarked_students = User.all_objects.filter(
                 enrollments__class_obj = session.class_obj,
                 enrollments__is_active = True,
                 role='student',
@@ -5647,11 +5651,18 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         from core.tasks import sync_single_device
         task = sync_single_device.delay(str(device.id))
         return Response({
-            'status': sync_started,
+            'status': 'sync_started',
             'task_id': task.id,
             'device': device.name            
                     })
 
+    @action(detail=True, methods=['post'])
+    def sync_now(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        result = service.fetch_and_store_logs()
+        return Response(result)
+    
     @action(detail=True, methods=['get'])
     def device_users(self, request, pk=None):
 
@@ -5676,16 +5687,17 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     def auto_map_users(self, request, pk=None):
         device = self.get_object()
         service = ZKTecoSyncService(device)
-        debvice_users =service.fetch_device_users()
+        device_users =service.fetch_device_users()
 
-        mapped =0
+        mapped = 0
         unmapped = []
         for du in device_users:
             student = User.objects.filter(
-                svc_number = d['user_id'],
-                role = 'student',
-                is_active = True,
-                school = device.school
+                svc_number=du['user_id'],
+                role='student',
+                is_active=True,
+                school_memberships__school = device.school,
+                school_memberships__status = 'active'
             ).first()
 
             if student:
@@ -5717,7 +5729,7 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     ).all()
 
     serializer_class = BiometricUserMappingSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstrcutor]
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filterset_fields = ['device', 'student', 'is_active']
 
 

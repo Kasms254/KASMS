@@ -11,8 +11,8 @@ from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAw
 from django.core.validators import RegexValidator
 from django.db import models, transaction
 import secrets
-import string
 from datetime import date, datetime
+from django.core.exceptions import ValidationError
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -1291,17 +1291,33 @@ class BiometricRecord(models.Model):
         indexes = [models.Index(fields=['device_id', 'scan_time']), models.Index(fields=['student', 'scan_time']), models.Index(fields=['processed', 'scan_time'])]
 
     def find_matching_session(self):
-        time_window = timedelta(hours=2)
-        sessions = AttendanceSession.objects.filter(
+        active = AttendanceSession.all_objects.filter(
             class_obj__enrollments__student=self.student,
             class_obj__enrollments__is_active=True,
-            scheduled_start__gte=self.scan_time - time_window,
-            scheduled_start__lte=self.scan_time + time_window,
-            status__in=['scheduled', 'active'],
+            status='active',
             enable_biometric=True,
-            is_active=True
-        ).order_by('scheduled_start')
-        return sessions.first()
+            is_active=True,
+            school=self.school,
+            scheduled_start__lte=self.scan_time,
+            scheduled_end__gte=self.scan_time,
+        ).order_by('scheduled_start').first()
+
+        if active:
+            return active
+
+        time_window = timedelta(hours=2)
+        scheduled = AttendanceSession.all_objects.filter(
+            class_obj__enrollments__student=self.student,
+            class_obj__enrollments__is_active=True,
+            status='scheduled',
+            enable_biometric=True,
+            is_active=True,
+            school=self.school,
+            scheduled_start__lte=self.scan_time + time_window,
+            scheduled_end__gte=self.scan_time - time_window,
+        ).order_by('scheduled_start').first()
+
+        return scheduled
 
     def process_to_attendance(self):
         if self.processed:
@@ -1312,7 +1328,7 @@ class BiometricRecord(models.Model):
                 self.error_message = "No matching session found"
                 self.save()
                 return None
-        existing = SessionAttendance.objects.filter(session=self.session, student=self.student).first()
+        existing = SessionAttendance.all_objects.filter(session=self.session, student=self.student).first()
         if existing:
             self.session_attendance = existing
             self.processed = True
@@ -1320,7 +1336,7 @@ class BiometricRecord(models.Model):
             self.save()
             return existing
         status = self.session.get_attendance_status_for_time(self.scan_time)
-        attendance = SessionAttendance.objects.create(
+        attendance = SessionAttendance.all_objects.create(
             session=self.session, student=self.student, status=status,
             marking_method='biometric', marked_at=self.scan_time, remarks=f"Biometric scan via {self.device_type}"
         )
