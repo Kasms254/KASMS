@@ -863,7 +863,7 @@ export default function BiometricDevices() {
                     <SearchableSelect
                       value={mappingForm.student}
                       onChange={val => setMappingForm(f => ({ ...f, student: val }))}
-                      options={students.map(s => ({ id: s.id, label: `${s.get_full_name || s.username}${s.svc_number ? ` (${s.svc_number})` : ''}` }))}
+                      options={students.map(s => ({ id: s.id, label: [s.svc_number, s.rank, s.full_name || s.username].filter(Boolean).join(' ') }))}
                       placeholder={studentsLoading ? 'Loading students...' : '— Select student —'}
                       searchPlaceholder="Search by name or service number..."
                       error={!!mappingErrors.student}

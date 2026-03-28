@@ -603,9 +603,10 @@ export async function syncBiometricRecords(payload) {
   return request('/api/biometric-records/sync/', { method: 'POST', body: payload })
 }
 
-// Process pending biometric records
-export async function processPendingBiometrics() {
-  return request('/api/biometric-records/process_pending/', { method: 'POST' })
+// Process pending biometric records (pass sessionId to scope to a single session)
+export async function processPendingBiometrics(sessionId = null) {
+  const body = sessionId ? { session_id: sessionId } : undefined
+  return request('/api/biometric-records/process_pending/', { method: 'POST', body })
 }
 
 // Get unprocessed biometric records

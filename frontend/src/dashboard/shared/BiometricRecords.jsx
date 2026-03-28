@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import useToast from '../../hooks/useToast'
+import useAuth from '../../hooks/useAuth'
 import { getBiometricRecords, processPendingBiometrics } from '../../lib/api'
 
 function sanitizeInput(value) {
@@ -24,6 +25,8 @@ export default function BiometricRecords() {
   const sessionId = searchParams.get('session') || ''
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const isInstructor = user?.role === 'instructor'
 
   const reportError = useCallback((msg) => {
     if (!msg) return
@@ -77,7 +80,7 @@ export default function BiometricRecords() {
   async function handleProcessPending() {
     setProcessingPending(true)
     try {
-      const result = await processPendingBiometrics()
+      const result = await processPendingBiometrics(isInstructor && sessionId ? sessionId : null)
       reportSuccess(`Processed ${result?.processed ?? 0} records. Failed: ${result?.failed ?? 0}`)
       loadRecords()
     } catch (err) {
@@ -111,7 +114,11 @@ export default function BiometricRecords() {
           disabled={processingPending}
           className="whitespace-nowrap bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
         >
-          {processingPending ? 'Processing...' : `Process Pending${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+          {processingPending
+            ? (isInstructor ? 'Syncing...' : 'Processing...')
+            : isInstructor
+              ? `Sync${pendingCount > 0 ? ` (${pendingCount})` : ''}`
+              : `Process Pending${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
         </button>
       </div>
 
