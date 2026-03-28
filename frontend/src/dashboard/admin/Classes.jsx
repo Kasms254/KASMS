@@ -6,7 +6,7 @@ import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import SearchableSelect from '../../components/SearchableSelect'
-import { getRankSortIndex } from '../../lib/rankOrder'
+import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
 
 // Normalize a date value (from the API) to YYYY-MM-DD format for the date picker
 function normalizeDate(dateStr) {
@@ -501,7 +501,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={classForm.instructor}
                       onChange={(val) => setClassForm({ ...classForm, instructor: val })}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!classErrors.instructor}
@@ -719,7 +719,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={classForm.instructor}
                       onChange={(val) => { setClassForm({ ...classForm, instructor: val }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0); }}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!classErrors.instructor}
@@ -820,7 +820,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => { setForm({ ...form, instructor: val }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!subjectErrors.instructor}

@@ -61,8 +61,12 @@ const SENTENCE_CASE_CONFIG = {
     'subject_name',   // Subject name variants
     'display_name',   // Display name variants
     'department_name',// Department name variants
+    'unit',           // unit (e.g. 21KR) — preserve exact casing
+    'first_name',     // Personal names — preserve as typed
+    'last_name',      // Personal names — preserve as typed
     'unit_name',      // Unit name variants
-    'rank',  
+    'rank',
+    'instructor_rank',  // Flat rank field from SubjectSerializer — preserve internal value for sorting
   ]
 }
 
