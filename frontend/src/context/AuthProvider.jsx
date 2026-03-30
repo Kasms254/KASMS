@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from 'rea
 import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
+import { useQueryClient } from '@tanstack/react-query'
 
 const INACTIVITY_TIMEOUT_MS = 90 * 60 * 1000 // 30 minutes
 
@@ -12,6 +13,7 @@ export function AuthProvider({ children }) {
   // twoFA holds { svc_number, password, email } during the 2FA step (never persisted to storage)
   const [twoFA, setTwoFA] = useState(null)
   const { setTheme, resetTheme } = useContext(ThemeContext)
+  const queryClient = useQueryClient()
 
   // On mount, always try to fetch the current user.
   // The browser will send the HTTP-only access_token cookie automatically.
@@ -106,6 +108,7 @@ export function AuthProvider({ children }) {
               ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || userInfo.school_name,
+            school_short_name: themeData.school_short_name || '',
             school_code: themeData.school_code || userInfo.school_code,
           })
         }
@@ -155,13 +158,14 @@ export function AuthProvider({ children }) {
     setUser(null)
     setMustChangePassword(false)
     resetTheme()
+    queryClient.clear()
     try {
       // Backend blacklists the refresh cookie and clears both cookies
       await api.logout()
     } catch {
       // ignore backend errors — React state is already clean
     }
-  }, [resetTheme])
+  }, [resetTheme, queryClient])
 
   const verify2FA = useCallback(async (code) => {
     if (!twoFA) return { ok: false, error: 'No active 2FA session. Please log in again.' }
@@ -183,6 +187,7 @@ export function AuthProvider({ children }) {
               ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || me?.school_name,
+            school_short_name: themeData.school_short_name || '',
             school_code: themeData.school_code || me?.school_code,
           })
         }

@@ -612,19 +612,21 @@ export default function PerformanceAnalytics() {
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: subjectPerformance } = useQuery({
+  const { data: subjectPerformance, isPending: loadingSubjectPerf } = useQuery({
     queryKey: ['subject-performance', selectedSubject],
     queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
     enabled: viewMode === 'subject' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: trendData } = useQuery({
+  const { data: trendData, isPending: loadingTrendData } = useQuery({
     queryKey: ['subject-trends', selectedSubject],
     queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
     enabled: viewMode === 'trends' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const analyticsLoading = loadingClassPerf
+  const analyticsLoading = viewMode === 'class' ? loadingClassPerf
+    : viewMode === 'subject' ? (!!selectedSubject && loadingSubjectPerf)
+    : (!!selectedSubject && loadingTrendData)
 
   // Load classes and subjects (cached 10 min)
   const isInstructor = user?.role === 'instructor'

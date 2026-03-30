@@ -50,6 +50,17 @@ const SENTENCE_CASE_CONFIG = {
     'marking_method', // Preserve enum values
     'session_type',   // Preserve enum values
     'notification_type', // Preserve enum values
+    // Preserve admin-typed content names exactly as entered
+    'name',           // Class, course, subject, department names — preserve as admin typed
+    'title',          // Titles typed by admin
+    'description',    // Descriptions typed by admin
+    'class_name',     // Class name variants
+    'course_name',    // Course name variants
+    'subject_name',   // Subject name variants
+    'display_name',   // Display name variants
+    'department_name',// Department name variants
+    'unit_name',      // Unit name variants
+    'rank',           // Rank values — handled by CSS capitalize in components
   ]
 }
 
@@ -698,8 +709,8 @@ export async function getMySubjects() {
 
 // Exams endpoints
 export async function getExams(params = '') {
-  const qs = params ? `?${params}` : ''
-  const data = await request(`/api/exams/${qs}`)
+  const base = params ? `${params}&page_size=1000` : 'page_size=1000'
+  const data = await request(`/api/exams/?${base}`)
   if (data && Array.isArray(data.results)) return data.results
   return data
 }

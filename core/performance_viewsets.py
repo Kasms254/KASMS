@@ -144,18 +144,17 @@ class _ClassAccessMixin:
     def _has_class_access(self, request, class_obj):
         user = request.user
         school = _get_school_from_request(request)
-        user_role = getattr(user, 'active_role', None) or user.role
 
-        if user_role == 'superadmin':
+        if user.role == 'superadmin':
             return True
 
         if school and hasattr(class_obj, 'school_id') and class_obj.school_id and class_obj.school_id != school.id:
             return False
 
-        if user_role in ('admin', 'commandant', 'chief_instructor', 'chief instructor'):
+        if user.role in ('admin', 'commandant', 'chief_instructor'):
             return True
 
-        if user_role == 'instructor':
+        if user.role == 'instructor':
             if class_obj.instructor_id == user.id:
                 return True
             return class_obj.subjects.filter(instructor=user, is_active=True).exists()
@@ -783,8 +782,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def compare_classes(self, request):
 
-        user_role = getattr(request.user, 'active_role', None) or request.user.role
-        if user_role not in ('admin', 'superadmin', 'commandant', 'chief_instructor', 'chief instructor'):
+        if request.user.role not in ('admin', 'superadmin', 'commandant'):
             return Response(
                 {'error': 'You do not have permission to compare classes.'},
                 status=403,

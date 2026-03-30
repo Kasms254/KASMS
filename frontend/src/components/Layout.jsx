@@ -51,14 +51,14 @@ export default function Layout() {
               className="w-8 h-8 rounded object-contain bg-white/10"
             />
             <span className={`${collapsed ? 'lg:hidden' : ''} font-semibold text-lg`}>
-              {theme.school_short_name || theme.school_name || 'KASMS'}
+              {theme.school_short_name}
             </span>
           </Link>
           <Menu role={role} collapsed={collapsed} onMobileMenuClick={() => setMobileMenuOpen(false)} />
         </aside>
 
         {/* Main area */}
-        <div className={`flex-1 min-h-screen flex flex-col w-full lg:w-auto transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+        <div className={`flex-1 min-w-0 min-h-screen flex flex-col w-full lg:w-auto transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
           <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
             <NavBar
               collapsed={collapsed}
