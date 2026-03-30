@@ -31,7 +31,7 @@ class ZKTecoSyncService:
             return True
         except Exception as e:
             logger.error (f'Failed to connect to {self.device.name}: {e}')
-            self.device.last_sync_status= f'connection_failed: {str(e)[:200]}'
+            self.device.last_sync_status= f'connection_failed: {str(e)}'[:50]
             self.device.save(update_fields=['last_sync_status'])
             return False
 
@@ -85,7 +85,7 @@ class ZKTecoSyncService:
                     }
         except Exception as e:
             logger.error(f'Sync failed for {self.device.name}: {e}', exc_info=True)
-            self._update_sync_status(f'error: {str(e)[:200]}', 0)
+            self._update_sync_status(f'error: {str(e)}'[:50], 0)
             return {'status': 'error', 'message': str(e)}
         finally:
             self.disconnect()
@@ -182,7 +182,7 @@ class ZKTecoSyncService:
 
     def _update_sync_status(self, status, count):
         self.device.last_sync_at = timezone.now()
-        self.device.last_sync_status = status
+        self.device.last_sync_status = status[:50]
         self.device.last_sync_records = count
         self.device.total_synced_records += count
         self.device.save(update_fields=[

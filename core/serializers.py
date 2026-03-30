@@ -2323,10 +2323,11 @@ class BiometricDeviceSerializer(serializers.ModelSerializer):
         model = BiometricDevice
         fields = '__all__'
         read_only_fields = (
+            'school',
             'last_sync_at', 'last_sync_status',
             'last_sync_records', 'total_synced_records',
             'serial_number', 'firmware_version'
-        ) 
+        )
 
     def get_sync_status_display(self, obj):
         if not obj.last_sync_at:
