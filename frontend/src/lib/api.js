@@ -1721,11 +1721,135 @@ export async function createCommandantNotice(data) {
     body.append('expiry_date', data.expiry_date)
   }
   body.append('is_active', data.is_active !== false)
-  
+
   return request('/api/commandant/notices/', {
     method: 'POST',
     body
   })
+}
+
+// ── OIC (Officer in Charge) ───────────────────────────────────────────────────
+
+export async function getOICOverview() {
+  return request('/api/oic/overview/')
+}
+
+export async function getOICClasses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/classes/${q}`)
+}
+
+export async function getOICClassDetail(id) {
+  return request(`/api/oic/classes/${id}/`)
+}
+
+export async function getOICClassStudents(id) {
+  return request(`/api/oic/classes/${id}/students/`)
+}
+
+export async function getOICClassSubjects(id) {
+  return request(`/api/oic/classes/${id}/subjects/`)
+}
+
+export async function getOICClassResultsSummary(id) {
+  return request(`/api/oic/classes/${id}/results_summary/`)
+}
+
+export async function getOICClassAttendanceSummary(id) {
+  return request(`/api/oic/classes/${id}/attendance_summary/`)
+}
+
+export async function getOICComparisonPerformance() {
+  return request('/api/oic/comparison/performance/')
+}
+
+export async function getOICComparisonAttendance() {
+  return request('/api/oic/comparison/attendance/')
+}
+
+export async function getOICExamReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/exam-reports/${q}`)
+}
+
+export async function getOICExamReportDetail(id) {
+  return request(`/api/oic/exam-reports/${id}/detailed/`)
+}
+
+export async function addOICExamReportRemark(id, remark) {
+  return request(`/api/oic/exam-reports/${id}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
+export async function getOICExamReportRemarks(id) {
+  return request(`/api/oic/exam-reports/${id}/remarks/`)
+}
+
+export async function getOICPendingRemarks(params = '') {
+  return request(`/api/oic/exam-reports/pending_remarks/${params ? '?' + params : ''}`)
+}
+
+export async function getOICExamResults(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/exam-results/${q}`)
+}
+
+export async function getOICAttendance(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/attendance/${q}`)
+}
+
+export async function getOICAttendanceRecords(id) {
+  return request(`/api/oic/attendance/${id}/records/`)
+}
+
+export async function getOICRemarks(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/remarks/${q}`)
+}
+
+export async function addOICRemark(data) {
+  return request('/api/oic/remarks/add_remark/', { method: 'POST', body: data })
+}
+
+export async function updateOICRemark(id, data) {
+  return request(`/api/oic/remarks/${id}/`, { method: 'PATCH', body: data })
+}
+
+export async function deleteOICRemark(id) {
+  return request(`/api/oic/remarks/${id}/`, { method: 'DELETE' })
+}
+
+export async function getOICMyAssignments() {
+  return request('/api/oic-assignments/my_assignments/')
+}
+
+export async function getOICAssignments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic-assignments/${q}`)
+}
+
+export async function createOICAssignment(data) {
+  return request('/api/oic-assignments/', { method: 'POST', body: data })
+}
+
+export async function updateOICAssignment(id, data) {
+  return request(`/api/oic-assignments/${id}/`, { method: 'PATCH', body: data })
+}
+
+export async function deleteOICAssignment(id) {
+  return request(`/api/oic-assignments/${id}/`, { method: 'DELETE' })
+}
+
+export async function bulkAssignOIC(oicId, classIds) {
+  return request('/api/oic-assignments/bulk_assign/', {
+    method: 'POST',
+    body: { oic: oicId, class_ids: classIds },
+  })
+}
+
+export async function getOICUsers(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/users/${q}`)
 }
 
 export default {
@@ -1962,4 +2086,33 @@ export default {
   getCommandantEnrollments,
   getCommandantNotices,
   createCommandantNotice,
+  // OIC
+  getOICOverview,
+  getOICClasses,
+  getOICClassDetail,
+  getOICClassStudents,
+  getOICClassSubjects,
+  getOICClassResultsSummary,
+  getOICClassAttendanceSummary,
+  getOICComparisonPerformance,
+  getOICComparisonAttendance,
+  getOICExamReports,
+  getOICExamReportDetail,
+  addOICExamReportRemark,
+  getOICExamReportRemarks,
+  getOICPendingRemarks,
+  getOICExamResults,
+  getOICAttendance,
+  getOICAttendanceRecords,
+  getOICRemarks,
+  addOICRemark,
+  updateOICRemark,
+  deleteOICRemark,
+  getOICMyAssignments,
+  getOICAssignments,
+  createOICAssignment,
+  updateOICAssignment,
+  deleteOICAssignment,
+  bulkAssignOIC,
+  getOICUsers,
 }

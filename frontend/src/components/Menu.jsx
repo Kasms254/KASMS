@@ -66,6 +66,12 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/list/oic-assignments',
+        visible: ['admin'],
+      },
+      {
         groupKey: 'departments',
         icon: 'Building',
         label: 'Departments',
@@ -188,6 +194,18 @@ const menuItems = [
         href: '/commandant/notices',
         visible: ['commandant', 'chief_instructor'],
       },
+      {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/commandant/oic-assignments',
+        visible: ['commandant'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/ci/oic-assignments',
+        visible: ['chief_instructor'],
+      },
       // {
       //   icon: 'Book',
       //   label: 'Lessons',
@@ -282,17 +300,54 @@ const menuItems = [
         href: '/list/notices',
         visible: ['admin'],
       },
+      // OIC items
+      {
+        icon: 'LayoutDashboard',
+        label: 'Overview',
+        href: '/dashboard/oic',
+        visible: ['oic'],
+      },
+      {
+        icon: 'Layers',
+        label: 'My Classes',
+        href: '/oic/classes',
+        visible: ['oic'],
+      },
+      {
+        icon: 'FileBarChart',
+        label: 'Exam Reports',
+        href: '/oic/exam-reports',
+        visible: ['oic'],
+      },
+      {
+        icon: 'BarChart2',
+        label: 'Comparison',
+        href: '/oic/comparison',
+        visible: ['oic'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'Attendance',
+        href: '/oic/attendance',
+        visible: ['oic'],
+      },
+      {
+        icon: 'MessageSquare',
+        label: 'My Remarks',
+        href: '/oic/remarks',
+        visible: ['oic'],
+      },
       {
         icon: 'Bell',
         label: 'Notifications',
         href: '/list/notifications',
-        visible: ['admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
+        visible: ['admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic'],
       },
       {
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic'],
       },
     ],
   },

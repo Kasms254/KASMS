@@ -67,6 +67,18 @@ const CommandantCertificates = lazy(() => import('./dashboard/commandants/Comman
 const CommandantNotices = lazy(() => import('./dashboard/commandants/CommandantNotices'))
 const CommandantCourses = lazy(() => import('./dashboard/commandants/CommandantCourses'))
 
+// OIC management (admin/commandant)
+const OICAssignments = lazy(() => import('./dashboard/admin/OICAssignments'))
+
+// OIC components
+const OICDashboard = lazy(() => import('./dashboard/oic/OICDashboard'))
+const OICClasses = lazy(() => import('./dashboard/oic/OICClasses'))
+const OICClassDetail = lazy(() => import('./dashboard/oic/OICClassDetail'))
+const OICExamReports = lazy(() => import('./dashboard/oic/OICExamReports'))
+const OICRemarks = lazy(() => import('./dashboard/oic/OICRemarks'))
+const OICComparison = lazy(() => import('./dashboard/oic/OICComparison'))
+const OICAttendance = lazy(() => import('./dashboard/oic/OICAttendance'))
+
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
 const SchoolsPage = lazy(() => import('./dashboard/superadmin/SchoolsPage'))
@@ -303,6 +315,32 @@ const App = () => {
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
 				<Route path="notices" element={<CommandantNotices />} />
+			</Route>
+
+			{/* OIC Assignments — admin & commandant */}
+			<Route path="/list/oic-assignments" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+			<Route path="/commandant/oic-assignments" element={<RoleProtectedLayout role="commandant" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+			<Route path="/ci/oic-assignments" element={<RoleProtectedLayout role="chief_instructor" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+
+			{/* OIC dashboard */}
+			<Route path="/dashboard/oic" element={<RoleProtectedLayout role="oic" />}>
+				<Route index element={<OICDashboard />} />
+			</Route>
+
+			{/* OIC sub-routes */}
+			<Route path="/oic" element={<RoleProtectedLayout role="oic" />}>
+				<Route path="classes" element={<OICClasses />} />
+				<Route path="classes/:id" element={<OICClassDetail />} />
+				<Route path="exam-reports" element={<OICExamReports />} />
+				<Route path="remarks" element={<OICRemarks />} />
+				<Route path="comparison" element={<OICComparison />} />
+				<Route path="attendance" element={<OICAttendance />} />
 			</Route>
 
 			{/* Superadmin routes */}
