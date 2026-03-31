@@ -24,12 +24,12 @@ from .serializers import (
     ExamReportRemarkSerializer, AddRemarkSerializer,
     DashboardClassSerializer, DashboardExamReportSerializer,
 )
-from .oic_serializers import (
+from .serializers import (
     OICAssignmentSerializer, OICAssignmentListSerializer,
     OICRemarkSerializer, OICRemarkCreateSerializer,
     OICDashboardClassSerializer,
 )
-from .oic_permissions import (
+from .permissions import (
     IsOIC, IsOICOrAdmin, IsOICOrAdminOrCommandant, ReadOnlyForOIC,
 )
 from .permissions import IsAdminOrCommandant, IsAdminOnly
