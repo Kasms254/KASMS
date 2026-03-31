@@ -9,8 +9,18 @@ from .views import (
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
-AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
+AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
     )
+from .oic_views import (
+    OICAssignmentViewSet,
+    OICDashboardViewSet,
+    OICClassViewSet,
+    OICComparisonViewSet,
+    OICExamReportViewSet,
+    OICExamResultViewSet,
+    OICAttendanceViewSet,
+    OICRemarkViewSet,
+)
 from .auth_views import (
    csrf_token_view,login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
 from .performance_viewsets import(
@@ -106,6 +116,20 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+# oic_routes
+# OIC -assignment(admin_managed)
+router.register(r'oic-assignments', OICAssignmentViewSet, basename='oic-assignment')
+
+# ALl oic router scoped endpoints
+oic_router = DefaultRouter()
+oic_router.register(r'overview',       OICDashboardViewSet,    basename='oic-dashboard')
+oic_router.register(r'classes',        OICClassViewSet,        basename='oic-classes')
+oic_router.register(r'comparison',     OICComparisonViewSet,   basename='oic-comparison')
+oic_router.register(r'exam-reports',   OICExamReportViewSet,   basename='oic-exam-reports')
+oic_router.register(r'exam-results',   OICExamResultViewSet,   basename='oic-exam-results')
+oic_router.register(r'attendance',     OICAttendanceViewSet,   basename='oic-attendance')
+oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-remarks')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
@@ -125,6 +149,7 @@ urlpatterns = [
     ,),
     path('auth/', include((auth_urlpatterns, 'auth'))),
     path('certificates/public/verify/', SecureCertificatePublicVerificationView.as_view(), name='certificate-public-verify',),
+    path('oic/', include(oic_router.urls)),
 
 
 ]

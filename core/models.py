@@ -122,6 +122,7 @@ class SchoolMembership(models.Model):
         ADMIN = 'admin', 'Admin'
         COMMANDANT = 'commandant', 'Commandant'
         CHIEF_INSTRUCTOR = 'chief instructor', 'Chief Instructor'
+        OIC = 'oic', 'Officer in Charge'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -413,7 +414,8 @@ class User(AbstractUser):
         ('instructor', 'Instructor'),
         ('student', 'Student'),
         ('commandant', 'Commandant'),
-        ('chief_instructor', 'Chief Instructor')
+        ('chief_instructor', 'Chief Instructor'),
+        ('oic', 'Officer in Charge'),
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
@@ -1055,6 +1057,7 @@ class ExamReportRemark(models.Model):
         ('commandant', 'Commandant'),
         ('chief_instructor', 'Chief Instructor'),
         ('instructor', 'Instructor'),
+        ('oic', 'Officer in Charge'),
     ]
 
     school = models.ForeignKey(
@@ -1744,4 +1747,125 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
+# oic
+class OICAssignment(models.Model):
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='oic_assignments',
+        null=True, blank=True,
+    )
+    oic = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='oic_assignments',
+        limit_choices_to={'role': 'oic'},
+        help_text='The Officer in Charge assigned to oversee this class.',
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='oic_assignments',
+        help_text='The class this OIC is assigned to oversee.',
+    )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='oic_assignments_made',
+        help_text='Admin or commandant who made this assignment.',
+    )
+    is_active = models.BooleanField(default=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(
+        blank=True,
+        help_text='Optional notes about this assignment.',
+    )
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'oic_assignments'
+        ordering = ['-assigned_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['oic', 'class_obj'],
+                condition=models.Q(is_active=True),
+                name='unique_active_oic_per_class',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['oic', 'is_active']),
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"OIC {self.oic.svc_number} → {self.class_obj.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)
+
+class OICRemark(models.Model):
+ 
+    REMARK_TYPE_CHOICES = [
+        ('class', 'Overall Class Performance'),
+        ('subject', 'Subject Performance'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        null=True, blank=True,
+    )
+    oic = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        limit_choices_to={'role': 'oic'},
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+    )
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        null=True, blank=True,
+        help_text='If null, this is an overall class remark.',
+    )
+    remark_type = models.CharField(
+        max_length=10,
+        choices=REMARK_TYPE_CHOICES,
+        default='class',
+    )
+    remark = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'oic_remarks'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['oic', 'class_obj']),
+            models.Index(fields=['class_obj', 'remark_type']),
+            models.Index(fields=['school', 'created_at']),
+        ]
+
+    def __str__(self):
+        target = self.subject.name if self.subject else 'Overall'
+        return f"OIC Remark by {self.oic.svc_number} on {self.class_obj.name} ({target})"
+
+    def save(self, *args, **kwargs):
+        if self.subject:
+            self.remark_type = 'subject'
+        else:
+            self.remark_type = 'class'
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)

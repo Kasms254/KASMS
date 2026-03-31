@@ -3,7 +3,7 @@
 // All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
 
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || "http://localhost:8000";
 const API_FALLBACK = import.meta.env.VITE_API_FALLBACK || null;
 
 // Configuration for sentence case transformation

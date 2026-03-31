@@ -7,6 +7,7 @@ from .models import (
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import OICAssignment, OICRemark
 
 class SchoolAdminFilter(admin.SimpleListFilter):
     title = 'school'
@@ -353,3 +354,30 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
     search_fields = ('user__svc_number', 'user__email')
     readonly_fields = ('id', 'code', 'created_at')
     ordering = ('-created_at',)
+
+# oic
+
+class OICAssignmentAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ('oic', 'class_obj', 'is_active', 'assigned_by', 'assigned_at')
+    list_filter = ('is_active', 'school')
+    search_fields = (
+        'oic__svc_number', 'oic__first_name', 'oic__last_name',
+        'class_obj__name', 'class_obj__course__name',
+    )
+    raw_id_fields = ('oic', 'class_obj', 'assigned_by')
+    readonly_fields = ('id', 'assigned_at', 'updated_at')
+    list_select_related = ('oic', 'class_obj', 'assigned_by', 'school')
+ 
+class OICRemarkAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ('oic', 'class_obj', 'subject', 'remark_type', 'created_at')
+    list_filter = ('remark_type', 'school')
+    search_fields = (
+        'oic__svc_number', 'oic__first_name', 'oic__last_name',
+        'class_obj__name', 'remark',
+    )
+    raw_id_fields = ('oic', 'class_obj', 'subject')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    list_select_related = ('oic', 'class_obj', 'subject', 'school')
+ 
+admin.site.register(OICAssignment, OICAssignmentAdmin)
+admin.site.register(OICRemark, OICRemarkAdmin)

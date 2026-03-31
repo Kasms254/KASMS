@@ -18,6 +18,7 @@ from .serializers import (
     ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer,
 )
 from .permissions import IsAdminOrInstructor, IsAdminOrCommandant
+from .models import OICAssignment
 
 def _calculate_grade(percentage):
     if percentage >= 91: return 'A'
@@ -125,7 +126,7 @@ def _get_school_from_request(request):
 class IsAnalyticsViewer(IsAuthenticated):
 
     ADMIN_ROLES = ('admin', 'superadmin')
-    READONLY_ROLES = ('commandant', 'chief_instructor', 'instructor')
+    READONLY_ROLES = ('commandant', 'chief_instructor', 'instructor', 'oic')
 
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
@@ -154,6 +155,11 @@ class _ClassAccessMixin:
 
         if user_role in ('admin', 'commandant', 'chief_instructor', 'chief instructor'):
             return True
+        
+        if user_role == 'oic':
+            return OICAssignment.all_objects.filter(
+            oic=user, class_obj=class_obj, is_active=True,
+        ).exists()
 
         if user_role == 'instructor':
             if class_obj.instructor_id == user.id:
