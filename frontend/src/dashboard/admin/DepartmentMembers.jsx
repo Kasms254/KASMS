@@ -1,6 +1,37 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { getDepartmentMemberships, addDepartmentMembership, updateDepartmentMembership, deleteDepartmentMembership, getDepartments, getAllInstructors } from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import SearchableSelect from '../../components/SearchableSelect'
+
+// Rank keys in ascending seniority order (index 0 = lowest)
+const RANK_KEYS = [
+  'private', 'lance_corporal', 'corporal', 'sergeant', 'senior_sergeant',
+  'warrant_officer_ii', 'warrant_officer_i', 'lieutenant', 'captain', 'major',
+  'lieutenant_colonel', 'colonel', 'brigadier', 'major_general', 'lieutenant_general', 'general',
+]
+const RANK_DISPLAY_MAP = {
+  private: 'Private', lance_corporal: 'Lance Corporal', corporal: 'Corporal',
+  sergeant: 'Sergeant', senior_sergeant: 'Senior Sergeant',
+  warrant_officer_ii: 'Warrant Officer II', warrant_officer_i: 'Warrant Officer I',
+  lieutenant: 'Lieutenant', captain: 'Captain', major: 'Major',
+  lieutenant_colonel: 'Lieutenant Colonel', colonel: 'Colonel', brigadier: 'Brigadier',
+  major_general: 'Major General', lieutenant_general: 'Lieutenant General', general: 'General',
+}
+// Normalize any rank value (key or display string) to its canonical key
+function toRankKey(rank) {
+  if (!rank) return null
+  if (RANK_DISPLAY_MAP[rank]) return rank           // already a key
+  return rank.toLowerCase().replace(/\s+/g, '_')    // 'Warrant Officer Ii' → 'warrant_officer_ii'
+}
+function getRankOrder(rank) {
+  const key = toRankKey(rank)
+  const idx = RANK_KEYS.indexOf(key)
+  return idx  // -1 if unknown
+}
+function getRankDisplay(rank) {
+  const key = toRankKey(rank)
+  return RANK_DISPLAY_MAP[key] || rank || '—'
+}
 
 function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
@@ -141,6 +172,23 @@ export default function DepartmentMembers() {
     }
   }
 
+  // Sort by rank descending (most senior first), then service number ascending within same rank
+  const sortedInstructorOptions = useMemo(() => {
+    return [...instructors]
+      .sort((a, b) => {
+        const aRank = getRankOrder(a.rank)
+        const bRank = getRankOrder(b.rank)
+        if (bRank !== aRank) return bRank - aRank
+        const aNum = a.svc_number ? parseInt(a.svc_number.replace(/\D/g, ''), 10) : Infinity
+        const bNum = b.svc_number ? parseInt(b.svc_number.replace(/\D/g, ''), 10) : Infinity
+        return aNum - bNum
+      })
+      .map(ins => {
+        const name = ins.full_name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim() || ins.username
+        return { id: ins.id, label: `${ins.svc_number || '—'} ${getRankDisplay(ins.rank)} ${name}` }
+      })
+  }, [instructors])
+
   const roleBadge = (role) => {
     if (role === 'hod') return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">HOD</span>
     return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Member</span>
@@ -225,18 +273,14 @@ export default function DepartmentMembers() {
                   </div>
                   <div>
                     <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
-                    <select
+                    <SearchableSelect
                       value={newMember.user}
-                      onChange={(e) => setNewMember({ ...newMember, user: e.target.value })}
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.user ? 'border-rose-500' : 'border-neutral-200'}`}
-                    >
-                      <option value="">Select Instructor</option>
-                      {instructors.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name} {u.last_name} {u.svc_number ? `(${u.svc_number})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setNewMember({ ...newMember, user: val })}
+                      options={sortedInstructorOptions}
+                      placeholder="— Select Instructor —"
+                      searchPlaceholder="Search by service number, rank, or name..."
+                      error={!!errors.user}
+                    />
                     {errors.user && <div className="text-xs text-rose-600 mt-1">{errors.user}</div>}
                   </div>
                   <div>
