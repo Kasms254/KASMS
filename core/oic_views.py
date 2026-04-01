@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import (
     Q, Count, Avg, Sum, Case, When, Value, F, FloatField, CharField,
@@ -23,17 +24,16 @@ from .serializers import (
     AttendanceSessionListSerializer, NoticeSerializer,
     ExamReportRemarkSerializer, AddRemarkSerializer,
     DashboardClassSerializer, DashboardExamReportSerializer,
-)
-from .serializers import (
     OICAssignmentSerializer, OICAssignmentListSerializer,
     OICRemarkSerializer, OICRemarkCreateSerializer,
     OICDashboardClassSerializer,
 )
 from .permissions import (
     IsOIC, IsOICOrAdmin, IsOICOrAdminOrCommandant, ReadOnlyForOIC,
+    IsAdminOrCommandant, IsAdminOnly,
 )
-from .permissions import IsAdminOrCommandant, IsAdminOnly
 from .managers import get_current_school
+
 
 def _get_school(user):
     school = get_current_school()
@@ -41,8 +41,8 @@ def _get_school(user):
         return school
     return user.school
 
-def _get_oic_class_ids(user):
 
+def _get_oic_class_ids(user):
     school = _get_school(user)
     qs = OICAssignment.all_objects.filter(
         oic=user,
@@ -51,6 +51,7 @@ def _get_oic_class_ids(user):
     if school:
         qs = qs.filter(school=school)
     return list(qs.values_list('class_obj_id', flat=True))
+
 
 class OICAssignmentViewSet(viewsets.ModelViewSet):
 
@@ -86,6 +87,9 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        if self.request.user.role == 'oic':
+            raise PermissionDenied("OIC users cannot create assignments.")
+
         user = self.request.user
         school = _get_school(user)
         serializer.save(
@@ -94,9 +98,14 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        if self.request.user.role == 'oic':
+            raise PermissionDenied("OIC users cannot modify assignments.")
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
+        if self.request.user.role == 'oic':
+            raise PermissionDenied("OIC users cannot delete assignments.")
+
         instance = self.get_object()
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
@@ -171,15 +180,13 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
             'skipped_class_ids': skipped,
         }, status=status.HTTP_201_CREATED)
 
+
 class OICDashboardViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsOIC]
 
+    # FIX: Removed duplicate @action overview — list() already serves GET /api/oic/overview/
     def list(self, request):
-        return self._build_overview(request)
-
-    @action(detail=False, methods=['get'])
-    def overview(self, request):
         return self._build_overview(request)
 
     def _build_overview(self, request):
@@ -217,26 +224,27 @@ class OICDashboardViewSet(viewsets.ViewSet):
             class_obj_id__in=assigned_class_ids, is_active=True,
         ).count()
 
-        submitted_results = ExamResult.all_objects.filter(
+        # FIX: Use ORM aggregation instead of loading all results into Python memory.
+        result_agg = ExamResult.all_objects.filter(
             exam__subject__class_obj_id__in=assigned_class_ids,
             is_submitted=True,
             marks_obtained__isnull=False,
-        ).select_related('exam')
+        ).aggregate(
+            result_count=Count('id'),
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+            pass_count=Count('id', filter=Q(percentage__gte=50)),
+        )
 
-        result_count = submitted_results.count()
+        result_count = result_agg['result_count'] or 0
         if result_count > 0:
-            total_marks = sum(
-                float(r.marks_obtained) for r in submitted_results
-            )
-            total_possible = sum(
-                r.exam.total_marks for r in submitted_results
-            )
+            total_marks = float(result_agg['total_marks'] or 0)
+            total_possible = float(result_agg['total_possible'] or 0)
             avg_performance = (
                 round(total_marks / total_possible * 100, 2)
                 if total_possible > 0 else 0
             )
-            pass_count = sum(1 for r in submitted_results if r.percentage >= 50)
-            pass_rate = round(pass_count / result_count * 100, 2)
+            pass_rate = round(result_agg['pass_count'] / result_count * 100, 2)
         else:
             avg_performance = 0
             pass_rate = 0
@@ -249,12 +257,16 @@ class OICDashboardViewSet(viewsets.ViewSet):
         total_sessions = recent_sessions.count()
         completed_sessions = recent_sessions.filter(status='completed').count()
 
-        session_att = SessionAttendance.all_objects.filter(
+        # FIX: Use ORM aggregation for attendance instead of loading all records.
+        att_agg = SessionAttendance.all_objects.filter(
             session__class_obj_id__in=assigned_class_ids,
             session__scheduled_start__gte=thirty_days_ago,
+        ).aggregate(
+            total_records=Count('id'),
+            present_count=Count('id', filter=Q(status__in=['present', 'late'])),
         )
-        present_count = session_att.filter(status__in=['present', 'late']).count()
-        total_att_records = session_att.count()
+        total_att_records = att_agg['total_records'] or 0
+        present_count = att_agg['present_count'] or 0
         overall_attendance_rate = (
             round(present_count / total_att_records * 100, 2)
             if total_att_records > 0 else 0
@@ -301,6 +313,7 @@ class OICDashboardViewSet(viewsets.ViewSet):
                 'reports_awaiting_your_remarks': reports_without_remark,
             },
         })
+
 
 class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -384,22 +397,71 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def results_summary(self, request, pk=None):
-
         class_obj = self.get_object()
 
+        # FIX: Use ORM aggregation instead of N+1 per-subject Python loops.
         subjects = Subject.all_objects.filter(
             class_obj=class_obj, is_active=True,
         ).select_related('instructor')
 
-        subject_performance = []
-        for subject in subjects:
-            results = ExamResult.all_objects.filter(
-                exam__subject=subject,
+        # Batch query: aggregate results per subject
+        subject_agg = (
+            ExamResult.all_objects.filter(
+                exam__subject__class_obj=class_obj,
+                exam__subject__is_active=True,
                 is_submitted=True,
                 marks_obtained__isnull=False,
             )
+            .values('exam__subject_id')
+            .annotate(
+                total_marks=Sum('marks_obtained'),
+                total_possible=Sum('exam__total_marks'),
+                result_count=Count('id'),
+                pass_count=Count('id', filter=Q(percentage__gte=50)),
+                highest=Avg(Case(
+                    When(percentage__isnull=False, then=F('percentage')),
+                    default=Value(0),
+                    output_field=FloatField(),
+                )),
+            )
+        )
+        agg_map = {row['exam__subject_id']: row for row in subject_agg}
 
-            if not results.exists():
+        # Count active exams per subject in one query
+        exam_counts = (
+            Exam.objects.filter(
+                subject__class_obj=class_obj,
+                subject__is_active=True,
+                is_active=True,
+            )
+            .values('subject_id')
+            .annotate(exam_count=Count('id'))
+        )
+        exam_count_map = {row['subject_id']: row['exam_count'] for row in exam_counts}
+
+        # Get per-subject min/max percentages
+        from django.db.models import Max, Min
+        minmax_agg = (
+            ExamResult.all_objects.filter(
+                exam__subject__class_obj=class_obj,
+                exam__subject__is_active=True,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            )
+            .values('exam__subject_id')
+            .annotate(
+                max_pct=Max('percentage'),
+                min_pct=Min('percentage'),
+            )
+        )
+        minmax_map = {row['exam__subject_id']: row for row in minmax_agg}
+
+        subject_performance = []
+        for subject in subjects:
+            agg = agg_map.get(subject.id)
+            mm = minmax_map.get(subject.id)
+
+            if not agg or agg['result_count'] == 0:
                 subject_performance.append({
                     'subject_id': str(subject.id),
                     'subject_name': subject.name,
@@ -407,7 +469,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                         subject.instructor.get_full_name()
                         if subject.instructor else None
                     ),
-                    'total_exams': 0,
+                    'total_exams': exam_count_map.get(subject.id, 0),
                     'total_results': 0,
                     'average_percentage': 0,
                     'pass_rate': 0,
@@ -416,11 +478,9 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 })
                 continue
 
-            total_marks = sum(float(r.marks_obtained) for r in results)
-            total_possible = sum(r.exam.total_marks for r in results)
-            avg_pct = round(total_marks / total_possible * 100, 2) if total_possible > 0 else 0
-            percentages = [r.percentage for r in results]
-            pass_count = sum(1 for p in percentages if p >= 50)
+            total_m = float(agg['total_marks'] or 0)
+            total_p = float(agg['total_possible'] or 0)
+            avg_pct = round(total_m / total_p * 100, 2) if total_p > 0 else 0
 
             subject_performance.append({
                 'subject_id': str(subject.id),
@@ -429,28 +489,35 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                     subject.instructor.get_full_name()
                     if subject.instructor else None
                 ),
-                'total_exams': subject.exams.filter(is_active=True).count(),
-                'total_results': results.count(),
+                'total_exams': exam_count_map.get(subject.id, 0),
+                'total_results': agg['result_count'],
                 'average_percentage': avg_pct,
-                'pass_rate': round(pass_count / results.count() * 100, 2),
-                'highest_score': round(max(percentages), 2) if percentages else 0,
-                'lowest_score': round(min(percentages), 2) if percentages else 0,
+                'pass_rate': round(agg['pass_count'] / agg['result_count'] * 100, 2),
+                'highest_score': round(mm['max_pct'], 2) if mm and mm['max_pct'] else 0,
+                'lowest_score': round(mm['min_pct'], 2) if mm and mm['min_pct'] else 0,
             })
 
-        all_results = ExamResult.all_objects.filter(
+        # Overall class stats using ORM
+        overall_agg = ExamResult.all_objects.filter(
             exam__subject__class_obj=class_obj,
             is_submitted=True,
             marks_obtained__isnull=False,
+        ).aggregate(
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+            result_count=Count('id'),
+            pass_count=Count('id', filter=Q(percentage__gte=50)),
         )
-        overall_avg = 0
-        overall_pass_rate = 0
-        if all_results.exists():
-            total_m = sum(float(r.marks_obtained) for r in all_results)
-            total_p = sum(r.exam.total_marks for r in all_results)
-            overall_avg = round(total_m / total_p * 100, 2) if total_p > 0 else 0
-            overall_pass_rate = round(
-                sum(1 for r in all_results if r.percentage >= 50) / all_results.count() * 100, 2
-            )
+
+        overall_count = overall_agg['result_count'] or 0
+        if overall_count > 0:
+            ot_marks = float(overall_agg['total_marks'] or 0)
+            ot_possible = float(overall_agg['total_possible'] or 0)
+            overall_avg = round(ot_marks / ot_possible * 100, 2) if ot_possible > 0 else 0
+            overall_pass_rate = round(overall_agg['pass_count'] / overall_count * 100, 2)
+        else:
+            overall_avg = 0
+            overall_pass_rate = 0
 
         return Response({
             'class': {
@@ -461,7 +528,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             'overall_statistics': {
                 'average_percentage': overall_avg,
                 'pass_rate': overall_pass_rate,
-                'total_results': all_results.count(),
+                'total_results': overall_count,
             },
             'subject_performance': subject_performance,
         })
@@ -480,16 +547,30 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             class_obj=class_obj, is_active=True,
         ).select_related('student')
 
+        # FIX: Batch query student attendance instead of N+1 per student.
+        student_ids = list(enrollments.values_list('student_id', flat=True))
+        att_stats = (
+            SessionAttendance.all_objects.filter(
+                session__class_obj=class_obj,
+                student_id__in=student_ids,
+            )
+            .values('student_id')
+            .annotate(
+                total=Count('id'),
+                present=Count('id', filter=Q(status='present')),
+                late=Count('id', filter=Q(status='late')),
+                absent=Count('id', filter=Q(status='absent')),
+            )
+        )
+        att_map = {row['student_id']: row for row in att_stats}
+
         student_attendance = []
         for enrollment in enrollments:
-            att = SessionAttendance.all_objects.filter(
-                session__class_obj=class_obj,
-                student=enrollment.student,
-            )
-            total = att.count()
-            present = att.filter(status='present').count()
-            late = att.filter(status='late').count()
-            absent = att.filter(status='absent').count()
+            sid = enrollment.student_id
+            att = att_map.get(sid, {'total': 0, 'present': 0, 'late': 0, 'absent': 0})
+            present = att['present']
+            late = att['late']
+            absent = att['absent']
             rate = round((present + late) / total_sessions * 100, 2) if total_sessions > 0 else 0
 
             student_attendance.append({
@@ -533,7 +614,6 @@ class OICComparisonViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def performance(self, request):
         user = request.user
-        school = _get_school(user)
         assigned_class_ids = _get_oic_class_ids(user)
 
         if not assigned_class_ids:
@@ -543,26 +623,50 @@ class OICComparisonViewSet(viewsets.ViewSet):
             id__in=assigned_class_ids,
         ).select_related('course', 'instructor')
 
-        comparison = []
-        for cls in classes:
-            results = ExamResult.all_objects.filter(
-                exam__subject__class_obj=cls,
+        # FIX: Batch queries instead of N+1 per class.
+        # Aggregate exam results per class
+        results_by_class = (
+            ExamResult.all_objects.filter(
+                exam__subject__class_obj_id__in=assigned_class_ids,
                 is_submitted=True,
                 marks_obtained__isnull=False,
             )
-            enrolled = Enrollment.all_objects.filter(
-                class_obj=cls, is_active=True,
-            ).count()
+            .values('exam__subject__class_obj_id')
+            .annotate(
+                total_marks=Sum('marks_obtained'),
+                total_possible=Sum('exam__total_marks'),
+                result_count=Count('id'),
+                pass_count=Count('id', filter=Q(percentage__gte=50)),
+            )
+        )
+        result_map = {row['exam__subject__class_obj_id']: row for row in results_by_class}
 
-            if results.exists():
-                total_m = sum(float(r.marks_obtained) for r in results)
-                total_p = sum(r.exam.total_marks for r in results)
+        # Aggregate enrollments per class
+        enrollment_by_class = (
+            Enrollment.all_objects.filter(
+                class_obj_id__in=assigned_class_ids,
+                is_active=True,
+            )
+            .values('class_obj_id')
+            .annotate(enrolled=Count('id'))
+        )
+        enrollment_map = {row['class_obj_id']: row['enrolled'] for row in enrollment_by_class}
+
+        comparison = []
+        for cls in classes:
+            rdata = result_map.get(cls.id)
+            enrolled = enrollment_map.get(cls.id, 0)
+
+            if rdata and rdata['result_count'] > 0:
+                total_m = float(rdata['total_marks'] or 0)
+                total_p = float(rdata['total_possible'] or 0)
                 avg_pct = round(total_m / total_p * 100, 2) if total_p > 0 else 0
-                pass_count = sum(1 for r in results if r.percentage >= 50)
-                pass_rate = round(pass_count / results.count() * 100, 2)
+                pass_rate = round(rdata['pass_count'] / rdata['result_count'] * 100, 2)
+                total_results = rdata['result_count']
             else:
                 avg_pct = 0
                 pass_rate = 0
+                total_results = 0
 
             comparison.append({
                 'class_id': str(cls.id),
@@ -572,7 +676,7 @@ class OICComparisonViewSet(viewsets.ViewSet):
                 'instructor_rank': cls.instructor.get_rank_display() if cls.instructor and cls.instructor.rank else None,
                 'instructor_svc_number': cls.instructor.svc_number if cls.instructor else None,
                 'enrolled_students': enrolled,
-                'total_results': results.count(),
+                'total_results': total_results,
                 'average_percentage': avg_pct,
                 'pass_rate': pass_rate,
             })
@@ -596,21 +700,45 @@ class OICComparisonViewSet(viewsets.ViewSet):
             id__in=assigned_class_ids,
         ).select_related('course')
 
+        # FIX: Batch queries instead of N+1 per class.
+        sessions_by_class = (
+            AttendanceSession.all_objects.filter(
+                class_obj_id__in=assigned_class_ids,
+            )
+            .values('class_obj_id')
+            .annotate(session_count=Count('id'))
+        )
+        session_map = {row['class_obj_id']: row['session_count'] for row in sessions_by_class}
+
+        enrollment_by_class = (
+            Enrollment.all_objects.filter(
+                class_obj_id__in=assigned_class_ids,
+                is_active=True,
+            )
+            .values('class_obj_id')
+            .annotate(enrolled=Count('id'))
+        )
+        enrollment_map = {row['class_obj_id']: row['enrolled'] for row in enrollment_by_class}
+
+        att_by_class = (
+            SessionAttendance.all_objects.filter(
+                session__class_obj_id__in=assigned_class_ids,
+            )
+            .values('session__class_obj_id')
+            .annotate(
+                total_records=Count('id'),
+                present_count=Count('id', filter=Q(status__in=['present', 'late'])),
+            )
+        )
+        att_map = {row['session__class_obj_id']: row for row in att_by_class}
+
         comparison = []
         for cls in classes:
-            total_sessions = AttendanceSession.all_objects.filter(
-                class_obj=cls,
-            ).count()
-
-            enrolled = Enrollment.all_objects.filter(
-                class_obj=cls, is_active=True,
-            ).count()
-
-            att = SessionAttendance.all_objects.filter(
-                session__class_obj=cls,
-            )
-            total_records = att.count()
-            present = att.filter(status__in=['present', 'late']).count()
+            total_sessions = session_map.get(cls.id, 0)
+            enrolled = enrollment_map.get(cls.id, 0)
+            att = att_map.get(cls.id, {'total_records': 0, 'present_count': 0})
+            total_records = att['total_records']
+            present = att['present_count']
             rate = round(present / total_records * 100, 2) if total_records > 0 else 0
 
             comparison.append({
@@ -707,7 +835,8 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
             },
         })
 
-    @action(detail=True, methods=['post', 'put'])
+    # FIX: Removed PUT method — POST alone with update_or_create is idempotent.
+    @action(detail=True, methods=['post'])
     def add_remark(self, request, pk=None):
 
         report = self.get_object()
@@ -925,17 +1054,26 @@ class OICRemarkViewSet(viewsets.ModelViewSet):
 
         class_obj = serializer.validated_data.get('class_obj')
         if class_obj and class_obj.id not in assigned_class_ids:
-            from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied(
                 'You are not assigned as OIC for this class.'
             )
 
         serializer.save(oic=user, school=school)
 
+    # FIX: Added class assignment validation to perform_update.
+    # Previously, an OIC who was de-assigned from a class could still
+    # PATCH their existing remark on that class.
     def perform_update(self, serializer):
         if serializer.instance.oic != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You can only edit your own remarks.')
+
+        assigned_class_ids = _get_oic_class_ids(self.request.user)
+        class_obj = serializer.validated_data.get('class_obj', serializer.instance.class_obj)
+        if class_obj.id not in assigned_class_ids:
+            raise PermissionDenied(
+                'You are no longer assigned as OIC for this class.'
+            )
+
         serializer.save()
 
     @action(detail=False, methods=['post'])
