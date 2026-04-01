@@ -1516,7 +1516,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'priority']
+    filterset_fields = ['is_active', 'priority', 'target_role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'title', 'priority']
     ordering = ['-created_at']
@@ -3245,6 +3245,11 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def my_notices(self, request):
+
+        today = timezone.now()
+        user = request.user
+
+        target_q = Q(target_role='all') | Q(target_role=user.role)
 
         if request.user.role == 'student':
                 

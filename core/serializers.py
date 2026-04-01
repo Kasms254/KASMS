@@ -899,6 +899,7 @@ class NoticeSerializer(serializers.ModelSerializer):
     )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
     read_at = serializers.SerializerMethodField()
@@ -910,6 +911,9 @@ class NoticeSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rolel(self, obj):
+        return obj.created_by.role if obj.created_by else None
 
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None

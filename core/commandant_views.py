@@ -735,7 +735,7 @@ class CommandantEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
             school=school
         ).select_related('student', 'class_obj')
 
-class CommandantNoticeViewSet(viewsets.ReadOnlyModelViewSet):
+class CommandantNoticeViewSet(viewsets.ModelViewSet):
 
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
