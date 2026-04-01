@@ -50,6 +50,8 @@ const SENTENCE_CASE_CONFIG = {
     'marking_method', // Preserve enum values
     'session_type',   // Preserve enum values
     'notification_type', // Preserve enum values
+    'priority', // Preserve priority enum values (low, medium, high, urgent)
+    'target_role', // Preserve target_role enum values (all, student, instructor, etc.)
   ]
 }
 
@@ -1713,19 +1715,42 @@ export async function getCommandantNotices(params = '') {
 }
 
 export async function createCommandantNotice(data) {
-  const body = new FormData()
-  body.append('title', data.title)
-  body.append('content', data.content)
-  body.append('priority', data.priority || 'medium')
-  if (data.expiry_date) {
-    body.append('expiry_date', data.expiry_date)
-  }
-  body.append('is_active', data.is_active !== false)
-  
   return request('/api/commandant/notices/', {
     method: 'POST',
-    body
+    body: {
+      title: data.title,
+      content: data.content,
+      priority: data.priority || 'medium',
+      target_role: data.target_role || 'all',
+      expiry_date: data.expiry_date || null,
+      is_active: data.is_active !== false,
+    }
   })
+}
+
+export async function updateCommandantNotice(id, data) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/commandant/notices/${id}/`, {
+    method: 'PATCH',
+    body: {
+      title: data.title,
+      content: data.content,
+      priority: data.priority || 'medium',
+      target_role: data.target_role || 'all',
+      expiry_date: data.expiry_date || null,
+      is_active: data.is_active !== false,
+    }
+  })
+}
+
+export async function deleteCommandantNotice(id) {
+  if (!id) throw new Error('id is required')
+  return request(`/api/commandant/notices/${id}/`, { method: 'DELETE' })
+}
+
+export async function getMyCommandantNotices(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/notices/my_created/${q}`)
 }
 
 export default {

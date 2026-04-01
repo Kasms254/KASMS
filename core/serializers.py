@@ -912,7 +912,7 @@ class NoticeSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
 
-    def get_created_by_rolel(self, obj):
+    def get_created_by_role(self, obj):
         return obj.created_by.role if obj.created_by else None
 
     def get_is_read(self, obj):
