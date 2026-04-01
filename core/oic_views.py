@@ -357,13 +357,22 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
 
         data = []
         for subject in subjects:
+            instructor = subject.instructor
             data.append({
                 'id': str(subject.id),
                 'name': subject.name,
                 'subject_code': subject.subject_code,
                 'instructor_name': (
-                    subject.instructor.get_full_name()
-                    if subject.instructor else None
+                    instructor.get_full_name()
+                    if instructor else None
+                ),
+                'instructor_rank': (
+                    instructor.get_rank_display()
+                    if instructor and instructor.rank else None
+                ),
+                'instructor_svc_number': (
+                    instructor.svc_number
+                    if instructor else None
                 ),
             })
 
@@ -559,6 +568,8 @@ class OICComparisonViewSet(viewsets.ViewSet):
                 'class_name': cls.name,
                 'course_name': cls.course.name,
                 'instructor_name': cls.instructor.get_full_name() if cls.instructor else None,
+                'instructor_rank': cls.instructor.get_rank_display() if cls.instructor and cls.instructor.rank else None,
+                'instructor_svc_number': cls.instructor.svc_number if cls.instructor else None,
                 'enrolled_students': enrolled,
                 'total_results': results.count(),
                 'average_percentage': avg_pct,
@@ -867,6 +878,7 @@ class OICAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
                 'student_id': str(record.student.id),
                 'student_name': record.student.get_full_name(),
                 'svc_number': record.student.svc_number,
+                'rank': record.student.get_rank_display() if record.student.rank else None,
                 'status': record.status,
                 'marking_method': record.marking_method,
                 'marked_at': record.marked_at,
