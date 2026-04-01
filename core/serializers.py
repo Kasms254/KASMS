@@ -1,18 +1,19 @@
 from rest_framework import serializers
 from .models import (
-    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, ExamReportRemark,Subject, Notice, Exam, ExamReport, PersonalNotification,
-    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
+    StudentIndex, Profile, AttendanceSession, User, Course, Class, Enrollment,
+    ExamReportRemark, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,
+    ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership,
+    ResultEditRequest, SessionAttendance, AttendanceSessionLog,
+    ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
+    Certificate, CertificateTemplate, CertificateDownloadLog,
+    OICAssignment, OICRemark,
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
 from datetime import date as _date, datetime as _datetime
-from rest_framework import serializers
-from .models import (
-    OICAssignment, OICRemark, Class, Subject, User,
-)
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -476,7 +477,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         membership = None
         if school:
-            # Check there's no existing active membership for this user at this school
             existing_membership = SchoolMembership.all_objects.filter(
                 user=user,
                 school=school,
@@ -2403,7 +2403,17 @@ class OICAssignmentListSerializer(serializers.ModelSerializer):
     def get_oic_rank(self, obj):
         return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
 
-class OICRemarkSerializer(serializers.ModelSerializer):
+class OICRemarkValidationMixin:
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                'Remark must be at least 10 characters long.'
+            )
+        return cleaned
+
+class OICRemarkSerializer(OICRemarkValidationMixin, serializers.ModelSerializer):
 
     oic_name = serializers.SerializerMethodField(read_only=True)
     oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
@@ -2437,14 +2447,6 @@ class OICRemarkSerializer(serializers.ModelSerializer):
     def get_oic_rank(self, obj):
         return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
 
-    def validate_remark(self, value):
-        cleaned = value.strip()
-        if len(cleaned) < 10:
-            raise serializers.ValidationError(
-                'Remark must be at least 10 characters long.'
-            )
-        return cleaned
-
     def validate(self, attrs):
         class_obj = attrs.get('class_obj')
         subject = attrs.get('subject')
@@ -2454,7 +2456,7 @@ class OICRemarkSerializer(serializers.ModelSerializer):
             })
         return attrs
 
-class OICRemarkCreateSerializer(serializers.Serializer):
+class OICRemarkCreateSerializer(OICRemarkValidationMixin, serializers.Serializer):
 
     class_obj = serializers.UUIDField(
         help_text='UUID of the class to add a remark on.'
@@ -2472,13 +2474,21 @@ class OICRemarkCreateSerializer(serializers.Serializer):
         },
     )
 
-    def validate_remark(self, value):
-        cleaned = value.strip()
-        if len(cleaned) < 10:
-            raise serializers.ValidationError(
-                'Remark must be at least 10 characters long.'
-            )
-        return cleaned
+    def validate(self, attrs):
+
+        class_obj_id = attrs.get('class_obj')
+        subject_id = attrs.get('subject')
+
+        if subject_id and class_obj_id:
+            from .models import Subject as SubjectModel
+            if not SubjectModel.all_objects.filter(
+                id=subject_id, class_obj_id=class_obj_id,
+            ).exists():
+                raise serializers.ValidationError({
+                    'subject': 'This subject does not belong to the specified class.'
+                })
+
+        return attrs
 
 class OICDashboardClassSerializer(serializers.ModelSerializer):
 

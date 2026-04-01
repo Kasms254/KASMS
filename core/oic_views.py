@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import (
     Q, Count, Avg, Sum, Case, When, Value, F, FloatField, CharField,
+    Max, Min,
 )
 from django.db import transaction
 from django.utils import timezone
@@ -30,7 +31,7 @@ from .serializers import (
 )
 from .permissions import (
     IsOIC, IsOICOrAdmin, IsOICOrAdminOrCommandant, ReadOnlyForOIC,
-    IsAdminOrCommandant, IsAdminOnly,
+    IsAdminOrCommandant,
 )
 from .managers import get_current_school
 
@@ -42,7 +43,20 @@ def _get_school(user):
     return user.school
 
 
-def _get_oic_class_ids(user):
+def _get_oic_class_ids(request_or_user):
+
+    if hasattr(request_or_user, 'user'):
+        request = request_or_user
+        user = request.user
+    else:
+        request = None
+        user = request_or_user
+
+    if request is not None:
+        cached = getattr(request, '_oic_class_ids', None)
+        if cached is not None:
+            return cached
+
     school = _get_school(user)
     qs = OICAssignment.all_objects.filter(
         oic=user,
@@ -50,8 +64,12 @@ def _get_oic_class_ids(user):
     )
     if school:
         qs = qs.filter(school=school)
-    return list(qs.values_list('class_obj_id', flat=True))
+    result = list(qs.values_list('class_obj_id', flat=True))
 
+    if request is not None:
+        request._oic_class_ids = result
+
+    return result
 
 class OICAssignmentViewSet(viewsets.ModelViewSet):
 
@@ -92,10 +110,7 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
 
         user = self.request.user
         school = _get_school(user)
-        serializer.save(
-            school=school,
-            assigned_by=user,
-        )
+        serializer.save(school=school, assigned_by=user)
 
     def perform_update(self, serializer):
         if self.request.user.role == 'oic':
@@ -127,7 +142,6 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_assign(self, request):
-
         if request.user.role not in ('admin', 'superadmin', 'commandant'):
             return Response(
                 {'error': 'Only admins or commandants can bulk-assign OICs.'},
@@ -185,7 +199,6 @@ class OICDashboardViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsOIC]
 
-    # FIX: Removed duplicate @action overview — list() already serves GET /api/oic/overview/
     def list(self, request):
         return self._build_overview(request)
 
@@ -199,7 +212,7 @@ class OICDashboardViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(request)
 
         if not assigned_class_ids:
             return Response({
@@ -224,7 +237,6 @@ class OICDashboardViewSet(viewsets.ViewSet):
             class_obj_id__in=assigned_class_ids, is_active=True,
         ).count()
 
-        # FIX: Use ORM aggregation instead of loading all results into Python memory.
         result_agg = ExamResult.all_objects.filter(
             exam__subject__class_obj_id__in=assigned_class_ids,
             is_submitted=True,
@@ -257,7 +269,6 @@ class OICDashboardViewSet(viewsets.ViewSet):
         total_sessions = recent_sessions.count()
         completed_sessions = recent_sessions.filter(status='completed').count()
 
-        # FIX: Use ORM aggregation for attendance instead of loading all records.
         att_agg = SessionAttendance.all_objects.filter(
             session__class_obj_id__in=assigned_class_ids,
             session__scheduled_start__gte=thirty_days_ago,
@@ -314,7 +325,6 @@ class OICDashboardViewSet(viewsets.ViewSet):
             },
         })
 
-
 class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = OICDashboardClassSerializer
@@ -331,7 +341,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
         if not school:
             return Class.objects.none()
 
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
         return Class.all_objects.filter(
             id__in=assigned_class_ids,
         ).select_related('course', 'instructor', 'department')
@@ -375,18 +385,9 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 'id': str(subject.id),
                 'name': subject.name,
                 'subject_code': subject.subject_code,
-                'instructor_name': (
-                    instructor.get_full_name()
-                    if instructor else None
-                ),
-                'instructor_rank': (
-                    instructor.get_rank_display()
-                    if instructor and instructor.rank else None
-                ),
-                'instructor_svc_number': (
-                    instructor.svc_number
-                    if instructor else None
-                ),
+                'instructor_name': instructor.get_full_name() if instructor else None,
+                'instructor_rank': instructor.get_rank_display() if instructor and instructor.rank else None,
+                'instructor_svc_number': instructor.svc_number if instructor else None,
             })
 
         return Response({
@@ -399,12 +400,10 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
     def results_summary(self, request, pk=None):
         class_obj = self.get_object()
 
-        # FIX: Use ORM aggregation instead of N+1 per-subject Python loops.
         subjects = Subject.all_objects.filter(
             class_obj=class_obj, is_active=True,
         ).select_related('instructor')
 
-        # Batch query: aggregate results per subject
         subject_agg = (
             ExamResult.all_objects.filter(
                 exam__subject__class_obj=class_obj,
@@ -418,16 +417,10 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 total_possible=Sum('exam__total_marks'),
                 result_count=Count('id'),
                 pass_count=Count('id', filter=Q(percentage__gte=50)),
-                highest=Avg(Case(
-                    When(percentage__isnull=False, then=F('percentage')),
-                    default=Value(0),
-                    output_field=FloatField(),
-                )),
             )
         )
         agg_map = {row['exam__subject_id']: row for row in subject_agg}
 
-        # Count active exams per subject in one query
         exam_counts = (
             Exam.objects.filter(
                 subject__class_obj=class_obj,
@@ -439,8 +432,6 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
         )
         exam_count_map = {row['subject_id']: row['exam_count'] for row in exam_counts}
 
-        # Get per-subject min/max percentages
-        from django.db.models import Max, Min
         minmax_agg = (
             ExamResult.all_objects.filter(
                 exam__subject__class_obj=class_obj,
@@ -449,10 +440,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 marks_obtained__isnull=False,
             )
             .values('exam__subject_id')
-            .annotate(
-                max_pct=Max('percentage'),
-                min_pct=Min('percentage'),
-            )
+            .annotate(max_pct=Max('percentage'), min_pct=Min('percentage'))
         )
         minmax_map = {row['exam__subject_id']: row for row in minmax_agg}
 
@@ -465,10 +453,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 subject_performance.append({
                     'subject_id': str(subject.id),
                     'subject_name': subject.name,
-                    'instructor': (
-                        subject.instructor.get_full_name()
-                        if subject.instructor else None
-                    ),
+                    'instructor': subject.instructor.get_full_name() if subject.instructor else None,
                     'total_exams': exam_count_map.get(subject.id, 0),
                     'total_results': 0,
                     'average_percentage': 0,
@@ -485,10 +470,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             subject_performance.append({
                 'subject_id': str(subject.id),
                 'subject_name': subject.name,
-                'instructor': (
-                    subject.instructor.get_full_name()
-                    if subject.instructor else None
-                ),
+                'instructor': subject.instructor.get_full_name() if subject.instructor else None,
                 'total_exams': exam_count_map.get(subject.id, 0),
                 'total_results': agg['result_count'],
                 'average_percentage': avg_pct,
@@ -497,7 +479,6 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 'lowest_score': round(mm['min_pct'], 2) if mm and mm['min_pct'] else 0,
             })
 
-        # Overall class stats using ORM
         overall_agg = ExamResult.all_objects.filter(
             exam__subject__class_obj=class_obj,
             is_submitted=True,
@@ -508,12 +489,11 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             result_count=Count('id'),
             pass_count=Count('id', filter=Q(percentage__gte=50)),
         )
-
         overall_count = overall_agg['result_count'] or 0
         if overall_count > 0:
-            ot_marks = float(overall_agg['total_marks'] or 0)
-            ot_possible = float(overall_agg['total_possible'] or 0)
-            overall_avg = round(ot_marks / ot_possible * 100, 2) if ot_possible > 0 else 0
+            ot_m = float(overall_agg['total_marks'] or 0)
+            ot_p = float(overall_agg['total_possible'] or 0)
+            overall_avg = round(ot_m / ot_p * 100, 2) if ot_p > 0 else 0
             overall_pass_rate = round(overall_agg['pass_count'] / overall_count * 100, 2)
         else:
             overall_avg = 0
@@ -537,9 +517,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
     def attendance_summary(self, request, pk=None):
         class_obj = self.get_object()
 
-        sessions = AttendanceSession.all_objects.filter(
-            class_obj=class_obj,
-        )
+        sessions = AttendanceSession.all_objects.filter(class_obj=class_obj)
         total_sessions = sessions.count()
         completed = sessions.filter(status='completed').count()
 
@@ -547,7 +525,6 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             class_obj=class_obj, is_active=True,
         ).select_related('student')
 
-        # FIX: Batch query student attendance instead of N+1 per student.
         student_ids = list(enrollments.values_list('student_id', flat=True))
         att_stats = (
             SessionAttendance.all_objects.filter(
@@ -607,14 +584,14 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
             'student_attendance': student_attendance,
         })
 
+
 class OICComparisonViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsOIC]
 
     @action(detail=False, methods=['get'])
     def performance(self, request):
-        user = request.user
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(request)
 
         if not assigned_class_ids:
             return Response({'message': 'No classes assigned.', 'classes': []})
@@ -623,8 +600,6 @@ class OICComparisonViewSet(viewsets.ViewSet):
             id__in=assigned_class_ids,
         ).select_related('course', 'instructor')
 
-        # FIX: Batch queries instead of N+1 per class.
-        # Aggregate exam results per class
         results_by_class = (
             ExamResult.all_objects.filter(
                 exam__subject__class_obj_id__in=assigned_class_ids,
@@ -641,7 +616,6 @@ class OICComparisonViewSet(viewsets.ViewSet):
         )
         result_map = {row['exam__subject__class_obj_id']: row for row in results_by_class}
 
-        # Aggregate enrollments per class
         enrollment_by_class = (
             Enrollment.all_objects.filter(
                 class_obj_id__in=assigned_class_ids,
@@ -682,16 +656,11 @@ class OICComparisonViewSet(viewsets.ViewSet):
             })
 
         comparison.sort(key=lambda x: x['average_percentage'], reverse=True)
-
-        return Response({
-            'total_classes': len(comparison),
-            'classes': comparison,
-        })
+        return Response({'total_classes': len(comparison), 'classes': comparison})
 
     @action(detail=False, methods=['get'])
     def attendance(self, request):
-        user = request.user
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(request)
 
         if not assigned_class_ids:
             return Response({'message': 'No classes assigned.', 'classes': []})
@@ -700,30 +669,22 @@ class OICComparisonViewSet(viewsets.ViewSet):
             id__in=assigned_class_ids,
         ).select_related('course')
 
-        # FIX: Batch queries instead of N+1 per class.
         sessions_by_class = (
-            AttendanceSession.all_objects.filter(
-                class_obj_id__in=assigned_class_ids,
-            )
+            AttendanceSession.all_objects.filter(class_obj_id__in=assigned_class_ids)
             .values('class_obj_id')
             .annotate(session_count=Count('id'))
         )
         session_map = {row['class_obj_id']: row['session_count'] for row in sessions_by_class}
 
         enrollment_by_class = (
-            Enrollment.all_objects.filter(
-                class_obj_id__in=assigned_class_ids,
-                is_active=True,
-            )
+            Enrollment.all_objects.filter(class_obj_id__in=assigned_class_ids, is_active=True)
             .values('class_obj_id')
             .annotate(enrolled=Count('id'))
         )
         enrollment_map = {row['class_obj_id']: row['enrolled'] for row in enrollment_by_class}
 
         att_by_class = (
-            SessionAttendance.all_objects.filter(
-                session__class_obj_id__in=assigned_class_ids,
-            )
+            SessionAttendance.all_objects.filter(session__class_obj_id__in=assigned_class_ids)
             .values('session__class_obj_id')
             .annotate(
                 total_records=Count('id'),
@@ -751,11 +712,7 @@ class OICComparisonViewSet(viewsets.ViewSet):
             })
 
         comparison.sort(key=lambda x: x['attendance_rate'], reverse=True)
-
-        return Response({
-            'total_classes': len(comparison),
-            'classes': comparison,
-        })
+        return Response({'total_classes': len(comparison), 'classes': comparison})
 
 class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -767,7 +724,7 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         school = _get_school(user)
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
 
         if not school or not assigned_class_ids:
             return ExamReport.objects.none()
@@ -781,7 +738,6 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def detailed(self, request, pk=None):
-
         report = self.get_object()
 
         enrollments = Enrollment.all_objects.filter(
@@ -804,10 +760,7 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
                 'student_id': str(enrollment.student.id),
                 'name': enrollment.student.get_full_name(),
                 'svc_number': enrollment.student.svc_number,
-                'rank': (
-                    enrollment.student.get_rank_display()
-                    if enrollment.student.rank else None
-                ),
+                'rank': enrollment.student.get_rank_display() if enrollment.student.rank else None,
                 'total_marks': float(total_marks),
                 'total_possible': total_possible,
                 'percentage': percentage,
@@ -835,10 +788,8 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
             },
         })
 
-    # FIX: Removed PUT method — POST alone with update_or_create is idempotent.
     @action(detail=True, methods=['post'])
     def add_remark(self, request, pk=None):
-
         report = self.get_object()
         user = request.user
 
@@ -851,7 +802,6 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = AddRemarkSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         remark_text = serializer.validated_data['remark']
-
         school = _get_school(user)
 
         with transaction.atomic():
@@ -859,12 +809,8 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
                 exam_report=report,
                 author_role='oic',
                 author=user,
-                defaults={
-                    'remark': remark_text,
-                    'school': school,
-                },
+                defaults={'remark': remark_text, 'school': school},
             )
-
             self._notify_instructors(report, remark_obj, user, school)
 
         out_serializer = ExamReportRemarkSerializer(remark_obj)
@@ -891,7 +837,6 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
             f"{author.get_rank_display() + ' ' if author.rank else ''}"
             f"{author.get_full_name()}"
         )
-
         title = f"OIC Remark on: {report.title}"
         content = (
             f"Officer in Charge {author_display} has added a remark on the "
@@ -902,14 +847,10 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
 
         notifications = [
             PersonalNotification(
-                school=school,
-                user_id=uid,
-                notification_type='exam_report_remark',
-                priority='medium',
-                title=title,
-                content=content,
-                created_by=author,
-                is_active=True,
+                school=school, user_id=uid,
+                notification_type='exam_report_remark', priority='medium',
+                title=title, content=content,
+                created_by=author, is_active=True,
             )
             for uid in recipients
         ]
@@ -939,10 +880,7 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(qs, many=True)
-        return Response({
-            'count': qs.count(),
-            'results': serializer.data,
-        })
+        return Response({'count': qs.count(), 'results': serializer.data})
 
 class OICExamResultViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -955,7 +893,7 @@ class OICExamResultViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         school = _get_school(user)
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
 
         if not school or not assigned_class_ids:
             return ExamResult.objects.none()
@@ -976,6 +914,7 @@ class OICExamResultViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 class OICAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
+
     serializer_class = AttendanceSessionListSerializer
     permission_classes = [IsAuthenticated, IsOIC]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -985,7 +924,7 @@ class OICAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         school = _get_school(user)
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
 
         if not school or not assigned_class_ids:
             return AttendanceSession.objects.none()
@@ -1050,38 +989,30 @@ class OICRemarkViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         school = _get_school(user)
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
 
         class_obj = serializer.validated_data.get('class_obj')
         if class_obj and class_obj.id not in assigned_class_ids:
-            raise PermissionDenied(
-                'You are not assigned as OIC for this class.'
-            )
+            raise PermissionDenied('You are not assigned as OIC for this class.')
 
         serializer.save(oic=user, school=school)
 
-    # FIX: Added class assignment validation to perform_update.
-    # Previously, an OIC who was de-assigned from a class could still
-    # PATCH their existing remark on that class.
     def perform_update(self, serializer):
         if serializer.instance.oic != self.request.user:
             raise PermissionDenied('You can only edit your own remarks.')
 
-        assigned_class_ids = _get_oic_class_ids(self.request.user)
+        assigned_class_ids = _get_oic_class_ids(self.request)
         class_obj = serializer.validated_data.get('class_obj', serializer.instance.class_obj)
         if class_obj.id not in assigned_class_ids:
-            raise PermissionDenied(
-                'You are no longer assigned as OIC for this class.'
-            )
+            raise PermissionDenied('You are no longer assigned as OIC for this class.')
 
         serializer.save()
 
     @action(detail=False, methods=['post'])
     def add_remark(self, request):
-
         user = request.user
         school = _get_school(user)
-        assigned_class_ids = _get_oic_class_ids(user)
+        assigned_class_ids = _get_oic_class_ids(request)
 
         serializer = OICRemarkCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1099,17 +1030,12 @@ class OICRemarkViewSet(viewsets.ModelViewSet):
         try:
             class_obj = Class.all_objects.get(id=class_obj_id)
         except Class.DoesNotExist:
-            return Response(
-                {'error': 'Class not found.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         subject = None
         if subject_id:
             try:
-                subject = Subject.all_objects.get(
-                    id=subject_id, class_obj=class_obj,
-                )
+                subject = Subject.all_objects.get(id=subject_id, class_obj=class_obj)
             except Subject.DoesNotExist:
                 return Response(
                     {'error': 'Subject not found in this class.'},
@@ -1121,10 +1047,7 @@ class OICRemarkViewSet(viewsets.ModelViewSet):
                 oic=user,
                 class_obj=class_obj,
                 subject=subject,
-                defaults={
-                    'remark': remark_text,
-                    'school': school,
-                },
+                defaults={'remark': remark_text, 'school': school},
             )
 
         out = OICRemarkSerializer(remark_obj)
