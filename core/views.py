@@ -1548,6 +1548,9 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         else:
             return qs.none()
 
+        if user.role not in ('admin', 'superadmin'):
+            qs = qs.filter(self._target_role_q(user))
+
         return self._annotate_read_status(qs)
 
     def _get_base_queryset_unfiltered(self):
