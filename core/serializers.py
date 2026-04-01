@@ -894,6 +894,9 @@ class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
+    target_role_display = serializers.CharField(
+        source='get_target_role_display', read_only=True,
+    )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)

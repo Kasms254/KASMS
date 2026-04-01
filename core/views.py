@@ -1529,6 +1529,9 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
 
+    def _target_role_q(self, user):
+        return Q(target_role='all') | Q(target_role=user.role)
+
     def get_queryset(self):
         qs = Notice.all_objects.select_related('created_by').filter(
             self._not_expired_q(),

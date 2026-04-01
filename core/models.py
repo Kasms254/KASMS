@@ -650,12 +650,24 @@ class Notice(models.Model):
         ('urgent', 'Urgent'),
     ]
 
+    TARGET_ROLE_CHOICES = [
+        ('all', 'All Users'),
+        ('student', 'Students'),
+        ('instructor', 'Instructors'),
+        ('admin', 'Admins'),
+        ('commandant', 'Commandant'),
+        ('chief_instructor', 'Chief Instructor'),
+    ]
+
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
         related_name='notices', null=True, blank=True,
     )
     priority = models.CharField(
         max_length=10, choices=PRIORITY_CHOICES, default='medium',
+    )
+    target_role = models.CharField(
+        max_length=20, choices=TARGET_ROLE_CHOICES, default='all', help_text='Target audience for this notice.'
     )
     title = models.CharField(max_length=200)
     content = models.TextField()
