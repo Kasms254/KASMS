@@ -28,6 +28,7 @@ const Courses = lazy(() => import('./dashboard/admin/Courses'))
 const CourseDetail = lazy(() => import('./dashboard/admin/CourseDetail'))
 const Classes = lazy(() => import('./dashboard/admin/Classes'))
 const AdminStudents = lazy(() => import('./dashboard/admin/AdminStudents'))
+const AdminLeadershipUsers = lazy(() => import('./dashboard/admin/AdminLeadershipUsers'))
 const ClassDetail = lazy(() => import('./dashboard/instructors/ClassDetail'))
 const AdminInstructors = lazy(() => import('./dashboard/admin/AdminInstructors'))
 const SubjectsPage = lazy(() => import('./dashboard/admin/SubjectsPage'))
@@ -190,6 +191,10 @@ const App = () => {
 
 			<Route path="/list/instructors" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AdminInstructors />} />
+			</Route>
+
+			<Route path="/list/leadership-users" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<AdminLeadershipUsers />} />
 			</Route>
 
 			{/* Classes list (active classes) */}

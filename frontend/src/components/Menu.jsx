@@ -66,6 +66,12 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'Users2',
+        label: 'Admins & Leadership',
+        href: '/list/leadership-users',
+        visible: ['admin'],
+      },
+      {
         icon: 'UserCheck',
         label: 'OIC Assignments',
         href: '/list/oic-assignments',

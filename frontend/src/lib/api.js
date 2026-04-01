@@ -1086,8 +1086,9 @@ export async function withdrawEnrollment(enrollmentId) {
   return request(`/api/enrollments/${enrollmentId}/withdraw/`, { method: 'POST' })
 }
 
-export async function getUsers() {
-  return request('/api/users/')
+export async function getUsers(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/${qs}`)
 }
 
 export async function getUserStats() {
