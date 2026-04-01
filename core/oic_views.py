@@ -496,6 +496,7 @@ class OICClassViewSet(viewsets.ReadOnlyModelViewSet):
                 'student_id': str(enrollment.student.id),
                 'student_name': enrollment.student.get_full_name(),
                 'svc_number': enrollment.student.svc_number,
+                'rank': enrollment.student.rank,
                 'sessions_attended': present + late,
                 'present': present,
                 'late': late,
