@@ -125,10 +125,8 @@ oic_router.register(r'exam-results',   OICExamResultViewSet,   basename='oic-exa
 oic_router.register(r'attendance',     OICAttendanceViewSet,   basename='oic-attendance')
 oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-remarks')
 
-
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
-
 
 urlpatterns = [
     path('', include(router.urls)),
