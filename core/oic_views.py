@@ -43,32 +43,30 @@ def _get_school(user):
     return user.school
 
 
-def _get_oic_class_ids(request_or_user):
-
-    if hasattr(request_or_user, 'user'):
-        request = request_or_user
-        user = request.user
-    else:
-        request = None
-        user = request_or_user
+def _get_oic_class_ids(request=None, user=None):
 
     if request is not None:
         cached = getattr(request, '_oic_class_ids', None)
         if cached is not None:
             return cached
-
-    school = _get_school(user)
+        resolved_user = request.user
+    elif user is not None:
+        resolved_user = user
+    else:
+        return []
+ 
+    school = _get_school(resolved_user)
     qs = OICAssignment.all_objects.filter(
-        oic=user,
+        oic=resolved_user,
         is_active=True,
     )
     if school:
         qs = qs.filter(school=school)
     result = list(qs.values_list('class_obj_id', flat=True))
-
+ 
     if request is not None:
         request._oic_class_ids = result
-
+ 
     return result
 
 class OICAssignmentViewSet(viewsets.ModelViewSet):
@@ -212,7 +210,7 @@ class OICDashboardViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        assigned_class_ids = _get_oic_class_ids(request)
+        assigned_class_ids = _get_oic_class_ids(request=request)
 
         if not assigned_class_ids:
             return Response({
@@ -286,9 +284,11 @@ class OICDashboardViewSet(viewsets.ViewSet):
         exam_reports = ExamReport.all_objects.filter(
             class_obj_id__in=assigned_class_ids,
         )
+        already_remarked_ids = ExamReportRemark.all_objects.filter(
+            author_role='oic',
+            author=user,).values_list('exam_report_id', flat=True)
         reports_without_remark = exam_reports.exclude(
-            remarks__author_role='oic',
-            remarks__author=user,
+            id__in=already_remarked_ids, 
         ).count()
 
         my_remarks_count = OICRemark.all_objects.filter(
@@ -591,7 +591,7 @@ class OICComparisonViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def performance(self, request):
-        assigned_class_ids = _get_oic_class_ids(request)
+        assigned_class_ids = _get_oic_class_ids(request=request)
 
         if not assigned_class_ids:
             return Response({'message': 'No classes assigned.', 'classes': []})
@@ -660,7 +660,7 @@ class OICComparisonViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def attendance(self, request):
-        assigned_class_ids = _get_oic_class_ids(request)
+        assigned_class_ids = _get_oic_class_ids(request=request)
 
         if not assigned_class_ids:
             return Response({'message': 'No classes assigned.', 'classes': []})
@@ -869,18 +869,24 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def pending_remarks(self, request):
         user = request.user
-        qs = self.get_queryset().exclude(
-            remarks__author_role='oic',
-            remarks__author=user,
-        )
-
+ 
+        already_remarked_ids = ExamReportRemark.all_objects.filter(
+            author_role='oic',
+            author=user,
+        ).values_list('exam_report_id', flat=True)
+ 
+        qs = self.get_queryset().exclude(id__in=already_remarked_ids)
+ 
         page = self.paginate_queryset(qs)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-
+ 
         serializer = self.get_serializer(qs, many=True)
-        return Response({'count': qs.count(), 'results': serializer.data})
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
 
 class OICExamResultViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -1001,10 +1007,13 @@ class OICRemarkViewSet(viewsets.ModelViewSet):
         if serializer.instance.oic != self.request.user:
             raise PermissionDenied('You can only edit your own remarks.')
 
-        assigned_class_ids = _get_oic_class_ids(self.request)
-        class_obj = serializer.validated_data.get('class_obj', serializer.instance.class_obj)
-        if class_obj.id not in assigned_class_ids:
-            raise PermissionDenied('You are no longer assigned as OIC for this class.')
+        class_obj = serializer.validated_data.get('class_obj')
+        if class_obj:
+            assigned_class_ids = _get_oic_class_ids(request=self.request)
+            if class_obj.id not in assigned_class_ids:
+                raise PermissionDenied(
+                    'You are not assigned as OIC for this class.'
+                )
 
         serializer.save()
 

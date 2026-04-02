@@ -114,6 +114,7 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+router.register(r'oic-assignments', OICAssignmentViewSet, basename='oic-assignment')
 oic_router = DefaultRouter()
 oic_router.register(r'assignments',    OICAssignmentViewSet,   basename='oic-assignment')
 oic_router.register(r'overview',       OICDashboardViewSet,    basename='oic-dashboard')

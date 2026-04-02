@@ -1753,8 +1753,7 @@ class OICAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
-        related_name='oic_assignments',
-        null=True, blank=True,
+        related_name='oic_assignments'
     )
     oic = models.ForeignKey(
         User, on_delete=models.CASCADE,
@@ -1837,7 +1836,7 @@ class OICRemark(models.Model):
         help_text='If null, this is an overall class remark.',
     )
     remark_type = models.CharField(
-        max_length=10,
+        max_length=50,
         choices=REMARK_TYPE_CHOICES,
         default='class',
     )

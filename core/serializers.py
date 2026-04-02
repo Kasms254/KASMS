@@ -2448,8 +2448,12 @@ class OICRemarkSerializer(OICRemarkValidationMixin, serializers.ModelSerializer)
         return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
 
     def validate(self, attrs):
-        class_obj = attrs.get('class_obj')
-        subject = attrs.get('subject')
+        class_obj = attrs.get('class_obj') or (
+            self.instance.class_obj if self.instance else None
+        )
+        subject = attrs.get('subject') or (
+            self.instance.subject if self.instance else None
+        )
         if subject and class_obj and subject.class_obj_id != class_obj.id:
             raise serializers.ValidationError({
                 'subject': 'This subject does not belong to the specified class.'
@@ -2476,18 +2480,15 @@ class OICRemarkCreateSerializer(OICRemarkValidationMixin, serializers.Serializer
 
     def validate(self, attrs):
 
-        class_obj_id = attrs.get('class_obj')
         subject_id = attrs.get('subject')
-
+        class_obj_id = attrs.get('class_obj')
         if subject_id and class_obj_id:
-            from .models import Subject as SubjectModel
-            if not SubjectModel.all_objects.filter(
+            if not Subject.all_objects.filter(
                 id=subject_id, class_obj_id=class_obj_id,
             ).exists():
                 raise serializers.ValidationError({
                     'subject': 'This subject does not belong to the specified class.'
                 })
-
         return attrs
 
 class OICDashboardClassSerializer(serializers.ModelSerializer):
