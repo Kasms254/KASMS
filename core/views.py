@@ -1516,7 +1516,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'priority', 'target_role']
+    filterset_fields = ['is_active', 'priority', 'target_role', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'title', 'priority']
     ordering = ['-created_at']
@@ -2443,7 +2443,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = ClassNotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject']
+    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'priority']
     ordering = ['-created_at']
@@ -3053,10 +3053,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ) [:10]
 
         general_notices = Notice.objects.filter(
-            is_active=True
+                is_active = True
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
-        ).select_related('created_by').order_by('-created_at')[:5]
+                Q(target_role='all') | Q(target_role='student')
+        ).filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')
 
         personal_notifications = PersonalNotification.objects.filter(
             user=user,
@@ -3278,6 +3280,8 @@ class StudentDashboardViewset(viewsets.ViewSet):
             general_notices = Notice.objects.filter(
                 is_active = True
             ).filter(
+                Q(target_role='all') | Q(target_role='student')
+            ).filter(
                 Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
             ).select_related('created_by').order_by('-created_at')
 
@@ -3305,11 +3309,10 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             elif request.user.role  == "instructor":
                 notices = Notice.objects.filter(
-                    Q(created_by = request.user) | Q(created_by__isnull=True),
                     is_active=True
-                )
+                ).filter(target_q)
             else:
-                notices = Notice.objects.filter(is_active=True)
+                notices = Notice.objects.filter(is_active=True).filter(target_q)
 
             notices = notices.filter(
                 Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.now())
