@@ -899,6 +899,8 @@ class NoticeSerializer(serializers.ModelSerializer):
     )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
     created_by_role = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
@@ -915,6 +917,12 @@ class NoticeSerializer(serializers.ModelSerializer):
     def get_created_by_role(self, obj):
         return obj.created_by.role if obj.created_by else None
 
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+    
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
 
@@ -1160,6 +1168,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
@@ -1174,6 +1185,15 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+ 
+    def get_created_by_role(self, obj):
+        return obj.created_by.role if obj.created_by else None
+ 
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
 
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
