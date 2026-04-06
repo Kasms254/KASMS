@@ -742,14 +742,24 @@ class ClassListSerializer(serializers.ModelSerializer):
     instructor_name = serializers.SerializerMethodField(read_only=True)
     current_enrollment = serializers.IntegerField(read_only=True)
     enrollment_status = serializers.CharField(read_only=True)
+    instructor_rank = serializers.SerializerMethodField(read_only=True)
+    instructor_svc_number=serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Class
-        fields = ['id', 'name', 'course', 'course_name', 'instructor', 'instructor_name', 
+        fields = ['id', 'name', 'course', 'course_name', 'instructor', 'instructor_name', 'instructor_rank', 'instructor_svc_number',
                   'start_date', 'end_date', 'capacity', 'current_enrollment', 'enrollment_status', 'is_active', 'class_code']
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
+
+    def get_instructor_rank(self, obj):
+        if obj.instructor and obj.instructor.rank:
+            return obj.instructor.get_rank_display()
+        return None
+    
+    def get_instructor_svc_number(self, obj):
+        return obj.instructor.svc_number if obj.instructor else None
 
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)

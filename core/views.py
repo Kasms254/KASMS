@@ -953,7 +953,6 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
-        """Get all classes for a course."""
         course = self.get_object()
         classes_qs = course.classes.filter(is_active=True)
         serializer = ClassSerializer(classes_qs, many=True)
@@ -1100,7 +1099,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-    
     # instructor specific classes
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
     def my_classes(self, request):
@@ -1166,7 +1164,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class': ClassSerializer(class_obj).data
         })
 
-    
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdmin])
     def completion_status(self, request, pk=None):
 
@@ -1187,7 +1184,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'students': results
         })
         
-
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def issue_certificates(self, request, pk=None):
         class_obj = self.get_object()
@@ -5124,7 +5120,6 @@ class EnrollmentCertificateView(APIView):
                 certificate, context={'request': request},
             ).data,
         }, status=status.HTTP_201_CREATED)
-
 
 # student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
