@@ -343,7 +343,7 @@ CELERY_TIMEZONE = 'Africa/Nairobi'
 CELERY_BEAT_SCHEDULE = {
     'sync-biometric-devices': {
         'task': 'core.tasks.sync_all_devices', 
-        'schedule': 30.0,
+        'schedule': 300.0,
     },
     'process-pending-biometric-records':{
         'task': 'core.tasks.process_pending_records',

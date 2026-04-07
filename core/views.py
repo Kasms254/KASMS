@@ -4141,7 +4141,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 scan_time = parser.parse(record['scan_time'])
 
 
-                student = User.objects.filter(
+                student = User.all_objects.filter(
                     svc_number=record['biometric_id'],
                     role='student',
                     is_active=True,
@@ -5715,7 +5715,13 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     def auto_map_users(self, request, pk=None):
         device = self.get_object()
         service = ZKTecoSyncService(device)
-        device_users =service.fetch_device_users()
+        device_users = service.fetch_device_users()
+
+        if device_users is None or (isinstance(device_users, list) and len(device_users) == 0):
+            return Response({
+                'status': 'error',
+                'message': 'Unable to fetch device users. Ensure the device is reachable and users are registered.',
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         mapped = 0
         unmapped = []
