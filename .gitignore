@@ -56,3 +56,8 @@ core/migrations/0001_initial.py
 core/migrations/0002_biometricdevice_certificatetemplate_department_and_more.py
 0002_biometricdevice_certificatetemplate_department_and_more.py
 celerybeat-schedule.*
+celerybeat-schedule.dir
+celerybeat-schedule.dat
+celerybeat-schedule.bak
+find_old_references.sh
+fix_all.py
