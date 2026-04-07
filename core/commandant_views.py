@@ -735,7 +735,7 @@ class CommandantEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
             school=school
         ).select_related('student', 'class_obj')
 
-class CommandantNoticeViewSet(viewsets.ReadOnlyModelViewSet):
+class CommandantNoticeViewSet(viewsets.ModelViewSet):
 
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
@@ -750,6 +750,51 @@ class CommandantNoticeViewSet(viewsets.ReadOnlyModelViewSet):
         if not school:
             return Notice.objects.none()
         return Notice.all_objects.filter(school=school)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        school = _get_school(user)
+        serializer.save(school=school, created_by=user)
+
+    def perform_update(self, serializer):
+        notice = self.get_object()
+        if notice.created_by != self.request.user and self.request.user.role not in ('admin', 'superadmin'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only edit notices you created.')
+        serializer.save()
+
+    
+    def perform_destroy(self, instance):
+        if instance.created_by != self.request.user and self.request.user.role not in ('admin', 'superadmin'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only delete notices you created')
+        instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def my_created(self, request):
+        qs = self.get_queryset().filter(created_by=request.user)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+    @action(detail=False, methods=['get'])
+    def by_target(self, request):
+        target = request.query_params.get('target_role')
+        if not target:
+            return Response({
+                'error': 'target_role parameter is required'
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = self.get_queryset().filter(target_role=target, is_active=True)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+
 
 
 

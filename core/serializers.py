@@ -9,7 +9,10 @@ import uuid
 from django.utils import timezone
 from django.db import transaction
 from datetime import date as _date, datetime as _datetime
-
+from rest_framework import serializers
+from .models import (
+    OICAssignment, OICRemark, Class, Subject, User,
+)
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -891,8 +894,14 @@ class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
-    expiry_date = SafeDateTimeField(required=False, allow_null=True)
+    target_role_display = serializers.CharField(
+        source='get_target_role_display', read_only=True,
+    )
+    expiry_date = serializers.DateField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
     read_at = serializers.SerializerMethodField()
@@ -905,6 +914,15 @@ class NoticeSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
 
+    def get_created_by_role(self, obj):
+        return obj.created_by.role if obj.created_by else None
+
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+    
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
 
@@ -1150,6 +1168,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
@@ -1164,6 +1185,15 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+ 
+    def get_created_by_role(self, obj):
+        return obj.created_by.role if obj.created_by else None
+ 
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
 
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
@@ -2290,6 +2320,7 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
     )
     commandant_remark = serializers.SerializerMethodField(read_only=True)
     chief_instructor_remark = serializers.SerializerMethodField(read_only=True)
+    oic_remark = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = ExamReport
@@ -2299,8 +2330,12 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_name', 'created_by_rank', 'created_by_svc_number', 'exams_count', 'exam_ids',
             'total_students', 'average_performance',
             'remarks_list', 'commandant_remark', 'chief_instructor_remark',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at','oic_remark',
         ]
+
+    def get_oic_remark(self, obj):
+        remark = obj.remarks.filter(author_role='oic').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
@@ -2315,3 +2350,190 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
     def get_chief_instructor_remark(self, obj):
         remark = obj.remarks.filter(author_role='chief_instructor').first()
         return ExamReportRemarkSerializer(remark).data if remark else None
+
+class OICAssignmentSerializer(serializers.ModelSerializer):
+
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    assigned_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = OICAssignment
+        fields = [
+            'id', 'school', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name', 'course_name',
+            'assigned_by', 'assigned_by_name',
+            'is_active', 'notes', 'assigned_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'assigned_by', 'assigned_at', 'updated_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+    def get_assigned_by_name(self, obj):
+        return obj.assigned_by.get_full_name() if obj.assigned_by else None
+
+    def validate(self, attrs):
+
+        oic_user = attrs.get('oic')
+        class_obj = attrs.get('class_obj')
+
+        if oic_user and oic_user.role != 'oic':
+            raise serializers.ValidationError({
+                'oic': 'The selected user does not have the OIC role.'
+            })
+
+        if class_obj and oic_user:
+            existing = OICAssignment.all_objects.filter(
+                oic=oic_user,
+                class_obj=class_obj,
+                is_active=True,
+            )
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError(
+                    'This OIC is already actively assigned to this class.'
+                )
+
+        return attrs
+
+class OICAssignmentListSerializer(serializers.ModelSerializer):
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    department_name = serializers.CharField(
+        source='class_obj.department.name', read_only=True, default=None
+    )
+
+    class Meta:
+        model = OICAssignment
+        fields = [
+            'id', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name', 'course_name', 'department_name',
+            'is_active', 'assigned_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+class OICRemarkSerializer(serializers.ModelSerializer):
+
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(
+        source='subject.name', read_only=True, default=None
+    )
+    remark_type_display = serializers.CharField(
+        source='get_remark_type_display', read_only=True
+    )
+
+    class Meta:
+        model = OICRemark
+        fields = [
+            'id', 'school', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name',
+            'subject', 'subject_name',
+            'remark_type', 'remark_type_display',
+            'remark',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'oic', 'remark_type',
+            'created_at', 'updated_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                'Remark must be at least 10 characters long.'
+            )
+        return cleaned
+
+    def validate(self, attrs):
+        class_obj = attrs.get('class_obj')
+        subject = attrs.get('subject')
+        if subject and class_obj and subject.class_obj_id != class_obj.id:
+            raise serializers.ValidationError({
+                'subject': 'This subject does not belong to the specified class.'
+            })
+        return attrs
+
+class OICRemarkCreateSerializer(serializers.Serializer):
+
+    class_obj = serializers.UUIDField(
+        help_text='UUID of the class to add a remark on.'
+    )
+    subject = serializers.UUIDField(
+        required=False, allow_null=True,
+        help_text='UUID of the subject (omit for overall class remark).'
+    )
+    remark = serializers.CharField(
+        max_length=5000,
+        trim_whitespace=True,
+        error_messages={
+            'blank': 'Remark cannot be empty.',
+            'required': 'Remark text is required.',
+        },
+    )
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                'Remark must be at least 10 characters long.'
+            )
+        return cleaned
+
+class OICDashboardClassSerializer(serializers.ModelSerializer):
+
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    course_code = serializers.CharField(source='course.code', read_only=True)
+    instructor_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(
+        source='department.name', read_only=True, default=None
+    )
+    current_enrollment = serializers.IntegerField(read_only=True)
+    enrollment_status = serializers.CharField(read_only=True)
+    subject_count = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Class
+        fields = [
+            'id', 'name', 'class_code',
+            'course', 'course_name', 'course_code',
+            'instructor', 'instructor_name',
+            'department', 'department_name',
+            'start_date', 'end_date', 'capacity',
+            'current_enrollment', 'enrollment_status',
+            'is_active', 'is_closed',
+            'subject_count',
+        ]
+
+    def get_instructor_name(self, obj):
+        return obj.instructor.get_full_name() if obj.instructor else None
+
+    def get_subject_count(self, obj):
+        return obj.subjects.filter(is_active=True).count()

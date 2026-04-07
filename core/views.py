@@ -1393,7 +1393,7 @@ class NoticeActionMixin:
     read_status_fk_name = None
 
     def _not_expired_q(self):
-        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.localdate())
 
     def _annotate_read_status(self, qs):
         """Annotate queryset with the current user's read_at timestamp."""
@@ -1428,7 +1428,7 @@ class NoticeActionMixin:
             )
         qs = self._annotate_read_status(
             self._get_base_queryset_unfiltered().filter(
-                expiry_date__lt=timezone.now(),
+                expiry_date__lt=timezone.localdate(),
             ).order_by('-created_at')
         )
         serializer = self.get_serializer(qs, many=True)
@@ -1516,7 +1516,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'priority']
+    filterset_fields = ['is_active', 'priority', 'target_role', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'title', 'priority']
     ordering = ['-created_at']
@@ -1528,6 +1528,9 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
+
+    def _target_role_q(self, user):
+        return Q(target_role='all') | Q(target_role=user.role)
 
     def get_queryset(self):
         qs = Notice.all_objects.select_related('created_by').filter(
@@ -1544,6 +1547,9 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             qs = qs.filter(school=user.school)
         else:
             return qs.none()
+
+        if user.role not in ('admin', 'superadmin'):
+            qs = qs.filter(self._target_role_q(user))
 
         return self._annotate_read_status(qs)
 
@@ -2437,7 +2443,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = ClassNotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject']
+    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'priority']
     ordering = ['-created_at']
@@ -3047,10 +3053,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ) [:10]
 
         general_notices = Notice.objects.filter(
-            is_active=True
+                is_active = True
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
-        ).select_related('created_by').order_by('-created_at')[:5]
+                Q(target_role='all') | Q(target_role='student')
+        ).filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')
 
         personal_notifications = PersonalNotification.objects.filter(
             user=user,
@@ -3240,6 +3248,11 @@ class StudentDashboardViewset(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def my_notices(self, request):
 
+        today = timezone.now()
+        user = request.user
+
+        target_q = Q(target_role='all') | Q(target_role=user.role)
+
         if request.user.role == 'student':
                 
             enrolled_class_ids = Enrollment.objects.filter(
@@ -3266,6 +3279,8 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             general_notices = Notice.objects.filter(
                 is_active = True
+            ).filter(
+                Q(target_role='all') | Q(target_role='student')
             ).filter(
                 Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
             ).select_related('created_by').order_by('-created_at')
@@ -3294,14 +3309,13 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             elif request.user.role  == "instructor":
                 notices = Notice.objects.filter(
-                    Q(created_by = request.user) | Q(created_by__isnull=True),
                     is_active=True
-                )
+                ).filter(target_q)
             else:
-                notices = Notice.objects.filter(is_active=True)
+                notices = Notice.objects.filter(is_active=True).filter(target_q)
 
             notices = notices.filter(
-                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.now())
+                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.localdate())
 
             ).select_related('created_by').order_by('-created_at')
 

@@ -133,7 +133,7 @@ export default function Notices() {
         }
 
         // Use paginated API with page parameter and server-side filters
-        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage })
+        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage, created_by__role: 'admin' })
         if (searchTerm.trim()) params.append('search', searchTerm.trim())
         if (filterPriority) params.append('priority', filterPriority)
         if (filterStatus) params.append('is_active', filterStatus)

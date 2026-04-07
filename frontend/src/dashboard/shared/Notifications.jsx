@@ -305,15 +305,6 @@ export default function Notifications() {
 
       const role = (user && user.role) || (user && user.is_staff ? 'admin' : null) || 'student'
 
-      // Admins don't receive notifications - they create them
-      if (role === 'admin') {
-        if (mounted) {
-          setItems([])
-          setLoading(false)
-        }
-        return
-      }
-
       setLoading(true)
       try {
         let notices = []
@@ -321,7 +312,10 @@ export default function Notifications() {
         let schedule = []
         let personalNotifications = []
         // load data depending on role
-        if (role === 'instructor') {
+        if (role === 'admin' || role === 'superadmin') {
+          // admins only see global notices targeted at them or all users
+          // (no class notices or exams for admins)
+        } else if (role === 'instructor') {
           const n = await api.getMyClassNotices().catch(() => [])
           notices = Array.isArray(n) ? n : (n && Array.isArray(n.results) ? n.results : [])
           const e = await api.getMyExams().catch(() => [])
@@ -341,14 +335,19 @@ export default function Notifications() {
           personalNotifications = pn && Array.isArray(pn.results) ? pn.results : (Array.isArray(pn) ? pn : [])
         }
 
-        // normalize notices
-        // also include global active/urgent notices so instructors/students see site-wide notices
+        // also include global active/urgent notices
         try {
           const [urgentResp, activeResp] = await Promise.allSettled([api.getUrgentNotices(), api.getActiveNotices()])
           const urgent = urgentResp.status === 'fulfilled' ? (Array.isArray(urgentResp.value) ? urgentResp.value : (urgentResp.value && Array.isArray(urgentResp.value.results) ? urgentResp.value.results : [])) : []
           const active = activeResp.status === 'fulfilled' ? (Array.isArray(activeResp.value) ? activeResp.value : (activeResp.value && Array.isArray(activeResp.value.results) ? activeResp.value.results : [])) : []
+          let globalNotices = [...active, ...urgent]
+          // For admins the backend returns all notices regardless of target_role,
+          // so filter client-side to only notices meant for them
+          if (role === 'admin' || role === 'superadmin') {
+            globalNotices = globalNotices.filter(n => !n.target_role || n.target_role === 'all' || n.target_role === role)
+          }
           // prepend active & urgent so they appear first
-          notices = [...active, ...urgent, ...notices]
+          notices = [...globalNotices, ...notices]
         } catch {
           // ignore fetch issues
         }
@@ -633,14 +632,10 @@ export default function Notifications() {
                       <div className="text-xs text-neutral-500 flex items-center gap-2">
                         <Icons.User className="w-3 h-3" />
                         <span>Posted by: {(() => {
-                          const creator = selected.meta?.created_by
                           const parts = []
-                          if (creator?.service_number) parts.push(creator.service_number)
-                          if (creator?.rank) parts.push(creator.rank)
-                          if (creator?.name || creator?.username) parts.push(creator.name || creator.username)
-
-                          if (parts.length > 0) return parts.join(' ')
-                          return selected.meta?.created_by_name || 'Unknown'
+                          if (selected.meta?.created_by_rank) parts.push(selected.meta.created_by_rank)
+                          if (selected.meta?.created_by_name) parts.push(selected.meta.created_by_name)
+                          return parts.length > 0 ? parts.join(' ') : 'Unknown'
                         })()}</span>
                       </div>
                     </div>
