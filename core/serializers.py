@@ -897,7 +897,7 @@ class NoticeSerializer(serializers.ModelSerializer):
     target_role_display = serializers.CharField(
         source='get_target_role_display', read_only=True,
     )
-    expiry_date = SafeDateTimeField(required=False, allow_null=True)
+    expiry_date = serializers.DateField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     created_by_rank = serializers.SerializerMethodField(read_only=True)
     created_by_svc_number = serializers.SerializerMethodField(read_only=True)

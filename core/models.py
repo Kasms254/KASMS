@@ -676,7 +676,7 @@ class Notice(models.Model):
         null=True, blank=True, related_name='notices_created',
     )
     is_active = models.BooleanField(default=True)
-    expiry_date = models.DateTimeField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -692,10 +692,8 @@ class Notice(models.Model):
 
     def save(self, *args, **kwargs):
         if self.expiry_date:
-            expiry = self.expiry_date
-            if isinstance(expiry, date) and not isinstance(expiry, datetime):
-                expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
-            if expiry < timezone.now():
+            expiry_date = self.expiry_date.date() if isinstance(self.expiry_date, datetime) else self.expiry_date
+            if expiry_date < timezone.localdate():
                 self.is_active = False
         super().save(*args, **kwargs)
 
@@ -703,10 +701,8 @@ class Notice(models.Model):
     def is_expired(self):
         if not self.expiry_date:
             return False
-        expiry = self.expiry_date
-        if isinstance(expiry, date) and not isinstance(expiry, datetime):
-            expiry = timezone.make_aware(datetime.combine(expiry, datetime.min.time()))
-        return expiry < timezone.now()
+        expiry_date = self.expiry_date.date() if isinstance(self.expiry_date, datetime) else self.expiry_date
+        return expiry_date < timezone.localdate()
 
 class Enrollment(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='enrollments', null=True, blank=True)

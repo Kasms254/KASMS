@@ -1393,7 +1393,7 @@ class NoticeActionMixin:
     read_status_fk_name = None
 
     def _not_expired_q(self):
-        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.localdate())
 
     def _annotate_read_status(self, qs):
         """Annotate queryset with the current user's read_at timestamp."""
@@ -1428,7 +1428,7 @@ class NoticeActionMixin:
             )
         qs = self._annotate_read_status(
             self._get_base_queryset_unfiltered().filter(
-                expiry_date__lt=timezone.now(),
+                expiry_date__lt=timezone.localdate(),
             ).order_by('-created_at')
         )
         serializer = self.get_serializer(qs, many=True)
@@ -3315,7 +3315,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                 notices = Notice.objects.filter(is_active=True).filter(target_q)
 
             notices = notices.filter(
-                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.now())
+                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.localdate())
 
             ).select_related('created_by').order_by('-created_at')
 
