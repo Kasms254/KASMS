@@ -499,6 +499,22 @@ class User(AbstractUser):
         if self.active_role != 'student':
             return True
         return Enrollment.all_objects.filter(student=self, is_active=True).exists()
+
+    ROLE_TO_MEMBERSHIP_ROLE = {
+        'superadmin': 'admin',
+        'admin': 'admin',
+        'instructor': 'instructor',
+        'student': 'student',
+        'commandant': 'commandant',
+        'chief_instructor': 'chief instructor',
+        'oic': 'oic',
+    }
+
+    def sync_memberships_role(self):
+        membership_role = self.ROLE_TO_MEMBERSHIP_ROLE.get(self.role, self.role)
+        self.school_memberships.filter(status=SchoolMembership.Status.ACTIVE).update(
+            role=membership_role
+        )
     
 class Profile(models.Model):
     user = models.OneToOneField(

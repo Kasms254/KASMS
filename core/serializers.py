@@ -462,14 +462,14 @@ class UserSerializer(serializers.ModelSerializer):
         if existing_user:
             user = existing_user
             for attr, value in validated_data.items():
-                if attr not in ('username',):  # Don't overwrite username
+                if attr not in ('username',):  
                     setattr(user, attr, value)
             user.set_password(password)
             user.must_change_password = True
             user.is_active = True
             user.save()
+            user.sync_memberships_role()
         else:
-            # Brand new user
             user = User(**validated_data)
             user.set_password(password)
             user.must_change_password = True
@@ -483,10 +483,11 @@ class UserSerializer(serializers.ModelSerializer):
                 status=SchoolMembership.Status.ACTIVE,
             ).first()
             if not existing_membership:
+                membership_role = User.ROLE_TO_MEMBERSHIP_ROLE.get(user.role, user.role)
                 membership = SchoolMembership.objects.create(
                     user=user,
                     school=school,
-                    role=user.role,
+                    role=membership_role,
                     status=SchoolMembership.Status.ACTIVE,
                 )
             else:
@@ -509,7 +510,17 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('password', None)
         validated_data.pop('password2', None)
         validated_data.pop('class_obj', None)
-        return super().update(instance, validated_data)
+
+        role_changed = 'role' in validated_data and validated_data['role'] != instance.role
+        new_role = validated_data.get('role')
+
+        user = super().update(instance, validated_data)
+
+        if role_changed:
+            user.role = new_role 
+            user.sync_memberships_role()
+
+        return user
 
 class UserListSerializer(serializers.ModelSerializer):
     school_name = serializers.SerializerMethodField()
