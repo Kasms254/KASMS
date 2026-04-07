@@ -4091,7 +4091,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
 
     serializer_class = BiometricRecordSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-    filterset_fields =['device_id', 'device_type', 'student', 'session', 'processed']
+    filterset_fields = ['device_id', 'device_type', 'student', 'session', 'processed']
     search_fields = ['student__first_name', 'student__last_name', 'biometric_id']
     ordering = ['-scan_time']
 
@@ -4122,70 +4122,96 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
         device_type = serializer.validated_data['device_type']
         records = serializer.validated_data['records']
 
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
+
+        if school is None:
+            return Response(
+                {'detail': 'Unable to determine school for the requesting user.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         created_count = 0
         processed_count = 0
         errors = []
 
         for record in records:
             try:
-
                 scan_time = parser.parse(record['scan_time'])
+
 
                 student = User.objects.filter(
                     svc_number=record['biometric_id'],
                     role='student',
-                    is_active=True
+                    is_active=True,
+                    school=school,
                 ).first()
 
                 if not student:
-                    errors.append(f"Student not found for biometric ID: {record['biometric_id']}")
+                    errors.append(
+                        f"Student not found for biometric ID: {record['biometric_id']}"
+                    )
                     continue
-                biometric_record, created = BiometricRecord.objects.get_or_create(
-                    device_id = device_id,
-                    biometric_id = record['biometric_id'],
-                    scan_time = scan_time,
-                    defaults = {
+
+
+                biometric_record, created = BiometricRecord.all_objects.get_or_create(
+                    device_id=device_id,
+                    biometric_id=record['biometric_id'],
+                    scan_time=scan_time,
+                    school=school,
+                    defaults={
                         'device_type': device_type,
                         'student': student,
                         'verification_type': record.get('verification_type', ''),
-                        'verification_score':record.get('verification_score'),
-                        'raw_data': record
-                    }
+                        'verification_score': record.get('verification_score'),
+                        'raw_data': record,
+                    },
                 )
 
                 if created:
-                    created_count +=1
+                    created_count += 1
 
+                if not biometric_record.processed:
                     attendance = biometric_record.process_to_attendance()
                     if attendance:
-                        processed_count +=1
+                        processed_count += 1
+
             except Exception as e:
-                errors.append(f"Error processing record for {record.get('biometric_id')}: {str(e)}")
-        
+                errors.append(
+                    f"Error processing record for {record.get('biometric_id')}: {str(e)}"
+                )
+
         return Response({
             'status': 'success',
             'created': created_count,
             'processed': processed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['post'])
     def process_pending(self, request):
-        pending_records = BiometricRecord.objects.filter(
-            processed = False
-        ).select_related('student')
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
 
-        processed_count =0 
+        pending_qs = BiometricRecord.all_objects.filter(processed=False)
+        if school:
+            pending_qs = pending_qs.filter(school=school)
+
+        pending_records = pending_qs.select_related('student')
+
+        processed_count = 0
         failed_count = 0
         errors = []
 
         for record in pending_records:
             try:
-                attendance  =record.process_to_attendance()
+                attendance = record.process_to_attendance()
                 if attendance:
-                    processed_count +=1
+                    processed_count += 1
                 else:
-                    failed_count +=1
+                    failed_count += 1
                     if record.error_message:
                         errors.append(f"Record {record.id}: {record.error_message}")
             except Exception as e:
@@ -4193,24 +4219,21 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 errors.append(f"Record {record.id}: {str(e)}")
 
         return Response({
-            'status':'success',
-            'processed':processed_count,
+            'status': 'success',
+            'processed': processed_count,
             'failed': failed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['get'])
     def unprocessed(self, request):
         unprocessed = self.get_queryset().filter(processed=False)
         serializer = self.get_serializer(unprocessed, many=True)
-
-        return Response(
-            {
-                'count':unprocessed.count(),
-                'records':serializer.data
-            }
-        )
-
+        return Response({
+            'count': unprocessed.count(),
+            'records': serializer.data
+        })
+    
 class AttendanceReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5639,9 +5662,17 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
 
     queryset = BiometricDevice.objects.all()
     serializer_class = BiometricDeviceSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
     filterset_fields = ['status', 'is_active']
     search_fields = ['name', 'ip_address', 'serial_number']
+
+    INSTRUCTOR_ALLOWED_ACTIONS = {'trigger_sync', 'sync_now', 'sync_clock', 'device_users'}
+
+
+    def get_permissions(self):
+        if self.action in self.INSTRUCTOR_ALLOWED_ACTIONS or self.action in ('list', 'retrieve'):
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+  
+        return [IsAuthenticated(), IsAdmin()]
 
     @action(detail=True, methods=['post'])
     def trigger_sync(self, request, pk=None):

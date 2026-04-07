@@ -46,3 +46,9 @@ debug_jass_jwt.py
 
 tests.py
 
+file.sql
+dump.sql
+kasms_db.sql
+kasms_db_2026-03-18_02-00-01 (1).dump
+
+core/migrations/0001_initial.py
