@@ -30,6 +30,7 @@ from .commandant_views import (
 )
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
+from .biometric_push_views import biometric_push_endpoint
 
 router = DefaultRouter()
 
@@ -125,5 +126,6 @@ urlpatterns = [
     ,),
     path('auth/', include((auth_urlpatterns, 'auth'))),
     path('certificates/public/verify/', SecureCertificatePublicVerificationView.as_view(), name='certificate-public-verify',),
+    path('biometric/push/', biometric_push_endpoint, name='biometric-push'),
 ]
 

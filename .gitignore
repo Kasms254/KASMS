@@ -52,3 +52,5 @@ kasms_db.sql
 kasms_db_2026-03-18_02-00-01 (1).dump
 
 core/migrations/0001_initial.py
+0001_initial.py
+test_device_connection.sh
