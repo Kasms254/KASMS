@@ -8,7 +8,7 @@ from .views import (
     ExamViewSet, ClassNoticeViewSet, ProfileViewSet, CertificateViewSet, CertificateTemplateViewSet, EnrollmentCertificateView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet, SchoolViewSet, SchoolAdminViewSet,
     # departments
-    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
+    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
     AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
 )
 from .oic_views import (
@@ -42,6 +42,7 @@ from .commandant_views import (
 )
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
+from .biometric_push_views import biometric_push_endpoint
 
 router = DefaultRouter()
 
@@ -125,6 +126,10 @@ oic_router.register(r'exam-results',   OICExamResultViewSet,   basename='oic-exa
 oic_router.register(r'attendance',     OICAttendanceViewSet,   basename='oic-attendance')
 oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-remarks')
 
+# biometric
+router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
+router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
@@ -148,4 +153,5 @@ urlpatterns = [
         SecureCertificatePublicVerificationView.as_view(),
         name='certificate-public-verify',
     ),
+    path('biometric/push/', biometric_push_endpoint, name='biometric-push'),
 ]
