@@ -15,7 +15,10 @@ import {
   updateBiometricUserMapping,
   deleteBiometricUserMapping,
   getStudents,
+  getBiometricRecords,
 } from '../../lib/api'
+
+const PUSH_ENDPOINT = `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL}/api/biometric/push/`
 import SearchableSelect from '../../components/SearchableSelect'
 
 const EMPTY_DEVICE = {
@@ -276,6 +279,12 @@ export default function BiometricDevices() {
   const [students, setStudents] = useState([])
   const [studentsLoading, setStudentsLoading] = useState(false)
 
+  // ── Push Monitor state ────────────────────────────────────────────────────
+  const [pushRecords, setPushRecords] = useState([])
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushLastRefreshed, setPushLastRefreshed] = useState(null)
+  const [pushCopied, setPushCopied] = useState(false)
+
   async function loadStudents() {
     setStudentsLoading(true)
     try {
@@ -384,6 +393,38 @@ export default function BiometricDevices() {
     }
   }
 
+  // ── Push Monitor logic ────────────────────────────────────────────────────
+  const loadPushRecords = useCallback(async () => {
+    setPushLoading(true)
+    try {
+      const data = await getBiometricRecords('page_size=25&ordering=-scan_time')
+      const list = Array.isArray(data) ? data : (data?.results ?? [])
+      setPushRecords(list)
+      setPushLastRefreshed(new Date())
+    } catch (err) {
+      reportError(err?.message || 'Failed to load push records')
+    } finally {
+      setPushLoading(false)
+    }
+  }, [reportError])
+
+  useEffect(() => {
+    if (tab !== 'push') return
+    loadPushRecords()
+    const interval = setInterval(loadPushRecords, 15000)
+    return () => clearInterval(interval)
+  }, [tab, loadPushRecords])
+
+  async function copyPushUrl() {
+    try {
+      await navigator.clipboard.writeText(PUSH_ENDPOINT)
+      setPushCopied(true)
+      setTimeout(() => setPushCopied(false), 2000)
+    } catch {
+      reportError('Could not copy to clipboard')
+    }
+  }
+
   const inputCls = (hasErr) =>
     `w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${hasErr ? 'border-rose-500' : 'border-neutral-200'}`
 
@@ -413,7 +454,7 @@ export default function BiometricDevices() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-neutral-200">
-        {[{ key: 'devices', label: 'Devices' }, { key: 'mappings', label: 'User Mappings' }].map(t => (
+        {[{ key: 'devices', label: 'Devices' }, { key: 'mappings', label: 'User Mappings' }, { key: 'push', label: 'Push Monitor' }].map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -653,6 +694,139 @@ export default function BiometricDevices() {
                 </div>
               </div>
             ))}
+          </div>
+        </>
+      )}
+
+      {/* ── PUSH MONITOR TAB ── */}
+      {tab === 'push' && (
+        <>
+          {/* Push Endpoint URL */}
+          <div className="mb-4 bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+            <div className="flex items-start justify-between gap-4 mb-1">
+              <div>
+                <div className="text-sm font-medium text-black">Push Endpoint URL</div>
+                <p className="text-xs text-neutral-500 mt-0.5">Configure this URL in your ZKTeco device's Server URL / ADMS setting.</p>
+              </div>
+              <button
+                onClick={copyPushUrl}
+                className="whitespace-nowrap px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition"
+              >
+                {pushCopied ? 'Copied!' : 'Copy URL'}
+              </button>
+            </div>
+            <div className="mt-2 font-mono text-xs bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 text-neutral-700 break-all select-all">
+              {PUSH_ENDPOINT}
+            </div>
+          </div>
+
+          {/* Per-device push status */}
+          <div className="mb-4">
+            <div className="text-sm font-medium text-neutral-700 mb-2">Device Push Status</div>
+            {devices.length === 0 ? (
+              <div className="text-sm text-neutral-400">No devices registered. Add a device first.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {devices.map(device => {
+                  const delta = device.last_sync_at
+                    ? (Date.now() - new Date(device.last_sync_at).getTime()) / 1000
+                    : Infinity
+                  const isPushStatus = device.last_sync_status === 'push_active' || device.last_sync_status === 'push_received'
+                  let badge, badgeCls
+                  if (!device.last_sync_at) { badge = 'Never pushed'; badgeCls = 'bg-neutral-100 text-neutral-500' }
+                  else if (delta < 120) { badge = isPushStatus ? 'Pushing' : 'Online'; badgeCls = 'bg-green-100 text-green-700' }
+                  else if (delta < 600) { badge = 'Delayed'; badgeCls = 'bg-yellow-100 text-yellow-700' }
+                  else { badge = 'Offline'; badgeCls = 'bg-red-100 text-red-600' }
+                  return (
+                    <div key={device.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-3">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="font-medium text-sm text-black truncate">{device.name}</div>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${badgeCls}`}>{badge}</span>
+                      </div>
+                      <div className="text-xs text-neutral-400 font-mono mb-1">{device.ip_address}</div>
+                      <div className="text-xs text-neutral-500">Last push: {device.last_sync_at ? new Date(device.last_sync_at).toLocaleString() : '—'}</div>
+                      <div className="text-xs text-neutral-500">Push mode: <span className="font-mono">{device.last_sync_status || '—'}</span></div>
+                      <div className="text-xs text-neutral-500">Last batch: {device.last_sync_records ?? 0} &bull; Total: {device.total_synced_records ?? 0}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Live records feed */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium text-neutral-700">
+                Recent Push Records
+                {pushLastRefreshed && (
+                  <span className="ml-2 text-xs font-normal text-neutral-400">
+                    Updated {pushLastRefreshed.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={loadPushRecords}
+                disabled={pushLoading}
+                className="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 disabled:opacity-50 transition"
+              >
+                {pushLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="text-left bg-neutral-50">
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Student</th>
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Device</th>
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Biometric ID</th>
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Scan Time</th>
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Verify</th>
+                    <th className="px-4 py-3 text-xs text-neutral-600 whitespace-nowrap">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pushLoading && pushRecords.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-neutral-500">Loading...</td></tr>
+                  ) : pushRecords.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-neutral-400">No push records received yet</td></tr>
+                  ) : pushRecords.map(r => (
+                    <tr key={r.id} className="border-t last:border-b hover:bg-neutral-50">
+                      <td className="px-4 py-2 text-sm font-medium text-black">{r.student_name || r.student || '—'}</td>
+                      <td className="px-4 py-2 text-sm text-neutral-500">{r.device_name || '—'}</td>
+                      <td className="px-4 py-2 text-sm font-mono text-neutral-500">{r.biometric_id || '—'}</td>
+                      <td className="px-4 py-2 text-xs text-neutral-400">{r.scan_time ? new Date(r.scan_time).toLocaleString() : '—'}</td>
+                      <td className="px-4 py-2 text-xs text-neutral-500">{r.verification_type || '—'}</td>
+                      <td className="px-4 py-2">
+                        {r.processed
+                          ? <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">Processed</span>
+                          : r.error_message
+                            ? <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">Error</span>
+                            : <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Pending</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1">Auto-refreshes every 15 seconds while this tab is open.</p>
+          </div>
+
+          {/* ZKTeco setup guide */}
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+            <div className="text-sm font-medium text-black mb-3">ZKTeco Push Configuration Guide</div>
+            <ol className="space-y-2 text-sm text-neutral-600 list-decimal list-inside">
+              <li>On the device go to <strong>Menu &rarr; Comm. &rarr; Cloud Server Setting</strong> (may appear as <em>ADMS</em> or <em>Push Setting</em>).</li>
+              <li>Enable <strong>ADMS</strong> / <strong>Cloud Server</strong>.</li>
+              <li>Set <strong>Server Address</strong> to your server domain or IP (no path).</li>
+              <li>Set <strong>Server Port</strong> to <code className="bg-neutral-100 px-1 rounded text-xs">80</code> (HTTP) or <code className="bg-neutral-100 px-1 rounded text-xs">443</code> (HTTPS).</li>
+              <li>Set the <strong>URL</strong> / <strong>Server URL path</strong> field to <code className="bg-neutral-100 px-1 rounded text-xs">/api/biometric/push/</code>.</li>
+              <li>Save and reboot. The device will begin pushing attendance logs automatically.</li>
+            </ol>
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-700">
+              The device's outgoing IP must match the <strong>IP Address</strong> field in the Devices tab, otherwise the server will reject the push.
+            </div>
           </div>
         </>
       )}
