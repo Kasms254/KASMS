@@ -333,3 +333,25 @@ LOGGING = {
 LOGIN_MAX_ATTEMPTS = int(os.getenv('LOGIN_MAX_ATTEMPTS', 5))
 LOGIN_LOCKOUT_DURATION = int(os.getenv('LOGIN_LOCKOUT_DURATION', 1800))
 LOGIN_ATTEMPT_WINDOW = int(os.getenv('LOGIN_ATTEMPT_WINDOW', 300))
+
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Nairobi'
+CELERY_BEAT_SCHEDULE = {
+    'sync-biometric-devices': {
+        'task': 'core.tasks.sync_all_devices', 
+        'schedule': 300.0,
+    },
+    'process-pending-biometric-records':{
+        'task': 'core.tasks.process_pending_records',
+        'schedule': 60.0,
+    },
+    'sync-device-clocks':{
+        'task': 'core.tasks.sync_device_clocks',
+        'schedule': 3600.0
+    },
+}
+

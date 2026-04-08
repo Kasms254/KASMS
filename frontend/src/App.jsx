@@ -51,6 +51,8 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 // Department & HOD components
 const Departments = lazy(() => import('./dashboard/admin/Departments'))
 const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
+const BiometricDevices = lazy(() => import('./dashboard/admin/BiometricDevices'))
+const BiometricRecords = lazy(() => import('./dashboard/shared/BiometricRecords'))
 const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
 const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
 
@@ -264,6 +266,16 @@ const App = () => {
 			{/* Department Members (admin) */}
 			<Route path="/list/department-members" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<DepartmentMembers />} />
+			</Route>
+
+			{/* Biometric Devices (admin) */}
+			<Route path="/list/biometric-devices" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<BiometricDevices />} />
+			</Route>
+
+			{/* Biometric Records (admin & instructor) */}
+			<Route path="/list/biometric-records" element={<AdminOrInstructorLayout />}>
+				<Route index element={<BiometricRecords />} />
 			</Route>
 
 			{/* HOD Dashboard — HODs only */}

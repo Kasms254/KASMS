@@ -8,7 +8,7 @@ from .views import (
     ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
     # departments
-    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
+    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
 AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
     )
 from .auth_views import (
@@ -30,6 +30,7 @@ from .commandant_views import (
 )
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
+from .biometric_push_views import biometric_push_endpoint
 
 router = DefaultRouter()
 
@@ -40,7 +41,6 @@ router.register(r'classes', ClassViewSet, basename='class')
 router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 router.register(r'subjects', SubjectViewSet, basename='subject')
 router.register(r'notices', NoticeViewSet, basename='notice')
-
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
@@ -85,12 +85,10 @@ router.register(r'certificates', CertificateViewSet, basename='certificate')
 router.register(r"marks-entry", MarksEntryViewSet, basename="marks-entry")
 router.register(r"admin/roster", AdminRosterViewSet, basename="admin-roster")
 
-
 # departments
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
 router.register(r'result-edit-requests', ResultEditRequestViewSet, basename='result-edit-request')
-
 
 # commandantrouters
 commandant_router = DefaultRouter()
@@ -106,9 +104,12 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+# biometric
+router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
+router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
-
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -125,7 +126,6 @@ urlpatterns = [
     ,),
     path('auth/', include((auth_urlpatterns, 'auth'))),
     path('certificates/public/verify/', SecureCertificatePublicVerificationView.as_view(), name='certificate-public-verify',),
-
-
+    path('biometric/push/', biometric_push_endpoint, name='biometric-push'),
 ]
 

@@ -44,7 +44,6 @@ def _get_school(user):
 
 class CommandantDashboardViewSet(viewsets.ViewSet):
 
-
     permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
 
     def list(self, request):
@@ -298,7 +297,6 @@ class CommandantUserViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Role-based count summary."""
         qs = self.get_queryset()
         role_counts = qs.values('role').annotate(count=Count('id')).order_by('role')
         return Response({
@@ -373,7 +371,6 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         class_id = request.query_params.get('class_id')
 
-        # No class_id → return a summary list for ALL active classes in the school
         if not class_id:
             classes = Class.all_objects.filter(
                 school=school, is_active=True
@@ -388,7 +385,6 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
                 total_sessions = sessions_qs.count()
                 completed_sessions = sessions_qs.filter(status='completed').count()
 
-                # Compute overall attendance rate across all completed sessions
                 total_present = 0
                 total_possible = 0
                 for session in sessions_qs.filter(status='completed'):
@@ -658,9 +654,9 @@ class CommandantExamReportViewSet(viewsets.ReadOnlyModelViewSet):
         ]
  
         PersonalNotification.objects.bulk_create(notifications)
+    
     @action(detail=True, methods=['get'])
     def remarks(self, request, pk=None):
-        """List all remarks on this exam report."""
         report = self.get_object()
         remarks = report.remarks.all().select_related('author')
         return Response({
