@@ -3899,8 +3899,10 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(
-                Q(session__class_obj__instructor=user) | Q(session__subject__instructor=user)
-            )
+                Q(session__class_obj__instructor=user)
+                | Q(session__subject__instructor=user)
+                | Q(session__created_by=user)
+            ).distinct()
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
@@ -3977,8 +3979,19 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-
         session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
+
+        # Verify the user has permission to mark attendance for this session
+        user = request.user
+        if user.role == 'instructor':
+            if not (
+                session.class_obj.instructor == user
+                or (session.subject and session.subject.instructor == user)
+                or session.created_by == user
+            ):
+                return Response({
+                    'error': 'You do not have permission to mark attendance for this session.'
+                }, status=status.HTTP_403_FORBIDDEN)
         records = serializer.validated_data['attendance_records']
 
         created_count = 0
@@ -4004,7 +4017,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
                         'status': record['status'],
                         'marking_method': 'manual',
                         'marked_by': request.user,
-                        'remarks':record.get('remarks', '')
+                        'remarks': record.get('remarks', '').strip() or None
                     }
                 )
 

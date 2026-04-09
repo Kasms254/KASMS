@@ -86,8 +86,7 @@ export default function SessionAttendance() {
   async function handleManualMark(studentId, status, remarks) {
     setMarkingStudent(studentId)
     try {
-      const record = { student_id: studentId, status }
-      if (remarks) record.remarks = remarks
+      const record = { student_id: studentId, status, remarks: remarks || '' }
       await api.bulkMarkSessionAttendance({
         session_id: parseInt(sessionId),
         attendance_records: [record]
@@ -725,6 +724,12 @@ export default function SessionAttendance() {
                         <span className="text-neutral-600">Time:</span>
                         <span className="text-black">{formatDateTime(record.marked_at)}</span>
                       </div>
+                      {record.remarks && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-neutral-600">Remarks:</span>
+                          <span className="text-black text-xs">{record.remarks}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -741,6 +746,7 @@ export default function SessionAttendance() {
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Method</th>
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Time</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Remarks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
@@ -763,6 +769,7 @@ export default function SessionAttendance() {
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-700 capitalize">{record.marking_method?.replace('_', ' ') || '—'}</td>
                         <td className="px-4 py-3 text-sm text-neutral-500">{formatDateTime(record.marked_at)}</td>
+                        <td className="px-4 py-3 text-sm text-neutral-700 max-w-xs truncate" title={record.remarks || ''}>{record.remarks || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
