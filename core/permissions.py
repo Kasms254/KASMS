@@ -1,9 +1,7 @@
-from rest_framework.permissions import BasePermission
-from rest_framework import permissions
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework import permissions
 from .managers import get_current_school
-from .models import DepartmentMembership
-
+from .models import DepartmentMembership, OICAssignment
 
 
 class IsSuperAdmin(BasePermission):
@@ -29,12 +27,14 @@ class IsAdmin(BasePermission):
     
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'superadmin']
-    
+
 class IsAdminOrInstructor(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin', 'commandant', 'chief_instructor']
-    
+        return request.user.is_authenticated and request.user.role in [
+            'admin', 'instructor', 'superadmin', 'commandant', 'chief_instructor',
+        ]
+
 class IsInstructor(BasePermission):
 
     def has_permission(self, request, view):
@@ -84,11 +84,13 @@ class IsInstructorOfClassOrAdmin(BasePermission):
                 obj.instructor == request.user
             )
         )
-        
+
 class IsAdminOrCommandant(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'chief_instructor','superadmin']
+        return request.user.is_authenticated and request.user.role in [
+            'admin', 'commandant', 'chief_instructor', 'superadmin',
+        ]
 
 class ReadOnlyForCommandant(BasePermission):
 
@@ -102,7 +104,7 @@ class ReadOnlyForCommandant(BasePermission):
         if user_role in ('admin', 'superadmin'):
             return True
 
-        if user_role in ('commandant', 'chief_instructor'):
+        if user_role in ('commandant', 'chief_instructor', 'oic'):
             return request.method in SAFE_METHODS
 
         return False
@@ -216,6 +218,7 @@ class IsAdminOnly(BasePermission):
             request.user.is_authenticated
             and request.user.role in ["admin", "superadmin"]
         )
+
 # department permission
 
 class IsHOD(BasePermission):
@@ -271,6 +274,7 @@ class IsChiefInstructor(BasePermission):
             and request.user.role == 'chief_instructor'
         )
 
+
 class IsCommandantOrChiefInstructor(BasePermission):
 
     message = "Only Commandant, Chief Instructor, or Admin can access this."
@@ -279,7 +283,7 @@ class IsCommandantOrChiefInstructor(BasePermission):
         return (
             request.user.is_authenticated
             and request.user.role in [
-                'commandant', 'chief_instructor', 'admin', 'superadmin'
+                'commandant', 'chief_instructor', 'admin', 'superadmin',
             ]
         )
 
@@ -296,9 +300,87 @@ class ReadOnlyForCommandantOrChiefInstructor(BasePermission):
         if user_role in ('admin', 'superadmin'):
             return True
 
-        if user_role in ('commandant', 'chief_instructor'):
+        if user_role in ('commandant', 'chief_instructor', 'oic'):
             return request.method in SAFE_METHODS
 
         return False
 
+# oic
 
+class IsOIC(BasePermission):
+
+    message = 'Only an Officer in Charge (OIC) can perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == 'oic'
+        )
+
+class IsOICOfClass(BasePermission):
+
+    message = 'You are not assigned as the OIC for this class.'
+
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+
+        if request.user.role in ('admin', 'superadmin'):
+            return True
+
+        if request.user.role != 'oic':
+            return False
+
+        class_obj = getattr(obj, 'class_obj', None)
+        if class_obj is None and hasattr(obj, 'pk') and obj.__class__.__name__ == 'Class':
+            class_obj = obj
+
+        if class_obj is None:
+            return False
+
+        return OICAssignment.all_objects.filter(
+            oic=request.user,
+            class_obj=class_obj,
+            is_active=True,
+        ).exists()
+
+class IsOICOrAdmin(BasePermission):
+
+    message = 'Only an OIC or administrator can perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ('oic', 'admin', 'superadmin')
+        )
+
+class IsOICOrAdminOrCommandant(BasePermission):
+
+    message = 'You do not have permission to perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in (
+                'oic', 'commandant', 'chief_instructor',
+                'admin', 'superadmin',
+            )
+        )
+
+class ReadOnlyForOIC(BasePermission):
+
+    message = 'OICs have read-only access to this resource.'
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user_role = getattr(request.user, 'role', None)
+
+        if user_role in ('admin', 'superadmin'):
+            return True
+
+        if user_role == 'oic':
+            return request.method in SAFE_METHODS
+
+        return False

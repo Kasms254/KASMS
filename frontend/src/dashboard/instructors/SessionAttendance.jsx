@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Users, Clock, Calendar, CheckCircle, AlertCircle,
-  RefreshCw, Download, Search, ChevronLeft, ChevronRight, X
+  RefreshCw, Download, Search, ChevronLeft, ChevronRight, X, Fingerprint
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -38,6 +38,7 @@ export default function SessionAttendance() {
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [methodFilter, setMethodFilter] = useState('')
 
   // Pagination for unmarked students
   const [unmarkedPage, setUnmarkedPage] = useState(1)
@@ -49,6 +50,9 @@ export default function SessionAttendance() {
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null })
+
+  // Excused reason modal state
+  const [excusedModal, setExcusedModal] = useState({ open: false, studentId: null, reason: '' })
 
   // Load session and attendance data
   const loadData = useCallback(async () => {
@@ -79,12 +83,13 @@ export default function SessionAttendance() {
   }, [loadData])
 
   // Manual mark attendance
-  async function handleManualMark(studentId, status) {
+  async function handleManualMark(studentId, status, remarks) {
     setMarkingStudent(studentId)
     try {
+      const record = { student_id: studentId, status, remarks: remarks || '' }
       await api.bulkMarkSessionAttendance({
         session_id: parseInt(sessionId),
-        attendance_records: [{ student_id: studentId, status }]
+        attendance_records: [record]
       })
       toast.success('Attendance marked')
       loadData()
@@ -93,6 +98,18 @@ export default function SessionAttendance() {
     } finally {
       setMarkingStudent(null)
     }
+  }
+
+  // Open excused reason modal
+  function handleExcusedClick(studentId) {
+    setExcusedModal({ open: true, studentId, reason: '' })
+  }
+
+  // Confirm excused with reason
+  async function handleExcusedConfirm() {
+    const { studentId, reason } = excusedModal
+    setExcusedModal({ open: false, studentId: null, reason: '' })
+    await handleManualMark(studentId, 'excused', reason)
   }
 
   // Mark all absent
@@ -141,7 +158,7 @@ export default function SessionAttendance() {
     return name.toLowerCase().includes(search) || svc.toLowerCase().includes(search) || rank.toLowerCase().includes(search)
   })
 
-  // Filter marked students by search and status
+  // Filter marked students by search, status, and marking method
   const filteredMarked = attendanceRecords.filter(record => {
     const name = record.student_name || ''
     const svc = record.student_svc_number || ''
@@ -149,7 +166,8 @@ export default function SessionAttendance() {
     const search = searchTerm.toLowerCase()
     const matchesSearch = name.toLowerCase().includes(search) || svc.toLowerCase().includes(search) || rank.toLowerCase().includes(search)
     const matchesStatus = !statusFilter || record.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesMethod = !methodFilter || record.marking_method === methodFilter
+    return matchesSearch && matchesStatus && matchesMethod
   })
 
   // Paginated data
@@ -246,6 +264,15 @@ export default function SessionAttendance() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {session.enable_biometric && (
+              <button
+                onClick={() => navigate(`/list/biometric-records?session=${session.id}`)}
+                className="px-3 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition flex items-center gap-2"
+              >
+                <Fingerprint className="w-4 h-4" />
+                <span className="hidden sm:inline">Biometric Records</span>
+              </button>
+            )}
             <button
               onClick={loadData}
               className="px-3 py-2 text-sm rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition flex items-center gap-2"
@@ -329,10 +356,23 @@ export default function SessionAttendance() {
                 <option value="excused">Excused</option>
               </select>
             </div>
+            <div className="w-full sm:w-48">
+              <select
+                value={methodFilter}
+                onChange={(e) => { setMethodFilter(e.target.value); setMarkedPage(1) }}
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black"
+              >
+                <option value="">All Methods</option>
+                <option value="qr_scan">QR Scan</option>
+                <option value="manual">Manual</option>
+                <option value="biometric">Biometric</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
           {/* Filter summary */}
-          {(searchTerm || statusFilter) && (
+          {(searchTerm || statusFilter || methodFilter) && (
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
               <span className="text-xs text-neutral-600">Active filters:</span>
               {searchTerm && (
@@ -347,6 +387,14 @@ export default function SessionAttendance() {
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
                   Status: {statusFilter}
                   <button onClick={() => { setStatusFilter(''); setMarkedPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {methodFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                  Method: {methodFilter.replace('_', ' ')}
+                  <button onClick={() => { setMethodFilter(''); setMarkedPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -421,7 +469,7 @@ export default function SessionAttendance() {
                           Absent
                         </button>
                         <button
-                          onClick={() => handleManualMark(student.id, 'excused')}
+                          onClick={() => handleExcusedClick(student.id)}
                           disabled={markingStudent === student.id}
                           className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition disabled:opacity-50"
                         >
@@ -482,7 +530,7 @@ export default function SessionAttendance() {
                                 Absent
                               </button>
                               <button
-                                onClick={() => handleManualMark(student.id, 'excused')}
+                                onClick={() => handleExcusedClick(student.id)}
                                 disabled={markingStudent === student.id}
                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition disabled:opacity-50"
                               >
@@ -562,6 +610,45 @@ export default function SessionAttendance() {
         </div>
       )}
 
+      {/* Excused Reason Modal */}
+      {excusedModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setExcusedModal({ open: false, studentId: null, reason: '' })} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-black">Mark as Excused</h4>
+              </div>
+              <p className="text-sm text-neutral-600 mb-3">Provide a reason for excusing this student (optional).</p>
+              <textarea
+                className="w-full border border-neutral-300 rounded-lg p-3 text-sm text-black resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                rows={3}
+                placeholder="e.g. Medical appointment, authorised leave..."
+                value={excusedModal.reason}
+                onChange={e => setExcusedModal(m => ({ ...m, reason: e.target.value }))}
+              />
+              <div className="flex justify-end gap-3 mt-4">
+                <button
+                  onClick={() => setExcusedModal({ open: false, studentId: null, reason: '' })}
+                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExcusedConfirm}
+                  className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 transition"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       {confirmModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -637,6 +724,12 @@ export default function SessionAttendance() {
                         <span className="text-neutral-600">Time:</span>
                         <span className="text-black">{formatDateTime(record.marked_at)}</span>
                       </div>
+                      {record.remarks && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-neutral-600">Remarks:</span>
+                          <span className="text-black text-xs">{record.remarks}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -653,6 +746,7 @@ export default function SessionAttendance() {
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Method</th>
                       <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Time</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Remarks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
@@ -675,6 +769,7 @@ export default function SessionAttendance() {
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-700 capitalize">{record.marking_method?.replace('_', ' ') || '—'}</td>
                         <td className="px-4 py-3 text-sm text-neutral-500">{formatDateTime(record.marked_at)}</td>
+                        <td className="px-4 py-3 text-sm text-neutral-700 max-w-xs truncate" title={record.remarks || ''}>{record.remarks || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

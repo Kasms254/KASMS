@@ -11,8 +11,8 @@ from .managers import TenantAwareUserManager, TenantAwareManager, SimpleTenantAw
 from django.core.validators import RegexValidator
 from django.db import models, transaction
 import secrets
-import string
 from datetime import date, datetime
+from django.core.exceptions import ValidationError
 
 def school_logo_upload_path(instance, filename):
         ext = filename.split('.')[-1]
@@ -122,6 +122,7 @@ class SchoolMembership(models.Model):
         ADMIN = 'admin', 'Admin'
         COMMANDANT = 'commandant', 'Commandant'
         CHIEF_INSTRUCTOR = 'chief instructor', 'Chief Instructor'
+        OIC = 'oic', 'Officer in Charge'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -413,7 +414,8 @@ class User(AbstractUser):
         ('instructor', 'Instructor'),
         ('student', 'Student'),
         ('commandant', 'Commandant'),
-        ('chief_instructor', 'Chief Instructor')
+        ('chief_instructor', 'Chief Instructor'),
+        ('oic', 'Officer in Charge'),
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
@@ -441,7 +443,7 @@ class User(AbstractUser):
     )
     rank = models.CharField(max_length=20, choices=RANK_CHOICES, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
-    svc_number = models.CharField(max_length=50, unique=True)
+    svc_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -497,6 +499,22 @@ class User(AbstractUser):
         if self.active_role != 'student':
             return True
         return Enrollment.all_objects.filter(student=self, is_active=True).exists()
+
+    ROLE_TO_MEMBERSHIP_ROLE = {
+        'superadmin': 'admin',
+        'admin': 'admin',
+        'instructor': 'instructor',
+        'student': 'student',
+        'commandant': 'commandant',
+        'chief_instructor': 'chief instructor',
+        'oic': 'oic',
+    }
+
+    def sync_memberships_role(self):
+        membership_role = self.ROLE_TO_MEMBERSHIP_ROLE.get(self.role, self.role)
+        self.school_memberships.filter(status=SchoolMembership.Status.ACTIVE).update(
+            role=membership_role
+        )
     
 class Profile(models.Model):
     user = models.OneToOneField(
@@ -1055,6 +1073,7 @@ class ExamReportRemark(models.Model):
         ('commandant', 'Commandant'),
         ('chief_instructor', 'Chief Instructor'),
         ('instructor', 'Instructor'),
+        ('oic', 'Officer in Charge'),
     ]
 
     school = models.ForeignKey(
@@ -1291,17 +1310,33 @@ class BiometricRecord(models.Model):
         indexes = [models.Index(fields=['device_id', 'scan_time']), models.Index(fields=['student', 'scan_time']), models.Index(fields=['processed', 'scan_time'])]
 
     def find_matching_session(self):
-        time_window = timedelta(hours=2)
-        sessions = AttendanceSession.objects.filter(
+        active = AttendanceSession.all_objects.filter(
             class_obj__enrollments__student=self.student,
             class_obj__enrollments__is_active=True,
-            scheduled_start__gte=self.scan_time - time_window,
-            scheduled_start__lte=self.scan_time + time_window,
-            status__in=['scheduled', 'active'],
+            status='active',
             enable_biometric=True,
-            is_active=True
-        ).order_by('scheduled_start')
-        return sessions.first()
+            is_active=True,
+            school=self.school,
+            scheduled_start__lte=self.scan_time,
+            scheduled_end__gte=self.scan_time,
+        ).order_by('scheduled_start').first()
+
+        if active:
+            return active
+
+        time_window = timedelta(hours=2)
+        scheduled = AttendanceSession.all_objects.filter(
+            class_obj__enrollments__student=self.student,
+            class_obj__enrollments__is_active=True,
+            status='scheduled',
+            enable_biometric=True,
+            is_active=True,
+            school=self.school,
+            scheduled_start__lte=self.scan_time + time_window,
+            scheduled_end__gte=self.scan_time - time_window,
+        ).order_by('scheduled_start').first()
+
+        return scheduled
 
     def process_to_attendance(self):
         if self.processed:
@@ -1312,7 +1347,7 @@ class BiometricRecord(models.Model):
                 self.error_message = "No matching session found"
                 self.save()
                 return None
-        existing = SessionAttendance.objects.filter(session=self.session, student=self.student).first()
+        existing = SessionAttendance.all_objects.filter(session=self.session, student=self.student).first()
         if existing:
             self.session_attendance = existing
             self.processed = True
@@ -1320,7 +1355,7 @@ class BiometricRecord(models.Model):
             self.save()
             return existing
         status = self.session.get_attendance_status_for_time(self.scan_time)
-        attendance = SessionAttendance.objects.create(
+        attendance = SessionAttendance.all_objects.create(
             session=self.session, student=self.student, status=status,
             marking_method='biometric', marked_at=self.scan_time, remarks=f"Biometric scan via {self.device_type}"
         )
@@ -1744,4 +1779,212 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
+class BiometricDevice(models.Model):
 
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('maintenance', 'Under Maintenance'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_devices')
+    name = models.CharField(max_length=200, help_text='e.g. NOC')
+    device_type = models.CharField(max_length=50, default='zkteco_f22')
+
+    ip_address = models.GenericIPAddressField()
+    port = models.IntegerField(default=4370)
+    serial_number = models.CharField(max_length=100, blank=True)
+    firmware_version = models.CharField(max_length=100, blank=True)
+    location_description = models.CharField(
+        max_length=300, blank=True, help_text='Physical location of the device'
+    )
+    status= models.CharField(
+        max_length =20, choices=STATUS_CHOICES, default='active'
+    )
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    last_sync_status = models.CharField(max_length=50, blank=True)
+    last_sync_records = models.IntegerField(default=0)
+    total_synced_records = models.IntegerField(default=0)
+    sync_interval_seconds = models.IntegerField(
+        default=30, help_text='HOw often to poll this device (seconds)'
+    )
+    time_offset_seconds = models.IntegerField(
+        default=0,
+        help_text='Offset to apply if the device clock differs from server'
+    )
+    connection_timeout = models.IntegerField(default=5)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'biometric_devices'
+        unique_together = ['school', 'ip_address', 'port']
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.ip_address}:{self.port})'
+
+class BiometricUserMapping(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_user_mappings')
+    device = models.ForeignKey(
+        BiometricDevice, on_delete=models.CASCADE, related_name='user_mappings'
+    )
+    device_user_id = models.CharField(
+        max_length=100,
+        help_text= 'The user_id stored on the ZKTeco device'
+    )
+    device_user_name = models.CharField(
+        max_length=200, blank=True,
+        help_text='Name stored on the device (for reference)'
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='biometric_mappings',
+        limit_choices_to={'role': 'student'}
+    )
+    is_active = models.BooleanField(default=True)
+    mapped_at = models.DateTimeField(auto_now_add=True)
+    mapped_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='biometric_mappings_created'
+    )
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'biometric_user_mappings'
+        unique_together = ['device', 'device_user_id']
+        indexes = [
+            models.Index(fields=['device_user_id', 'device']),
+            models.Index(fields=['student', 'device']),
+        ]
+
+    def __str__(self):
+        return f'Device {self.device_user_id} -> {self.student.svc_number}'
+
+# oic
+class OICAssignment(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='oic_assignments'
+    )
+    oic = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='oic_assignments',
+        limit_choices_to={'role': 'oic'},
+        help_text='The Officer in Charge assigned to oversee this class.',
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='oic_assignments',
+        help_text='The class this OIC is assigned to oversee.',
+    )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='oic_assignments_made',
+        help_text='Admin or commandant who made this assignment.',
+    )
+    is_active = models.BooleanField(default=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(
+        blank=True,
+        help_text='Optional notes about this assignment.',
+    )
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'oic_assignments'
+        ordering = ['-assigned_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['oic', 'class_obj'],
+                condition=models.Q(is_active=True),
+                name='unique_active_oic_per_class',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['oic', 'is_active']),
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"OIC {self.oic.svc_number} → {self.class_obj.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)
+
+class OICRemark(models.Model):
+ 
+    REMARK_TYPE_CHOICES = [
+        ('class', 'Overall Class Performance'),
+        ('subject', 'Subject Performance'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        null=True, blank=True,
+    )
+    oic = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        limit_choices_to={'role': 'oic'},
+    )
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+    )
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE,
+        related_name='oic_remarks',
+        null=True, blank=True,
+        help_text='If null, this is an overall class remark.',
+    )
+    remark_type = models.CharField(
+        max_length=50,
+        choices=REMARK_TYPE_CHOICES,
+        default='class',
+    )
+    remark = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'oic_remarks'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['oic', 'class_obj']),
+            models.Index(fields=['class_obj', 'remark_type']),
+            models.Index(fields=['school', 'created_at']),
+        ]
+
+    def __str__(self):
+        target = self.subject.name if self.subject else 'Overall'
+        return f"OIC Remark by {self.oic.svc_number} on {self.class_obj.name} ({target})"
+
+    def save(self, *args, **kwargs):
+        if self.subject:
+            self.remark_type = 'subject'
+        else:
+            self.remark_type = 'class'
+        if not self.school and self.class_obj:
+            self.school = self.class_obj.school
+        super().save(*args, **kwargs)

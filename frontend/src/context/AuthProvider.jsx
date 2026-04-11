@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from 'rea
 import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
+import { queryClient } from '../main'
 
 const INACTIVITY_TIMEOUT_MS = 90 * 60 * 1000 // 30 minutes
 
@@ -106,6 +107,7 @@ export function AuthProvider({ children }) {
               ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || userInfo.school_name,
+            school_short_name: themeData.school_short_name || '',
             school_code: themeData.school_code || userInfo.school_code,
           })
         }
@@ -144,6 +146,7 @@ export function AuthProvider({ children }) {
       setUser(null)
       setMustChangePassword(false)
       resetTheme()
+      queryClient.clear()
     }
     window.addEventListener('auth:session-expired', handleSessionExpired)
     return () => window.removeEventListener('auth:session-expired', handleSessionExpired)
@@ -155,6 +158,7 @@ export function AuthProvider({ children }) {
     setUser(null)
     setMustChangePassword(false)
     resetTheme()
+    queryClient.clear()
     try {
       // Backend blacklists the refresh cookie and clears both cookies
       await api.logout()
@@ -183,6 +187,7 @@ export function AuthProvider({ children }) {
               ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || me?.school_name,
+            school_short_name: themeData.school_short_name || '',
             school_code: themeData.school_code || me?.school_code,
           })
         }

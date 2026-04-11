@@ -3,7 +3,7 @@
 // All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
 
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_FALLBACK = import.meta.env.VITE_API_FALLBACK || null;
 
 // Configuration for sentence case transformation
@@ -26,6 +26,9 @@ const SENTENCE_CASE_CONFIG = {
     'longitude',
     'device_id',
     'biometric_id',
+    'device_user_id',  // Must match exactly what ZKTeco device stores
+    'device_type',     // Enum choice value (e.g. zkteco_f22)
+    'ip_address',      // Network address, preserve exact format
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
     'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
@@ -50,6 +53,20 @@ const SENTENCE_CASE_CONFIG = {
     'marking_method', // Preserve enum values
     'session_type',   // Preserve enum values
     'notification_type', // Preserve enum values
+    'name',           // Class, course, subject, department names — preserve as admin typed
+    'title',          // Titles typed by admin
+    'description',    // Descriptions typed by admin
+    'class_name',     // Class name variants
+    'course_name',    // Course name variants
+    'subject_name',   // Subject name variants
+    'display_name',   // Display name variants
+    'department_name',// Department name variants
+    'unit',           // unit (e.g. 21KR) — preserve exact casing
+    'first_name',     // Personal names — preserve as typed
+    'last_name',      // Personal names — preserve as typed
+    'unit_name',      // Unit name variants
+    'rank',
+    'instructor_rank',  // Flat rank field from SubjectSerializer — preserve internal value for sorting
   ]
 }
 
@@ -600,14 +617,75 @@ export async function syncBiometricRecords(payload) {
   return request('/api/biometric-records/sync/', { method: 'POST', body: payload })
 }
 
-// Process pending biometric records
-export async function processPendingBiometrics() {
-  return request('/api/biometric-records/process_pending/', { method: 'POST' })
+// Process pending biometric records (pass sessionId to scope to a single session)
+export async function processPendingBiometrics(sessionId = null) {
+  const body = sessionId ? { session_id: sessionId } : undefined
+  return request('/api/biometric-records/process_pending/', { method: 'POST', body })
 }
 
 // Get unprocessed biometric records
 export async function getUnprocessedBiometrics() {
   return request('/api/biometric-records/unprocessed/')
+}
+
+// ============================
+// Biometric Devices API
+// ============================
+
+export async function getBiometricDevices(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/biometric-devices/${qs}`)
+}
+
+export async function createBiometricDevice(payload) {
+  return request('/api/biometric-devices/', { method: 'POST', body: payload })
+}
+
+export async function updateBiometricDevice(id, payload) {
+  return request(`/api/biometric-devices/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteBiometricDevice(id) {
+  return request(`/api/biometric-devices/${id}/`, { method: 'DELETE' })
+}
+
+export async function triggerBiometricDeviceSync(id) {
+  return request(`/api/biometric-devices/${id}/trigger_sync/`, { method: 'POST' })
+}
+
+export async function syncBiometricDeviceNow(id) {
+  return request(`/api/biometric-devices/${id}/sync_now/`, { method: 'POST' })
+}
+
+export async function getBiometricDeviceUsers(id) {
+  return request(`/api/biometric-devices/${id}/device_users/`)
+}
+
+export async function syncBiometricDeviceClock(id) {
+  return request(`/api/biometric-devices/${id}/sync_clock/`, { method: 'POST' })
+}
+
+export async function autoMapBiometricUsers(id) {
+  return request(`/api/biometric-devices/${id}/auto_map_users/`, { method: 'POST' })
+}
+
+// Biometric User Mappings
+
+export async function getBiometricUserMappings(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/biometric-user-mappings/${qs}`)
+}
+
+export async function createBiometricUserMapping(payload) {
+  return request('/api/biometric-user-mappings/', { method: 'POST', body: payload })
+}
+
+export async function updateBiometricUserMapping(id, payload) {
+  return request(`/api/biometric-user-mappings/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteBiometricUserMapping(id) {
+  return request(`/api/biometric-user-mappings/${id}/`, { method: 'DELETE' })
 }
 
 // =====================
@@ -1086,8 +1164,9 @@ export async function withdrawEnrollment(enrollmentId) {
   return request(`/api/enrollments/${enrollmentId}/withdraw/`, { method: 'POST' })
 }
 
-export async function getUsers() {
-  return request('/api/users/')
+export async function getUsers(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/users/${qs}`)
 }
 
 export async function getUserStats() {
@@ -1721,11 +1800,135 @@ export async function createCommandantNotice(data) {
     body.append('expiry_date', data.expiry_date)
   }
   body.append('is_active', data.is_active !== false)
-  
+
   return request('/api/commandant/notices/', {
     method: 'POST',
     body
   })
+}
+
+// ── OIC (Officer in Charge) ───────────────────────────────────────────────────
+
+export async function getOICOverview() {
+  return request('/api/oic/overview/')
+}
+
+export async function getOICClasses(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/classes/${q}`)
+}
+
+export async function getOICClassDetail(id) {
+  return request(`/api/oic/classes/${id}/`)
+}
+
+export async function getOICClassStudents(id) {
+  return request(`/api/oic/classes/${id}/students/`)
+}
+
+export async function getOICClassSubjects(id) {
+  return request(`/api/oic/classes/${id}/subjects/`)
+}
+
+export async function getOICClassResultsSummary(id) {
+  return request(`/api/oic/classes/${id}/results_summary/`)
+}
+
+export async function getOICClassAttendanceSummary(id) {
+  return request(`/api/oic/classes/${id}/attendance_summary/`)
+}
+
+export async function getOICComparisonPerformance() {
+  return request('/api/oic/comparison/performance/')
+}
+
+export async function getOICComparisonAttendance() {
+  return request('/api/oic/comparison/attendance/')
+}
+
+export async function getOICExamReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/exam-reports/${q}`)
+}
+
+export async function getOICExamReportDetail(id) {
+  return request(`/api/oic/exam-reports/${id}/detailed/`)
+}
+
+export async function addOICExamReportRemark(id, remark) {
+  return request(`/api/oic/exam-reports/${id}/add_remark/`, { method: 'POST', body: { remark } })
+}
+
+export async function getOICExamReportRemarks(id) {
+  return request(`/api/oic/exam-reports/${id}/remarks/`)
+}
+
+export async function getOICPendingRemarks(params = '') {
+  return request(`/api/oic/exam-reports/pending_remarks/${params ? '?' + params : ''}`)
+}
+
+export async function getOICExamResults(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/exam-results/${q}`)
+}
+
+export async function getOICAttendance(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/attendance/${q}`)
+}
+
+export async function getOICAttendanceRecords(id) {
+  return request(`/api/oic/attendance/${id}/records/`)
+}
+
+export async function getOICRemarks(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic/remarks/${q}`)
+}
+
+export async function addOICRemark(data) {
+  return request('/api/oic/remarks/add_remark/', { method: 'POST', body: data })
+}
+
+export async function updateOICRemark(id, data) {
+  return request(`/api/oic/remarks/${id}/`, { method: 'PATCH', body: data })
+}
+
+export async function deleteOICRemark(id) {
+  return request(`/api/oic/remarks/${id}/`, { method: 'DELETE' })
+}
+
+export async function getOICMyAssignments() {
+  return request('/api/oic-assignments/my_assignments/')
+}
+
+export async function getOICAssignments(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/oic-assignments/${q}`)
+}
+
+export async function createOICAssignment(data) {
+  return request('/api/oic-assignments/', { method: 'POST', body: data })
+}
+
+export async function updateOICAssignment(id, data) {
+  return request(`/api/oic-assignments/${id}/`, { method: 'PATCH', body: data })
+}
+
+export async function deleteOICAssignment(id) {
+  return request(`/api/oic-assignments/${id}/`, { method: 'DELETE' })
+}
+
+export async function bulkAssignOIC(oicId, classIds) {
+  return request('/api/oic-assignments/bulk_assign/', {
+    method: 'POST',
+    body: { oic: oicId, class_ids: classIds },
+  })
+}
+
+export async function getOICUsers(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/users/${q}`)
 }
 
 export default {
@@ -1849,6 +2052,21 @@ export default {
   syncBiometricRecords,
   processPendingBiometrics,
   getUnprocessedBiometrics,
+  // Biometric Devices
+  getBiometricDevices,
+  createBiometricDevice,
+  updateBiometricDevice,
+  deleteBiometricDevice,
+  triggerBiometricDeviceSync,
+  syncBiometricDeviceNow,
+  getBiometricDeviceUsers,
+  syncBiometricDeviceClock,
+  autoMapBiometricUsers,
+  // Biometric User Mappings
+  getBiometricUserMappings,
+  createBiometricUserMapping,
+  updateBiometricUserMapping,
+  deleteBiometricUserMapping,
   // Attendance Reports
   getClassAttendanceSummary,
   getStudentAttendanceDetail,
@@ -1962,4 +2180,33 @@ export default {
   getCommandantEnrollments,
   getCommandantNotices,
   createCommandantNotice,
+  // OIC
+  getOICOverview,
+  getOICClasses,
+  getOICClassDetail,
+  getOICClassStudents,
+  getOICClassSubjects,
+  getOICClassResultsSummary,
+  getOICClassAttendanceSummary,
+  getOICComparisonPerformance,
+  getOICComparisonAttendance,
+  getOICExamReports,
+  getOICExamReportDetail,
+  addOICExamReportRemark,
+  getOICExamReportRemarks,
+  getOICPendingRemarks,
+  getOICExamResults,
+  getOICAttendance,
+  getOICAttendanceRecords,
+  getOICRemarks,
+  addOICRemark,
+  updateOICRemark,
+  deleteOICRemark,
+  getOICMyAssignments,
+  getOICAssignments,
+  createOICAssignment,
+  updateOICAssignment,
+  deleteOICAssignment,
+  bulkAssignOIC,
+  getOICUsers,
 }

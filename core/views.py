@@ -3,14 +3,15 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice)
 from .serializers import (
-    CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+
+    CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer)
+    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -40,6 +41,12 @@ from .services import close_class,issue_certificate, CertificateGenerator, Certi
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
+from core.services.zkteco_service import ZKTecoSyncService
+from datetime import datetime
+from django.db.models import Sum
+import logging
+logger = logging.getLogger(__name__)
+
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -455,7 +462,7 @@ class UserViewSetWithSchool(viewsets.ModelViewSet):
             blocking_enrollment = active_enrollments.first()
 
         return Response({
-            'student': UserSerializerWithSchool(student).data,
+            'student': UserListSerializer(student).data,
             'can_enroll_in_current_school':can_enroll,
             'current_school':{
                 'id':str(current_school.id),
@@ -953,7 +960,6 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
-        """Get all classes for a course."""
         course = self.get_object()
         classes_qs = course.classes.filter(is_active=True)
         serializer = ClassSerializer(classes_qs, many=True)
@@ -1100,7 +1106,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
-    
     # instructor specific classes
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
     def my_classes(self, request):
@@ -1166,7 +1171,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class': ClassSerializer(class_obj).data
         })
 
-    
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdmin])
     def completion_status(self, request, pk=None):
 
@@ -1187,7 +1191,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'students': results
         })
         
-
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def issue_certificates(self, request, pk=None):
         class_obj = self.get_object()
@@ -1396,7 +1399,6 @@ class NoticeActionMixin:
         return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
 
     def _annotate_read_status(self, qs):
-        """Annotate queryset with the current user's read_at timestamp."""
         user = self.request.user
         if not user.is_authenticated:
             return qs
@@ -1526,7 +1528,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsAdmin()]
+            return [IsAuthenticated(), IsAdmin(), IsCommandantOrChiefInstructor()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -1753,7 +1755,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         status_data['has_certificate'] = hasattr(enrollment, 'certificate')
 
         return Response(status_data)
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -2500,6 +2501,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             qs = qs.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
+
 
         return qs
 
@@ -3521,7 +3523,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         if session.end_session():
 
             marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
-            unmarked_students = User.objects.filter(
+            unmarked_students = User.all_objects.filter(
                 enrollments__class_obj = session.class_obj,
                 enrollments__is_active = True,
                 role='student',
@@ -3897,8 +3899,10 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(
-                Q(session__class_obj__instructor=user) | Q(session__subject__instructor=user)
-            )
+                Q(session__class_obj__instructor=user)
+                | Q(session__subject__instructor=user)
+                | Q(session__created_by=user)
+            ).distinct()
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
@@ -3975,8 +3979,19 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-
         session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
+
+        # Verify the user has permission to mark attendance for this session
+        user = request.user
+        if user.role == 'instructor':
+            if not (
+                session.class_obj.instructor == user
+                or (session.subject and session.subject.instructor == user)
+                or session.created_by == user
+            ):
+                return Response({
+                    'error': 'You do not have permission to mark attendance for this session.'
+                }, status=status.HTTP_403_FORBIDDEN)
         records = serializer.validated_data['attendance_records']
 
         created_count = 0
@@ -4002,7 +4017,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
                         'status': record['status'],
                         'marking_method': 'manual',
                         'marked_by': request.user,
-                        'remarks':record.get('remarks', '')
+                        'remarks': record.get('remarks', '').strip() or None
                     }
                 )
 
@@ -4085,7 +4100,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
 
     serializer_class = BiometricRecordSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-    filterset_fields =['device_id', 'device_type', 'student', 'session', 'processed']
+    filterset_fields = ['device_id', 'device_type', 'student', 'session', 'processed']
     search_fields = ['student__first_name', 'student__last_name', 'biometric_id']
     ordering = ['-scan_time']
 
@@ -4116,70 +4131,96 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
         device_type = serializer.validated_data['device_type']
         records = serializer.validated_data['records']
 
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
+
+        if school is None:
+            return Response(
+                {'detail': 'Unable to determine school for the requesting user.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         created_count = 0
         processed_count = 0
         errors = []
 
         for record in records:
             try:
-
                 scan_time = parser.parse(record['scan_time'])
 
-                student = User.objects.filter(
+
+                student = User.all_objects.filter(
                     svc_number=record['biometric_id'],
                     role='student',
-                    is_active=True
+                    is_active=True,
+                    school=school,
                 ).first()
 
                 if not student:
-                    errors.append(f"Student not found for biometric ID: {record['biometric_id']}")
+                    errors.append(
+                        f"Student not found for biometric ID: {record['biometric_id']}"
+                    )
                     continue
-                biometric_record, created = BiometricRecord.objects.get_or_create(
-                    device_id = device_id,
-                    biometric_id = record['biometric_id'],
-                    scan_time = scan_time,
-                    defaults = {
+
+
+                biometric_record, created = BiometricRecord.all_objects.get_or_create(
+                    device_id=device_id,
+                    biometric_id=record['biometric_id'],
+                    scan_time=scan_time,
+                    school=school,
+                    defaults={
                         'device_type': device_type,
                         'student': student,
                         'verification_type': record.get('verification_type', ''),
-                        'verification_score':record.get('verification_score'),
-                        'raw_data': record
-                    }
+                        'verification_score': record.get('verification_score'),
+                        'raw_data': record,
+                    },
                 )
 
                 if created:
-                    created_count +=1
+                    created_count += 1
 
+                if not biometric_record.processed:
                     attendance = biometric_record.process_to_attendance()
                     if attendance:
-                        processed_count +=1
+                        processed_count += 1
+
             except Exception as e:
-                errors.append(f"Error processing record for {record.get('biometric_id')}: {str(e)}")
-        
+                errors.append(
+                    f"Error processing record for {record.get('biometric_id')}: {str(e)}"
+                )
+
         return Response({
             'status': 'success',
             'created': created_count,
             'processed': processed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['post'])
     def process_pending(self, request):
-        pending_records = BiometricRecord.objects.filter(
-            processed = False
-        ).select_related('student')
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
 
-        processed_count =0 
+        pending_qs = BiometricRecord.all_objects.filter(processed=False)
+        if school:
+            pending_qs = pending_qs.filter(school=school)
+
+        pending_records = pending_qs.select_related('student')
+
+        processed_count = 0
         failed_count = 0
         errors = []
 
         for record in pending_records:
             try:
-                attendance  =record.process_to_attendance()
+                attendance = record.process_to_attendance()
                 if attendance:
-                    processed_count +=1
+                    processed_count += 1
                 else:
-                    failed_count +=1
+                    failed_count += 1
                     if record.error_message:
                         errors.append(f"Record {record.id}: {record.error_message}")
             except Exception as e:
@@ -4187,24 +4228,21 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 errors.append(f"Record {record.id}: {str(e)}")
 
         return Response({
-            'status':'success',
-            'processed':processed_count,
+            'status': 'success',
+            'processed': processed_count,
             'failed': failed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['get'])
     def unprocessed(self, request):
         unprocessed = self.get_queryset().filter(processed=False)
         serializer = self.get_serializer(unprocessed, many=True)
-
-        return Response(
-            {
-                'count':unprocessed.count(),
-                'records':serializer.data
-            }
-        )
-
+        return Response({
+            'count': unprocessed.count(),
+            'records': serializer.data
+        })
+    
 class AttendanceReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5125,7 +5163,6 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-
 # student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
@@ -5628,3 +5665,114 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
+
+# Biometric attendance
+class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricDevice.objects.all()
+    serializer_class = BiometricDeviceSerializer
+    filterset_fields = ['status', 'is_active']
+    search_fields = ['name', 'ip_address', 'serial_number']
+
+    INSTRUCTOR_ALLOWED_ACTIONS = {'trigger_sync', 'sync_now', 'sync_clock', 'device_users'}
+
+
+    def get_permissions(self):
+        if self.action in self.INSTRUCTOR_ALLOWED_ACTIONS or self.action in ('list', 'retrieve'):
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+  
+        return [IsAuthenticated(), IsAdmin()]
+
+    @action(detail=True, methods=['post'])
+    def trigger_sync(self, request, pk=None):
+
+        device = self.get_object()
+        from core.tasks import sync_single_device
+        task = sync_single_device.delay(str(device.id))
+        return Response({
+            'status': 'sync_started',
+            'task_id': task.id,
+            'device': device.name            
+                    })
+
+    @action(detail=True, methods=['post'])
+    def sync_now(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        result = service.fetch_and_store_logs()
+        return Response(result)
+    
+    @action(detail=True, methods=['get'])
+    def device_users(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        users = service.fetch_device_users()
+        return Response({'users': users, 'count': len(users)})
+
+    @action(detail=True, methods=['post'])
+    def sync_clock(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        success = service.sync_device_time()
+        return Response({
+            'status': 'success' if success else 'failed'
+        })
+    
+    @action(detail=True, methods=['post'])
+    def auto_map_users(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        device_users = service.fetch_device_users()
+
+        if device_users is None or (isinstance(device_users, list) and len(device_users) == 0):
+            return Response({
+                'status': 'error',
+                'message': 'Unable to fetch device users. Ensure the device is reachable and users are registered.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        mapped = 0
+        unmapped = []
+        for du in device_users:
+            student = User.objects.filter(
+                svc_number=du['user_id'],
+                role='student',
+                is_active=True,
+                school_memberships__school = device.school,
+                school_memberships__status = 'active'
+            ).first()
+
+            if student:
+                BiometricUserMapping.objects.get_or_create(
+                    device=device,
+                    device_user_id=du['user_id'],
+                    defaults = {
+                        'school': device.school,
+                        'student': student,
+                        'device_user_name': du['name'],
+                        'mapped_by': request.user
+                    }
+                )
+                mapped += 1
+
+            else:
+                unmapped.append(du)
+
+        return Response({
+            'mapped': mapped,
+            'unmapped': unmapped,
+            'unmapped_count': len(unmapped)
+                    })
+
+class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricUserMapping.objects.select_related(
+        'student', 'device'
+    ).all()
+
+    serializer_class = BiometricUserMappingSerializer
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+    filterset_fields = ['device', 'student', 'is_active']
+
+

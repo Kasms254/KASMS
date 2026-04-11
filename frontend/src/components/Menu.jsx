@@ -66,6 +66,18 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'Users2',
+        label: 'Admins & Leadership',
+        href: '/list/leadership-users',
+        visible: ['admin'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/list/oic-assignments',
+        visible: ['admin'],
+      },
+      {
         groupKey: 'departments',
         icon: 'Building',
         label: 'Departments',
@@ -81,6 +93,26 @@ const menuItems = [
             icon: 'UserPlus',
             label: 'Dept. Members',
             href: '/list/department-members',
+            visible: ['admin'],
+          },
+        ],
+      },
+      {
+        groupKey: 'biometrics',
+        icon: 'Fingerprint',
+        label: 'Biometrics',
+        visible: ['admin'],
+        children: [
+          {
+            icon: 'Fingerprint',
+            label: 'Biometric Devices',
+            href: '/list/biometric-devices',
+            visible: ['admin'],
+          },
+          {
+            icon: 'ScanLine',
+            label: 'Biometric Records',
+            href: '/list/biometric-records',
             visible: ['admin'],
           },
         ],
@@ -188,6 +220,18 @@ const menuItems = [
         href: '/commandant/notices',
         visible: ['commandant', 'chief_instructor'],
       },
+      {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/commandant/oic-assignments',
+        visible: ['commandant'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'OIC Assignments',
+        href: '/ci/oic-assignments',
+        visible: ['chief_instructor'],
+      },
       // {
       //   icon: 'Book',
       //   label: 'Lessons',
@@ -282,17 +326,54 @@ const menuItems = [
         href: '/list/notices',
         visible: ['admin'],
       },
+      // OIC items
+      {
+        icon: 'LayoutDashboard',
+        label: 'Overview',
+        href: '/dashboard/oic',
+        visible: ['oic'],
+      },
+      {
+        icon: 'Layers',
+        label: 'My Classes',
+        href: '/oic/classes',
+        visible: ['oic'],
+      },
+      {
+        icon: 'FileBarChart',
+        label: 'Exam Reports',
+        href: '/oic/exam-reports',
+        visible: ['oic'],
+      },
+      {
+        icon: 'BarChart2',
+        label: 'Comparison',
+        href: '/oic/comparison',
+        visible: ['oic'],
+      },
+      {
+        icon: 'UserCheck',
+        label: 'Attendance',
+        href: '/oic/attendance',
+        visible: ['oic'],
+      },
+      {
+        icon: 'MessageSquare',
+        label: 'My Remarks',
+        href: '/oic/remarks',
+        visible: ['oic'],
+      },
       {
         icon: 'Bell',
         label: 'Notifications',
         href: '/list/notifications',
-        visible: ['admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
+        visible: ['admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic'],
       },
       {
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic'],
       },
     ],
   },
@@ -306,6 +387,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
   const [openGroups, setOpenGroups] = React.useState({
     departments: location.pathname === '/list/departments' || location.pathname === '/list/department-members',
     certificates: location.pathname === '/list/certificates' || location.pathname === '/list/certificate-templates',
+    biometrics: location.pathname === '/list/biometric-devices' || location.pathname === '/list/biometric-records',
   })
 
   async function handleLogout() {

@@ -28,6 +28,7 @@ const Courses = lazy(() => import('./dashboard/admin/Courses'))
 const CourseDetail = lazy(() => import('./dashboard/admin/CourseDetail'))
 const Classes = lazy(() => import('./dashboard/admin/Classes'))
 const AdminStudents = lazy(() => import('./dashboard/admin/AdminStudents'))
+const AdminLeadershipUsers = lazy(() => import('./dashboard/admin/AdminLeadershipUsers'))
 const ClassDetail = lazy(() => import('./dashboard/instructors/ClassDetail'))
 const AdminInstructors = lazy(() => import('./dashboard/admin/AdminInstructors'))
 const SubjectsPage = lazy(() => import('./dashboard/admin/SubjectsPage'))
@@ -51,6 +52,8 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 // Department & HOD components
 const Departments = lazy(() => import('./dashboard/admin/Departments'))
 const DepartmentMembers = lazy(() => import('./dashboard/admin/DepartmentMembers'))
+const BiometricDevices = lazy(() => import('./dashboard/admin/BiometricDevices'))
+const BiometricRecords = lazy(() => import('./dashboard/shared/BiometricRecords'))
 const HODDashboard = lazy(() => import('./dashboard/hod/HODDashboard'))
 const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview'))
 
@@ -66,6 +69,18 @@ const CommandantAttendance = lazy(() => import('./dashboard/commandants/Commanda
 const CommandantCertificates = lazy(() => import('./dashboard/commandants/CommandantCertificates'))
 const CommandantNotices = lazy(() => import('./dashboard/commandants/CommandantNotices'))
 const CommandantCourses = lazy(() => import('./dashboard/commandants/CommandantCourses'))
+
+// OIC management (admin/commandant)
+const OICAssignments = lazy(() => import('./dashboard/admin/OICAssignments'))
+
+// OIC components
+const OICDashboard = lazy(() => import('./dashboard/oic/OICDashboard'))
+const OICClasses = lazy(() => import('./dashboard/oic/OICClasses'))
+const OICClassDetail = lazy(() => import('./dashboard/oic/OICClassDetail'))
+const OICExamReports = lazy(() => import('./dashboard/oic/OICExamReports'))
+const OICRemarks = lazy(() => import('./dashboard/oic/OICRemarks'))
+const OICComparison = lazy(() => import('./dashboard/oic/OICComparison'))
+const OICAttendance = lazy(() => import('./dashboard/oic/OICAttendance'))
 
 // Superadmin components
 const SuperadminDashboard = lazy(() => import('./dashboard/superadmin/SuperadminDashboard'))
@@ -180,6 +195,10 @@ const App = () => {
 				<Route index element={<AdminInstructors />} />
 			</Route>
 
+			<Route path="/list/leadership-users" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<AdminLeadershipUsers />} />
+			</Route>
+
 			{/* Classes list (active classes) */}
 			<Route path="/list/classes" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 				<Route index element={<Classes />} />
@@ -266,6 +285,16 @@ const App = () => {
 				<Route index element={<DepartmentMembers />} />
 			</Route>
 
+			{/* Biometric Devices (admin) */}
+			<Route path="/list/biometric-devices" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<BiometricDevices />} />
+			</Route>
+
+			{/* Biometric Records (admin & instructor) */}
+			<Route path="/list/biometric-records" element={<AdminOrInstructorLayout />}>
+				<Route index element={<BiometricRecords />} />
+			</Route>
+
 			{/* HOD Dashboard — HODs only */}
 			<Route path="/dashboard/hod" element={<RoleProtectedLayout role="instructor" hodOnly />}>
 				<Route index element={<HODDashboard />} />
@@ -303,6 +332,32 @@ const App = () => {
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
 				<Route path="notices" element={<CommandantNotices />} />
+			</Route>
+
+			{/* OIC Assignments — admin & commandant */}
+			<Route path="/list/oic-assignments" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+			<Route path="/commandant/oic-assignments" element={<RoleProtectedLayout role="commandant" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+			<Route path="/ci/oic-assignments" element={<RoleProtectedLayout role="chief_instructor" />}>
+				<Route index element={<OICAssignments />} />
+			</Route>
+
+			{/* OIC dashboard */}
+			<Route path="/dashboard/oic" element={<RoleProtectedLayout role="oic" />}>
+				<Route index element={<OICDashboard />} />
+			</Route>
+
+			{/* OIC sub-routes */}
+			<Route path="/oic" element={<RoleProtectedLayout role="oic" />}>
+				<Route path="classes" element={<OICClasses />} />
+				<Route path="classes/:id" element={<OICClassDetail />} />
+				<Route path="exam-reports" element={<OICExamReports />} />
+				<Route path="remarks" element={<OICRemarks />} />
+				<Route path="comparison" element={<OICComparison />} />
+				<Route path="attendance" element={<OICAttendance />} />
 			</Route>
 
 			{/* Superadmin routes */}

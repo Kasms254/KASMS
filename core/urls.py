@@ -3,18 +3,30 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet,AdminRosterViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet, AdminRosterViewSet,
     # for the instructor
-    ExamViewSet,ClassViewSet,ClassNoticeViewSet,ProfileViewSet,CertificateViewSet,CertificateTemplateViewSet, EnrollmentCertificateView,
-    ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet,SchoolViewSet, SchoolAdminViewSet,
+    ExamViewSet, ClassNoticeViewSet, ProfileViewSet, CertificateViewSet, CertificateTemplateViewSet, EnrollmentCertificateView,
+    ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet, SchoolViewSet, SchoolAdminViewSet,
     # departments
-    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet,
-AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet
-    )
+    DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
+    AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
+)
+from .oic_views import (
+    OICAssignmentViewSet,
+    OICDashboardViewSet,
+    OICClassViewSet,
+    OICComparisonViewSet,
+    OICExamReportViewSet,
+    OICExamResultViewSet,
+    OICAttendanceViewSet,
+    OICRemarkViewSet,
+)
 from .auth_views import (
-   csrf_token_view,login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view)
-from .performance_viewsets import(
-    SubjectPerformanceViewSet, ClassPerformanceViewSet)
+    csrf_token_view, login_view, logout_view, current_user_view, change_password_view, token_refresh_view, verify_token_view,
+)
+from .performance_viewsets import (
+    SubjectPerformanceViewSet, ClassPerformanceViewSet,
+)
 from .commandant_views import (
     CommandantDashboardViewSet,
     CommandantDepartmentViewSet,
@@ -41,17 +53,15 @@ router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 router.register(r'subjects', SubjectViewSet, basename='subject')
 router.register(r'notices', NoticeViewSet, basename='notice')
 
-
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
-# router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')
 router.register(r'instructor-dashboard', InstructorDashboardViewset, basename='instructor_dashboard')
 router.register(r'exam-attachments', ExamAttachmentViewSet, basename='exam_attachment')
 
-# stduent routes
+# student routes
 router.register(r'student-dashboard', StudentDashboardViewset, basename='student-dashboard')
 app_name = 'core'
 
@@ -65,34 +75,32 @@ router.register(r'session-attendances', SessionAttendanceViewset, basename='sess
 router.register(r'biometric-records', BiometricRecordViewset, basename='biometric-record')
 router.register(r'attendance-reports', AttendanceReportViewSet, basename='attendance-report')
 
-#PersonalNotification
-router.register(r'personal-notifications', PersonalNotificationViewSet, basename='personal-notification') 
+# PersonalNotification
+router.register(r'personal-notifications', PersonalNotificationViewSet, basename='personal-notification')
 
 # schools
 router.register(r'schools', SchoolViewSet, basename='school')
-router.register(r'school-admins',SchoolAdminViewSet, basename='school-admin')
+router.register(r'school-admins', SchoolAdminViewSet, basename='school-admin')
 
 # membership
-router.register(r'memberships', SchoolMembershipViewSet, basename='membership' )
+router.register(r'memberships', SchoolMembershipViewSet, basename='membership')
 
 # certificate templates
 router.register(r'certificate_templates', CertificateTemplateViewSet, basename='certificate_template')
 
-# certificates 
+# certificates
 router.register(r'certificates', CertificateViewSet, basename='certificate')
 
 # indexes
 router.register(r"marks-entry", MarksEntryViewSet, basename="marks-entry")
 router.register(r"admin/roster", AdminRosterViewSet, basename="admin-roster")
 
-
 # departments
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'department-memberships', DepartmentMembershipViewSet, basename='department-membership')
 router.register(r'result-edit-requests', ResultEditRequestViewSet, basename='result-edit-request')
 
-
-# commandantrouters
+# commandant routers
 commandant_router = DefaultRouter()
 commandant_router.register(r'overview',       CommandantDashboardViewSet,    basename='commandant-dashboard')
 commandant_router.register(r'departments',    CommandantDepartmentViewSet,   basename='commandant-departments')
@@ -106,26 +114,42 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+router.register(r'oic-assignments', OICAssignmentViewSet, basename='oic-assignment')
+oic_router = DefaultRouter()
+oic_router.register(r'assignments',    OICAssignmentViewSet,   basename='oic-assignment')
+oic_router.register(r'overview',       OICDashboardViewSet,    basename='oic-dashboard')
+oic_router.register(r'classes',        OICClassViewSet,        basename='oic-classes')
+oic_router.register(r'comparison',     OICComparisonViewSet,   basename='oic-comparison')
+oic_router.register(r'exam-reports',   OICExamReportViewSet,   basename='oic-exam-reports')
+oic_router.register(r'exam-results',   OICExamResultViewSet,   basename='oic-exam-results')
+oic_router.register(r'attendance',     OICAttendanceViewSet,   basename='oic-attendance')
+oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-remarks')
+
+# biometric
+router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
+router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
-
 
 urlpatterns = [
     path('', include(router.urls)),
     path('commandant/', include(commandant_router.urls)),
+    path('oic/', include(oic_router.urls)),
     path("", home),
-    # path('auth/login/', login_view, name='login'),
-    # path('auth/logout/', logout_view, name='logout'),
-    # path('auth/me/', current_user_view, name='current_user'),
-    # path('auth/change-password/', change_password_view, name='change_password'),
-    # path('auth/token/refresh/', token_refresh_view, name='token-refresh'),
-    # path('auth/token/verify/', verify_token_view, name='token-verify'),
-    path('commandant/', include(commandant_router.urls)),
-    path('profile/me/', ProfileViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update','put': 'update',}), name='profile-me'
-    ,),
+    path(
+        'profile/me/',
+        ProfileViewSet.as_view({
+            'get': 'retrieve',
+            'patch': 'partial_update',
+            'put': 'update',
+        }),
+        name='profile-me',
+    ),
     path('auth/', include((auth_urlpatterns, 'auth'))),
-    path('certificates/public/verify/', SecureCertificatePublicVerificationView.as_view(), name='certificate-public-verify',),
-
-
+    path(
+        'certificates/public/verify/',
+        SecureCertificatePublicVerificationView.as_view(),
+        name='certificate-public-verify',
+    ),
 ]
-
