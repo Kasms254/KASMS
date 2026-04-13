@@ -391,7 +391,7 @@ export default function Courses() {
                 value={course.name}
                 badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
                 icon="BookOpen"
-                accent="bg-indigo-600"
+                accent="bg-white-500"
                 colored={true}
               >
                 <div className="flex items-center justify-between gap-2">

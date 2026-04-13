@@ -92,7 +92,7 @@ export default function CommandantNotices() {
       content: notice.content || '',
       priority: notice.priority || 'medium',
       target_role: notice.target_role || 'all',
-      expiry_date: notice.expiry_date ? notice.expiry_date.split('T')[0] : '',
+      expiry_date: notice.expiry_date || '',
       is_active: notice.is_active !== false,
     })
     setErrors({})
@@ -188,9 +188,8 @@ export default function CommandantNotices() {
 
   const isExpired = (notice) => {
     if (!notice.expiry_date) return false
-    const expiry = new Date(notice.expiry_date)
-    expiry.setHours(23, 59, 59, 999)
-    return new Date() > expiry
+    const [y, m, d] = notice.expiry_date.split('-').map(Number)
+    return new Date() > new Date(y, m - 1, d, 23, 59, 59)
   }
 
   useEffect(() => {
@@ -292,11 +291,11 @@ export default function CommandantNotices() {
               >
                 <option value="">All Audiences</option>
                 <option value="all">All</option>
-                <option value="student">Students</option>
-                <option value="instructor">Instructors</option>
-                <option value="admin">Admin</option>
                 <option value="commandant">Commandant</option>
                 <option value="chief_instructor">Chief Instructor</option>
+                <option value="admin">Admin</option>
+                <option value="instructor">Instructors</option>
+                <option value="student">Students</option>
               </select>
             </div>
           </div>
@@ -371,12 +370,17 @@ export default function CommandantNotices() {
                       </div>
                     </div>
                     <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                    {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
+                      <p className="mt-2 text-xs text-neutral-400">
+                        By: {[n.created_by_rank, n.created_by_name, n.created_by_svc_number].filter(Boolean).join(' ')}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-2">
                     <div className="text-xs text-neutral-500 flex flex-wrap items-center gap-2">
                       <span className={expired ? 'text-red-600 font-medium' : ''}>
-                        Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                        Expiry: {n.expiry_date ? n.expiry_date : '—'}
                       </span>
                       {n.target_role && n.target_role !== 'all' && (
                         <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[11px]">
@@ -491,11 +495,11 @@ export default function CommandantNotices() {
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                   >
                     <option value="all">All</option>
-                    <option value="student">Students</option>
-                    <option value="instructor">Instructors</option>
-                    <option value="admin">Admin</option>
                     <option value="commandant">Commandant</option>
                     <option value="chief_instructor">Chief Instructor</option>
+                    <option value="admin">Admin</option>
+                    <option value="instructor">Instructors</option>
+                    <option value="student">Students</option>
                   </select>
                 </div>
               </div>

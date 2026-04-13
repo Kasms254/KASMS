@@ -187,7 +187,7 @@ export default function Login() {
                   autoComplete="username"
                   maxLength={15}
                   pattern="[0-9]+"
-                  title="Service number must contain only numbers"
+                  
                 />
               </div>
               {fieldErrors.svc_number && (

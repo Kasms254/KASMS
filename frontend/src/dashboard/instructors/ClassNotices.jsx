@@ -64,13 +64,11 @@ export default function ClassNotices() {
     high: 'bg-amber-100 text-amber-700',
   }
 
-  // Check if a notice has expired based on expiry_date
+  // Check if a notice has expired based on expiry_date (plain date YYYY-MM-DD)
   const isExpired = (notice) => {
     if (!notice.expiry_date) return false
-    const now = new Date()
-    const expiryDate = new Date(notice.expiry_date)
-    expiryDate.setHours(23, 59, 59, 999)
-    return now > expiryDate
+    const [y, m, d] = notice.expiry_date.split('-').map(Number)
+    return new Date() > new Date(y, m - 1, d, 23, 59, 59)
   }
 
   // Filter notices by effective status (considering expiry)
@@ -440,12 +438,17 @@ export default function ClassNotices() {
                       </div>
 
                       <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                      {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
+                        <p className="mt-2 text-xs text-neutral-400">
+                          By: {[n.created_by_rank, n.created_by_name, n.created_by_svc_number ? `(${n.created_by_svc_number})` : null].filter(Boolean).join(' ')}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-4 flex items-center justify-between">
                       <div className="text-xs text-neutral-500">
                         <span className={expired ? 'text-red-600 font-medium' : ''}>
-                          Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                          Expiry: {n.expiry_date ? n.expiry_date : '—'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">

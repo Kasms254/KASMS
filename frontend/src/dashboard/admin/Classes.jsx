@@ -287,7 +287,7 @@ export default function ClassesList(){
                 value={c.name}
                 badge={`${c.subjects_count ?? 0} Subjects • ${c.is_active ? 'Active' : 'Inactive'}`}
                 icon="Layers"
-                accent={c.is_active ? 'bg-emerald-500' : 'bg-neutral-400'}
+                accent={c.is_active ? 'bg-white-500' : 'bg-neutral-400'}
                 colored={true}
                 className="h-full flex flex-col"
               >

@@ -632,10 +632,16 @@ export default function Notifications() {
                       <div className="text-xs text-neutral-500 flex items-center gap-2">
                         <Icons.User className="w-3 h-3" />
                         <span>Posted by: {(() => {
-                          const parts = []
-                          if (selected.meta?.created_by_rank) parts.push(selected.meta.created_by_rank)
-                          if (selected.meta?.created_by_name) parts.push(selected.meta.created_by_name)
-                          return parts.length > 0 ? parts.join(' ') : 'Unknown'
+                          const role = selected.meta?.created_by_role
+                          const isAdmin = role === 'admin' || role === 'superadmin'
+                          const svc  = selected.meta?.created_by_svc_number
+                          const rank = selected.meta?.created_by_rank
+                          const name = selected.meta?.created_by_name
+                          const parts = isAdmin
+                            ? [svc, rank, name]
+                            : [rank, name, svc]
+                          const filtered = parts.filter(Boolean)
+                          return filtered.length > 0 ? filtered.join(' ') : 'Unknown'
                         })()}</span>
                       </div>
                     </div>
