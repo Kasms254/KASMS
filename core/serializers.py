@@ -930,7 +930,7 @@ class NoticeSerializer(serializers.ModelSerializer):
         return getattr(obj, '_user_read_at', None)
 
     def validate_expiry_date(self, value):
-        if value and value < timezone.now():
+        if value and value < timezone.localdate():
             raise serializers.ValidationError("Expiry date cannot be in the past.")
         return value
 

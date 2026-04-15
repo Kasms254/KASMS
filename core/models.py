@@ -443,7 +443,7 @@ class User(AbstractUser):
     )
     rank = models.CharField(max_length=20, choices=RANK_CHOICES, null=True, blank=True)
     phone_number = models.CharField(max_length=20)
-    svc_number = models.CharField(max_length=50, unique=True)
+    svc_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -886,7 +886,6 @@ class ExamResult(models.Model):
 class Attendance(models.Model):
 
     STATUS_CHOICES = [('present', 'Present'), ('absent', 'Absent'), ('late', 'Late')]
-    
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='attendances', null=True, blank=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendances')
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='attendances')
