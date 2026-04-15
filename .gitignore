@@ -61,3 +61,4 @@ celerybeat-schedule.dat
 celerybeat-schedule.bak
 find_old_references.sh
 fix_all.py
+CLAUDE.md

@@ -1507,7 +1507,7 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PersonalNotification
         fields = '__all__'
-        read_only_fields = ('created_at', 'read_at', 'created_by')
+        read_only_fields = ('created_at', 'read_at', 'created_by', 'user', 'school')
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else 'System'

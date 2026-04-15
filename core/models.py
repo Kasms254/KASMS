@@ -1287,9 +1287,8 @@ class SessionAttendance(models.Model):
         return self.location_verified
 
 class BiometricRecord(models.Model):
-
     DEVICE_TYPE_CHOICES = [('zkteco', 'ZKTeco Device'), ('fingerprint', 'Fingerprint Scanner'), ('other', 'Other')]
-    
+
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='biometric_records', null=True, blank=True)
     device_id = models.CharField(max_length=100)
     device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES, default='zkteco')

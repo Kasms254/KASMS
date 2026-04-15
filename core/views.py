@@ -35,7 +35,7 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
-from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
+from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
 from rest_framework.views import APIView
@@ -998,6 +998,12 @@ class ClassViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     serializer_class = ClassSerializer
 
+    def get_permissions(self):
+        
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsAdmin(), BelongsToSameSchool()]
+        return [IsAuthenticated()]
+
     def perform_create(self, serializer):
         school = get_current_school()
         if not school and self.request.user.school:
@@ -1551,10 +1557,12 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             return qs.none()
 
 
-        if user.role in ('commandant', 'chief_instructor'):
+        if user.role == 'admin':
+            pass  # admin sees all notices in their school for management purposes
+        elif user.role in ('commandant', 'chief_instructor'):
             qs = qs.filter(target_role='all')
         else:
-            qs = qs.exclude(target_role__in=['commandant', 'chief_instructor'])
+            qs = qs.filter(Q(target_role='all') | Q(target_role=user.role))
 
         return self._annotate_read_status(qs)
 
@@ -2503,7 +2511,9 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         else:
             return qs.none()
 
-        if user.role == 'instructor':
+        if user.role in ('commandant', 'chief_instructor'):
+            return qs.none()
+        elif user.role == 'instructor':
             qs = qs.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
@@ -4743,8 +4753,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'count':len(low_attendance_students),
             'students':low_attendance_students
         })
-# personalnotification
-class PersonalNotificationViewSet(viewsets.ModelViewSet):
+
+class PersonalNotificationViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
 
     serializer_class = PersonalNotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -4836,6 +4846,12 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['-created_at']
+
+    def get_permissions(self):
+       
+        if self.action in ('create', 'update', 'partial_update', 'destroy', 'set_default'):
+            return [IsAuthenticated(), IsAdmin(), BelongsToSameSchool()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = CertificateTemplate.all_objects.select_related('school').all()
