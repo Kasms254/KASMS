@@ -1548,8 +1548,11 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         else:
             return qs.none()
 
-        if user.role not in ('admin', 'superadmin'):
-            qs = qs.filter(self._target_role_q(user))
+
+        if user.role in ('commandant', 'chief_instructor'):
+            qs = qs.filter(target_role='all')
+        else:
+            qs = qs.exclude(target_role__in=['commandant', 'chief_instructor'])
 
         return self._annotate_read_status(qs)
 
@@ -1568,7 +1571,31 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
-        serializer.save(school=school, created_by=self.request.user)
+        notice = serializer.save(school=school, created_by=self.request.user)
+
+        # Create PersonalNotifications for commandant/chief_instructor targeted notices
+        if notice.target_role in ('commandant', 'chief_instructor'):
+            target_memberships = school.memberships.filter(
+                role=notice.target_role,
+                status='active',
+            ).select_related('user')
+
+            personal_notifications = [
+                PersonalNotification(
+                    school=school,
+                    user=membership.user,
+                    notification_type='general',
+                    priority=notice.priority,
+                    title=notice.title,
+                    content=notice.content,
+                    created_by=notice.created_by,
+                    is_active=True,
+                )
+                for membership in target_memberships
+            ]
+
+            if personal_notifications:
+                PersonalNotification.objects.bulk_create(personal_notifications)
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
