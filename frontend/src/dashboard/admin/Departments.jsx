@@ -364,8 +364,7 @@ export default function Departments() {
                 <div className="space-y-1.5">
                   {dept.hod_name && (
                     <div className="text-xs text-neutral-500 truncate">
-                      <span className="font-medium">HOD:</span> {dept.hod_name}
-                      {dept.hod_svc_number && <span className="text-neutral-400 ml-1">({dept.hod_svc_number})</span>}
+                      <span className="font-medium">HOD:</span> {dept.hod_svc_number && <span>{dept.hod_svc_number} </span>}{dept.hod_name}
                     </div>
                   )}
                   {dept.description && (

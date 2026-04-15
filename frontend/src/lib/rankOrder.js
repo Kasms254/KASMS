@@ -39,6 +39,49 @@ const LABEL_TO_VALUE = {
   'private': 'private',
 }
 
+// Internal value → display label with correct casing (roman numerals preserved)
+const VALUE_TO_LABEL = {
+  general: 'General',
+  lieutenant_general: 'Lieutenant General',
+  major_general: 'Major General',
+  brigadier: 'Brigadier',
+  colonel: 'Colonel',
+  lieutenant_colonel: 'Lieutenant Colonel',
+  major: 'Major',
+  captain: 'Captain',
+  lieutenant: 'Lieutenant',
+  warrant_officer_i: 'Warrant Officer I',
+  warrant_officer_ii: 'Warrant Officer II',
+  senior_sergeant: 'Senior Sergeant',
+  sergeant: 'Sergeant',
+  corporal: 'Corporal',
+  lance_corporal: 'Lance Corporal',
+  private: 'Private',
+}
+
+// Shared RANK_OPTIONS array (senior → junior) — import this instead of duplicating per-file
+export const RANK_OPTIONS = Object.entries(VALUE_TO_LABEL).map(([value, label]) => ({ value, label }))
+
+// Normalize any rank string (internal value or display label) to its internal value
+export function normalizeRank(raw) {
+  if (!raw) return ''
+  const key = String(raw).toLowerCase().trim()
+  if (VALUE_TO_LABEL[key]) return key // already an internal value
+  const fromLabel = LABEL_TO_VALUE[key]
+  return fromLabel || ''
+}
+
+export function getRankLabel(rankValue) {
+  if (!rankValue) return ''
+  const key = String(rankValue).toLowerCase().trim()
+  // Try as internal value (e.g. warrant_officer_ii)
+  if (VALUE_TO_LABEL[key]) return VALUE_TO_LABEL[key]
+  // Try as display label with any casing (e.g. "Warrant Officer Ii", "warrant officer ii")
+  const internal = LABEL_TO_VALUE[key]
+  if (internal) return VALUE_TO_LABEL[internal] || rankValue
+  return rankValue
+}
+
 export function getRankSortIndex(rank) {
   if (!rank) return 999
   const key = String(rank).toLowerCase().trim()

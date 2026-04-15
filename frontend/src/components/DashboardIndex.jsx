@@ -27,6 +27,7 @@ export default function DashboardIndex() {
   if (user.role === 'student') return <Navigate to="/dashboard/students" replace />
   if (user.role === 'commandant') return <Navigate to="/dashboard/commandant" replace />
   if (user.role === 'chief_instructor') return <Navigate to="/dashboard/ci" replace />
+  if (user.role === 'oic') return <Navigate to="/dashboard/oic" replace />
 
   // Security: Unknown/invalid role - logout and redirect
   // This prevents unauthorized access and infinite redirect loops

@@ -84,7 +84,7 @@ class SchoolMembershipInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(TenantAdminMixin, BaseUserAdmin):
-    list_display = ['username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
+    list_display = ['id','username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
     ordering = ['-created_at']

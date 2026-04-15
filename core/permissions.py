@@ -1,10 +1,7 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
-from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .managers import get_current_school
-from .models import DepartmentMembership
-from rest_framework.permissions import BasePermission, SAFE_METHODS
-from .models import OICAssignment
+from .models import DepartmentMembership, OICAssignment
 
 
 class IsSuperAdmin(BasePermission):
@@ -30,12 +27,14 @@ class IsAdmin(BasePermission):
     
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'superadmin']
-    
+
 class IsAdminOrInstructor(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'instructor', 'superadmin', 'commandant', 'chief_instructor', 'oic']
-    
+        return request.user.is_authenticated and request.user.role in [
+            'admin', 'instructor', 'superadmin', 'commandant', 'chief_instructor',
+        ]
+
 class IsInstructor(BasePermission):
 
     def has_permission(self, request, view):
@@ -85,11 +84,13 @@ class IsInstructorOfClassOrAdmin(BasePermission):
                 obj.instructor == request.user
             )
         )
-        
+
 class IsAdminOrCommandant(BasePermission):
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['admin', 'commandant', 'chief_instructor','oic','superadmin']
+        return request.user.is_authenticated and request.user.role in [
+            'admin', 'commandant', 'chief_instructor', 'superadmin',
+        ]
 
 class ReadOnlyForCommandant(BasePermission):
 
@@ -217,6 +218,7 @@ class IsAdminOnly(BasePermission):
             request.user.is_authenticated
             and request.user.role in ["admin", "superadmin"]
         )
+
 # department permission
 
 class IsHOD(BasePermission):
@@ -272,6 +274,7 @@ class IsChiefInstructor(BasePermission):
             and request.user.role == 'chief_instructor'
         )
 
+
 class IsCommandantOrChiefInstructor(BasePermission):
 
     message = "Only Commandant, Chief Instructor, or Admin can access this."
@@ -280,7 +283,7 @@ class IsCommandantOrChiefInstructor(BasePermission):
         return (
             request.user.is_authenticated
             and request.user.role in [
-                'commandant', 'chief_instructor', 'oic','admin', 'superadmin'
+                'commandant', 'chief_instructor', 'admin', 'superadmin',
             ]
         )
 

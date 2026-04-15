@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import useToast from '../../hooks/useToast'
 import ConfirmModal from '../../components/ConfirmModal'
 import * as api from '../../lib/api'
 import * as LucideIcons from 'lucide-react'
+import { getRankLabel, getRankSortIndex } from '../../lib/rankOrder'
 
 export default function TeachingAssignments() {
   const toast = useToast()
@@ -52,10 +53,14 @@ export default function TeachingAssignments() {
       }
 
       const filtered = q ? results.filter(matchesQuery) : results
-      setAssignments(filtered.filter(s => s.instructor))
+      const withInstructor = filtered.filter(s => s.instructor)
+      withInstructor.sort((a, b) => {
+        const diff = getRankSortIndex(a.instructor_rank) - getRankSortIndex(b.instructor_rank)
+        if (diff !== 0) return diff
+        return Number(a.instructor_svc_number || 0) - Number(b.instructor_svc_number || 0)
+      })
+      setAssignments(withInstructor)
       setTotalCount(typeof data.count === 'number' ? data.count : filtered.length)
-      setPage(p)
-      setPageSize(ps)
     } catch (err) {
       toast?.push?.({ message: err.message || 'Failed to load assignments', type: 'error' })
     } finally {
@@ -63,23 +68,20 @@ export default function TeachingAssignments() {
     }
   }
 
-  useEffect(() => {
-    // initial paginated load
-    fetchAssignments({ page: 1 })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // debounce search input to avoid firing on every keystroke
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300)
     return () => clearTimeout(t)
   }, [searchTerm])
 
-  // when debounced search or ordering changes, reload page 1
+  // Reset to page 1 when search or ordering changes
+  useEffect(() => { setPage(1) }, [debouncedSearch, ordering])
+
+  // Fetch on any pagination or filter change (covers initial mount too)
   useEffect(() => {
-    fetchAssignments({ page: 1, search: debouncedSearch, ordering })
+    fetchAssignments({ page, pageSize, search: debouncedSearch, ordering })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, ordering])
+  }, [page, pageSize, debouncedSearch, ordering])
 
   // create-assignment helpers removed — this view shows existing assignments only
 
@@ -205,7 +207,7 @@ export default function TeachingAssignments() {
                 {assignments.map((a) => (
                   <tr key={a.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc_number || a.instructor_svc || (typeof a.instructor === 'string' ? a.instructor : '-')}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{getRankLabel(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank) || '-'}</td>
                     <td className="px-4 py-3 text-sm font-medium text-black">{
                       a.instructor_name || (a.instructor?.first_name ? `${a.instructor.first_name} ${a.instructor.last_name || ''}` : (a.instructor?.svc_number || a.instructor))
                     }</td>
@@ -254,7 +256,7 @@ export default function TeachingAssignments() {
                           }</div>
                           <div className="text-xs text-neutral-500">{a.instructor?.svc_number || a.instructor?.svc || a.instructor_svc_number || a.instructor_svc || '-'}</div>
                           {(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank) && (
-                            <div className="text-xs text-neutral-600">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank}</div>
+                            <div className="text-xs text-neutral-600">{getRankLabel(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank)}</div>
                           )}
                         </div>
                       </td>
@@ -304,7 +306,7 @@ export default function TeachingAssignments() {
                   {(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank) && (
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank}</span>
+                      <span className="text-sm text-neutral-700">{getRankLabel(a.instructor?.rank || a.instructor?.rank_display || a.instructor_rank)}</span>
                     </div>
                   )}
 

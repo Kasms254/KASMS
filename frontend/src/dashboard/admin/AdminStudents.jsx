@@ -35,6 +35,15 @@ const RANK_OPTIONS = [
   { value: 'private', label: 'Private' },
 ]
 
+const EDITABLE_ROLE_OPTIONS = [
+  { value: 'student', label: 'Student' },
+  { value: 'instructor', label: 'Instructor' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'commandant', label: 'Commandant' },
+  { value: 'chief_instructor', label: 'Chief Instructor' },
+  { value: 'oic', label: 'Officer in Charge' },
+]
+
 // Build a reverse lookup: display label → internal value (case-insensitive)
 const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
@@ -72,7 +81,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
   const [pageSize, setPageSize] = useState(10)
   // edit / delete UI state
   const [editingStudent, setEditingStudent] = useState(null)
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, class_obj: '' })
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, class_obj: '', role: 'student' })
   const [editLoading, setEditLoading] = useState(false)
   const [editFieldErrors, setEditFieldErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
@@ -220,6 +229,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       is_active: !!st.is_active,
       rank: normalizeRank(st.rank || st.rank_display),
       unit: st.unit || '',
+      role: st.role || 'student',
       // ensure class_obj is a string (select values are strings) and fall back to empty
       class_obj: st.class_obj ? String(st.class_obj) : '',
     })
@@ -246,7 +256,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
   function closeEdit() {
     setEditingStudent(null)
-    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, rank: '' })
+    setEditForm({ first_name: '', last_name: '', email: '', phone_number: '', svc_number: '', unit: '', is_active: true, rank: '', class_obj: '', role: 'student' })
     setEditFieldErrors({})
     setEditTouched({})
     setEditError('')
@@ -265,7 +275,11 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       newValue = value.replace(/\D/g, '')
     }
 
-    setEditForm((f) => ({ ...f, [key]: newValue }))
+    if (key === 'role' && value !== 'student') {
+      setEditForm((f) => ({ ...f, [key]: newValue, class_obj: '' }))
+    } else {
+      setEditForm((f) => ({ ...f, [key]: newValue }))
+    }
 
     // Clear error when user types (if field was touched)
     if (editTouched[key]) {
@@ -302,6 +316,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
         email: editForm.email,
         phone_number: editForm.phone_number,
         svc_number: editForm.svc_number,
+        role: editForm.role,
         rank: editForm.rank || undefined,
         unit: editForm.unit || '',
         is_active: editForm.is_active,
@@ -329,6 +344,8 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
         email: updated.email,
         rank: normalizeRank(updated.rank || updated.rank_display),
         unit: updated.unit || '',
+        role: updated.role,
+        role_display: updated.role_display,
         phone_number: updated.phone_number,
         is_active: updated.is_active,
         created_at: updated.created_at,
@@ -338,7 +355,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       try {
         const selectedClassId = editForm.class_obj
         const currentClassId = currentEnrollment && currentEnrollment.class_obj ? (typeof currentEnrollment.class_obj === 'object' ? currentEnrollment.class_obj.id : currentEnrollment.class_obj) : null
-        if (selectedClassId && String(selectedClassId) !== String(currentClassId)) {
+        if (editForm.role === 'student' && selectedClassId && String(selectedClassId) !== String(currentClassId)) {
           // check if there's an existing enrollment record for this class
           const existing = enrollmentsList && enrollmentsList.find((e) => {
             const cid = typeof e.class_obj === 'object' && e.class_obj !== null ? e.class_obj.id : e.class_obj
@@ -806,10 +823,20 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                 </div>
 
                 <div>
+                  <label className="text-sm text-neutral-600 mb-1 block">Role</label>
+                  <select value={editForm.role || 'student'} onChange={(e) => handleEditChange('role', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                    {EDITABLE_ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Unit</label>
                   <input value={editForm.unit} onChange={(e) => handleEditChange('unit', e.target.value)} maxLength={50} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" placeholder="e.g. 21KR" />
                 </div>
 
+                {editForm.role === 'student' && (
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Class</label>
                   <select value={editForm.class_obj || ''} onChange={(e) => handleEditChange('class_obj', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
@@ -819,6 +846,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                     ))}
                   </select>
                 </div>
+                )}
 
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Email</label>

@@ -50,6 +50,21 @@ def create_user_profile(sender, instance, created, **kwargs):
 
     transaction.on_commit(_create_profile)
 
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def sync_user_role_to_memberships(sender, instance, created, update_fields, **kwargs):
+    if created:
+        return
+
+
+    if update_fields is not None and 'role' not in update_fields:
+        return
+
+    def _sync():
+        instance.sync_memberships_role()
+
+    transaction.on_commit(_sync)
+
 @receiver(post_save, sender='core.ExamResult')
 def check_academic_completion_on_grade(sender, instance, **kwargs):
     if not instance.is_submitted or instance.marks_obtained is None:
@@ -96,7 +111,6 @@ def auto_assign_student_index(sender, instance, created, **kwargs):
 
     def _assign():
 
-
         try:
             enrollment = Enroll.all_objects.select_related(
                 'class_obj', 'school'
@@ -140,7 +154,6 @@ def auto_assign_student_index(sender, instance, created, **kwargs):
                 "Failed to assign StudentIndex for enrollment %s: %s",
                 instance.pk, e, exc_info=True,
             )
-
     transaction.on_commit(_assign)
 
 

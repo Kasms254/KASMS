@@ -4,7 +4,7 @@ import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import SearchableSelect from '../../components/SearchableSelect'
-import { getRankSortIndex } from '../../lib/rankOrder'
+import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
 function sanitizeInput(value) {
@@ -32,8 +32,8 @@ export default function SubjectsPage() {
   const [selectedInstructor, setSelectedInstructor] = useState('all')
 
   // sorting state
-  const [sortField, setSortField] = useState('name') // name, code, class, instructor
-  const [sortDirection, setSortDirection] = useState('asc') // asc, desc
+  const [sortField, setSortField] = useState('rank') // name, code, class, instructor, rank
+  const [sortDirection, setSortDirection] = useState('asc') // asc = senior first for rank
 
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
@@ -96,7 +96,7 @@ export default function SubjectsPage() {
       const instructor = instructors.find((i) => i.id === iid)
       const instructorName = instructor ? (instructor.full_name || `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim()) : (s.instructor_name || '-')
       const instructorSvcNumber = instructor?.svc_number || '-'
-      const instructorRank = instructor?.rank || instructor?.rank_display || '-'
+      const instructorRank = getRankLabel(instructor?.rank || instructor?.rank_display) || '-'
 
       return {
         ...s,
@@ -174,10 +174,11 @@ export default function SubjectsPage() {
           aVal = a.instructorSvcNumber.toLowerCase()
           bVal = b.instructorSvcNumber.toLowerCase()
           break
-        case 'rank':
-          aVal = a.instructorRank.toLowerCase()
-          bVal = b.instructorRank.toLowerCase()
-          break
+        case 'rank': {
+          const aIdx = getRankSortIndex(a.instructorRank)
+          const bIdx = getRankSortIndex(b.instructorRank)
+          return sortDirection === 'asc' ? aIdx - bIdx : bIdx - aIdx
+        }
         default:
           aVal = ''
           bVal = ''
@@ -814,7 +815,7 @@ export default function SubjectsPage() {
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => setForm({ ...form, instructor: val })}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                     />
@@ -862,7 +863,7 @@ export default function SubjectsPage() {
                   <SearchableSelect
                     value={editForm.instructor}
                     onChange={(val) => handleEditChange('instructor', val)}
-                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
+                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
                     placeholder="Unassigned"
                     searchPlaceholder="Search by service number, rank, or name..."
                   />
