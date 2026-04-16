@@ -14,7 +14,7 @@ import {
   createBiometricUserMapping,
   updateBiometricUserMapping,
   deleteBiometricUserMapping,
-  getStudents,
+  getAllStudents,
 } from '../../lib/api'
 import SearchableSelect from '../../components/SearchableSelect'
 
@@ -23,6 +23,7 @@ const EMPTY_DEVICE = {
   ip_address: '',
   port: 4370,
   device_type: 'zkteco_f22',
+  serial_number: '',
   location_description: '',
   sync_interval_seconds: 30,
   time_offset_seconds: 0,
@@ -106,8 +107,10 @@ export default function BiometricDevices() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionLoading, setActionLoading] = useState({})
-  const [deviceUsersModal, setDeviceUsersModal] = useState(null)
-  const [deviceUsersLoading, setDeviceUsersLoading] = useState(false)
+  const [deviceUsersView, setDeviceUsersView] = useState(null) // { device, users: [], loading }
+  const [deviceUsersSearch, setDeviceUsersSearch] = useState('')
+  const [deviceUsersPage, setDeviceUsersPage] = useState(1)
+  const DEVICE_USERS_PAGE_SIZE = 10
 
 
   const loadDevices = useCallback(async () => {
@@ -144,6 +147,7 @@ export default function BiometricDevices() {
       ip_address: device.ip_address || '',
       port: device.port ?? 4370,
       device_type: device.device_type || 'zkteco_f22',
+      serial_number: device.serial_number || '',
       location_description: device.location_description || '',
       sync_interval_seconds: device.sync_interval_seconds ?? 30,
       time_offset_seconds: device.time_offset_seconds ?? 0,
@@ -243,16 +247,15 @@ export default function BiometricDevices() {
   }
 
   async function handleViewDeviceUsers(device) {
-    setDeviceUsersModal({ device, users: [] })
-    setDeviceUsersLoading(true)
+    setDeviceUsersSearch('')
+    setDeviceUsersPage(1)
+    setDeviceUsersView({ device, users: [], loading: true })
     try {
       const data = await getBiometricDeviceUsers(device.id)
-      setDeviceUsersModal({ device, users: data?.users ?? [] })
+      setDeviceUsersView({ device, users: data?.users ?? [], loading: false })
     } catch (err) {
       reportError(err?.message || 'Failed to fetch device users — check device connectivity')
-      setDeviceUsersModal(null)
-    } finally {
-      setDeviceUsersLoading(false)
+      setDeviceUsersView(null)
     }
   }
 
@@ -279,7 +282,7 @@ export default function BiometricDevices() {
   async function loadStudents() {
     setStudentsLoading(true)
     try {
-      const data = await getStudents()
+      const data = await getAllStudents()
       setStudents(Array.isArray(data) ? data : (data?.results ?? []))
     } catch {
       // non-critical — form will show empty dropdown
@@ -386,6 +389,150 @@ export default function BiometricDevices() {
 
   const inputCls = (hasErr) =>
     `w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${hasErr ? 'border-rose-500' : 'border-neutral-200'}`
+
+  // ── Device Users page (replaces modal for large lists) ───────────────────
+  if (deviceUsersView) {
+    const { device, users, loading } = deviceUsersView
+    const q = deviceUsersSearch.trim().toLowerCase()
+    const filtered = q
+      ? users.filter(u => String(u.user_id).toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q))
+      : users
+    const totalPages = Math.max(1, Math.ceil(filtered.length / DEVICE_USERS_PAGE_SIZE))
+    const safePage = Math.min(deviceUsersPage, totalPages)
+    const pageUsers = filtered.slice((safePage - 1) * DEVICE_USERS_PAGE_SIZE, safePage * DEVICE_USERS_PAGE_SIZE)
+
+    return (
+      <div className="w-full px-3 sm:px-4 md:px-6">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
+          <div>
+            <button
+              onClick={() => setDeviceUsersView(null)}
+              className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-1 transition"
+            >
+              ← Back to Devices
+            </button>
+            <h2 className="text-xl sm:text-2xl font-semibold text-black">Device Users</h2>
+            <p className="text-xs sm:text-sm text-neutral-500">{device.name} ({device.ip_address}) — users stored on device</p>
+          </div>
+          <div className="text-sm text-neutral-500">
+            {loading ? 'Loading...' : `${filtered.length} of ${users.length} users`}
+          </div>
+        </header>
+
+        {/* Search */}
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+          <input
+            type="text"
+            value={deviceUsersSearch}
+            onChange={e => { setDeviceUsersSearch(sanitizeInput(e.target.value)); setDeviceUsersPage(1) }}
+            placeholder="Search by user ID or name..."
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="bg-white rounded-xl border border-neutral-200 p-10 text-center text-sm text-neutral-500">
+            Loading device users...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-neutral-200 p-10 text-center text-sm text-neutral-400">
+            {users.length === 0 ? 'No users found on this device' : 'No users match your search'}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+            {/* Mobile cards */}
+            <div className="lg:hidden p-4 space-y-3">
+              {pageUsers.map((u, i) => (
+                <div key={i} className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-sm text-black">{u.name || '—'}</div>
+                      <div className="text-xs text-neutral-500 mt-0.5 font-mono">ID: {u.user_id}</div>
+                    </div>
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                      Privilege {u.privilege ?? '—'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="min-w-full table-auto">
+                <thead className="bg-neutral-50">
+                  <tr className="text-left">
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">#</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">User ID</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Privilege</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 bg-white">
+                  {pageUsers.map((u, i) => (
+                    <tr key={i} className="hover:bg-neutral-50 transition">
+                      <td className="px-4 py-3 text-sm text-neutral-400">{(safePage - 1) * DEVICE_USERS_PAGE_SIZE + i + 1}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-neutral-700">{u.user_id}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-black">{u.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-500">{u.privilege ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && filtered.length > DEVICE_USERS_PAGE_SIZE && (
+          <div className="mt-4 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-neutral-600">
+                Showing <span className="font-semibold text-black">{Math.min((safePage - 1) * DEVICE_USERS_PAGE_SIZE + 1, filtered.length)}</span> to{' '}
+                <span className="font-semibold text-black">{Math.min(safePage * DEVICE_USERS_PAGE_SIZE, filtered.length)}</span> of{' '}
+                <span className="font-semibold text-black">{filtered.length}</span> users
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDeviceUsersPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                  .reduce((acc, p, idx, arr) => {
+                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((p, idx) =>
+                    p === '…'
+                      ? <span key={`e${idx}`} className="px-2 text-neutral-400">…</span>
+                      : <button
+                          key={p}
+                          onClick={() => setDeviceUsersPage(p)}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition ${safePage === p ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}
+                        >{p}</button>
+                  )
+                }
+                <button
+                  onClick={() => setDeviceUsersPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -700,6 +847,13 @@ export default function BiometricDevices() {
                       <input className={inputCls(false)} placeholder="zkteco_f22" value={deviceForm.device_type} onChange={e => setDeviceForm(f => ({ ...f, device_type: sanitizeInput(e.target.value) }))} />
                     </div>
                     <div>
+                      <label className="text-sm text-neutral-600 mb-1 block">Serial Number</label>
+                      <input className={inputCls(deviceErrors.serial_number)} placeholder="e.g. ABC1234567" value={deviceForm.serial_number} maxLength={100} onChange={e => setDeviceForm(f => ({ ...f, serial_number: sanitizeInput(e.target.value).slice(0, 100) }))} />
+                      {deviceErrors.serial_number && <div className="text-xs text-rose-600 mt-1">{deviceErrors.serial_number}</div>}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
                       <label className="text-sm text-neutral-600 mb-1 block">Status</label>
                       <select className={inputCls(false)} value={deviceForm.status} onChange={e => setDeviceForm(f => ({ ...f, status: e.target.value }))}>
                         <option value="active">Active</option>
@@ -777,49 +931,6 @@ export default function BiometricDevices() {
         </div>
       )}
 
-      {/* ── DEVICE USERS MODAL ── */}
-      {deviceUsersModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeviceUsersModal(null)} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg flex flex-col max-h-[80vh]">
-            <div className="bg-white rounded-xl shadow-2xl ring-1 ring-black/5 flex flex-col overflow-hidden">
-              <div className="flex items-start justify-between gap-4 p-4 sm:p-6 border-b border-neutral-100">
-                <div>
-                  <h4 className="text-lg text-black font-medium">Device Users</h4>
-                  <p className="text-sm text-neutral-500">{deviceUsersModal.device.name} — users stored on device</p>
-                </div>
-                <button type="button" aria-label="Close" onClick={() => setDeviceUsersModal(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
-              </div>
-              <div className="overflow-y-auto p-4 sm:p-6">
-                {deviceUsersLoading ? (
-                  <div className="text-sm text-neutral-500 text-center py-6">Loading device users...</div>
-                ) : deviceUsersModal.users.length === 0 ? (
-                  <div className="text-sm text-neutral-400 text-center py-6">No users found on this device</div>
-                ) : (
-                  <table className="w-full table-auto">
-                    <thead>
-                      <tr className="text-left bg-neutral-50">
-                        <th className="px-3 py-2 text-sm text-neutral-600">User ID</th>
-                        <th className="px-3 py-2 text-sm text-neutral-600">Name</th>
-                        <th className="px-3 py-2 text-sm text-neutral-600">Privilege</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deviceUsersModal.users.map((u, i) => (
-                        <tr key={i} className="border-t hover:bg-neutral-50">
-                          <td className="px-3 py-2 text-sm font-mono text-neutral-700">{u.user_id}</td>
-                          <td className="px-3 py-2 text-sm text-neutral-700">{u.name || '—'}</td>
-                          <td className="px-3 py-2 text-sm text-neutral-500">{u.privilege ?? '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── ADD MAPPING MODAL ── */}
       {mappingModal && (
