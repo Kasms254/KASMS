@@ -344,7 +344,7 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField(read_only=True)
     
     class_obj = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.filter(is_active=True),
+        queryset=Class.all_objects.none(),  # overridden per-request in get_fields()
         required=False,
         write_only=True,
         allow_null=True,
@@ -365,7 +365,17 @@ class UserSerializer(serializers.ModelSerializer):
         
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
-    
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        school = getattr(request, 'school', None) if request else None
+        if school:
+            fields['class_obj'].queryset = Class.objects.filter(school=school, is_active=True)
+        else:
+            fields['class_obj'].queryset = Class.all_objects.filter(is_active=True)
+        return fields
+
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password2'):
             raise serializers.ValidationError({"password": "Password fields didn't match."})
@@ -2550,9 +2560,9 @@ class AttendanceSerializer(serializers.ModelSerializer):
         return attrs
 
 class BulkAttendanceSerializer(serializers.Serializer):
-    class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
+    class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.all_objects.none())
     subject = serializers.PrimaryKeyRelatedField(
-        queryset=Subject.objects.all(),
+        queryset=Subject.all_objects.none(),
         required=False,
         allow_null=True
     )
@@ -2561,6 +2571,18 @@ class BulkAttendanceSerializer(serializers.Serializer):
         child=serializers.DictField(),
         allow_empty=False
     )
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        school = getattr(request, 'school', None) if request else None
+        if school:
+            fields['class_obj'].queryset = Class.objects.filter(school=school)
+            fields['subject'].queryset = Subject.objects.filter(school=school)
+        else:
+            fields['class_obj'].queryset = Class.all_objects.all()
+            fields['subject'].queryset = Subject.all_objects.all()
+        return fields
 
     def validate_attendance_records(self, value):
         valid_statuses = ['present', 'absent', 'late', 'excused']
