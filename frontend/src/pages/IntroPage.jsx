@@ -96,7 +96,7 @@ export default function IntroPage() {
             </div>
             <div className="hidden sm:block">
               <h1 className="text-red-900 font-bold text-lg tracking-tight">KASMS</h1>
-              <p className="text-gray-500 text-xs">School Management</p>
+              <p className="text-gray-500 text-xs">Schools Management</p>
             </div>
           </div>
 
@@ -155,8 +155,8 @@ export default function IntroPage() {
               }`}
             >
               Kenya Army{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-900 to-rose-700">
-                School Management
+              <span className="text-transparent bg-clip-text bg-red-900">
+                Schools Management
               </span>{' '}
               System
             </h2>

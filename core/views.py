@@ -1887,7 +1887,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         class_obj = exam.subject.class_obj
 
-        # Prevent generating results for a closed class
         if class_obj.is_closed:
             return Response(
                 {'error': 'Cannot generate exam results for a closed class.'},
@@ -2205,8 +2204,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     errors.append(f"Error processing result {result_data.get('id')}: {str(e)}")
 
-
-            
         return Response({
             'status': 'success',
             'updated': updated_count,
@@ -2218,7 +2215,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def grade(self, request, pk=None):
         result = self.get_object()
 
-        # Prevent grading if the class is closed
         if result.exam.subject.class_obj.is_closed:
             return Response(
                 {'error': 'Cannot grade exams for a closed class.'},

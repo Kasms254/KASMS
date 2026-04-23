@@ -15,6 +15,17 @@ SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
+# When Django runs behind Nginx (production), Nginx terminates TLS and
+# forwards requests via HTTP internally. Without this setting:
+#   - request.is_secure() returns False
+#   - CSRF / session cookies are NOT marked Secure
+#   - Cookie SameSite=None breaks (requires Secure flag)
+# X-Forwarded-Proto is set by Nginx in nginx/templates/kasms.conf.template.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+    SECURE_SSL_REDIRECT = False  # Nginx handles the HTTP→HTTPS redirect
+
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1,192.168.100.7,192.168.100.17,192.168.100.50"
