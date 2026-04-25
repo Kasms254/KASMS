@@ -67,6 +67,18 @@ class IsCommandant(BasePermission):
 class IsOwnerOrAdmin(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        # Superadmin bypasses all checks
+        if request.user.role == 'superadmin':
+            return True
+
+        # Enforce school isolation on all operations, including reads
+        if hasattr(obj, 'school') and obj.school:
+            if obj.school != request.user.school:
+                return False
+
         if request.method in permissions.SAFE_METHODS:
             return True
 

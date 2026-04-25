@@ -55,6 +55,10 @@ server {
     add_header X-XSS-Protection          "1; mode=block"                        always;
     add_header Referrer-Policy           "strict-origin-when-cross-origin"      always;
     add_header Permissions-Policy        "camera=(), microphone=(), geolocation=()" always;
+    # H5: Content-Security-Policy — restricts where scripts/styles/connections can load from.
+    # 'unsafe-inline' for style-src accommodates common React/CSS-in-JS patterns; tighten
+    # further (use nonces) once the frontend build pipeline supports it.
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
 
     # ── Connection Limits ─────────────────────────────────────────────────────
     limit_conn conn_limit 30;

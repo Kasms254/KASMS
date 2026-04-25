@@ -137,13 +137,27 @@ class TenantMiddleware(MiddlewareMixin):
         school_code = request.headers.get('X-School-Code')
 
         if school_code:
-            
-            cache_key = f'school_by_code:{school_code}'
-            school = cache.get(cache_key)
-            if school is None:  
+            # Cache only the school PK, not the object, so is_active is always
+            # re-checked against the database on each request. This ensures a
+            # deactivated school loses access within CACHE_TIMEOUT seconds rather
+            # than up to the full object-cache TTL.
+            cache_key = f'school_id_by_code:{school_code}'
+            school_id = cache.get(cache_key)
+            if school_id is None:
                 try:
                     school = School.objects.get(code=school_code, is_active=True)
+                    cache.set(cache_key, school.id, timeout=60)
                 except School.DoesNotExist:
+                    return JsonResponse({
+                        'error': 'Invalid school code',
+                        'detail': f'School with code "{school_code}" not found or inactive',
+                    }, status=400)
+            else:
+                try:
+                    school = School.objects.get(id=school_id, is_active=True)
+                except School.DoesNotExist:
+                    # School was deactivated since the ID was cached — invalidate
+                    cache.delete(cache_key)
                     return JsonResponse({
                         'error': 'Invalid school code',
                         'detail': f'School with code "{school_code}" not found or inactive',

@@ -1,33 +1,11 @@
 version: "3.9"
 
-# =============================================================================
-# KASMS – Production Docker Compose
-#
-# Services:
-#   db            – PostgreSQL 16 (persistent data volume)
-#   redis         – Redis 7 (Celery broker + Django cache)
-#   backend       – Django/Gunicorn (API + Admin + iclock)
-#   celery_worker – Async task worker (biometric sync, PDF jobs, etc.)
-#   celery_beat   – Periodic task scheduler (database-backed)
-#   nginx         – Reverse proxy + React SPA + static/media files
-#   certbot       – Let's Encrypt auto-renewal daemon
-#
-# Networks:
-#   backend_net  – internal only (db, redis, celery cannot be reached from internet)
-#   frontend_net – nginx ↔ backend only
-#
-# Log rotation:
-#   ALL containers use Docker's json-file driver capped at 10 MB × 5 files
-#   (50 MB max per service). File-based Django logs rotate via Python's
-#   RotatingFileHandler (already configured in settings.py).
-# =============================================================================
-
 # ── Shared defaults via YAML anchors ─────────────────────────────────────────
 x-log-rotation: &log-rotation
   driver: "json-file"
   options:
-    max-size: "10m"    # rotate at 10 MB
-    max-file: "5"      # keep 5 rotated files → max 50 MB per service
+    max-size: "10m" # rotate at 10 MB
+    max-file: "5" # keep 5 rotated files → max 50 MB per service
 
 x-django-base: &django-base
   build:
@@ -45,7 +23,6 @@ x-django-base: &django-base
       condition: service_healthy
 
 services:
-
   # ──────────────────────────────────────────────────────────────────────────
   # PostgreSQL
   # ──────────────────────────────────────────────────────────────────────────
@@ -68,8 +45,6 @@ services:
       start_period: 30s
     networks:
       - backend_net
-    # NEVER expose port 5432 to the host in production.
-    # Access via: docker compose exec db psql -U $DB_USER -d $DB_NAME
 
   # ──────────────────────────────────────────────────────────────────────────
   # Redis  (Celery broker on DB 0, Django cache on DB 1)
@@ -129,7 +104,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s   # migrate + collectstatic can take up to 90s on first run
+      start_period: 120s # migrate + collectstatic can take up to 90s on first run
     # If pyzk code PULLS from LAN biometric devices, add device IPs here:
     # extra_hosts:
     #   - "biometric-device-1:192.168.1.200"
@@ -227,14 +202,18 @@ services:
       - nginx_logs:/var/log/nginx
     depends_on:
       backend:
-        condition: service_healthy    # only start after Django is healthy
+        condition: service_healthy # only start after Django is healthy
     networks:
       - frontend_net
     healthcheck:
       # /nginx-health is served directly by Nginx (no proxy to Django).
       # wget is available in nginx:1.25-alpine. This confirms Nginx is
       # running and accepting connections even if Django is down.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/nginx-health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost/nginx-health || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

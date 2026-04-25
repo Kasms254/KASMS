@@ -35,6 +35,8 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password as django_validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
@@ -310,10 +312,29 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload_logo(self, request, pk=None):
+        import os
         school = self.get_object()
         logo = request.FILES.get('logo')
         if not logo:
             return Response({'error': 'No logo file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # H4: validate file type and size server-side
+        _ALLOWED_LOGO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+        _ALLOWED_LOGO_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+        _MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
+
+        ext = os.path.splitext(logo.name)[1].lower()
+        if ext not in _ALLOWED_LOGO_EXTENSIONS or logo.content_type not in _ALLOWED_LOGO_MIME_TYPES:
+            return Response(
+                {'error': 'Invalid file type. Only JPG, PNG, and WEBP images are allowed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if logo.size > _MAX_LOGO_SIZE:
+            return Response(
+                {'error': 'File too large. Maximum logo size is 2 MB.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         school.logo = logo
         school.save(update_fields=['logo'])
         return Response({
@@ -421,11 +442,17 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         url_path='user-history/(?P<svc_number>[^/.]+)'
     )
     def user_history(self, request, svc_number=None):
-        memberships = SchoolMembership.all_objects.filter(
+        qs = SchoolMembership.all_objects.filter(
             user__svc_number=svc_number
         ).select_related('school', 'transfer_to').order_by('started_at')
+
+        # M3: school admins may only see history for their own school; only
+        # superadmins have the authority to view a soldier's full cross-school history
+        if request.user.role != 'superadmin':
+            qs = qs.filter(school=request.user.school)
+
         return Response(
-            SchoolMembershipSerializer(memberships, many=True).data
+            SchoolMembershipSerializer(qs, many=True).data
         )
 
 class UserViewSetWithSchool(viewsets.ModelViewSet):
@@ -440,7 +467,13 @@ class UserViewSetWithSchool(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            student = User.objects.get(id=student_id, role='student')
+            # C4: scope by school to prevent cross-tenant data read
+            student = User.all_objects.get(
+                id=student_id,
+                role='student',
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'Student not found',
@@ -604,9 +637,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        page_number = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        
+        # H2: cap page_size to prevent DoS via enormous result sets
+        try:
+            page_number = max(1, int(request.query_params.get('page', 1)))
+            page_size = max(1, min(int(request.query_params.get('page_size', 10)), 200))
+        except (TypeError, ValueError):
+            page_number, page_size = 1, 10
+
         queryset = queryset.order_by('first_name', 'last_name')
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page_number)
@@ -647,9 +684,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        page_number = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        
+        # H2: cap page_size to prevent DoS via enormous result sets
+        try:
+            page_number = max(1, int(request.query_params.get('page', 1)))
+            page_size = max(1, min(int(request.query_params.get('page_size', 10)), 200))
+        except (TypeError, ValueError):
+            page_number, page_size = 1, 10
+
         queryset = queryset.order_by('first_name', 'last_name')
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page_number)
@@ -740,13 +781,23 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'error': 'New password is required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+        # C7: enforce password policy — admin resets must still meet strength requirements
+        try:
+            django_validate_password(new_password, user)
+        except DjangoValidationError as e:
+            return Response(
+                {'error': list(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.set_password(new_password)
+        user.must_change_password = True  # Force user to change on next login
         user.save()
 
         return Response({
             'status': 'success',
-            'message': f'Password for user {user.username} has been reset'  
+            'message': f'Password for user {user.username} has been reset'
         })
     
     @action(detail=False, methods=['get'], url_path='students/export_csv')
@@ -1076,7 +1127,14 @@ class ClassViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            instructor = User.objects.get(id=instructor_id, role='instructor', is_active=True)
+            # C6: scope by school to prevent assigning instructors from other schools
+            instructor = User.all_objects.get(
+                id=instructor_id,
+                role='instructor',
+                is_active=True,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
             class_obj.instructor = instructor
             class_obj.save()
 
@@ -1090,7 +1148,7 @@ class ClassViewSet(viewsets.ModelViewSet):
                 {'error': 'Instructor not found or not active.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
     @action(detail=True, methods=['post'])
     def remove_instructor(self, request, pk=None):
         class_obj = self.get_object()
@@ -1331,7 +1389,14 @@ class SubjectViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            instructor = User.objects.get(id=instructor_id, role='instructor', is_active=True)
+            # C6: scope by school to prevent assigning instructors from other schools
+            instructor = User.all_objects.get(
+                id=instructor_id,
+                role='instructor',
+                is_active=True,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
             subject.instructor = instructor
             subject.save()
 
@@ -3451,7 +3516,11 @@ class StudentDashboardViewset(viewsets.ViewSet):
         
         from datetime import timedelta
 
-        days = int(request.query_params.get('days', 30))
+        # H3: cap days to prevent querying unbounded date ranges
+        try:
+            days = max(1, min(int(request.query_params.get('days', 30)), 365))
+        except (TypeError, ValueError):
+            days = 30
         today = timezone.now()
         end_date = today + timedelta(days=days)
 
@@ -4026,7 +4095,11 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
+        # C3: scope session lookup to the current school to prevent cross-tenant manipulation
+        session = AttendanceSession.objects.get(
+            id=serializer.validated_data['session_id'],
+            school=request.user.school,
+        )
 
         # Verify the user has permission to mark attendance for this session
         user = request.user
@@ -4047,7 +4120,13 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         for record in records:
             try:
-                student = User.objects.get(id=record['student_id'], role='student')
+                # C4: scope by school to prevent marking attendance for students from other schools
+                student = User.all_objects.get(
+                    id=record['student_id'],
+                    role='student',
+                    school_memberships__school=request.user.school,
+                    school_memberships__status='active',
+                )
 
                 if not Enrollment.objects.filter(
                     student=student,
@@ -4305,7 +4384,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
 
         except Class.DoesNotExist:
             return Response({
@@ -4414,7 +4494,13 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            student = User.objects.get(id=student_id, role='student')
+            # C4: scope by school to prevent cross-tenant data read
+            student = User.all_objects.get(
+                id=student_id,
+                role='student',
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'Student not found'
@@ -4574,14 +4660,19 @@ class AttendanceReportViewSet(viewsets.ViewSet):
     def trend_analysis(self, request):
 
         class_id = request.query_params.get('class_id')
-        days = int(request.query_params.get('days', 30))
+        # H3: cap days to prevent querying unbounded date ranges (DoS / memory exhaustion)
+        try:
+            days = max(1, min(int(request.query_params.get('days', 30)), 365))
+        except (TypeError, ValueError):
+            days = 30
 
         if not class_id:
             return Response({
                 'error': 'class_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
         except Class.DoesNotExist:
             return Response({
                 'error': 'Class not found'
@@ -4672,7 +4763,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
         except Class.DoesNotExist:
             return Response({
                 'error': "Class Not Found"
@@ -5228,7 +5320,8 @@ class MarksEntryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path="exam/(?P<exam_id>[^/.]+)")
     def exam_results(self, request, exam_id=None):
 
-        exam = get_object_or_404(Exam, pk=exam_id, is_active=True)
+        # M2: scope exam lookup to school to prevent reading another school's exam data
+        exam = get_object_or_404(Exam, pk=exam_id, is_active=True, school=request.user.school)
 
         if request.user.role == "instructor":
             if exam.subject.instructor != request.user:

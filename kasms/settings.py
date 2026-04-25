@@ -10,10 +10,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
+SECRET_KEY = os.environ['SECRET_KEY']  # Fail loudly at boot if missing — never silently insecure
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+DEBUG = os.getenv("DEBUG", "False") == "True"  # Default False — never expose debug in production
 
 # When Django runs behind Nginx (production), Nginx terminates TLS and
 # forwards requests via HTTP internally. Without this setting:
@@ -269,7 +269,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:8000",
 ])).split(",")
 
-CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_HTTPONLY = True  # Prevent XSS from reading the CSRF token via JavaScript
 CSRF_COOKIE_NAME = "csrftoken"
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
@@ -281,11 +281,6 @@ JWT_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 JWT_COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None) 
 JWT_ACCESS_COOKIE_NAME = 'access_token'
 JWT_REFRESH_COOKIE_NAME = 'refresh_token'
-
-AUTHENTICATION_BACKENDS = [
-    'core.backends.SvcNumberBackend',
-    'django.contrib.auth.backends.ModelBackend',
-]
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
