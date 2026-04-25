@@ -570,7 +570,7 @@ class Class(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     capacity = models.IntegerField(validators=[MinValueValidator(1)], default=30)
-    class_code = models.CharField(max_length=20, null=True, blank=True, unique=True)
+    class_code = models.CharField(max_length=20, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_closed = models.BooleanField(default=False)
     closed_at = models.DateTimeField(null=True, blank=True)
@@ -591,6 +591,13 @@ class Class(models.Model):
         indexes = [
             models.Index(fields=['school', 'is_active']),
             models.Index(fields=['instructor', 'is_active']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['course', 'class_code'],
+                condition=models.Q(class_code__isnull=False),
+                name='unique_class_code_per_course',
+            )
         ]
 
     def __str__(self):

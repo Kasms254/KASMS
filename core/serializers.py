@@ -740,6 +740,27 @@ class ClassSerializer(serializers.ModelSerializer):
             return obj._current_enrollment
         return obj.enrollments.filter(is_active=True).count()
 
+    def validate_class_code(self, value):
+        if not value:
+            return value
+
+        course = (
+            self.initial_data.get('course')
+            or (self.instance.course_id if self.instance else None)
+        )
+        if not course:
+            return value
+
+        from core.models import Class as ClassModel
+        qs = ClassModel.all_objects.filter(course_id=course, class_code=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "A class with this code already exists for the selected course."
+            )
+        return value
+
     def validate(self, attrs):
         start_date = attrs.get('start_date', self.instance.start_date if self.instance else None)
         end_date = attrs.get('end_date', self.instance.end_date if self.instance else None)
@@ -749,7 +770,7 @@ class ClassSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "end_date": "End date cannot be earlier than start date."
             })
-        
+
         if instructor and instructor.role != 'instructor':
             raise serializers.ValidationError({
                 "instructor": "Assigned instructor must have the role of 'instructor'."

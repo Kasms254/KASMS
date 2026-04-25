@@ -1056,15 +1056,33 @@ class ClassViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
+        from django.db import IntegrityError
+        from rest_framework.exceptions import ValidationError
+
         school = get_current_school()
         if not school and self.request.user.school:
             school = self.request.user.school
-        
+
         if not school:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({'school': 'Unable to determine school for this request.'})
-        
-        serializer.save(school=school)
+
+        try:
+            serializer.save(school=school)
+        except IntegrityError:
+            raise ValidationError(
+                {'class_code': 'A class with this code already exists for the selected course.'}
+            )
+
+    def perform_update(self, serializer):
+        from django.db import IntegrityError
+        from rest_framework.exceptions import ValidationError
+
+        try:
+            serializer.save()
+        except IntegrityError:
+            raise ValidationError(
+                {'class_code': 'A class with this code already exists for the selected course.'}
+            )
 
     def get_serializer_class(self):
 

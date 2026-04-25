@@ -1,6 +1,5 @@
 version: "3.9"
 
-# ── Shared defaults via YAML anchors ─────────────────────────────────────────
 x-log-rotation: &log-rotation
   driver: "json-file"
   options:
@@ -23,9 +22,6 @@ x-django-base: &django-base
       condition: service_healthy
 
 services:
-  # ──────────────────────────────────────────────────────────────────────────
-  # PostgreSQL
-  # ──────────────────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -87,9 +83,6 @@ services:
       - backend_net
       - frontend_net
     healthcheck:
-      # Uses Python (always available) — no curl in python:3.12-slim.
-      # Hits the /health/ endpoint which verifies DB + Redis connectivity.
-      # start_period covers the time for migrate + collectstatic to run.
       test:
         - "CMD-SHELL"
         - |
@@ -105,14 +98,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s # migrate + collectstatic can take up to 90s on first run
-    # If pyzk code PULLS from LAN biometric devices, add device IPs here:
-    # extra_hosts:
-    #   - "biometric-device-1:192.168.1.200"
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Celery Worker
-  # Handles: biometric sync, PDF generation, email, attendance processing
-  # ──────────────────────────────────────────────────────────────────────────
   celery_worker:
     <<: *django-base
     command: >
@@ -126,8 +112,6 @@ services:
     networks:
       - backend_net
     healthcheck:
-      # Verifies the broker (Redis) is reachable from inside the worker container.
-      # If Redis is unreachable the worker cannot receive tasks — it is effectively down.
       test:
         - "CMD-SHELL"
         - |
@@ -146,11 +130,6 @@ services:
       retries: 3
       start_period: 30s
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Celery Beat (periodic task scheduler)
-  # Uses DatabaseScheduler so schedules survive container restarts.
-  # WARNING: Run exactly ONE instance. Two instances = duplicate tasks.
-  # ──────────────────────────────────────────────────────────────────────────
   celery_beat:
     <<: *django-base
     # --pidfile lets the healthcheck verify the beat process is alive.
@@ -164,8 +143,6 @@ services:
     networks:
       - backend_net
     healthcheck:
-      # Checks the PID file exists AND the process it refers to is alive.
-      # kill -0 sends no signal — it only checks process existence/permissions.
       test:
         - "CMD-SHELL"
         - |
@@ -177,9 +154,6 @@ services:
       retries: 3
       start_period: 30s
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Nginx (Reverse Proxy + React SPA)
-  # ──────────────────────────────────────────────────────────────────────────
   nginx:
     build:
       context: .
@@ -206,9 +180,6 @@ services:
     networks:
       - frontend_net
     healthcheck:
-      # /nginx-health is served directly by Nginx (no proxy to Django).
-      # wget is available in nginx:1.25-alpine. This confirms Nginx is
-      # running and accepting connections even if Django is down.
       test:
         [
           "CMD-SHELL",
@@ -219,9 +190,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # Certbot – Let's Encrypt SSL auto-renewal
-  # ──────────────────────────────────────────────────────────────────────────
   certbot:
     image: certbot/certbot:latest
     restart: unless-stopped
@@ -236,9 +204,6 @@ services:
           sleep 12h & wait $${!};
         done"
 
-# =============================================================================
-# Volumes
-# =============================================================================
 volumes:
   postgres_data:
     driver: local
@@ -253,9 +218,6 @@ volumes:
   nginx_logs:
     driver: local
 
-# =============================================================================
-# Networks
-# =============================================================================
 networks:
   backend_net:
     driver: bridge
