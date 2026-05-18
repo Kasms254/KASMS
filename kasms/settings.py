@@ -101,7 +101,6 @@ DATABASES = {
         "HOST": os.getenv('HOST', default='localhost'),
         "PORT": os.getenv('PORT', default='5432'),
         "CONN_MAX_AGE": 600,
-        
     }
     #  "default": dj_database_url.config(
     #     default=os.environ.get("DATABASE_URL")

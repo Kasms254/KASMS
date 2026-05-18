@@ -630,9 +630,17 @@ class Class(models.Model):
             self.department = self.course.department
         super().save(*args, **kwargs)
             
+GRADING_MODE_CHOICES =[
+    ('LEGACY', 'Legacy (Final Exam Only)'),
+    ('POLICY', 'Policy (Component-Based)')
+]
+
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='subjects', null=True, blank=True)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
+    grading_mode = models.CharField(max_length=10, choices=GRADING_MODE_CHOICES, default='LEGACY', help_text='LEGACY = single final exam pass/fail. POLICY = based assessment')
+    pass_mark = models.DecimalField(max_digits=5, decimal_places=2, default=50.00, validators=[MinValueValidator(0), MaxValueValidator(100)], help_text='Overall pass mark for this subject')
+
     name = models.CharField(max_length=100)
     subject_code = models.CharField(max_length=20, null=True, blank=True)
     description = models.TextField()
@@ -663,6 +671,238 @@ class Subject(models.Model):
         if not self.department and self.class_obj and self.class_obj.department:
             self.department = self.class_obj.department
         super().save(*args, **kwargs)
+
+class AssessmentComponent(models.Model):
+
+    COMPONENT_TYPE_CHOICES =[
+        ('cat', 'Continuous Assessment Test'),
+        ('theory', 'Theory Exam'),
+        ('practical', 'Practical Exam'),
+        ('project', 'Project'),
+        ('other', 'Other'),
+    ]
+
+    RETAKE_EVALUATION_CHOICES =[
+        ('latest', 'Use latest Attempt'),
+        ('best', 'Use Best Attempt')
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE,
+        related_name='assessment_components',
+    )
+    subject = models.ForeignKey(
+        'Subject', on_delete=models.CASCADE,
+        related_name='assessment_components',
+    )
+    name = models.CharField(
+        max_length =150,
+        help_text = 'eg. "Firing Range Assessment", "CAT 1", "Theory Final"',
+    )
+    component_type = models.CharField(
+        max_length = 20, choices = COMPONENT_TYPE_CHOICES, default='other',
+    )
+    description = models.TextField(blank=True)
+
+
+    total_marks = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        default=100,
+        help_text='Maximum marks for this component',
+    )
+
+    weight = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        default=100.00,
+        validators= [MinValueValidator(0), MaxValueValidator(100)],
+        help_text='Weight of this component in the overall subject score (percentage).',
+    )
+    pass_mark = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        default=50.00,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text = 'Minimum percentage to pass this component',
+    )
+    
+    is_critical = models.BooleanField(
+        default=False,
+        help_text= (
+            'If True, failing this component means failing the entire subject '
+            'regardless of overall score. e.g. Firing Range.'
+        ),
+    )
+
+
+    retake_allowed = models.BooleanField(
+        default=False,
+        help_text='Whether students can retake this component after failing.',
+    )
+    max_retake_attempts = models.PositiveIntegerField(
+        default=0,
+        help_text = 'Maximum retake attempts allowed. 0 = unlimited when retake_allowed=True.',
+    )
+
+    retake_evaluation = models.CharField(
+        max_length=10,
+        choices = RETAKE_EVALUATION_CHOICES,
+        default='latest',
+        help_text= 'Which attempt score to use: latest or best.',
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active =models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'assessment_components'
+        ordering = ['subject', 'sort_order', 'name']
+        indexes = [
+            models.Index(fields=['subject', 'is_active']),
+            models.Index(fields=['school', 'is_active'])
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['subject', 'name'],
+                condition = models.Q(is_active=True),
+                name='unique_active_component_name_per_subject',
+            ),
+        ]
+
+    def __str__(self):
+        critical = '[CRITICAL]' if self.is_critical else ''
+        return f"{self.name}{critical} - {self.subject.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.school_id and self.subject_id:
+            self.school = self.subject.school
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        if self.subject_id and self.subject.grading_mode != 'POLICY':
+            raise ValidationError(
+                'Components can only be added to subjects with grading_mode=POLICY'
+            )
+
+class StudentComponentResult(models.Model):
+    STATUS_CHOICES = [
+        ('PASS', 'Pass'),
+        ('FAIL', 'Fail'),
+        ('RETAKE_REQUIRED', 'Retake Required'),
+        ('PENDING', 'Pending'),
+    ]           
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        'School', on_delete=models.CASCADE,
+        related_name ='student_component_results',
+    )
+    component = models.ForeignKey(
+        AssessmentComponent, on_delete=models.CASCADE,
+        related_name='student_results',
+    )
+    student = models.ForeignKey(
+        'User', on_delete=models.CASCADE, related_name='component_results', limit_choices_to={'role': 'student'},
+    )
+
+    attempt_number = models.PositiveIntegerField(
+        default =1,
+        help_text = 'Which attempt this is (1  = original, 2+ = retakes).',)
+    
+    is_retake = models.BooleanField(default=False)
+
+    marks_obtained = models.DecimalField(
+        max_digits=5, decimal_places=2, 
+        validators=[MinValueValidator(0)],
+        null=True, blank=True,
+    )
+    percentage = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        null=True, blank=True,
+        help_text= 'Computed: (marks_obtained / component.total_marks) * 100',
+    )
+    status = models.CharField(
+        max_length = 20,
+        choices = STATUS_CHOICES, 
+        default = 'PENDING',
+    )
+
+    graded_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='component_results_graded',
+    )
+
+    graded_at = models.DateTimeField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    is_submitted = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'student_component_results'
+        ordering = ['component', 'student', '-attempt_number']
+        indexes = [
+            models.Index(fields=['student', 'component', 'attempt_number']),
+            models.Index(fields=['component', 'status']),
+            models.Index(fields=['school', 'student']),
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields =['student', 'component', 'attempt_number'],
+                name = 'unique_attempt_per_student_component',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.student.svc_number} - {self.component.name} "
+            f"(Attempt {self.attempt_number}: {self.status})"
+        )
+
+    def save(self, *args, **kwargs):
+        if not self.school_id and self.component_id:
+            self.school = self.component.school
+
+        if self.marks_obtained is not None and self.component.total_marks > 0:
+            self.percentage = round(
+                (float(self.marks_obtained) / self.component.total_marks) * 100, 2
+            )
+
+            if self.percentage >= float(self.component.pass_mark):
+                self.status = 'PASS'
+            elif (
+                self.component.is_critical
+                and self.component.retake_allowed
+                and self._can_retake()
+            ):
+                self.status = 'RETAKE_REQUIRED'
+
+            else:
+                self.status = 'FAIL'
+
+        super().save(*args, **kwargs)
+
+    def _can_retake(self):
+        if not self.component.retake_allowed:
+            return False
+        if self.component.max_retake_attempts == 0:
+            return True
+        current_attempts = StudentComponentResult.all_objects.filter(
+            student=self.student,
+            component=self.component
+        ).count()
+        return current_attempts < self.component.max_retake_attempts
 
 class Notice(models.Model):
 

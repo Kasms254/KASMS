@@ -68,3 +68,7 @@ celerybeat-schedule.dat
 celerybeat-schedule.dir
 test_device_connection.sh
 test_skteco_connection.py
+
+test_settings.py
+core/tests/
+test_policy.py

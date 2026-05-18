@@ -10,6 +10,9 @@ from .views import (
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
     AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
+
+    # Result
+    AssessmentComponentViewSet, StudentComponentResultViewSet
 )
 from .oic_views import (
     OICAssignmentViewSet,
@@ -55,6 +58,8 @@ router.register(r'notices', NoticeViewSet, basename='notice')
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
+router.register(r'assessment-components', AssessmentComponentViewSet, basename='assessment-component')
+router.register(r'component-results', StudentComponentResultViewSet, basename='component-result')
 router.register(r'class-notices', ClassNoticeViewSet, basename='class_notice')
 router.register(r'exam-reports', ExamReportViewSet, basename='exam_report')
 router.register(r'exam-results', ExamResultViewSet, basename='exam_result')

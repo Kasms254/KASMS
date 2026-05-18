@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult)
 from .serializers import (
 
     CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
@@ -11,7 +11,7 @@ from .serializers import (
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer)
+    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer, AssessmentComponentSerializer, StudentComponentResultSerializer, SubjectEvaluationSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -39,7 +39,11 @@ from django.contrib.auth.password_validation import validate_password as django_
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
-from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
+from .services import (
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    check_class_completion_for_all_students,get_class_completion_status,
+    bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
@@ -1407,7 +1411,6 @@ class SubjectViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            # C6: scope by school to prevent assigning instructors from other schools
             instructor = User.all_objects.get(
                 id=instructor_id,
                 role='instructor',
@@ -1479,6 +1482,38 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
+    @action(detail=True, methods=['get'])
+    def evaluate_student(self, request, pk=None):
+
+        subject = self.get_object()
+        student_id = request.query_params.get('student_id')
+ 
+        if not student_id:
+            return Response(
+                {'error': 'student_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        try:
+            student = User.all_objects.get(
+                pk=student_id,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Student not found in your school.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        evaluation = evaluate_subject_pass_fail(subject, student)
+        retake_info = determine_retake_requirements(subject, student)
+ 
+        return Response({
+            'evaluation': evaluation,
+            'retake_requirements': retake_info,
+        })
+
 class NoticeActionMixin:
 
     read_status_model = None
@@ -5940,3 +5975,387 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     filterset_fields = ['device', 'student', 'is_active']
 
 
+class AssessmentComponentViewSet(viewsets.ModelViewSet):
+
+    queryset = AssessmentComponent.objects.select_related(
+        'subject', 'subject__class_obj'
+    ).all()
+    serializer_class = AssessmentComponentSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'component_type', 'is_critical', 'is_active']
+    search_fields = ['name', 'subject__name']
+    ordering_fields = ['sort_order', 'name', 'created_at']
+    ordering = ['sort_order', 'name']
+ 
+    def get_queryset(self):
+        queryset = AssessmentComponent.all_objects.select_related(
+            'subject', 'subject__class_obj'
+        ).all()
+ 
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+ 
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                queryset = queryset.filter(school=school)
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
+ 
+        # Instructors only see components for their subjects
+        if user.role == 'instructor':
+            queryset = queryset.filter(subject__instructor=user)
+ 
+        return queryset
+ 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        if not school and self.request.user.school:
+            school = self.request.user.school
+ 
+        if not school:
+            raise ValidationError({'school': 'Unable to determine school.'})
+ 
+        subject = serializer.validated_data.get('subject')
+ 
+        # Instructor can only add components to their own subjects
+        if self.request.user.role == 'instructor':
+            if subject.instructor != self.request.user:
+                raise ValidationError({
+                    'subject': 'You can only add components to subjects you teach.'
+                })
+ 
+        # Verify subject belongs to same school
+        if subject.school != school:
+            raise ValidationError({
+                'subject': 'Subject does not belong to your school.'
+            })
+ 
+        serializer.save(school=school)
+ 
+    @action(detail=False, methods=['get'])
+    def by_subject(self, request):
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        components = self.get_queryset().filter(
+            subject_id=subject_id, is_active=True,
+        )
+        serializer = self.get_serializer(components, many=True)
+        return Response(serializer.data)
+ 
+    @action(detail=False, methods=['get'])
+    def weight_summary(self, request):
+
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        from django.db.models import Sum as DbSum
+        total = self.get_queryset().filter(
+            subject_id=subject_id, is_active=True,
+        ).aggregate(total_weight=DbSum('weight'))
+ 
+        return Response({
+            'subject_id': subject_id,
+            'total_weight': float(total['total_weight'] or 0),
+            'remaining': float(100 - (total['total_weight'] or 0)),
+        })
+ 
+ 
+class StudentComponentResultViewSet(viewsets.ModelViewSet):
+
+    queryset = StudentComponentResult.objects.select_related(
+        'component', 'component__subject', 'student', 'graded_by'
+    ).all()
+    serializer_class = StudentComponentResultSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['component', 'student', 'status', 'is_retake', 'is_submitted']
+    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
+    ordering_fields = ['attempt_number', 'created_at', 'marks_obtained']
+    ordering = ['-created_at']
+ 
+    def get_queryset(self):
+        queryset = StudentComponentResult.all_objects.select_related(
+            'component', 'component__subject', 'student', 'graded_by'
+        ).all()
+ 
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+ 
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                queryset = queryset.filter(school=school)
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
+ 
+        if user.role == 'instructor':
+            queryset = queryset.filter(component__subject__instructor=user)
+        elif user.role == 'student':
+            queryset = queryset.filter(student=user)
+ 
+        return queryset
+ 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        if not school and self.request.user.school:
+            school = self.request.user.school
+ 
+        if not school:
+            raise ValidationError({'school': 'Unable to determine school.'})
+ 
+        component = serializer.validated_data.get('component')
+        student = serializer.validated_data.get('student')
+ 
+        # Verify component belongs to same school
+        if component.school != school:
+            raise ValidationError({
+                'component': 'Component does not belong to your school.'
+            })
+ 
+        if student.school != school:
+            raise ValidationError({
+                'student': 'Student does not belong to your school.'
+            })
+ 
+        # Instructor permission check
+        if self.request.user.role == 'instructor':
+            if component.subject.instructor != self.request.user:
+                raise ValidationError({
+                    'component': 'You can only grade components for subjects you teach.'
+                })
+ 
+        existing_attempts = StudentComponentResult.all_objects.filter(
+            student=student, component=component,
+        ).count()
+        attempt_number = existing_attempts + 1
+        is_retake = attempt_number > 1
+ 
+        # Validate retake eligibility
+        if is_retake:
+            if not component.retake_allowed:
+                raise ValidationError({
+                    'component': 'Retakes are not allowed for this component.'
+                })
+            if (
+                component.max_retake_attempts > 0
+                and existing_attempts >= component.max_retake_attempts
+            ):
+                raise ValidationError({
+                    'component': (
+                        f'Maximum retake attempts ({component.max_retake_attempts}) '
+                        f'reached for this component.'
+                    ),
+                })
+ 
+        has_marks = serializer.validated_data.get('marks_obtained') is not None
+        serializer.save(
+            school=school,
+            attempt_number=attempt_number,
+            is_retake=is_retake,
+            graded_by=self.request.user,
+            graded_at=timezone.now() if has_marks else None,
+            is_submitted=has_marks,
+            submitted_at=timezone.now() if has_marks else None,
+        )
+ 
+    @action(detail=False, methods=['get'])
+    def by_student_subject(self, request):
+
+        student_id = request.query_params.get('student_id')
+        subject_id = request.query_params.get('subject_id')
+ 
+        if not student_id or not subject_id:
+            return Response(
+                {'error': 'student_id and subject_id parameters are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        results = self.get_queryset().filter(
+            student_id=student_id,
+            component__subject_id=subject_id,
+        )
+ 
+        try:
+            subject = Subject.all_objects.get(id=subject_id)
+            user = request.user
+            if user.role != 'superadmin' and subject.school != user.school:
+                return Response(
+                    {'error': 'Subject not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+ 
+            student_obj = User.all_objects.get(id=student_id)
+ 
+            evaluation = evaluate_subject_pass_fail(subject, student_obj)
+            retake_info = determine_retake_requirements(subject, student_obj)
+ 
+        except (Subject.DoesNotExist, User.DoesNotExist):
+            return Response(
+                {'error': 'Subject or student not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        serializer = self.get_serializer(results, many=True)
+ 
+        return Response({
+            'results': serializer.data,
+            'evaluation': evaluation,
+            'retake_requirements': retake_info,
+        })
+ 
+    @action(detail=False, methods=['post'])
+    def bulk_grade(self, request):
+
+        component_id = request.data.get('component_id')
+        results_data = request.data.get('results', [])
+ 
+        if not component_id:
+            return Response(
+                {'error': 'component_id is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        if not results_data:
+            return Response(
+                {'error': 'results array is required and cannot be empty'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        try:
+            comp = AssessmentComponent.all_objects.get(
+                id=component_id,
+                school=request.user.school,
+            )
+        except AssessmentComponent.DoesNotExist:
+            return Response(
+                {'error': 'Component not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        if request.user.role == 'instructor' and comp.subject.instructor != request.user:
+            return Response(
+                {'error': 'You can only grade components for subjects you teach.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+ 
+        created_count = 0
+        updated_count = 0
+        errors = []
+ 
+        with transaction.atomic():
+            for item in results_data:
+                student_id = item.get('student_id')
+                marks = item.get('marks_obtained')
+ 
+                if marks is None:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'marks_obtained is required',
+                    })
+                    continue
+ 
+                try:
+                    student_obj = User.all_objects.get(
+                        pk=student_id,
+                        school_memberships__school=request.user.school,
+                        school_memberships__status='active',
+                    )
+                except User.DoesNotExist:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'Student not found in your school.',
+                    })
+                    continue
+ 
+                if float(marks) > comp.total_marks:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': f'Marks ({marks}) exceed total marks ({comp.total_marks}).',
+                    })
+                    continue
+ 
+                if float(marks) < 0:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'Marks cannot be negative.',
+                    })
+                    continue
+ 
+                existing = StudentComponentResult.all_objects.filter(
+                    student=student_obj, component=comp,
+                ).order_by('-attempt_number')
+ 
+                latest = existing.first()
+                if latest and not latest.is_submitted:
+                    latest.marks_obtained = marks
+                    latest.remarks = item.get('remarks', '')
+                    latest.graded_by = request.user
+                    latest.graded_at = timezone.now()
+                    latest.is_submitted = True
+                    latest.submitted_at = timezone.now()
+                    latest.save()
+                    updated_count += 1
+                else:
+                    attempt_number = (latest.attempt_number + 1) if latest else 1
+                    is_retake = attempt_number > 1
+ 
+                    if is_retake and not comp.retake_allowed:
+                        errors.append({
+                            'student_id': student_id,
+                            'error': 'Retakes not allowed; student already has a graded attempt.',
+                        })
+                        continue
+ 
+                    if (
+                        is_retake
+                        and comp.max_retake_attempts > 0
+                        and existing.count() >= comp.max_retake_attempts
+                    ):
+                        errors.append({
+                            'student_id': student_id,
+                            'error': (
+                                f'Maximum retake attempts ({comp.max_retake_attempts}) '
+                                f'reached.'
+                            ),
+                        })
+                        continue
+ 
+                    StudentComponentResult.all_objects.create(
+                        school=request.user.school,
+                        component=comp,
+                        student=student_obj,
+                        attempt_number=attempt_number,
+                        is_retake=is_retake,
+                        marks_obtained=marks,
+                        remarks=item.get('remarks', ''),
+                        graded_by=request.user,
+                        graded_at=timezone.now(),
+                        is_submitted=True,
+                        submitted_at=timezone.now(),
+                    )
+                    created_count += 1
+ 
+        return Response({
+            'status': 'success',
+            'created': created_count,
+            'updated': updated_count,
+            'errors': errors,
+        })
+ 

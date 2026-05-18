@@ -7,7 +7,7 @@ from .models import (
     ResultEditRequest, SessionAttendance, AttendanceSessionLog,
     ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
     Certificate, CertificateTemplate, CertificateDownloadLog,
-    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping,
+    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, StudentComponentResult
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -1155,6 +1155,99 @@ class BulkExamResultSerializer(serializers.Serializer):
             if 'marks_obtained' not in result:
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
+
+class AssessmentComponentSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source = 'subject.name', read_only = True)
+    class_name = serializers.CharField(
+        source = 'subject.class_obj.name', read_only = True
+    )
+
+    class Meta:
+        model = AssessmentComponent
+        fields = '__all__'
+        read_only_fields = ('id', 'school', 'created_at', 'updated_at')
+
+    def validate(self, attrs):
+        subject = attrs.get('subject') or (
+            self.instance.subject if self.instance else None
+        )
+
+        if subject and subject.grading_mode != 'POLICY':
+            raise serializers.ValidationError ({
+                'subject': 'Components can only be added to subjects with grading_mode = POLICY.',
+            })
+        return attrs
+
+
+class StudentComponentResultSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(
+        source='student.get_full_name', read_only=True
+    )
+    student_svc_number = serializers.CharField(
+        source='student.svc_number', read_only=True
+    )
+    component_name = serializers.CharField(
+        source='component.name', read_only=True
+    )
+    component_type = serializers.CharField(
+        source='component.component_type', read_only=True
+    )
+    subject_name = serializers.CharField(
+        source='component.subject.name', read_only=True
+    )
+    total_marks = serializers.IntegerField(
+        source='component.total_marks', read_only=True
+    )
+    pass_mark_threshold = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True,
+    )
+    is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True
+    )
+
+
+    class Meta:
+        model = StudentComponentResult
+        fields  = '__all__'
+        read_only_fields = (
+            'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
+        )
+
+    
+    def validate_marks_obtained(self, value):
+        if value is not None:
+            component = (
+                self.instance.component if self.instance
+                else None
+            )
+            if not component:
+                component_id = self.initial_data.get('component')
+                if component_id:
+                    try:
+                        from .models import AssessmentComponent
+                        component = AssessmentComponent.objects.get(pk=component_id)
+                    except AssessmentComponent.DoesNotExist:
+                        pass
+            if component and value > component.total_marks:
+                raise serializers.ValidationError(
+                    f'Marks obtained cannot exceed total marks ({component.total_marks}).'
+                )
+        return value
+
+
+class SubjectEvaluationSerializer(serializers.Serializer):
+    subject_id = serializers.CharField()
+    subject_name = serializers.CharField()
+    grading_mode = serializers.CharField()
+    is_complete = serializers.BooleanField()
+    is_passed = serializers.BooleanField()
+    overall_percentage = serializers.FloatField(allow_null=True)
+    reason = serializers.CharField()
+    component_results = serializers.ListField(child=serializers.DictField())
+    failed_critical = serializers.ListField(child=serializers.CharField())
+    retake_required = serializers.ListField(child=serializers.DictField())
+
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
