@@ -66,3 +66,5 @@ BIOMETRIC_SETUP.md
 celerybeat-schedule.bak
 celerybeat-schedule.dat
 celerybeat-schedule.dir
+test_device_connection.sh
+test_skteco_connection.py
