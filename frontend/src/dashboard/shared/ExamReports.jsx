@@ -198,6 +198,10 @@ export default function ExamReports() {
   const [newRemark, setNewRemark] = useState('')
   const [remarkSubmitting, setRemarkSubmitting] = useState(false)
 
+  // Component-based results (for POLICY subject exam detail view)
+  const [componentReport, setComponentReport] = useState(null)
+  const [loadingComponentReport, setLoadingComponentReport] = useState(false)
+
   // Create exam report modal state
   const [showCreateReportModal, setShowCreateReportModal] = useState(false)
   const [creatingReport, setCreatingReport] = useState(false)
@@ -230,13 +234,11 @@ export default function ExamReports() {
 
   // Filter exams based on selections
   const filteredExams = useMemo(() => {
-    // Don't show any exams if no class is selected
     if (!selectedClass) return []
 
-    return exams.filter(exam => {
-      // Class filter is required
+    // Regular exams (LEGACY with results, or POLICY that happen to have exams too)
+    const legacyExams = exams.filter(exam => {
       if (exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
-        // Try matching via subject
         const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
       }
@@ -245,9 +247,37 @@ export default function ExamReports() {
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
 
-      // Only show exams that have results
+      const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
+      if (subj?.grading_mode === 'POLICY') return true
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
+
+    // Virtual entries for POLICY subjects that have no exams at all
+    // (exam type filter does not apply — POLICY subjects are component-based, not exam-type-based)
+    const examSubjectIds = new Set(legacyExams.map(e => e.subject || e.subject_id))
+    const virtualEntries = subjects
+      .filter(s => {
+        if (s.grading_mode !== 'POLICY') return false
+        if (s.class_obj !== parseInt(selectedClass) && s.class_id !== parseInt(selectedClass)) return false
+        if (selectedSubject && s.id !== parseInt(selectedSubject)) return false
+        return !examSubjectIds.has(s.id)
+      })
+      .map(s => ({
+        _isPolicyVirtual: true,
+        id: `policy_${s.id}`,
+        _subjectId: s.id,
+        title: s.name,
+        subject: s.id,
+        subject_name: s.name,
+        subject_code: s.subject_code,
+        exam_type: 'policy',
+        exam_date: null,
+        total_marks: null,
+        average_score: null,
+        submission_count: 0,
+      }))
+
+    return [...legacyExams, ...virtualEntries]
   }, [exams, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Reset exam list page when filters change (must be outside useMemo)
@@ -269,6 +299,17 @@ export default function ExamReports() {
     if (!selectedClass) return subjects
     return subjects.filter(s => s.class_obj === parseInt(selectedClass) || s.class_id === parseInt(selectedClass))
   }, [subjects, selectedClass])
+
+  // POLICY subjects in selected class
+  const policySubjects = useMemo(() =>
+    filteredSubjects.filter(s => s.grading_mode === 'POLICY'),
+    [filteredSubjects]
+  )
+
+  const isPolicyExam = useMemo(() => {
+    if (!selectedExam) return false
+    return policySubjects.some(s => s.id === (selectedExam.subject || selectedExam.subject_id))
+  }, [selectedExam, policySubjects])
 
   // Load exam results when an exam is selected (cached per exam)
   const { data: examResultsData, isPending: loadingResults } = useQuery({
@@ -384,15 +425,19 @@ export default function ExamReports() {
     const colors = {
       cat: 'bg-blue-100 text-blue-700',
       final: 'bg-purple-100 text-purple-700',
-      project: 'bg-green-100 text-green-700'
+      project: 'bg-green-100 text-green-700',
+      component: 'bg-amber-100 text-amber-700',
+      policy: 'bg-amber-100 text-amber-700',
     }
     return colors[type] || 'bg-gray-100 text-gray-700'
   }
 
-  // Check if exam has any results
+  // Check if exam has any results (POLICY exams always qualify — results come from components)
   const hasExamResults = useCallback((exam) => {
+    const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
+    if (subj?.grading_mode === 'POLICY') return true
     return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
-  }, [])
+  }, [subjects])
 
   // Handle viewing an exam report - with validation
   const handleViewReport = useCallback((exam) => {
@@ -403,6 +448,8 @@ export default function ExamReports() {
     setSelectedExam(exam)
     setExamReport(null)
     setNewRemark('')
+    // Virtual policy entries have no real exam ID — skip the report fetch
+    if (exam._isPolicyVirtual) return
     setLoadingReport(true)
     api.getExamReportByExam(exam.id)
       .then(d => setExamReport(d))
@@ -455,7 +502,47 @@ export default function ExamReports() {
   useEffect(() => {
     setShowComprehensive(false)
     setComprehensiveData(null)
+    setComponentReport(null)
   }, [selectedClass])
+
+  // Load component results when a POLICY-subject exam is selected
+  useEffect(() => {
+    if (!selectedExam) { setComponentReport(null); return }
+    const examSubject = subjects.find(s =>
+      s.id === (selectedExam.subject || selectedExam.subject_id)
+    )
+    if (examSubject?.grading_mode !== 'POLICY') { setComponentReport(null); return }
+    setLoadingComponentReport(true)
+    api.getComponentsBySubject(String(examSubject.id))
+      .then(async (components) => {
+        if (!components.length) { setComponentReport({ components: [], studentMap: {} }); return }
+        const resultArrays = await Promise.all(
+          components.map(comp => api.getComponentResults(`component=${comp.id}`))
+        )
+        const studentMap = {}
+        components.forEach((comp, idx) => {
+          ;(resultArrays[idx] || []).forEach(r => {
+            const sid = String(r.student || r.student_id)
+            if (!studentMap[sid]) {
+              studentMap[sid] = {
+                id: sid,
+                name: r.student_name || `Student ${sid}`,
+                svc_number: r.student_svc_number || '',
+                rank: r.student_rank || '',
+                results: {}
+              }
+            }
+            const existing = studentMap[sid].results[comp.id]
+            if (!existing || (r.attempt_number || 1) >= (existing.attempt_number || 1)) {
+              studentMap[sid].results[comp.id] = r
+            }
+          })
+        })
+        setComponentReport({ components, studentMap })
+      })
+      .catch(() => toast?.error?.('Failed to load component results'))
+      .finally(() => setLoadingComponentReport(false))
+  }, [selectedExam, subjects, toast])
 
   // Load comprehensive results for selected class
   const handleViewComprehensive = useCallback(async () => {
@@ -1287,8 +1374,297 @@ export default function ExamReports() {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          {loadingResults ? (
+          {/* Results section — component-based for POLICY, exam-based for LEGACY */}
+          {isPolicyExam ? (
+            <>
+              {loadingComponentReport ? (
+                <div className="flex items-center justify-center py-12 bg-white rounded-xl border border-neutral-200 shadow-sm">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+                </div>
+              ) : !componentReport || componentReport.components.length === 0 ? (
+                <div className="bg-white rounded-xl border border-amber-200 p-8 text-center">
+                  <LucideIcons.Layers className="w-10 h-10 mx-auto mb-3 text-amber-400" />
+                  <p className="text-amber-700">No assessment components have been configured for this subject.</p>
+                </div>
+              ) : Object.keys(componentReport.studentMap).length === 0 ? (
+                <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center text-neutral-500">
+                  <LucideIcons.FileX className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
+                  <p>No component results have been recorded yet.</p>
+                </div>
+              ) : (() => {
+                const { components, studentMap } = componentReport
+                const examSubjectObj = policySubjects.find(s => s.id === (selectedExam?.subject || selectedExam?.subject_id))
+                const passMark = examSubjectObj?.pass_mark ? parseFloat(examSubjectObj.pass_mark) : 50
+
+                // Compute per-student overall scores for summary
+                const studentScores = Object.values(studentMap).map(student => {
+                  let tw = 0, wt = 0, allGraded = true
+                  components.forEach(c => {
+                    const r = student.results[c.id]
+                    if (r?.marks_obtained != null && c.total_marks) {
+                      tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+                      wt += parseFloat(c.weight)
+                    } else allGraded = false
+                  })
+                  const overallPct = wt > 0 ? (tw / wt * 100) : null
+                  const failedCritical = components.some(c => {
+                    if (!c.is_critical) return false
+                    const r = student.results[c.id]
+                    return r?.status === 'FAIL' || r?.status === 'RETAKE_REQUIRED'
+                  })
+                  return { ...student, overallPct, allGraded, failedCritical, passed: overallPct != null && overallPct >= passMark && !failedCritical }
+                })
+                const gradedStudents = studentScores.filter(s => s.allGraded && s.overallPct != null)
+                const passCount = gradedStudents.filter(s => s.passed).length
+                const failCount = gradedStudents.length - passCount
+                const avgPct = gradedStudents.length > 0
+                  ? (gradedStudents.reduce((sum, s) => sum + s.overallPct, 0) / gradedStudents.length).toFixed(1)
+                  : null
+                const highestPct = gradedStudents.length > 0 ? Math.max(...gradedStudents.map(s => s.overallPct)).toFixed(1) : null
+                const passRate = gradedStudents.length > 0 ? (passCount / gradedStudents.length * 100).toFixed(1) : null
+
+                // Per-component stats
+                const compStats = components.map(c => {
+                  const compResults = Object.values(studentMap).map(s => s.results[c.id]).filter(r => r?.marks_obtained != null)
+                  const passedComp = compResults.filter(r => r.status === 'PASS').length
+                  const avgComp = compResults.length > 0
+                    ? (compResults.reduce((sum, r) => sum + parseFloat(r.marks_obtained), 0) / compResults.length).toFixed(1)
+                    : null
+                  return { ...c, gradedCount: compResults.length, passedCount: passedComp, avgScore: avgComp }
+                })
+
+                const students = studentScores.sort((a, b) => {
+                  if (b.overallPct != null && a.overallPct != null) return b.overallPct - a.overallPct
+                  return a.name.localeCompare(b.name)
+                })
+
+                const sbadge = (s) => {
+                  if (!s || s === 'PENDING') return <span className="text-xs text-neutral-400">—</span>
+                  if (s === 'PASS') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">Pass</span>
+                  if (s === 'FAIL') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700">Fail</span>
+                  if (s === 'RETAKE_REQUIRED') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Retake</span>
+                  return null
+                }
+
+                return (
+                  <>
+                    {/* Summary Stats Cards — matches legacy exam report layout */}
+                    <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
+                      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 min-w-max md:min-w-0">
+                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Total</div>
+                          <div className="text-2xl font-bold text-black">{studentScores.length}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Fully Graded</div>
+                          <div className="text-2xl font-bold text-indigo-600">{gradedStudents.length}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Passed</div>
+                          <div className="text-2xl font-bold text-green-600">{passCount}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Failed</div>
+                          <div className="text-2xl font-bold text-red-600">{failCount}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Average</div>
+                          <div className="text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Highest</div>
+                          <div className="text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 min-w-[110px]">
+                          <div className="text-xs text-neutral-500">Pass Rate</div>
+                          <div className="text-2xl font-bold text-amber-600">{passRate != null ? `${passRate}%` : '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Per-component summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {compStats.map(c => (
+                        <div key={c.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="font-semibold text-black text-sm">{c.name}</div>
+                              <div className="text-xs text-neutral-500">{parseFloat(c.weight)}% weight · {c.total_marks} marks</div>
+                            </div>
+                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+                              Pass mark: {parseFloat(c.pass_mark ?? 50)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm mt-3">
+                            <div>
+                              <div className="text-xs text-neutral-500">Graded</div>
+                              <div className="font-bold text-black">{c.gradedCount}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-neutral-500">Passed</div>
+                              <div className="font-bold text-green-600">{c.passedCount}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-neutral-500">Avg Score</div>
+                              <div className="font-bold text-indigo-600">{c.avgScore != null ? `${c.avgScore}/${c.total_marks}` : '—'}</div>
+                            </div>
+                          </div>
+                          {c.gradedCount > 0 && (
+                            <div className="mt-3">
+                              <div className="flex justify-between text-xs text-neutral-500 mb-1">
+                                <span>Pass rate</span>
+                                <span>{((c.passedCount / c.gradedCount) * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-green-500 rounded-full"
+                                  style={{ width: `${(c.passedCount / c.gradedCount) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Ranked student results table */}
+                  <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-neutral-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <LucideIcons.Layers className="w-5 h-5 text-amber-600" />
+                        <div>
+                          <h3 className="font-semibold text-black">Student Rankings</h3>
+                          <p className="text-xs text-neutral-500">{students.length} student{students.length !== 1 ? 's' : ''} · ranked by overall score</p>
+                        </div>
+                      </div>
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">Policy Grading</span>
+                    </div>
+                    {/* Desktop table */}
+                    <div className="hidden lg:block overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-neutral-50 border-b border-neutral-200">
+                            <th className="px-4 py-3 text-left font-medium text-neutral-600 w-8">#</th>
+                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Svc No.</th>
+                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Rank</th>
+                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Name</th>
+                            {components.map(c => (
+                              <th key={c.id} className="px-3 py-3 text-center font-medium text-neutral-600 min-w-[120px]">
+                                <div>{c.name}</div>
+                                <div className="text-xs font-normal text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
+                              </th>
+                            ))}
+                            <th className="px-4 py-3 text-center font-medium text-neutral-600">Overall</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {students.map((student, idx) => {
+                            let tw = 0, wt = 0, ag = true
+                            components.forEach(c => {
+                              const r = student.results[c.id]
+                              if (r?.marks_obtained != null && c.total_marks) {
+                                tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+                                wt += parseFloat(c.weight)
+                              } else ag = false
+                            })
+                            const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
+                            const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
+                            const ok = op != null && parseFloat(op) >= passMark && !fc
+                            return (
+                              <tr key={student.id} className="hover:bg-neutral-50 transition">
+                                <td className="px-4 py-3 text-neutral-400 text-xs">{idx + 1}</td>
+                                <td className="px-4 py-3 text-neutral-600 text-xs">{student.svc_number || '—'}</td>
+                                <td className="px-4 py-3 text-neutral-600 text-xs">{student.rank || '—'}</td>
+                                <td className="px-4 py-3 font-medium text-black">{student.name}</td>
+                                {components.map(c => {
+                                  const r = student.results[c.id]
+                                  return (
+                                    <td key={c.id} className="px-3 py-3 text-center">
+                                      {r?.marks_obtained != null ? (
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <span className="font-semibold text-black">{r.marks_obtained}/{c.total_marks}</span>
+                                          <span className="text-xs text-neutral-500">
+                                            {((parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * 100).toFixed(1)}%
+                                          </span>
+                                          {sbadge(r.status)}
+                                        </div>
+                                      ) : <span className="text-xs text-neutral-400">—</span>}
+                                    </td>
+                                  )
+                                })}
+                                <td className="px-4 py-3 text-center">
+                                  {ag && op != null ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="font-bold text-black">{op}%</span>
+                                      <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                        {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
+                                      </span>
+                                    </div>
+                                  ) : <span className="text-xs text-amber-600">Incomplete</span>}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Mobile cards */}
+                    <div className="lg:hidden divide-y divide-neutral-100">
+                      {students.map((student, idx) => {
+                        let tw = 0, wt = 0, ag = true
+                        components.forEach(c => {
+                          const r = student.results[c.id]
+                          if (r?.marks_obtained != null && c.total_marks) {
+                            tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+                            wt += parseFloat(c.weight)
+                          } else ag = false
+                        })
+                        const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
+                        const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
+                        const ok = op != null && parseFloat(op) >= passMark && !fc
+                        return (
+                          <div key={student.id} className="p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-semibold text-black">{idx + 1}. {student.name}</div>
+                                {student.svc_number && <div className="text-xs text-neutral-500">{student.svc_number}</div>}
+                              </div>
+                              {ag && op != null ? (
+                                <div className="text-right">
+                                  <div className="font-bold text-black">{op}%</div>
+                                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
+                                  </span>
+                                </div>
+                              ) : <span className="text-xs text-amber-600">Incomplete</span>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {components.map(c => {
+                                const r = student.results[c.id]
+                                return (
+                                  <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
+                                    <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
+                                    <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
+                                    {r?.marks_obtained != null ? (
+                                      <div className="mt-1 flex items-center justify-between">
+                                        <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
+                                        {sbadge(r.status)}
+                                      </div>
+                                    ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  </>
+                )
+              })()}
+            </>
+          ) : loadingResults ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>

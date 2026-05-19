@@ -95,7 +95,12 @@ export default function SubjectsPage() {
               <div className="mt-1 truncate"><span className="font-medium text-black">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
               {s.subject_code ? <div className="mt-1 truncate"><span className="font-medium text-black">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
             </div>
-            <div className="mt-4 flex items-center gap-2 pt-2">
+            <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                {s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-black/10">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -114,6 +119,17 @@ export default function SubjectsPage() {
               >
                 View exams
               </button>
+              {s.grading_mode === 'POLICY' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/list/assessment-components?subject_id=${s.id}`)
+                  }}
+                  className="px-3 py-1.5 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition"
+                >
+                  Components
+                </button>
+              )}
             </div>
           </div>
         ))}

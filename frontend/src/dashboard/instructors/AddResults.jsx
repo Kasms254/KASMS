@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -64,10 +64,20 @@ export default function AddResults() {
     let mounted = true
     async function load() {
       try {
-        const res = await api.getMyExams?.() ?? api.getExams()
-        const arr = Array.isArray(res.results) ? res.results : (Array.isArray(res) ? res : (res && res.results) ? res.results : [])
+        const [examsRes, subjectsRes] = await Promise.all([
+          api.getMyExams?.() ?? api.getExams(),
+          api.getMySubjects?.().catch(() => []),
+        ])
+        const arr = Array.isArray(examsRes.results) ? examsRes.results : (Array.isArray(examsRes) ? examsRes : (examsRes?.results ?? []))
+        const subjArr = Array.isArray(subjectsRes) ? subjectsRes : (subjectsRes?.results ?? [])
+        const policySubjectIds = new Set(subjArr.filter(s => s.grading_mode === 'POLICY').map(s => String(s.id)))
+        // Exclude exams that belong to POLICY-mode subjects
+        const legacyExams = arr.filter(ex => {
+          const subjectId = String(ex.subject || ex.subject_id || '')
+          return !policySubjectIds.has(subjectId)
+        })
         if (!mounted) return
-        setExams(arr)
+        setExams(legacyExams)
       } catch (err) {
         toast.error(err?.message || 'Failed to load exams')
       }
@@ -404,6 +414,192 @@ export default function AddResults() {
   // exam stats from server
   const [examStats, setExamStats] = useState({ count: 0, submitted: 0, pending: 0 })
 
+  // ── Component-based grading (POLICY mode) ──
+  const [gradingTab, setGradingTab] = useState('exam') // 'exam' | 'component'
+  const [policySubjects, setPolicySubjects] = useState([])
+  const [selectedPolicySubject, setSelectedPolicySubject] = useState('')
+  const [policyComponents, setPolicyComponents] = useState([])
+  const [selectedComponent, setSelectedComponent] = useState('')
+  const [componentInfo, setComponentInfo] = useState(null)
+  const [componentStudents, setComponentStudents] = useState([])
+  const [componentLoading, setComponentLoading] = useState(false)
+  const [componentSaving, setComponentSaving] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function loadPolicySubjects() {
+      try {
+        const res = await api.getMySubjects?.() ?? api.getAllSubjects?.() ?? []
+        const arr = Array.isArray(res) ? res : (res?.results ?? [])
+        if (mounted) setPolicySubjects(arr.filter(s => s.grading_mode === 'POLICY'))
+      } catch { /* non-critical */ }
+    }
+    loadPolicySubjects()
+    return () => { mounted = false }
+  }, [])
+
+  const loadPolicyComponents = useCallback(async (subjectId) => {
+    if (!subjectId) { setPolicyComponents([]); setSelectedComponent(''); setComponentInfo(null); setComponentStudents([]); return }
+    try {
+      const comps = await api.getComponentsBySubject(subjectId)
+      setPolicyComponents(Array.isArray(comps) ? comps : [])
+    } catch { setPolicyComponents([]) }
+  }, [])
+
+  useEffect(() => {
+    loadPolicyComponents(selectedPolicySubject)
+  }, [selectedPolicySubject, loadPolicyComponents])
+
+  const loadComponentStudents = useCallback(async (componentId) => {
+    if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
+    setComponentLoading(true)
+    try {
+      const comp = policyComponents.find(c => String(c.id) === String(componentId))
+      setComponentInfo(comp || null)
+
+      // Get existing results and enrolled students in parallel
+      const subject = policySubjects.find(s => String(s.id) === String(selectedPolicySubject))
+      const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+
+      const [existingResults, classStudentsData] = await Promise.all([
+        api.getComponentResults(`component=${encodeURIComponent(componentId)}`).catch(() => []),
+        classId ? api.getClassEnrolledStudents(classId).catch(() => []) : Promise.resolve([]),
+      ])
+
+      const resultsArr = Array.isArray(existingResults) ? existingResults : []
+      const studentsArr = Array.isArray(classStudentsData) ? classStudentsData : (classStudentsData?.results ?? [])
+
+      // Build a map of latest result per student
+      const resultByStudent = {}
+      resultsArr.forEach(r => {
+        const sid = r.student
+        if (!resultByStudent[sid] || (r.attempt_number > resultByStudent[sid].attempt_number)) {
+          resultByStudent[sid] = r
+        }
+      })
+
+      // Merge: all enrolled students, with existing result data if available
+      const merged = studentsArr.map(st => {
+        const r = resultByStudent[st.id] || {}
+        const hasResult = !!r.id
+        const nextAttempt = (r.attempt_number || 0) + 1
+        const isRetake = hasResult
+        // Allow entry only: first time (no result), OR retake allowed AND status is FAIL/RETAKE_REQUIRED
+        const canEnter = !hasResult || (
+          comp?.retake_allowed &&
+          ['FAIL', 'RETAKE_REQUIRED'].includes(r.status)
+        )
+        return {
+          id: r.id || null,
+          student_id: st.id,
+          student_name: st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim() || r.student_name || '',
+          student_svc_number: st.svc_number || r.student_svc_number || '',
+          // Current (existing) result — shown read-only
+          current_marks: hasResult ? r.marks_obtained : null,
+          current_percentage: r.percentage ?? null,
+          current_status: r.status || (hasResult ? 'PENDING' : null),
+          current_attempt: r.attempt_number || 0,
+          // New entry fields
+          next_attempt: nextAttempt,
+          is_retake: isRetake,
+          can_enter: canEnter,
+          marks_obtained: '',
+          remarks: '',
+          dirty: false,
+          errors: {},
+        }
+      })
+
+      // If no enrolled students found, fall back to existing results only
+      const rows = merged.length > 0 ? merged : resultsArr.map(r => {
+        const hasResult = !!r.id
+        const nextAttempt = (r.attempt_number || 0) + 1
+        const canEnter = !hasResult || (comp?.retake_allowed && ['FAIL', 'RETAKE_REQUIRED'].includes(r.status))
+        return {
+          id: r.id || null,
+          student_id: r.student,
+          student_name: r.student_name || '',
+          student_svc_number: r.student_svc_number || '',
+          current_marks: hasResult ? r.marks_obtained : null,
+          current_percentage: r.percentage ?? null,
+          current_status: r.status || null,
+          current_attempt: r.attempt_number || 0,
+          next_attempt: nextAttempt,
+          is_retake: hasResult,
+          can_enter: canEnter,
+          marks_obtained: '',
+          remarks: '',
+          dirty: false,
+          errors: {},
+        }
+      })
+
+      setComponentStudents(rows)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to load component results')
+    } finally {
+      setComponentLoading(false)
+    }
+  }, [policyComponents, policySubjects, selectedPolicySubject, toast])
+
+  useEffect(() => {
+    loadComponentStudents(selectedComponent)
+  }, [selectedComponent, loadComponentStudents])
+
+  function updateComponentRow(idx, key, value) {
+    setComponentStudents(prev => prev.map((r, i) => {
+      if (i !== idx) return r
+      const updated = { ...r, [key]: value, dirty: true }
+      const errors = { ...r.errors }
+      if (key === 'marks_obtained') {
+        if (value === '') { delete errors.marks_obtained }
+        else {
+          const num = Number(value)
+          const max = componentInfo?.total_marks != null ? Number(componentInfo.total_marks) : null
+          if (isNaN(num)) errors.marks_obtained = 'Must be a number'
+          else if (num < 0) errors.marks_obtained = 'Cannot be negative'
+          else if (max != null && num > max) errors.marks_obtained = `Cannot exceed ${max}`
+          else delete errors.marks_obtained
+        }
+      }
+      updated.errors = errors
+      return updated
+    }))
+  }
+
+  async function handleSaveComponentResults() {
+    if (!selectedComponent) return toast.error('Select a component')
+    const dirtyRows = componentStudents.filter(r => r.dirty && r.marks_obtained !== '' && r.can_enter)
+    if (dirtyRows.length === 0) return toast.error('No changes to save')
+
+    const max = componentInfo?.total_marks != null ? Number(componentInfo.total_marks) : null
+    const hasErrors = dirtyRows.some(r => {
+      const n = Number(r.marks_obtained)
+      return !Number.isFinite(n) || n < 0 || (max != null && n > max)
+    })
+    if (hasErrors) return toast.error('Fix validation errors before saving')
+
+    const payload = {
+      component_id: selectedComponent,
+      results: dirtyRows.map(r => ({ student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks || '' })),
+    }
+    setComponentSaving(true)
+    try {
+      await api.bulkGradeComponentResults(payload)
+      toast.success(`${dirtyRows.length} result(s) saved`)
+      await loadComponentStudents(selectedComponent)
+    } catch (err) {
+      const d = err?.data
+      if (d && typeof d === 'object') {
+        toast.error(Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | '))
+      } else {
+        toast.error(err?.message || 'Failed to save component results')
+      }
+    } finally {
+      setComponentSaving(false)
+    }
+  }
+
   const hasChanges = results.some(r => r.dirty)
 
   // Warn before leaving with unsaved changes
@@ -422,8 +618,235 @@ export default function AddResults() {
     <div className="p-3 sm:p-4 md:p-6 text-black w-full">
       <header className="mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-2">Grade Results</h2>
-        <p className="text-xs sm:text-sm md:text-base text-gray-600">Select an exam and enter marks for your students. <span className="hidden sm:inline">Use Tab/Enter to navigate, arrow keys to move between rows.</span></p>
+        <p className="text-xs sm:text-sm md:text-base text-gray-600">Enter marks for your students.</p>
       </header>
+
+      {/* Grading Mode Tabs */}
+      <div className="mb-4 sm:mb-6 flex border-b border-neutral-200">
+        <button
+          onClick={() => setGradingTab('exam')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'exam' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+        >
+          Exam Grading
+        </button>
+        {policySubjects.length > 0 && (
+          <button
+            onClick={() => setGradingTab('component')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'component' ? 'border-amber-600 text-amber-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+          >
+            Component Grading
+            <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">Policy</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Component Grading Section ── */}
+      {gradingTab === 'component' && (
+        <div>
+          {/* Subject + Component Selection */}
+          <div className="mb-4 bg-white rounded-lg shadow p-3 sm:p-4 space-y-3">
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Subject (Policy Mode)</label>
+              <select
+                value={selectedPolicySubject}
+                onChange={e => { setSelectedPolicySubject(e.target.value); setSelectedComponent('') }}
+                className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">-- Select a subject --</option>
+                {policySubjects.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} — {s.class_name || s.class_obj?.name || ''}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedPolicySubject && (
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Component</label>
+                <select
+                  value={selectedComponent}
+                  onChange={e => setSelectedComponent(e.target.value)}
+                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">-- Select a component --</option>
+                  {policyComponents.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.total_marks} marks, {parseFloat(c.weight).toFixed(1)}% weight{c.is_critical ? ', CRITICAL' : ''})
+                    </option>
+                  ))}
+                </select>
+                {policyComponents.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No components defined for this subject. Add components first via Subjects → Components.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {componentLoading && (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+              <p className="mt-2 text-gray-600">Loading…</p>
+            </div>
+          )}
+
+          {!componentLoading && selectedComponent && componentStudents.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+              No student results found for this component. Students must be enrolled in the subject's class.
+            </div>
+          )}
+
+          {!componentLoading && componentStudents.length > 0 && componentInfo && (
+            <div className="bg-white rounded-lg shadow-lg">
+              {/* Component Info Cards */}
+              <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-amber-50 to-yellow-50">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Component</div>
+                    <div className="text-sm font-semibold text-gray-900 truncate">{componentInfo.name}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
+                    <div className="text-sm font-semibold text-amber-600">{componentInfo.total_marks}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Weight</div>
+                    <div className="text-sm font-semibold text-gray-900">{parseFloat(componentInfo.weight).toFixed(1)}%</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Pass Mark</div>
+                    <div className="text-sm font-semibold text-gray-900">{parseFloat(componentInfo.pass_mark).toFixed(1)}%</div>
+                  </div>
+                </div>
+                {componentInfo.is_critical && (
+                  <div className="mt-2 text-xs text-red-700 bg-red-50 rounded px-2 py-1 inline-block">
+                    Critical — failing this component fails the entire subject
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="p-3 sm:p-4 border-b bg-gray-50 flex items-center justify-between gap-3">
+                <span className="text-sm text-neutral-600">
+                  {componentStudents.filter(r => r.is_submitted).length} / {componentStudents.length} submitted
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => loadComponentStudents(selectedComponent)}
+                    className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
+                  >Refresh</button>
+                  <button
+                    onClick={handleSaveComponentResults}
+                    disabled={componentSaving || !componentStudents.some(r => r.dirty)}
+                    className="px-4 py-1.5 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  >{componentSaving ? 'Saving…' : 'Save Grades'}</button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Student</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Svc No</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Current</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Status</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">New Marks / {componentInfo.total_marks}</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {componentStudents.map((r, idx) => (
+                      <tr key={r.student_id} className={`hover:bg-gray-50 ${r.dirty ? 'bg-yellow-50' : ''}`}>
+                        <td className="px-3 py-2 font-medium text-gray-900">{r.student_name || '—'}</td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{r.student_svc_number || '—'}</td>
+
+                        {/* Current marks (read-only) */}
+                        <td className="px-3 py-2 text-sm">
+                          {r.current_marks != null ? (
+                            <span className="font-medium text-gray-800">
+                              {r.current_marks}/{componentInfo.total_marks}
+                              {r.current_percentage != null && (
+                                <span className="ml-1 text-gray-500 text-xs">({parseFloat(r.current_percentage).toFixed(1)}%)</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">Not graded</span>
+                          )}
+                        </td>
+
+                        {/* Status badge */}
+                        <td className="px-3 py-2">
+                          {r.current_status ? (
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                              r.current_status === 'PASS' ? 'bg-green-50 text-green-700' :
+                              r.current_status === 'FAIL' ? 'bg-red-50 text-red-700' :
+                              r.current_status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
+                              'bg-neutral-100 text-neutral-500'
+                            }`}>
+                              {r.is_retake && r.current_status !== 'PASS'
+                                ? `${r.current_status} · Attempt ${r.current_attempt}`
+                                : r.current_status}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-neutral-400">—</span>
+                          )}
+                        </td>
+
+                        {/* New marks entry */}
+                        <td className="px-3 py-2">
+                          {r.can_enter ? (
+                            <div>
+                              {r.is_retake && (
+                                <div className="text-xs text-amber-600 mb-0.5">Retake {r.next_attempt}</div>
+                              )}
+                              <input
+                                type="number"
+                                min="0"
+                                max={componentInfo.total_marks}
+                                step="0.5"
+                                value={r.marks_obtained}
+                                onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
+                                className={`w-20 p-1 rounded border text-sm ${r.errors?.marks_obtained ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                placeholder="—"
+                              />
+                              {r.errors?.marks_obtained && (
+                                <div className="text-xs text-red-600 mt-0.5">{r.errors.marks_obtained}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-neutral-400 italic">
+                              {r.current_status === 'PASS' ? 'Passed' : 'No retake'}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2">
+                          {r.can_enter ? (
+                            <input
+                              type="text"
+                              value={r.remarks}
+                              onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
+                              className="w-32 p-1 rounded border border-gray-300 text-sm"
+                              placeholder="Optional"
+                              maxLength={200}
+                            />
+                          ) : (
+                            <span className="text-xs text-neutral-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Exam Grading Section ── */}
+      {gradingTab === 'exam' && (
+        <div>
 
       {/* Exam Selection */}
       <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
@@ -995,6 +1418,9 @@ export default function AddResults() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
         </div>
       )}
     </div>

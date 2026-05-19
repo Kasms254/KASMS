@@ -1186,6 +1186,9 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
     student_svc_number = serializers.CharField(
         source='student.svc_number', read_only=True
     )
+    student_rank = serializers.CharField(
+        source='student.rank', read_only=True
+    )
     component_name = serializers.CharField(
         source='component.name', read_only=True
     )

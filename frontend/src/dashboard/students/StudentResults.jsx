@@ -367,9 +367,11 @@ export default function StudentResults() {
       // Load school logo (prefer school logo from theme, fallback to ka.png)
       let logoBase64 = null;
       const logoUrl = schoolLogoUrl || '/ka.png';
+      // eslint-disable-next-line no-empty
       try { logoBase64 = await getImageBase64(logoUrl); } catch {}
       // Always try ka.png as background watermark
       let bgLogoBase64 = null;
+      // eslint-disable-next-line no-empty
       try { bgLogoBase64 = await getImageBase64('/ka.png'); } catch {}
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -779,6 +781,58 @@ export default function StudentResults() {
     }
   }
 
+  // ── Component Results (POLICY subjects) ──────────────────────────────────
+  const [componentSubjects, setComponentSubjects] = useState([]) // POLICY subjects for this student
+  const [componentResultsMap, setComponentResultsMap] = useState({}) // subjectId -> { results, evaluation, retake_requirements }
+  const [componentResultsLoading, setComponentResultsLoading] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function loadComponentResults() {
+      if (!user?.id) return
+      setComponentResultsLoading(true)
+      try {
+        // Get all subjects (with class filter if selected)
+        const params = selectedClassId !== 'all' ? `class_obj=${selectedClassId}` : ''
+        const subjectsData = await api.getAllSubjects(params).catch(() => [])
+        const allSubjects = Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results ?? [])
+        const policySubjects = allSubjects.filter(s => s.grading_mode === 'POLICY')
+
+        if (!mounted || policySubjects.length === 0) {
+          if (mounted) setComponentSubjects([])
+          return
+        }
+
+        if (mounted) setComponentSubjects(policySubjects)
+
+        // Fetch component results for each POLICY subject
+        const resultEntries = await Promise.all(
+          policySubjects.map(async s => {
+            try {
+              const data = await api.getComponentResultsByStudentSubject(user.id, s.id)
+              return [s.id, data]
+            } catch {
+              return [s.id, null]
+            }
+          })
+        )
+
+        if (!mounted) return
+        const map = {}
+        resultEntries.forEach(([subjectId, data]) => {
+          if (data) map[subjectId] = data
+        })
+        setComponentResultsMap(map)
+      } catch {
+        // non-critical
+      } finally {
+        if (mounted) setComponentResultsLoading(false)
+      }
+    }
+    loadComponentResults()
+    return () => { mounted = false }
+  }, [user, selectedClassId])
+
   // Stats for the current class (shown in summary banner)
   const currentClassStats = useMemo(() => calculateTotals(currentClassResults), [currentClassResults])
   // Trend for displayed results
@@ -1181,6 +1235,105 @@ export default function StudentResults() {
           </div>
         )}
       </div>
+
+      {/* Component Results (POLICY mode subjects) */}
+      {(componentResultsLoading || componentSubjects.length > 0) && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-black">Component-Based Results</h3>
+          <p className="text-sm text-gray-500 -mt-2">Results for subjects graded by individual assessment components.</p>
+
+          {componentResultsLoading && (
+            <div className="text-sm text-neutral-500 py-4">Loading component results…</div>
+          )}
+
+          {!componentResultsLoading && componentSubjects.map(subject => {
+            const data = componentResultsMap[subject.id]
+            const compResults = data?.results ?? []
+            const evaluation = data?.evaluation ?? null
+            const retakeInfo = data?.retake_requirements ?? []
+
+            return (
+              <div key={subject.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+                {/* Subject header */}
+                <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-black">{subject.name}</div>
+                    <div className="text-xs text-neutral-500">{subject.class_name || subject.class_obj?.name || ''}</div>
+                  </div>
+                  {evaluation && (
+                    <div className="flex items-center gap-2">
+                      {evaluation.overall_percentage != null && (
+                        <span className="text-sm font-medium text-gray-700">
+                          {Number(evaluation.overall_percentage).toFixed(1)}%
+                        </span>
+                      )}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                        evaluation.is_passed
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {evaluation.is_passed ? 'PASS' : 'FAIL'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Component breakdown */}
+                {compResults.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-neutral-400 italic">No component results yet.</div>
+                ) : (
+                  <div className="divide-y divide-neutral-100">
+                    {compResults.map(r => (
+                      <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-black truncate">{r.component_name || '—'}</div>
+                          <div className="text-xs text-neutral-500 mt-0.5">{r.component_type || ''}{r.is_retake ? ` · Retake ${r.attempt_number}` : ''}</div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm flex-shrink-0">
+                          <span className="text-neutral-700">
+                            {r.marks_obtained != null ? `${r.marks_obtained}/${r.total_marks}` : '—'}
+                          </span>
+                          {r.percentage != null && (
+                            <span className="text-neutral-600">{Number(r.percentage).toFixed(1)}%</span>
+                          )}
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                            r.status === 'PASS' ? 'bg-green-50 text-green-700' :
+                            r.status === 'FAIL' ? 'bg-red-50 text-red-700' :
+                            r.status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
+                            'bg-neutral-100 text-neutral-500'
+                          }`}>{r.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Retake requirements */}
+                {retakeInfo.length > 0 && (
+                  <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
+                    <div className="text-xs font-medium text-amber-700 mb-1">Retake required:</div>
+                    {retakeInfo.map((req, i) => (
+                      <div key={i} className="text-xs text-amber-600">
+                        {req.component_name || req.component} — {req.reason || ''}
+                        {req.attempts_remaining != null && req.attempts_remaining !== 'unlimited' && (
+                          <span className="ml-1">({req.attempts_remaining} attempt{req.attempts_remaining !== 1 ? 's' : ''} remaining)</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Evaluation note */}
+                {evaluation?.reason && (
+                  <div className="px-4 py-2 bg-neutral-50 border-t border-neutral-100 text-xs text-neutral-500">
+                    {evaluation.reason}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
