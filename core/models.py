@@ -1011,6 +1011,18 @@ class Exam(models.Model):
     EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project')]
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exams', null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
+    component = models.ForeignKey(
+        AssessmentComponent,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='exams',
+        help_text=(
+            'Required for POLICY-graded subjects. '
+            'Must be an active component belonging to the same subject. '
+            'NULL for LEGACY-graded subjects.'
+        ),
+    )
     title = models.CharField(max_length=200)
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPE_CHOICES, default='cat')
     description = models.TextField(blank=True, null=True)
@@ -1028,18 +1040,26 @@ class Exam(models.Model):
     class Meta:
         db_table = 'exams'
         ordering = ['created_at']
-        unique_together = ['subject', 'exam_date', 'title']
+        unique_together = ['subject', 'component', 'exam_date', 'title']
         indexes = [
             models.Index(fields=['subject', 'is_active']),
             models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['component', 'is_active']),
         ]
 
     def __str__(self):
+        if self.component:
+            return f"{self.title} - {self.subject.name} ({self.component.name})"
         return f"{self.title} - {self.subject.name}"
 
     def save(self, *args, **kwargs):
         if not self.school and self.subject:
             self.school = self.subject.school
+        if self.component_id and self.subject_id:
+            if self.component.subject_id != self.subject_id:
+                raise ValidationError(
+                    'Component must belong to the same subject as the exam.'
+                )
         super().save(*args, **kwargs)
 
     @property

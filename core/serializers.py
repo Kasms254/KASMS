@@ -998,9 +998,26 @@ class ExamSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
-    average_score = serializers.FloatField(read_only=True)
-    submission_count = serializers.IntegerField(read_only=True)
+    average_score = serializers.SerializerMethodField()
+    submission_count = serializers.SerializerMethodField()
     attachments = ExamAttachmentSerializer(many=True, read_only=True)
+
+    component_name = serializers.CharField(
+        source='component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='component.get_component_type_display', read_only=True, default=None
+    )
+    component_pass_mark = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
+    component_is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='subject.grading_mode', read_only=True
+    )
 
     class Meta:
         model = Exam
@@ -1011,12 +1028,26 @@ class ExamSerializer(serializers.ModelSerializer):
             'title': {'required': True},
             'subject': {'required': True},
             'exam_date': {'required': True},
-            'total_marks': {'required': True}
+            'total_marks': {'required': True},
+            'component': {'required': False},
         }
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
-    
+
+    def get_submission_count(self, obj):
+        if hasattr(obj, '_submitted_results'):
+            return len(obj._submitted_results)
+        return obj.submission_count
+
+    def get_average_score(self, obj):
+        if hasattr(obj, '_submitted_results'):
+            results = [r for r in obj._submitted_results if r.marks_obtained is not None]
+            if not results:
+                return 0
+            return sum(r.marks_obtained for r in results) / len(results)
+        return obj.average_score
+
     def validate_exam_date(self, value):
         if not self.instance and value < timezone.now().date():
             raise serializers.ValidationError("Exam date cannot be in the past.")
@@ -1025,8 +1056,10 @@ class ExamSerializer(serializers.ModelSerializer):
     def validate(self, data):
         exam_type = data.get('exam_type')
         subject = data.get('subject')
+        component = data.get('component')
         is_active = data.get('is_active', True)
 
+     
         if exam_type == 'final' and is_active:
             qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
             if self.instance:
@@ -1035,6 +1068,35 @@ class ExamSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
+
+   
+        if subject:
+            if subject.grading_mode == 'POLICY':
+                if not component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Policy grading. "
+                            "You must select an assessment component."
+                        )
+                    })
+                if component.subject_id != subject.id:
+                    raise serializers.ValidationError({
+                        "component": "Selected component does not belong to this subject."
+                    })
+                if not component.is_active:
+                    raise serializers.ValidationError({
+                        "component": "Selected component is not active."
+                    })
+            else:
+              
+                if component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Legacy grading. "
+                            "Do not select a component."
+                        )
+                    })
+
         return data
 
 class ExamResultSerializer(serializers.ModelSerializer):
@@ -1055,6 +1117,20 @@ class ExamResultSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source='exam.subject.class_obj_id', read_only=True)
     class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
     course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
+
+   
+    component_id = serializers.UUIDField(
+        source='exam.component_id', read_only=True, default=None
+    )
+    component_name = serializers.CharField(
+        source='exam.component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='exam.component.get_component_type_display', read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='exam.subject.grading_mode', read_only=True
+    )
 
     is_notification_read = serializers.SerializerMethodField()
     notification_read_at = serializers.SerializerMethodField()

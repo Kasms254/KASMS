@@ -15,7 +15,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subquery, OuterRef
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef, Prefetch
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -1927,7 +1927,14 @@ class ExamViewSet(viewsets.ModelViewSet):
     ordering =['-created_at']
 
     def get_queryset(self):
-        queryset = Exam.all_objects.select_related('subject', 'created_by').all()
+        submitted_results = Prefetch(
+            'results',
+            queryset=ExamResult.objects.filter(is_submitted=True),
+            to_attr='_submitted_results',
+        )
+        queryset = Exam.all_objects.select_related(
+            'subject', 'subject__class_obj', 'created_by', 'component'
+        ).prefetch_related('attachments', submitted_results).all()
         user = self.request.user
 
         if not user.is_authenticated:
@@ -1944,7 +1951,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
-        
+
         queryset = queryset.exclude(subject__class_obj__is_closed=True)
 
         return queryset
@@ -1961,11 +1968,25 @@ class ExamViewSet(viewsets.ModelViewSet):
         school = get_current_school() or self.request.user.school
         
         subject = serializer.validated_data.get('subject')
+        component = serializer.validated_data.get('component')
+
         if self.request.user.role == 'instructor':
             if subject.instructor != self.request.user:
                 raise PermissionDenied("You can only create exams for subjects you teach")
         
-        serializer.save(school=school, created_by=self.request.user)
+     
+        save_kwargs = {
+            'school': school,
+            'created_by': self.request.user,
+        }
+        if (
+            subject.grading_mode == 'POLICY'
+            and component
+            and not self.request.data.get('total_marks')
+        ):
+            save_kwargs['total_marks'] = component.total_marks
+
+        serializer.save(**save_kwargs)
 
     def perform_update(self, serializer):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
@@ -2027,13 +2048,100 @@ class ExamViewSet(viewsets.ModelViewSet):
             if created:
                 created_count += 1
 
+       
+        component_created = 0
+        if exam.component:
+            for enrollment in enrollments:
+                _, comp_created = StudentComponentResult.all_objects.get_or_create(
+                    component=exam.component,
+                    student=enrollment.student,
+                    attempt_number=1,
+                    defaults={
+                        'school': exam.school,
+                        'is_retake': False,
+                    },
+                )
+                if comp_created:
+                    component_created += 1
 
         return Response({
             'status': 'success',
             'message': f'{created_count} results created',
-            'total_students': enrollments.count()
+            'total_students': enrollments.count(),
+            'component_results_created': component_created,
         })
     
+    @action(detail=False, methods=['get'])
+    def component_choices(self, request):
+
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        school = get_current_school() or user.school
+        try:
+            subject_qs = Subject.all_objects.select_related('class_obj')
+            if user.role == 'superadmin':
+                if school:
+                    subject_qs = subject_qs.filter(school=school)
+            elif school:
+                subject_qs = subject_qs.filter(school=school)
+            else:
+                return Response(
+                    {'error': 'Unable to determine school.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            subject = subject_qs.get(id=subject_id, is_active=True)
+        except Subject.DoesNotExist:
+            return Response(
+                {'error': 'Subject not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.role == 'instructor' and subject.instructor != user:
+            return Response(
+                {'error': 'You do not teach this subject.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if subject.grading_mode != 'POLICY':
+            return Response({
+                'grading_mode': 'LEGACY',
+                'components': [],
+                'message': 'This subject uses Legacy grading. No component selection needed.',
+            })
+
+        components = AssessmentComponent.all_objects.filter(
+            subject=subject,
+            school=school,
+            is_active=True,
+        ).order_by('sort_order', 'name')
+
+        return Response({
+            'grading_mode': 'POLICY',
+            'subject_id': str(subject.id),
+            'subject_name': subject.name,
+            'components': [
+                {
+                    'id': str(c.id),
+                    'name': c.name,
+                    'component_type': c.component_type,
+                    'component_type_display': c.get_component_type_display(),
+                    'total_marks': c.total_marks,
+                    'pass_mark': float(c.pass_mark),
+                    'weight': float(c.weight),
+                    'is_critical': c.is_critical,
+                    'retake_allowed': c.retake_allowed,
+                }
+                for c in components
+            ],
+        })
+
     @action(detail=False, methods=['get'])
     def my_exams(self, request):
         if request.user.role != 'instructor':
@@ -2094,7 +2202,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     ordering = ['-exam__exam_date', 'created_at']
     
     def get_queryset(self):
-        queryset = ExamResult.all_objects.select_related('exam', 'student', 'graded_by').all()
+        queryset = ExamResult.all_objects.select_related(
+            'exam', 'exam__component', 'exam__subject', 'exam__subject__class_obj',
+            'student', 'graded_by'
+        ).all()
         user = self.request.user
 
         if not user.is_authenticated:
@@ -6358,4 +6469,3 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             'updated': updated_count,
             'errors': errors,
         })
- 

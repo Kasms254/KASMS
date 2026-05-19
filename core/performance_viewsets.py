@@ -13,6 +13,7 @@ from datetime import timedelta
 from .models import (
     Exam, ExamResult, Subject, Class, Enrollment, User,
     Attendance, AttendanceSession, SessionAttendance,
+    AssessmentComponent, StudentComponentResult,
 )
 from .serializers import (
     ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer,
@@ -317,6 +318,44 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'attendance_rate': round((s['marked'] / total_students * 100), 2) if total_students else 0,
         } for s in sess_bd]
 
+        component_breakdown = []
+        if subject.grading_mode == 'POLICY':
+            components = AssessmentComponent.all_objects.filter(
+                subject=subject, is_active=True,
+            ).order_by('sort_order', 'name')
+
+            for comp in components:
+                comp_results = StudentComponentResult.all_objects.filter(
+                    component=comp,
+                    is_submitted=True,
+                    marks_obtained__isnull=False,
+                )
+                comp_agg = comp_results.aggregate(
+                    total_count=Count('id'),
+                    avg_pct=Avg('percentage'),
+                    max_pct=Max('percentage'),
+                    min_pct=Min('percentage'),
+                    passing=Count('id', filter=Q(status='PASS')),
+                )
+                comp_tc = comp_agg['total_count'] or 0
+                comp_pass_rate = (
+                    (comp_agg['passing'] or 0) / comp_tc * 100
+                ) if comp_tc else 0
+
+                component_breakdown.append({
+                    'component_id': str(comp.id),
+                    'component_name': comp.name,
+                    'component_type': comp.component_type,
+                    'is_critical': comp.is_critical,
+                    'pass_mark': float(comp.pass_mark),
+                    'weight': float(comp.weight),
+                    'students_graded': comp_tc,
+                    'average_percentage': round(comp_agg['avg_pct'] or 0, 2),
+                    'pass_rate': round(comp_pass_rate, 2),
+                    'highest_score': round(comp_agg['max_pct'] or 0, 2),
+                    'lowest_score': round(comp_agg['min_pct'] or 0, 2),
+                })
+
         data = {
             'subject': {
                 'id': subject.id,
@@ -324,6 +363,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'code': getattr(subject, 'subject_code', getattr(subject, 'code', subject.name)),
                 'instructor': subject.instructor.get_full_name() if subject.instructor else None,
                 'class': class_obj.name,
+                'grading_mode': subject.grading_mode,
             },
             'overall_statistics': {
                 'total_students_enrolled': total_students,
@@ -343,6 +383,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'top_performers': students[:10],
             'all_students': students,
             'exam_breakdown': exam_breakdown,
+            'component_breakdown': component_breakdown,
             'session_breakdown': session_breakdown,
         }
 
@@ -422,6 +463,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'subject_id': sid,
                 'subject_name': subj.name,
                 'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
+                'grading_mode': subj.grading_mode,
                 'instructor': subj.instructor.get_full_name() if subj.instructor else None,
                 'total_exams': Exam.objects.filter(subject=subj, is_active=True).count(),
                 'results_count': rc,
