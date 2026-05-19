@@ -312,7 +312,7 @@ export default function SubjectsPage() {
       class_obj: Number(form.class_obj),
       instructor: Number(form.instructor),
       grading_mode: form.grading_mode || 'LEGACY',
-      pass_mark: form.grading_mode === 'POLICY' ? (parseFloat(form.pass_mark) || 50) : 50,
+      pass_mark: parseFloat(form.pass_mark) || 50,
     }
     setIsSaving(true)
     try{

@@ -189,6 +189,8 @@ export default function ExamReports() {
   const [examListPage, setExamListPage] = useState(1)
   const [resultsPage, setResultsPage] = useState(1)
   const [resultsSearchTerm, setResultsSearchTerm] = useState('')
+  const [policySearchTerm, setPolicySearchTerm] = useState('')
+  const [policyPage, setPolicyPage] = useState(1)
   const examsPerPage = 10
   const resultsPerPage = 10
 
@@ -332,6 +334,8 @@ export default function ExamReports() {
     const marks = submittedResults.map(r => parseFloat(r.marks_obtained))
     const totalMarks = selectedExam?.total_marks || 100
     const percentages = marks.map(m => (m / totalMarks) * 100)
+    const subjectObj = filteredSubjects.find(s => s.id === (selectedExam?.subject || selectedExam?.subject_id))
+    const passMark = subjectObj?.pass_mark ? parseFloat(subjectObj.pass_mark) : 50
     
     const avg = percentages.reduce((a, b) => a + b, 0) / percentages.length
     const highest = Math.max(...percentages)
@@ -358,10 +362,10 @@ export default function ExamReports() {
       average: avg.toFixed(1),
       highest: highest.toFixed(1),
       lowest: lowest.toFixed(1),
-      passRate: ((percentages.filter(p => p >= 50).length / submittedResults.length) * 100).toFixed(1),
+      passRate: ((percentages.filter(p => p >= passMark).length / submittedResults.length) * 100).toFixed(1),
       grades
     }
-  }, [examResults, selectedExam])
+  }, [examResults, selectedExam, filteredSubjects])
 
   // Sorted results by marks with search filter
   const sortedResults = useMemo(() => {
@@ -1446,41 +1450,130 @@ export default function ExamReports() {
                   return null
                 }
 
+                const filteredStudents = policySearchTerm
+                  ? students.filter(s =>
+                      s.name?.toLowerCase().includes(policySearchTerm.toLowerCase()) ||
+                      s.svc_number?.toLowerCase().includes(policySearchTerm.toLowerCase())
+                    )
+                  : students
+                const policyPerPage = 10
+                const totalPolicyPages = Math.ceil(filteredStudents.length / policyPerPage)
+                const paginatedStudents = filteredStudents.slice((policyPage - 1) * policyPerPage, policyPage * policyPerPage)
+
                 return (
                   <>
-                    {/* Summary Stats Cards — matches legacy exam report layout */}
+                    {/* Summary Stats Cards */}
                     <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-                      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 min-w-max md:min-w-0">
-                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Total</div>
-                          <div className="text-2xl font-bold text-black">{studentScores.length}</div>
+                      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
+                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
+                              <div className="text-xl md:text-2xl font-bold text-black">{studentScores.length}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Fully Graded</div>
-                          <div className="text-2xl font-bold text-indigo-600">{gradedStudents.length}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Fully Graded</div>
+                              <div className="text-xl md:text-2xl font-bold text-green-600">{gradedStudents.length}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Passed</div>
-                          <div className="text-2xl font-bold text-green-600">{passCount}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Passed</div>
+                              <div className="text-xl md:text-2xl font-bold text-green-600">{passCount}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Failed</div>
-                          <div className="text-2xl font-bold text-red-600">{failCount}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Failed</div>
+                              <div className="text-xl md:text-2xl font-bold text-red-600">{failCount}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Average</div>
-                          <div className="text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Average</div>
+                              <div className="text-xl md:text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Highest</div>
-                          <div className="text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Highest</div>
+                              <div className="text-xl md:text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 min-w-[110px]">
-                          <div className="text-xs text-neutral-500">Pass Rate</div>
-                          <div className="text-2xl font-bold text-amber-600">{passRate != null ? `${passRate}%` : '—'}</div>
+                        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px] md:min-w-0">
+                          <div className="flex items-center gap-2 md:block">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
+                              <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
+                              <div className="text-xl md:text-2xl font-bold text-blue-600">{passRate != null ? `${passRate}%` : '—'}</div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Grade Distribution */}
+                    {gradedStudents.length > 0 && (() => {
+                      const GRADE_THRESHOLDS = [['A',91],['A-',86],['B+',81],['B',76],['B-',71],['C+',65],['C',60],['C-',50],['F',0]]
+                      const dist = {'A':0,'A-':0,'B+':0,'B':0,'B-':0,'C+':0,'C':0,'C-':0,'F':0}
+                      gradedStudents.forEach(s => {
+                        const g = GRADE_THRESHOLDS.find(([,t]) => s.overallPct >= t)?.[0] ?? 'F'
+                        dist[g] = (dist[g] || 0) + 1
+                      })
+                      const total = gradedStudents.length
+                      return (
+                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 md:p-6">
+                          <h3 className="text-base md:text-lg font-semibold text-black mb-4">Grade Distribution</h3>
+                          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 md:gap-3">
+                            {Object.entries(dist).map(([grade, count]) => {
+                              const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0
+                              return (
+                                <div key={grade} className="text-center">
+                                  <div className={`w-full h-16 md:h-24 rounded-lg flex items-end justify-center ${getGradeColor(grade)}`} style={{ opacity: 0.3 + (count / total) * 0.7 }}>
+                                    <div className={`w-full rounded-lg ${getGradeColor(grade)}`} style={{ height: `${Math.max(20, pct)}%` }} />
+                                  </div>
+                                  <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full font-bold text-sm md:text-base ${getGradeColor(grade)}`}>{grade}</div>
+                                  <div className="text-xs md:text-sm text-neutral-600 mt-1">{count} <span className="hidden sm:inline">({pct}%)</span></div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                     {/* Per-component summary */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1516,10 +1609,7 @@ export default function ExamReports() {
                                 <span>{((c.passedCount / c.gradedCount) * 100).toFixed(0)}%</span>
                               </div>
                               <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-green-500 rounded-full"
-                                  style={{ width: `${(c.passedCount / c.gradedCount) * 100}%` }}
-                                />
+                                <div className="h-full bg-green-500 rounded-full" style={{ width: `${(c.passedCount / c.gradedCount) * 100}%` }} />
                               </div>
                             </div>
                           )}
@@ -1527,38 +1617,44 @@ export default function ExamReports() {
                       ))}
                     </div>
 
-                    {/* Ranked student results table */}
-                  <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-neutral-200 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <LucideIcons.Layers className="w-5 h-5 text-amber-600" />
-                        <div>
-                          <h3 className="font-semibold text-black">Student Rankings</h3>
-                          <p className="text-xs text-neutral-500">{students.length} student{students.length !== 1 ? 's' : ''} · ranked by overall score</p>
+                    {/* Student Results */}
+                    <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                      <div className="p-4 border-b border-neutral-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                          <div>
+                            <h3 className="text-base md:text-lg font-semibold text-black">Student Results</h3>
+                            <p className="text-xs md:text-sm text-neutral-500">Ranked by overall score</p>
+                          </div>
                         </div>
+                        <div className="relative">
+                          <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search by student name or service number..."
+                            value={policySearchTerm}
+                            onChange={(e) => { setPolicySearchTerm(e.target.value); setPolicyPage(1) }}
+                            className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                          {policySearchTerm && (
+                            <button onClick={() => { setPolicySearchTerm(''); setPolicyPage(1) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                              <LucideIcons.X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {policySearchTerm && (
+                          <div className="text-sm text-gray-600 mt-2">
+                            Found <span className="font-semibold text-gray-900">{filteredStudents.length}</span> of{' '}
+                            <span className="font-semibold text-gray-900">{students.length}</span> results
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">Policy Grading</span>
-                    </div>
-                    {/* Desktop table */}
-                    <div className="hidden lg:block overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-neutral-50 border-b border-neutral-200">
-                            <th className="px-4 py-3 text-left font-medium text-neutral-600 w-8">#</th>
-                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Svc No.</th>
-                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Rank</th>
-                            <th className="px-4 py-3 text-left font-medium text-neutral-600">Name</th>
-                            {components.map(c => (
-                              <th key={c.id} className="px-3 py-3 text-center font-medium text-neutral-600 min-w-[120px]">
-                                <div>{c.name}</div>
-                                <div className="text-xs font-normal text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
-                              </th>
-                            ))}
-                            <th className="px-4 py-3 text-center font-medium text-neutral-600">Overall</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-100">
-                          {students.map((student, idx) => {
+
+                      {/* Mobile & Tablet Card View */}
+                      <div className="lg:hidden">
+                        <div className="hidden sm:grid sm:grid-cols-2 gap-4 p-4">
+                          {paginatedStudents.map((student, idx) => {
+                            const overallRank = students.findIndex(s => s.id === student.id) + 1
+                            const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
                             let tw = 0, wt = 0, ag = true
                             components.forEach(c => {
                               const r = student.results[c.id]
@@ -1571,95 +1667,238 @@ export default function ExamReports() {
                             const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
                             const ok = op != null && parseFloat(op) >= passMark && !fc
                             return (
-                              <tr key={student.id} className="hover:bg-neutral-50 transition">
-                                <td className="px-4 py-3 text-neutral-400 text-xs">{idx + 1}</td>
-                                <td className="px-4 py-3 text-neutral-600 text-xs">{student.svc_number || '—'}</td>
-                                <td className="px-4 py-3 text-neutral-600 text-xs">{student.rank || '—'}</td>
-                                <td className="px-4 py-3 font-medium text-black">{student.name}</td>
-                                {components.map(c => {
-                                  const r = student.results[c.id]
-                                  return (
-                                    <td key={c.id} className="px-3 py-3 text-center">
-                                      {r?.marks_obtained != null ? (
-                                        <div className="flex flex-col items-center gap-0.5">
-                                          <span className="font-semibold text-black">{r.marks_obtained}/{c.total_marks}</span>
-                                          <span className="text-xs text-neutral-500">
-                                            {((parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * 100).toFixed(1)}%
-                                          </span>
-                                          {sbadge(r.status)}
-                                        </div>
-                                      ) : <span className="text-xs text-neutral-400">—</span>}
-                                    </td>
-                                  )
-                                })}
-                                <td className="px-4 py-3 text-center">
-                                  {ag && op != null ? (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <span className="font-bold text-black">{op}%</span>
-                                      <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                        {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
-                                      </span>
+                              <div key={student.id} className="bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between gap-2 mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
+                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
+                                      overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
+                                      overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
+                                      'bg-neutral-100 text-neutral-600'
+                                    }`}>{serialNumber}</div>
+                                    <div className="min-w-0">
+                                      <div className="font-semibold text-gray-900 text-sm truncate">{student.name}</div>
+                                      <div className="text-xs text-neutral-500">SVC: {student.svc_number || 'N/A'}</div>
                                     </div>
-                                  ) : <span className="text-xs text-amber-600">Incomplete</span>}
-                                </td>
-                              </tr>
+                                  </div>
+                                  {ag && op != null ? (
+                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      {ok ? 'Pass' : fc ? 'Crit. Fail' : 'Fail'}
+                                    </span>
+                                  ) : <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">Incomplete</span>}
+                                </div>
+                                {ag && op != null && (
+                                  <div className="bg-neutral-50 rounded-lg p-2.5 mb-2">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <span className="text-xs text-neutral-600">Overall</span>
+                                      <span className="text-sm font-bold text-gray-900">{op}%</span>
+                                    </div>
+                                    <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {components.map(c => {
+                                    const r = student.results[c.id]
+                                    return (
+                                      <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
+                                        <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
+                                        <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
+                                        {r?.marks_obtained != null ? (
+                                          <div className="mt-1 flex items-center justify-between">
+                                            <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
+                                            {sbadge(r.status)}
+                                          </div>
+                                        ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
                             )
                           })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Mobile cards */}
-                    <div className="lg:hidden divide-y divide-neutral-100">
-                      {students.map((student, idx) => {
-                        let tw = 0, wt = 0, ag = true
-                        components.forEach(c => {
-                          const r = student.results[c.id]
-                          if (r?.marks_obtained != null && c.total_marks) {
-                            tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
-                            wt += parseFloat(c.weight)
-                          } else ag = false
-                        })
-                        const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
-                        const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
-                        const ok = op != null && parseFloat(op) >= passMark && !fc
-                        return (
-                          <div key={student.id} className="p-4 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-semibold text-black">{idx + 1}. {student.name}</div>
-                                {student.svc_number && <div className="text-xs text-neutral-500">{student.svc_number}</div>}
-                              </div>
-                              {ag && op != null ? (
-                                <div className="text-right">
-                                  <div className="font-bold text-black">{op}%</div>
-                                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
-                                  </span>
-                                </div>
-                              ) : <span className="text-xs text-amber-600">Incomplete</span>}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {components.map(c => {
-                                const r = student.results[c.id]
-                                return (
-                                  <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
-                                    <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
-                                    <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
-                                    {r?.marks_obtained != null ? (
-                                      <div className="mt-1 flex items-center justify-between">
-                                        <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
-                                        {sbadge(r.status)}
-                                      </div>
-                                    ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
+                        </div>
+                        <div className="sm:hidden divide-y divide-neutral-200">
+                          {paginatedStudents.map((student, idx) => {
+                            const overallRank = students.findIndex(s => s.id === student.id) + 1
+                            const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
+                            let tw = 0, wt = 0, ag = true
+                            components.forEach(c => {
+                              const r = student.results[c.id]
+                              if (r?.marks_obtained != null && c.total_marks) {
+                                tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+                                wt += parseFloat(c.weight)
+                              } else ag = false
+                            })
+                            const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
+                            const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
+                            const ok = op != null && parseFloat(op) >= passMark && !fc
+                            return (
+                              <div key={student.id} className="p-4 hover:bg-neutral-50 transition">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${
+                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
+                                      overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
+                                      overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
+                                      'bg-neutral-100 text-neutral-600'
+                                    }`}>{serialNumber}</div>
+                                    <div>
+                                      <div className="font-semibold text-gray-900 text-base">{student.name}</div>
+                                      <div className="text-sm text-neutral-500">SVC: {student.svc_number || 'N/A'}</div>
+                                    </div>
                                   </div>
-                                )
-                              })}
-                            </div>
+                                  {ag && op != null ? (
+                                    <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
+                                    </span>
+                                  ) : <span className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-100 text-amber-700">Incomplete</span>}
+                                </div>
+                                {ag && op != null && (
+                                  <div className="bg-neutral-50 rounded-lg p-3 mb-2">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-sm text-neutral-600">Overall</span>
+                                      <span className="text-base font-bold text-gray-900">{op}%</span>
+                                    </div>
+                                    <div className="flex-1 h-2.5 bg-neutral-200 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {components.map(c => {
+                                    const r = student.results[c.id]
+                                    return (
+                                      <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
+                                        <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
+                                        <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
+                                        {r?.marks_obtained != null ? (
+                                          <div className="mt-1 flex items-center justify-between">
+                                            <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
+                                            {sbadge(r.status)}
+                                          </div>
+                                        ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Desktop Table */}
+                      <div className="hidden lg:block overflow-x-auto">
+                        <table className="min-w-full divide-y divide-neutral-200">
+                          <thead className="bg-neutral-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
+                              {components.map(c => (
+                                <th key={c.id} className="px-3 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider min-w-[130px]">
+                                  <div>{c.name}</div>
+                                  <div className="normal-case font-normal text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
+                                </th>
+                              ))}
+                              <th className="px-4 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">Overall</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-200">
+                            {paginatedStudents.map((student, idx) => {
+                              const overallRank = students.findIndex(s => s.id === student.id) + 1
+                              const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
+                              let tw = 0, wt = 0, ag = true
+                              components.forEach(c => {
+                                const r = student.results[c.id]
+                                if (r?.marks_obtained != null && c.total_marks) {
+                                  tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+                                  wt += parseFloat(c.weight)
+                                } else ag = false
+                              })
+                              const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
+                              const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
+                              const ok = op != null && parseFloat(op) >= passMark && !fc
+                              return (
+                                <tr key={student.id} className="hover:bg-neutral-50 transition">
+                                  <td className="px-4 py-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                      overallRank === 2 ? 'bg-gray-100 text-gray-700' :
+                                      overallRank === 3 ? 'bg-orange-100 text-orange-700' :
+                                      'bg-neutral-100 text-neutral-600'
+                                    }`}>{serialNumber}</div>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-neutral-600">{student.svc_number || 'N/A'}</td>
+                                  <td className="px-4 py-3 text-sm text-neutral-600">{student.rank || 'N/A'}</td>
+                                  <td className="px-4 py-3">
+                                    <div className="font-medium text-black text-base">{student.name}</div>
+                                  </td>
+                                  {components.map(c => {
+                                    const r = student.results[c.id]
+                                    return (
+                                      <td key={c.id} className="px-3 py-3 text-center">
+                                        {r?.marks_obtained != null ? (
+                                          <div className="flex flex-col items-center gap-0.5">
+                                            <span className="font-semibold text-black">{r.marks_obtained}/{c.total_marks}</span>
+                                            <span className="text-xs text-neutral-500">{((parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * 100).toFixed(1)}%</span>
+                                            {sbadge(r.status)}
+                                          </div>
+                                        ) : <span className="text-xs text-neutral-400">—</span>}
+                                      </td>
+                                    )
+                                  })}
+                                  <td className="px-4 py-3 text-center">
+                                    {ag && op != null ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
+                                          </div>
+                                          <span className="text-sm font-medium text-black">{op}%</span>
+                                        </div>
+                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                          {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
+                                        </span>
+                                      </div>
+                                    ) : <span className="text-xs text-amber-600">Incomplete</span>}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination */}
+                      {totalPolicyPages > 1 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
+                          <div className="text-sm text-gray-600">
+                            Showing <span className="font-semibold text-gray-900">{(policyPage - 1) * policyPerPage + 1}</span> to{' '}
+                            <span className="font-semibold text-gray-900">{Math.min(policyPage * policyPerPage, filteredStudents.length)}</span> of{' '}
+                            <span className="font-semibold text-gray-900">{filteredStudents.length}</span> students
                           </div>
-                        )
-                      })}
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setPolicyPage(1)} disabled={policyPage === 1} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                              <LucideIcons.ChevronsLeft className="w-4 h-4 text-gray-600" />
+                            </button>
+                            <button onClick={() => setPolicyPage(p => Math.max(1, p - 1))} disabled={policyPage === 1} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                              <LucideIcons.ChevronLeft className="w-4 h-4 text-gray-600" />
+                            </button>
+                            <span className="text-sm text-gray-700 px-2">Page {policyPage} of {totalPolicyPages}</span>
+                            <button onClick={() => setPolicyPage(p => Math.min(totalPolicyPages, p + 1))} disabled={policyPage === totalPolicyPages} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                              <LucideIcons.ChevronRight className="w-4 h-4 text-gray-600" />
+                            </button>
+                            <button onClick={() => setPolicyPage(totalPolicyPages)} disabled={policyPage === totalPolicyPages} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                              <LucideIcons.ChevronsRight className="w-4 h-4 text-gray-600" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
                   </>
                 )
               })()}

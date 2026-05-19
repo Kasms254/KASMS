@@ -423,6 +423,7 @@ export default function AddResults() {
   const [componentInfo, setComponentInfo] = useState(null)
   const [componentStudents, setComponentStudents] = useState([])
   const [componentLoading, setComponentLoading] = useState(false)
+  const [componentSearchTerm, setComponentSearchTerm] = useState('')
   const [componentSaving, setComponentSaving] = useState(false)
 
   useEffect(() => {
@@ -632,10 +633,10 @@ export default function AddResults() {
         {policySubjects.length > 0 && (
           <button
             onClick={() => setGradingTab('component')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'component' ? 'border-amber-600 text-amber-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'component' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           >
             Component Grading
-            <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">Policy</span>
+            <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700">Policy</span>
           </button>
         )}
       </div>
@@ -650,7 +651,7 @@ export default function AddResults() {
               <select
                 value={selectedPolicySubject}
                 onChange={e => { setSelectedPolicySubject(e.target.value); setSelectedComponent('') }}
-                className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">-- Select a subject --</option>
                 {policySubjects.map(s => (
@@ -665,7 +666,7 @@ export default function AddResults() {
                 <select
                   value={selectedComponent}
                   onChange={e => setSelectedComponent(e.target.value)}
-                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500"
+                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">-- Select a component --</option>
                   {policyComponents.map(c => (
@@ -683,7 +684,7 @@ export default function AddResults() {
 
           {componentLoading && (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
               <p className="mt-2 text-gray-600">Loading…</p>
             </div>
           )}
@@ -697,7 +698,7 @@ export default function AddResults() {
           {!componentLoading && componentStudents.length > 0 && componentInfo && (
             <div className="bg-white rounded-lg shadow-lg">
               {/* Component Info Cards */}
-              <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-amber-50 to-yellow-50">
+              <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                     <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Component</div>
@@ -705,7 +706,7 @@ export default function AddResults() {
                   </div>
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                     <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
-                    <div className="text-sm font-semibold text-amber-600">{componentInfo.total_marks}</div>
+                    <div className="text-sm font-semibold text-indigo-600">{componentInfo.total_marks}</div>
                   </div>
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                     <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Weight</div>
@@ -723,121 +724,160 @@ export default function AddResults() {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="p-3 sm:p-4 border-b bg-gray-50 flex items-center justify-between gap-3">
-                <span className="text-sm text-neutral-600">
-                  {componentStudents.filter(r => r.is_submitted).length} / {componentStudents.length} submitted
-                </span>
-                <div className="flex gap-2">
+              {/* Search + Actions */}
+              <div className="p-3 sm:p-4 border-b bg-gray-50 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-neutral-600">
+                    {componentStudents.filter(r => r.is_submitted).length} / {componentStudents.length} submitted
+                  </span>
                   <button
                     onClick={() => loadComponentStudents(selectedComponent)}
                     className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
                   >Refresh</button>
-                  <button
-                    onClick={handleSaveComponentResults}
-                    disabled={componentSaving || !componentStudents.some(r => r.dirty)}
-                    className="px-4 py-1.5 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                  >{componentSaving ? 'Saving…' : 'Save Grades'}</button>
                 </div>
+                <input
+                  type="text"
+                  placeholder="Search by student name or SVC number..."
+                  value={componentSearchTerm}
+                  onChange={e => setComponentSearchTerm(e.target.value)}
+                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
               </div>
 
               {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-left">
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Student</th>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Svc No</th>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Current</th>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Status</th>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">New Marks / {componentInfo.total_marks}</th>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-xs uppercase">Remarks</th>
+                    <tr className="bg-gray-50 text-left border-b border-gray-200">
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Student</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">SVC No</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Current</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Status</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Marks (/{componentInfo.total_marks})</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Percentage</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Grade</th>
+                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Remarks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {componentStudents.map((r, idx) => (
-                      <tr key={r.student_id} className={`hover:bg-gray-50 ${r.dirty ? 'bg-yellow-50' : ''}`}>
-                        <td className="px-3 py-2 font-medium text-gray-900">{r.student_name || '—'}</td>
-                        <td className="px-3 py-2 text-gray-500 text-xs">{r.student_svc_number || '—'}</td>
+                    {componentStudents
+                      .map((r, originalIdx) => ({ r, originalIdx }))
+                      .filter(({ r }) => {
+                        if (!componentSearchTerm) return true
+                        const q = componentSearchTerm.toLowerCase()
+                        return r.student_name?.toLowerCase().includes(q) || r.student_svc_number?.toLowerCase().includes(q)
+                      })
+                      .map(({ r, originalIdx: idx }) => {
+                        const rawMarks = r.can_enter && r.marks_obtained !== '' ? parseFloat(r.marks_obtained) : null
+                        const displayPct = rawMarks != null && componentInfo.total_marks
+                          ? ((rawMarks / componentInfo.total_marks) * 100).toFixed(1)
+                          : r.current_percentage != null ? parseFloat(r.current_percentage).toFixed(1) : null
+                        const grade = displayPct != null ? gradeFromPct(parseFloat(displayPct)) : '—'
+                        const gradeColor = grade === 'A' ? 'bg-green-100 text-green-700' : grade === 'A-' || grade === 'B+' || grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'B-' || grade === 'C+' || grade === 'C' || grade === 'C-' ? 'bg-yellow-100 text-yellow-700' : grade === 'F' ? 'bg-red-100 text-red-700' : 'bg-neutral-100 text-neutral-500'
+                        return (
+                          <tr key={r.student_id} className={`hover:bg-gray-50 ${r.dirty ? 'bg-indigo-50/40' : ''}`}>
+                            <td className="px-3 py-2.5 font-medium text-gray-900">{r.student_name || '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-500 text-xs">{r.student_svc_number || '—'}</td>
 
-                        {/* Current marks (read-only) */}
-                        <td className="px-3 py-2 text-sm">
-                          {r.current_marks != null ? (
-                            <span className="font-medium text-gray-800">
-                              {r.current_marks}/{componentInfo.total_marks}
-                              {r.current_percentage != null && (
-                                <span className="ml-1 text-gray-500 text-xs">({parseFloat(r.current_percentage).toFixed(1)}%)</span>
+                            <td className="px-3 py-2.5 text-sm">
+                              {r.current_marks != null ? (
+                                <span className="font-medium text-gray-800">
+                                  {r.current_marks}/{componentInfo.total_marks}
+                                  {r.current_percentage != null && (
+                                    <span className="ml-1 text-gray-500 text-xs">({parseFloat(r.current_percentage).toFixed(1)}%)</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 text-xs italic">Not graded</span>
                               )}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-xs italic">Not graded</span>
-                          )}
-                        </td>
+                            </td>
 
-                        {/* Status badge */}
-                        <td className="px-3 py-2">
-                          {r.current_status ? (
-                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                              r.current_status === 'PASS' ? 'bg-green-50 text-green-700' :
-                              r.current_status === 'FAIL' ? 'bg-red-50 text-red-700' :
-                              r.current_status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
-                              'bg-neutral-100 text-neutral-500'
-                            }`}>
-                              {r.is_retake && r.current_status !== 'PASS'
-                                ? `${r.current_status} · Attempt ${r.current_attempt}`
-                                : r.current_status}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-neutral-400">—</span>
-                          )}
-                        </td>
-
-                        {/* New marks entry */}
-                        <td className="px-3 py-2">
-                          {r.can_enter ? (
-                            <div>
-                              {r.is_retake && (
-                                <div className="text-xs text-amber-600 mb-0.5">Retake {r.next_attempt}</div>
+                            <td className="px-3 py-2.5">
+                              {r.current_status ? (
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  r.current_status === 'PASS' ? 'bg-green-50 text-green-700' :
+                                  r.current_status === 'FAIL' ? 'bg-red-50 text-red-700' :
+                                  r.current_status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
+                                  'bg-neutral-100 text-neutral-500'
+                                }`}>
+                                  {r.is_retake && r.current_status !== 'PASS'
+                                    ? `FAIL · Attempt ${r.current_attempt}`
+                                    : r.current_status}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-neutral-400">—</span>
                               )}
-                              <input
-                                type="number"
-                                min="0"
-                                max={componentInfo.total_marks}
-                                step="0.5"
-                                value={r.marks_obtained}
-                                onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
-                                className={`w-20 p-1 rounded border text-sm ${r.errors?.marks_obtained ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                placeholder="—"
-                              />
-                              {r.errors?.marks_obtained && (
-                                <div className="text-xs text-red-600 mt-0.5">{r.errors.marks_obtained}</div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-neutral-400 italic">
-                              {r.current_status === 'PASS' ? 'Passed' : 'No retake'}
-                            </span>
-                          )}
-                        </td>
+                            </td>
 
-                        <td className="px-3 py-2">
-                          {r.can_enter ? (
-                            <input
-                              type="text"
-                              value={r.remarks}
-                              onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
-                              className="w-32 p-1 rounded border border-gray-300 text-sm"
-                              placeholder="Optional"
-                              maxLength={200}
-                            />
-                          ) : (
-                            <span className="text-xs text-neutral-400">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            <td className="px-3 py-2.5">
+                              {r.can_enter ? (
+                                <div>
+                                  {r.is_retake && (
+                                    <div className="text-xs text-amber-600 mb-0.5">Retake {r.next_attempt}</div>
+                                  )}
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={componentInfo.total_marks}
+                                    step="0.5"
+                                    value={r.marks_obtained}
+                                    onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
+                                    className={`w-28 px-2 py-1.5 rounded border text-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none ${r.errors?.marks_obtained ? 'border-red-400 bg-red-50' : r.dirty ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300'}`}
+                                    placeholder="Marks"
+                                  />
+                                  {r.errors?.marks_obtained && (
+                                    <div className="text-xs text-red-600 mt-0.5">{r.errors.marks_obtained}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-neutral-400 italic">
+                                  {r.current_status === 'PASS' ? 'Passed' : 'No retake'}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-3 py-2.5 text-sm font-medium">
+                              {displayPct != null ? (
+                                <span className={parseFloat(displayPct) >= parseFloat(componentInfo.pass_mark) ? 'text-green-600' : 'text-red-500'}>
+                                  {displayPct}%
+                                </span>
+                              ) : <span className="text-gray-400">0%</span>}
+                            </td>
+
+                            <td className="px-3 py-2.5">
+                              {grade !== '—' ? (
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${gradeColor}`}>{grade}</span>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+
+                            <td className="px-3 py-2.5">
+                              {r.can_enter ? (
+                                <input
+                                  type="text"
+                                  value={r.remarks}
+                                  onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
+                                  className="w-32 px-2 py-1.5 rounded border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                                  placeholder="Remarks"
+                                  maxLength={200}
+                                />
+                              ) : (
+                                <span className="text-xs text-neutral-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Save at bottom */}
+              <div className="p-3 sm:p-4 border-t bg-gray-50 flex justify-end">
+                <button
+                  onClick={handleSaveComponentResults}
+                  disabled={componentSaving || !componentStudents.some(r => r.dirty)}
+                  className="px-5 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >{componentSaving ? 'Saving…' : 'Save All Grades'}</button>
               </div>
             </div>
           )}
