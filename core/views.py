@@ -322,7 +322,6 @@ class SchoolViewSet(viewsets.ModelViewSet):
         if not logo:
             return Response({'error': 'No logo file provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # H4: validate file type and size server-side
         _ALLOWED_LOGO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
         _ALLOWED_LOGO_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
         _MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
@@ -450,8 +449,6 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
             user__svc_number=svc_number
         ).select_related('school', 'transfer_to').order_by('started_at')
 
-        # M3: school admins may only see history for their own school; only
-        # superadmins have the authority to view a soldier's full cross-school history
         if request.user.role != 'superadmin':
             qs = qs.filter(school=request.user.school)
 
@@ -5480,7 +5477,6 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-# student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5492,7 +5488,6 @@ class MarksEntryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path="exam/(?P<exam_id>[^/.]+)")
     def exam_results(self, request, exam_id=None):
 
-        # M2: scope exam lookup to school to prevent reading another school's exam data
         exam = get_object_or_404(Exam, pk=exam_id, is_active=True, school=request.user.school)
 
         if request.user.role == "instructor":
@@ -5616,6 +5611,7 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
+
 class AdminRosterViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsAdminOnly]
@@ -5984,7 +5980,6 @@ class ExamResultViewSetPatch:
             'errors': errors,
         }, status=status.HTTP_200_OK)
 
-# Biometric attendance
 class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
 
     queryset = BiometricDevice.objects.all()
@@ -6093,7 +6088,6 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOnly]
     filterset_fields = ['device', 'student', 'is_active']
 
-
 class AssessmentComponentViewSet(viewsets.ModelViewSet):
 
     queryset = AssessmentComponent.objects.select_related(
@@ -6191,7 +6185,6 @@ class AssessmentComponentViewSet(viewsets.ModelViewSet):
             'total_weight': float(total['total_weight'] or 0),
             'remaining': float(100 - (total['total_weight'] or 0)),
         })
- 
  
 class StudentComponentResultViewSet(viewsets.ModelViewSet):
 
