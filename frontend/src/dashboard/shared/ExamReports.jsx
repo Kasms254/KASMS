@@ -645,7 +645,260 @@ export default function ExamReports() {
 
   // Export PDF — polished format matching CommandantExamReports
   const exportResultsPDF = useCallback(() => {
-    if (!selectedExam || !sortedResults.length) {
+    if (!selectedExam) return
+
+    // ── Policy exam PDF ──────────────────────────────────────────────────────
+    if (isPolicyExam) {
+      if (!componentReport || Object.keys(componentReport.studentMap || {}).length === 0) {
+        toast?.error?.('No results to export')
+        return
+      }
+      try {
+        const { components, studentMap } = componentReport
+        const examSubjectObj = policySubjects.find(s => s.id === (selectedExam.subject || selectedExam.subject_id))
+        const passMark = examSubjectObj?.pass_mark ? parseFloat(examSubjectObj.pass_mark) : 50
+
+        const studentScores = Object.values(studentMap).map(student => {
+          let tw = 0, wt = 0, allGraded = true
+          components.forEach(c => {
+            const r = student.results[c.id]
+            if (r?.marks_obtained != null && c.total_marks) {
+              tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
+              wt += parseFloat(c.weight)
+            } else allGraded = false
+          })
+          const overallPct = wt > 0 ? (tw / wt * 100) : null
+          const failedCritical = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
+          return { ...student, overallPct, allGraded, failedCritical }
+        }).sort((a, b) => {
+          if (b.overallPct != null && a.overallPct != null) return b.overallPct - a.overallPct
+          return (a.name || '').localeCompare(b.name || '')
+        })
+
+        const gradedStudents = studentScores.filter(s => s.allGraded && s.overallPct != null)
+        const passCount = gradedStudents.filter(s => s.overallPct >= passMark && !s.failedCritical).length
+        const avgPct = gradedStudents.length > 0
+          ? (gradedStudents.reduce((sum, s) => sum + s.overallPct, 0) / gradedStudents.length).toFixed(1)
+          : null
+        const passRate = gradedStudents.length > 0 ? (passCount / gradedStudents.length * 100).toFixed(1) : null
+
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+        const pw = doc.internal.pageSize.getWidth()
+        const ph = doc.internal.pageSize.getHeight()
+        const margin = 14
+        let y = margin
+
+        const checkPage = (needed = 10) => {
+          if (y + needed > ph - 16) { doc.addPage(); y = margin }
+        }
+
+        // Header
+        doc.setFillColor(248, 248, 250); doc.rect(0, 0, pw, 32, 'F')
+        doc.setDrawColor(30, 30, 30); doc.setLineWidth(1.2); doc.line(margin, 32, pw - margin, 32)
+        doc.setTextColor(15, 15, 15); doc.setFontSize(17); doc.setFont('helvetica', 'bold')
+        doc.text('EXAM PERFORMANCE REPORT', pw / 2, 13, { align: 'center' })
+        const rTitle = examReport?.title || `${selectedExam.title || selectedExam.exam_type} Report`
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80)
+        doc.text(rTitle, pw / 2, 23, { align: 'center' })
+        const rDate = examReport?.report_date
+          ? new Date(examReport.report_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+          : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+        doc.setFontSize(7.5); doc.setTextColor(120, 120, 120)
+        doc.text(rDate, pw - margin, 23, { align: 'right' })
+        y = 40
+
+        // Prepared by
+        const preparedBy = examReport?.created_by_name || user?.full_name || user?.username
+        if (preparedBy) {
+          const rank = examReport?.created_by_rank || 'N/A'
+          const svcNum = examReport?.created_by_svc_number || 'N/A'
+          doc.setFillColor(242, 242, 246); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
+          doc.roundedRect(margin, y, pw - margin * 2, 22, 2, 2, 'FD')
+          doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(110, 110, 110)
+          doc.text('PREPARED BY', margin + 4, y + 9)
+          doc.setDrawColor(200, 200, 210); doc.setLineWidth(0.3)
+          doc.line(margin + 26, y + 2, margin + 26, y + 20)
+          const pFields = [['SVC No.', svcNum], ['Rank', rank], ['Name', preparedBy]]
+          const pColW = (pw - margin * 2 - 28) / 3
+          pFields.forEach(([lbl, val], i) => {
+            const fx = margin + 29 + i * pColW
+            doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(110, 110, 110)
+            doc.text(lbl, fx, y + 8)
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 15, 15)
+            doc.text(String(val), fx, y + 15)
+          })
+          y += 28
+        }
+
+        // Exam info
+        const c1 = margin, c2 = pw / 2 + 4
+        const infoLeft = [
+          ['Exam:', selectedExam.title || `${selectedExam.exam_type}`],
+          ['Subject:', selectedExam.subject_name || 'N/A'],
+          ['Exam Date:', selectedExam.exam_date ? new Date(selectedExam.exam_date).toLocaleDateString() : 'N/A'],
+        ]
+        const infoRight = [
+          ['Class:', selectedExam.class_name || 'N/A'],
+          ['Component:', selectedExam.component_name || 'N/A'],
+          ['Grading Mode:', 'Policy'],
+        ]
+        infoLeft.forEach(([lbl, val], i) => {
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100)
+          doc.text(lbl, c1, y + i * 6)
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20)
+          doc.text(val, c1 + 22, y + i * 6)
+        })
+        infoRight.forEach(([lbl, val], i) => {
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100)
+          doc.text(lbl, c2, y + i * 6)
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20)
+          doc.text(val, c2 + 25, y + i * 6)
+        })
+        y += infoLeft.length * 6 + 3
+        doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.3)
+        doc.line(margin, y, pw - margin, y); y += 6
+
+        // Stats row
+        const pStats = [
+          { label: 'Total Students', value: String(studentScores.length) },
+          { label: 'Fully Graded',   value: String(gradedStudents.length) },
+          { label: 'Passed',         value: String(passCount) },
+          { label: 'Class Average',  value: avgPct != null ? `${avgPct}%` : '—' },
+          { label: 'Pass Rate',      value: passRate != null ? `${passRate}%` : '—' },
+        ]
+        const pBoxW = (pw - margin * 2 - 8) / pStats.length
+        pStats.forEach((s, i) => {
+          const bx = margin + i * (pBoxW + 2)
+          doc.setFillColor(245, 245, 248); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
+          doc.roundedRect(bx, y, pBoxW, 15, 2, 2, 'FD')
+          doc.setTextColor(15, 15, 15); doc.setFontSize(12); doc.setFont('helvetica', 'bold')
+          doc.text(String(s.value), bx + pBoxW / 2, y + 9, { align: 'center' })
+          doc.setFontSize(6); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
+          doc.text(s.label, bx + pBoxW / 2, y + 13.5, { align: 'center' })
+        })
+        y += 21
+
+        // Student Results table
+        doc.setTextColor(15, 15, 15); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+        doc.text('Student Results', margin, y); y += 2
+
+        const numCompCols = components.length
+        const compColStyles = {}
+        components.forEach((_, ci) => { compColStyles[4 + ci] = { halign: 'center' } })
+
+        autoTable(doc, {
+          startY: y,
+          head: [['#', 'SVC No.', 'Rank', 'Name',
+            ...components.map(c => `${c.name}\n${parseFloat(c.weight)}% · ${c.total_marks}m`),
+            'Overall %', 'Grade']],
+          body: studentScores.map((student, i) => [
+            i + 1,
+            student.svc_number || 'N/A',
+            student.rank || 'N/A',
+            student.name || 'Unknown',
+            ...components.map(c => {
+              const r = student.results[c.id]
+              return r?.marks_obtained != null ? `${parseFloat(r.marks_obtained)}/${c.total_marks}` : '—'
+            }),
+            student.overallPct != null ? `${student.overallPct.toFixed(1)}%` : '—',
+            student.overallPct != null ? getGrade(student.overallPct) : '—',
+          ]),
+          theme: 'striped',
+          headStyles: { fillColor: [30, 30, 30], textColor: 255, fontStyle: 'bold', fontSize: 7, valign: 'middle' },
+          bodyStyles: { fontSize: 7.5 },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            ...compColStyles,
+            [4 + numCompCols]: { halign: 'center' },
+            [5 + numCompCols]: { halign: 'center', fontStyle: 'bold' },
+          },
+          didParseCell: (data) => {
+            if (data.section !== 'body') return
+            if (data.column.index === 5 + numCompCols) {
+              const g = data.cell.raw
+              if (g === 'A' || g === 'A-') data.cell.styles.textColor = [5, 150, 105]
+              else if (g === 'F') data.cell.styles.textColor = [220, 38, 38]
+            }
+            if (data.column.index === 0) {
+              const pos = parseInt(data.cell.raw)
+              if (pos === 1)      data.cell.styles.textColor = [161, 98, 7]
+              else if (pos === 2) data.cell.styles.textColor = [100, 116, 139]
+              else if (pos === 3) data.cell.styles.textColor = [120, 53, 15]
+            }
+          },
+          margin: { left: margin, right: margin },
+        })
+        y = doc.lastAutoTable.finalY + 10
+
+        // Remarks
+        const roleOrder = { commandant: 0, chief_instructor: 1, instructor: 2 }
+        const remarks = [...(examReport?.remarks_list || [])].sort((a, b) => (roleOrder[a.author_role] ?? 3) - (roleOrder[b.author_role] ?? 3))
+        if (remarks.length > 0) {
+          checkPage(24)
+          doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 15, 15)
+          doc.text('Official Remarks', margin, y)
+          doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.6); doc.line(margin, y + 2, pw - margin, y + 2)
+          y += 8
+          const roleAccent = { commandant: [30, 30, 30], chief_instructor: [60, 60, 60], instructor: [100, 100, 100] }
+          const roleBg     = { commandant: [20, 20, 20], chief_instructor: [55, 55, 55], instructor: [90, 90, 90] }
+          remarks.forEach((remark) => {
+            const rankAndName = [remark.author_rank, remark.author_name].filter(Boolean).join(' ')
+            const svcLine = remark.author_svc_number ? `SVC: ${remark.author_svc_number}` : ''
+            const lines = doc.splitTextToSize(remark.remark || '', pw - margin * 2 - 10)
+            const cardH = 8 + 6 + lines.length * 4.5 + 5
+            checkPage(cardH + 4)
+            const rc  = roleAccent[remark.author_role] || [90, 90, 90]
+            const bgc = roleBg[remark.author_role]     || [90, 90, 90]
+            doc.setFillColor(250, 250, 252); doc.setDrawColor(215, 215, 225); doc.setLineWidth(0.25)
+            doc.roundedRect(margin, y, pw - margin * 2, cardH, 2, 2, 'FD')
+            doc.setFillColor(...rc); doc.rect(margin, y, 3, cardH, 'F')
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 15, 15)
+            doc.text(rankAndName || 'Unknown', margin + 7, y + 6.5)
+            const roleLabel = remark.author_role_display || remark.author_role || ''
+            doc.setFontSize(6.5); doc.setFont('helvetica', 'bold')
+            const badgeW = doc.getTextWidth(roleLabel) + 6
+            doc.setFillColor(...bgc); doc.roundedRect(pw - margin - badgeW, y + 2.5, badgeW, 5.5, 1.5, 1.5, 'F')
+            doc.setTextColor(255, 255, 255); doc.text(roleLabel, pw - margin - badgeW / 2, y + 6.3, { align: 'center' })
+            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(130, 130, 130)
+            const datePart = new Date(remark.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            doc.text([svcLine, datePart].filter(Boolean).join('   ·   '), margin + 7, y + 12.5)
+            doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35)
+            doc.text(lines, margin + 6, y + 19)
+            y += cardH + 4
+          })
+        }
+
+        // Signature block
+        checkPage(36); y += 6
+        doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3); doc.line(margin, y, pw - margin, y); y += 8
+        ;[margin, pw / 2 + 4].forEach((x, i) => {
+          doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3); doc.line(x, y + 12, x + 62, y + 12)
+          doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
+          doc.text(["Commandant's Signature", "Chief Instructor's Signature"][i], x, y + 17)
+          doc.text('Date: _______________', x, y + 23)
+        })
+
+        // Page footer
+        const totalPages = doc.internal.getNumberOfPages()
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p)
+          doc.setFontSize(7); doc.setTextColor(160, 160, 160); doc.setFont('helvetica', 'normal')
+          doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.2); doc.line(margin, ph - 10, pw - margin, ph - 10)
+          doc.text(`Generated: ${new Date().toLocaleString()}`, margin, ph - 6)
+          doc.text(`Page ${p} of ${totalPages}`, pw - margin, ph - 6, { align: 'right' })
+        }
+        const fileName = (selectedExam.title || `${selectedExam.exam_type}_${selectedExam.subject_name}`).replace(/[^a-z0-9]/gi, '_')
+        doc.save(`${fileName}_Policy_Report_${new Date().toISOString().split('T')[0]}.pdf`)
+        toast?.success?.('PDF exported successfully')
+      } catch (error) {
+        console.error('PDF export error:', error)
+        toast?.error?.('Failed to export PDF: ' + (error.message || 'Unknown error'))
+      }
+      return
+    }
+
+    // ── Legacy exam PDF ──────────────────────────────────────────────────────
+    if (!sortedResults.length) {
       toast?.error?.('No graded results to export')
       return
     }
@@ -894,7 +1147,7 @@ export default function ExamReports() {
       console.error('PDF export error:', error)
       toast?.error?.('Failed to export PDF: ' + (error.message || 'Unknown error'))
     }
-  }, [selectedExam, sortedResults, examStats, examReport, user, calcPercentage, getGrade, toast])
+  }, [selectedExam, sortedResults, examStats, examReport, user, calcPercentage, getGrade, toast, isPolicyExam, componentReport, policySubjects])
 
   if (loading) {
     return (
@@ -954,7 +1207,7 @@ export default function ExamReports() {
             <>
               <button
                 onClick={exportResultsPDF}
-                disabled={!sortedResults.length}
+                disabled={isPolicyExam ? Object.keys(componentReport?.studentMap || {}).length === 0 : !sortedResults.length}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <LucideIcons.FileDown className="w-4 h-4" />
@@ -1463,83 +1716,81 @@ export default function ExamReports() {
                 return (
                   <>
                     {/* Summary Stats Cards */}
-                    <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-                      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
-                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
-                              <div className="text-xl md:text-2xl font-bold text-black">{studentScores.length}</div>
-                            </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
+                      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
+                            <div className="text-xl md:text-2xl font-bold text-black">{studentScores.length}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Fully Graded</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{gradedStudents.length}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Fully Graded</div>
+                            <div className="text-xl md:text-2xl font-bold text-green-600">{gradedStudents.length}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Passed</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{passCount}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Passed</div>
+                            <div className="text-xl md:text-2xl font-bold text-green-600">{passCount}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Failed</div>
-                              <div className="text-xl md:text-2xl font-bold text-red-600">{failCount}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Failed</div>
+                            <div className="text-xl md:text-2xl font-bold text-red-600">{failCount}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Average</div>
-                              <div className="text-xl md:text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Average</div>
+                            <div className="text-xl md:text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Highest</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Highest</div>
+                            <div className="text-xl md:text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
                           </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
-                              <div className="text-xl md:text-2xl font-bold text-blue-600">{passRate != null ? `${passRate}%` : '—'}</div>
-                            </div>
+                      </div>
+                      <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4">
+                        <div className="flex items-center gap-2 md:block">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
+                            <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
+                            <div className="text-xl md:text-2xl font-bold text-blue-600">{passRate != null ? `${passRate}%` : '—'}</div>
                           </div>
                         </div>
                       </div>
@@ -1689,12 +1940,12 @@ export default function ExamReports() {
                                 </div>
                                 {ag && op != null && (
                                   <div className="bg-neutral-50 rounded-lg p-2.5 mb-2">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between">
                                       <span className="text-xs text-neutral-600">Overall</span>
-                                      <span className="text-sm font-bold text-gray-900">{op}%</span>
-                                    </div>
-                                    <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-gray-900">{op}%</span>
+                                        {(() => { const g = getGrade(parseFloat(op)); return <span className={`inline-flex px-1.5 py-0.5 text-xs font-bold rounded-full ${getGradeColor(g)}`}>{g}</span> })()}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -1757,12 +2008,12 @@ export default function ExamReports() {
                                 </div>
                                 {ag && op != null && (
                                   <div className="bg-neutral-50 rounded-lg p-3 mb-2">
-                                    <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center justify-between">
                                       <span className="text-sm text-neutral-600">Overall</span>
-                                      <span className="text-base font-bold text-gray-900">{op}%</span>
-                                    </div>
-                                    <div className="flex-1 h-2.5 bg-neutral-200 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full transition-all ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-base font-bold text-gray-900">{op}%</span>
+                                        {(() => { const g = getGrade(parseFloat(op)); return <span className={`inline-flex px-2 py-0.5 text-xs font-bold rounded-full ${getGradeColor(g)}`}>{g}</span> })()}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -1804,7 +2055,8 @@ export default function ExamReports() {
                                   <div className="normal-case font-normal text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
                                 </th>
                               ))}
-                              <th className="px-4 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">Overall</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Overall</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-neutral-200">
@@ -1822,6 +2074,7 @@ export default function ExamReports() {
                               const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
                               const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
                               const ok = op != null && parseFloat(op) >= passMark && !fc
+                              const overallGrade = op != null ? getGrade(parseFloat(op)) : null
                               return (
                                 <tr key={student.id} className="hover:bg-neutral-50 transition">
                                   <td className="px-4 py-3">
@@ -1851,20 +2104,22 @@ export default function ExamReports() {
                                       </td>
                                     )
                                   })}
-                                  <td className="px-4 py-3 text-center">
+                                  <td className="px-4 py-3">
                                     {ag && op != null ? (
-                                      <div className="flex flex-col items-center gap-1">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                                            <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
-                                          </div>
-                                          <span className="text-sm font-medium text-black">{op}%</span>
-                                        </div>
-                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      <div className="flex flex-col gap-0.5">
+                                        <span className="text-sm font-medium text-black">{op}%</span>
+                                        <span className={`text-xs font-semibold ${ok ? 'text-green-600' : fc ? 'text-red-700' : 'text-red-600'}`}>
                                           {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
                                         </span>
                                       </div>
                                     ) : <span className="text-xs text-amber-600">Incomplete</span>}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {overallGrade ? (
+                                      <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${getGradeColor(overallGrade)}`}>
+                                        {overallGrade}
+                                      </span>
+                                    ) : <span className="text-xs text-neutral-400">—</span>}
                                   </td>
                                 </tr>
                               )

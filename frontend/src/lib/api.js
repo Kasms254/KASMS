@@ -70,6 +70,8 @@ const SENTENCE_CASE_CONFIG = {
     'instructor_rank',  // Flat rank field from SubjectSerializer — preserve internal value for sorting
     'priority', // Preserve priority enum values (low, medium, high, urgent)
     'target_role', // Preserve target_role enum values (all, student, instructor, etc.)
+    'component_type', // Preserve component type choice values (cat, theory, practical, project, other)
+    'retake_evaluation', // Preserve retake evaluation choice values (latest, best)
   ]
 }
 
@@ -809,6 +811,12 @@ export async function getStudentPerformanceSummary() {
 // Get student's class enrollments (all enrollments including past classes)
 export async function getStudentEnrollments() {
   return request('/api/student-dashboard/my_classes/')
+}
+
+// Get subjects for the student's enrolled classes (student-specific, includes grading_mode)
+export async function getStudentSubjects(classId) {
+  const qs = classId ? `?class_obj=${encodeURIComponent(classId)}` : ''
+  return request(`/api/student-dashboard/my_subjects/${qs}`)
 }
 
 export async function createExam(payload) {

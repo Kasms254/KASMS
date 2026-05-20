@@ -241,8 +241,8 @@ def evaluate_subject_pass_fail(subject, student):
     weighted_sum = 0.0
 
     for c in component_results:
-        if c['effective_result'] and c['effective_reuslt']['percentage'] is not None:
-            weighted_sum += c['effective_reuslt']['percentage'] * c['weight']
+        if c['effective_result'] and c['effective_result']['percentage'] is not None:
+            weighted_sum += c['effective_result']['percentage'] * c['weight']
 
     overall_percentage = (weighted_sum / total_weight) if total_weight > 0 else 0.0
 

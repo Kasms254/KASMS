@@ -792,18 +792,18 @@ export default function StudentResults() {
       if (!user?.id) return
       setComponentResultsLoading(true)
       try {
-        // Get all subjects (with class filter if selected)
-        const params = selectedClassId !== 'all' ? `class_obj=${selectedClassId}` : ''
-        const subjectsData = await api.getAllSubjects(params).catch(() => [])
-        const allSubjects = Array.isArray(subjectsData) ? subjectsData : (subjectsData?.results ?? [])
+        // Use student-specific subjects endpoint (includes grading_mode)
+        const classId = selectedClassId !== 'all' ? selectedClassId : null
+        const subjectsData = await api.getStudentSubjects(classId).catch(() => null)
+        const allSubjects = Array.isArray(subjectsData)
+          ? subjectsData
+          : (subjectsData?.results ?? [])
         const policySubjects = allSubjects.filter(s => s.grading_mode === 'POLICY')
 
-        if (!mounted || policySubjects.length === 0) {
-          if (mounted) setComponentSubjects([])
-          return
-        }
+        if (!mounted) return
+        setComponentSubjects(policySubjects)
 
-        if (mounted) setComponentSubjects(policySubjects)
+        if (policySubjects.length === 0) return
 
         // Fetch component results for each POLICY subject
         const resultEntries = await Promise.all(
@@ -835,8 +835,92 @@ export default function StudentResults() {
 
   // Stats for the current class (shown in summary banner)
   const currentClassStats = useMemo(() => calculateTotals(currentClassResults), [currentClassResults])
+
+  // Policy marks for the current class: sum raw marks from component results
+  const policyClassTotals = useMemo(() => {
+    const currentClassSubjects = componentSubjects.filter(s => {
+      if (selectedClassId === 'all') return true
+      return String(s.class_obj) === selectedClassId ||
+        String(s.class_obj?.id) === selectedClassId ||
+        String(s.class_id) === selectedClassId
+    })
+    let obtained = 0
+    let possible = 0
+    currentClassSubjects.forEach(s => {
+      const results = componentResultsMap[s.id]?.results ?? []
+      results.forEach(r => {
+        obtained += Number(r.marks_obtained) || 0
+        possible += Number(r.total_marks) || 0
+      })
+    })
+    return { obtained, possible }
+  }, [componentSubjects, componentResultsMap, selectedClassId])
+
+  // Combined totals (legacy + policy)
+  const combinedStats = useMemo(() => {
+    const obtained = currentClassStats.obtained + policyClassTotals.obtained
+    const totalPossible = currentClassStats.totalPossible + policyClassTotals.possible
+    const percentage = totalPossible > 0 ? (obtained / totalPossible) * 100 : null
+    return { obtained, totalPossible, percentage }
+  }, [currentClassStats, policyClassTotals])
+
   // Trend for displayed results
   const trend = useMemo(() => calculateTrend(), [calculateTrend])
+
+  // Unified graded results: legacy ExamResults + policy component results for the current class
+  const unifiedResults = useMemo(() => {
+    const legacyRows = currentClassResults
+      .filter(r => r.marks_obtained != null)
+      .map(r => ({
+        id: r.id,
+        resultType: 'legacy',
+        subject_name: r.subject_name || r.exam?.subject?.name || '—',
+        label: r.exam_title || r.exam?.title || 'Exam',
+        exam_type: r.exam_type,
+        marks_obtained: r.marks_obtained,
+        total_marks: r.exam_total_marks ?? r.exam?.total_marks,
+        percentage: r.percentage != null ? Number(r.percentage) : null,
+        graded_at: r.graded_at || r.submitted_at || r.created_at,
+        remarks: r.remarks,
+      }))
+
+    const policyRows = []
+    componentSubjects
+      .filter(s => {
+        if (selectedClassId === 'all') return true
+        return (
+          String(s.class_obj) === selectedClassId ||
+          String(s.class_obj?.id) === selectedClassId ||
+          String(s.class_id) === selectedClassId
+        )
+      })
+      .forEach(s => {
+        const data = componentResultsMap[s.id]
+        if (!data) return
+        ;(data.results ?? [])
+          .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
+          .forEach(r => {
+            policyRows.push({
+              id: r.id,
+              resultType: 'policy',
+              subject_name: r.subject_name || s.name || '—',
+              label: r.component_name || '—',
+              component_type: r.component_type,
+              marks_obtained: r.marks_obtained,
+              total_marks: r.total_marks,
+              percentage: r.percentage != null ? Number(r.percentage) : null,
+              graded_at: r.graded_at || r.submitted_at,
+              remarks: r.remarks,
+              status: r.status,
+              is_retake: r.is_retake,
+            })
+          })
+      })
+
+    return [...legacyRows, ...policyRows].sort(
+      (a, b) => new Date(b.graded_at || 0) - new Date(a.graded_at || 0)
+    )
+  }, [currentClassResults, componentSubjects, componentResultsMap, selectedClassId])
 
   // Detect mobile view
   useEffect(() => {
@@ -911,15 +995,15 @@ export default function StudentResults() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
             <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Score</div>
-            <div className="text-2xl font-bold text-indigo-900">{formatMarks(currentClassStats.obtained, currentClassStats.totalPossible)}</div>
+            <div className="text-2xl font-bold text-indigo-900">{formatMarks(combinedStats.obtained, combinedStats.totalPossible)}</div>
           </div>
           <div className="space-y-1">
             <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Overall Grade</div>
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(toLetterGrade(currentClassStats.percentage))}`}>
-                {currentClassStats.percentage != null ? toLetterGrade(currentClassStats.percentage) : '—'}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(toLetterGrade(combinedStats.percentage))}`}>
+                {combinedStats.percentage != null ? toLetterGrade(combinedStats.percentage) : '—'}
               </span>
-              <span className="text-lg font-semibold text-gray-700">{formatPercentage(currentClassStats.percentage)}</span>
+              <span className="text-lg font-semibold text-gray-700">{formatPercentage(combinedStats.percentage)}</span>
             </div>
           </div>
           {trend && (
@@ -1055,27 +1139,31 @@ export default function StudentResults() {
           </div>
         )}
 
-        {!loading && currentClassResults.length === 0 && (
+        {!loading && !componentResultsLoading && unifiedResults.length === 0 && (
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No Results for This Class
-            </h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Results for This Class</h3>
             <p className="text-sm text-gray-500">
-              No graded exams found for {currentClass?.name || 'this class'}. Your results will appear here once your instructor grades your exams.
+              No graded results found for {currentClass?.name || 'this class'}. Your results will appear here once your instructor grades your assessments.
             </p>
           </div>
         )}
 
-        {!loading && currentClassResults.length > 0 && (
+        {unifiedResults.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-lg font-semibold text-black">
-                Exam Results <span className="text-sm font-normal text-gray-500">({currentClassResults.length} {currentClassResults.length === 1 ? 'exam' : 'exams'})</span>
+                Exam Results{' '}
+                <span className="text-sm font-normal text-gray-500">
+                  ({unifiedResults.length} {unifiedResults.length === 1 ? 'result' : 'results'})
+                </span>
+                {componentResultsLoading && (
+                  <span className="ml-2 text-xs text-indigo-500 animate-pulse">Loading…</span>
+                )}
               </h3>
             </div>
 
@@ -1086,7 +1174,7 @@ export default function StudentResults() {
                   <thead>
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Subject</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Exam</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Assessment</th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Score</th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Percentage</th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Grade</th>
@@ -1094,24 +1182,34 @@ export default function StudentResults() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 bg-white">
-                    {currentClassResults.map(r => {
+                    {unifiedResults.map(r => {
                       const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
                       const indicator = getPerformanceIndicator(r.percentage)
                       return (
-                        <tr
-                          key={r.id}
-                          className="hover:bg-gray-50 transition-colors duration-150"
-                          role="row"
-                        >
+                        <tr key={r.id} className="hover:bg-gray-50 transition-colors duration-150" role="row">
                           <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                            {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
+                            <div>{r.subject_name}</div>
+                            {r.resultType === 'policy' && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 mt-0.5">
+                                POLICY
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-700">
-                            {r.exam_title || (r.exam && r.exam.title) || 'Exam'}
+                            <div>{r.label}</div>
+                            {r.resultType === 'legacy' && r.exam_type && (
+                              <span className="text-xs text-gray-400">{r.exam_type}</span>
+                            )}
+                            {r.resultType === 'policy' && r.component_type && (
+                              <span className="text-xs text-gray-400">{r.component_type}</span>
+                            )}
+                            {r.is_retake && (
+                              <span className="ml-1 text-xs text-amber-600">· Retake</span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-center">
                             <span className="text-sm font-semibold text-gray-900">
-                              {formatMarks(r.marks_obtained, r.exam_total_marks ?? (r.exam && r.exam.total_marks))}
+                              {formatMarks(r.marks_obtained, r.total_marks)}
                             </span>
                           </td>
                           <td className="px-4 py-4 text-center">
@@ -1126,12 +1224,21 @@ export default function StudentResults() {
                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getGradeColor(grade)}`}>
-                              {grade}
-                            </span>
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getGradeColor(grade)}`}>
+                                {grade}
+                              </span>
+                              {r.resultType === 'policy' && r.status && r.status !== 'PENDING' && (
+                                <span className={`text-[10px] font-medium ${
+                                  r.status === 'PASS' ? 'text-green-600' :
+                                  r.status === 'RETAKE_REQUIRED' ? 'text-amber-600' :
+                                  'text-red-600'
+                                }`}>{r.status}</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-600">
-                            {formatDate(r.graded_at || r.submitted_at || r.created_at)}
+                            {formatDate(r.graded_at)}
                           </td>
                         </tr>
                       )
@@ -1144,8 +1251,8 @@ export default function StudentResults() {
             {/* Card View for Mobile */}
             {viewMode === 'cards' && (
               <div className="space-y-3">
-                {currentClassResults.map(r => {
-                  const grade = r.grade || (r.percentage != null ? toLetterGrade(r.percentage) : '—')
+                {unifiedResults.map(r => {
+                  const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
                   const indicator = getPerformanceIndicator(r.percentage)
                   const isExpanded = expandedRows.has(r.id)
                   return (
@@ -1153,7 +1260,7 @@ export default function StudentResults() {
                       key={r.id}
                       className="border border-neutral-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow duration-200"
                       role="article"
-                      aria-label={`Result for ${r.subject_name || 'exam'}`}
+                      aria-label={`Result for ${r.subject_name}`}
                     >
                       <button
                         onClick={() => toggleRowExpansion(r.id)}
@@ -1163,34 +1270,41 @@ export default function StudentResults() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-900 truncate">
-                              {r.subject_name || (r.exam && r.exam.subject && (r.exam.subject.name || r.exam.subject)) || '—'}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-gray-900 truncate">{r.subject_name}</span>
+                              {r.resultType === 'policy' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 shrink-0">
+                                  POLICY
+                                </span>
+                              )}
                             </div>
-                            <div className="text-sm text-gray-600 truncate mt-1">
-                              {r.exam_title || (r.exam && r.exam.title) || 'Exam'}
-                            </div>
-                            <div className="flex items-center gap-3 mt-2">
+                            <div className="text-sm text-gray-600 truncate mt-0.5">{r.label}</div>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getGradeColor(grade)}`}>
                                 {grade}
                               </span>
-                              <span className="text-sm font-medium text-gray-900">
-                                {formatPercentage(r.percentage)}
-                              </span>
+                              <span className="text-sm font-medium text-gray-900">{formatPercentage(r.percentage)}</span>
                               {indicator && React.createElement(indicator.icon, {
                                 className: `w-4 h-4 ${indicator.color}`,
                                 'aria-label': indicator.label
                               })}
+                              {r.resultType === 'policy' && r.status && r.status !== 'PENDING' && (
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                  r.status === 'PASS' ? 'bg-green-50 text-green-700' :
+                                  r.status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
+                                  'bg-red-50 text-red-700'
+                                }`}>{r.status}</span>
+                              )}
                             </div>
                           </div>
                           <div className="flex-shrink-0 flex items-center gap-2">
                             <span className="text-sm font-semibold text-gray-900">
-                              {formatMarks(r.marks_obtained, r.exam_total_marks ?? (r.exam && r.exam.total_marks))}
+                              {formatMarks(r.marks_obtained, r.total_marks)}
                             </span>
-                            {isExpanded ? (
-                              <ChevronUp className="w-5 h-5 text-gray-400" aria-hidden="true" />
-                            ) : (
-                              <ChevronDown className="w-5 h-5 text-gray-400" aria-hidden="true" />
-                            )}
+                            {isExpanded
+                              ? <ChevronUp className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                              : <ChevronDown className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                            }
                           </div>
                         </div>
                       </button>
@@ -1205,7 +1319,7 @@ export default function StudentResults() {
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Total Marks:</span>
-                            <span className="font-medium text-gray-900">{formatNumber(r.exam_total_marks ?? (r.exam && r.exam.total_marks))}</span>
+                            <span className="font-medium text-gray-900">{formatNumber(r.total_marks)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Performance:</span>
@@ -1215,9 +1329,7 @@ export default function StudentResults() {
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Graded on:</span>
-                            <span className="font-medium text-gray-900">
-                              {formatDate(r.graded_at || r.submitted_at || r.created_at)}
-                            </span>
+                            <span className="font-medium text-gray-900">{formatDate(r.graded_at)}</span>
                           </div>
                           {r.remarks && (
                             <div className="pt-2 border-t border-neutral-200">
@@ -1235,105 +1347,6 @@ export default function StudentResults() {
           </div>
         )}
       </div>
-
-      {/* Component Results (POLICY mode subjects) */}
-      {(componentResultsLoading || componentSubjects.length > 0) && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-black">Component-Based Results</h3>
-          <p className="text-sm text-gray-500 -mt-2">Results for subjects graded by individual assessment components.</p>
-
-          {componentResultsLoading && (
-            <div className="text-sm text-neutral-500 py-4">Loading component results…</div>
-          )}
-
-          {!componentResultsLoading && componentSubjects.map(subject => {
-            const data = componentResultsMap[subject.id]
-            const compResults = data?.results ?? []
-            const evaluation = data?.evaluation ?? null
-            const retakeInfo = data?.retake_requirements ?? []
-
-            return (
-              <div key={subject.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-                {/* Subject header */}
-                <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-black">{subject.name}</div>
-                    <div className="text-xs text-neutral-500">{subject.class_name || subject.class_obj?.name || ''}</div>
-                  </div>
-                  {evaluation && (
-                    <div className="flex items-center gap-2">
-                      {evaluation.overall_percentage != null && (
-                        <span className="text-sm font-medium text-gray-700">
-                          {Number(evaluation.overall_percentage).toFixed(1)}%
-                        </span>
-                      )}
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                        evaluation.is_passed
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : 'bg-red-50 text-red-700 border-red-200'
-                      }`}>
-                        {evaluation.is_passed ? 'PASS' : 'FAIL'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Component breakdown */}
-                {compResults.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-neutral-400 italic">No component results yet.</div>
-                ) : (
-                  <div className="divide-y divide-neutral-100">
-                    {compResults.map(r => (
-                      <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-black truncate">{r.component_name || '—'}</div>
-                          <div className="text-xs text-neutral-500 mt-0.5">{r.component_type || ''}{r.is_retake ? ` · Retake ${r.attempt_number}` : ''}</div>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm flex-shrink-0">
-                          <span className="text-neutral-700">
-                            {r.marks_obtained != null ? `${r.marks_obtained}/${r.total_marks}` : '—'}
-                          </span>
-                          {r.percentage != null && (
-                            <span className="text-neutral-600">{Number(r.percentage).toFixed(1)}%</span>
-                          )}
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                            r.status === 'PASS' ? 'bg-green-50 text-green-700' :
-                            r.status === 'FAIL' ? 'bg-red-50 text-red-700' :
-                            r.status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
-                            'bg-neutral-100 text-neutral-500'
-                          }`}>{r.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Retake requirements */}
-                {retakeInfo.length > 0 && (
-                  <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
-                    <div className="text-xs font-medium text-amber-700 mb-1">Retake required:</div>
-                    {retakeInfo.map((req, i) => (
-                      <div key={i} className="text-xs text-amber-600">
-                        {req.component_name || req.component} — {req.reason || ''}
-                        {req.attempts_remaining != null && req.attempts_remaining !== 'unlimited' && (
-                          <span className="ml-1">({req.attempts_remaining} attempt{req.attempts_remaining !== 1 ? 's' : ''} remaining)</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Evaluation note */}
-                {evaluation?.reason && (
-                  <div className="px-4 py-2 bg-neutral-50 border-t border-neutral-100 text-xs text-neutral-500">
-                    {evaluation.reason}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

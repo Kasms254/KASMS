@@ -205,9 +205,9 @@ export default function Exams() {
       // Silently handle duplicate check failure
     }
 
-    // Prevent creating another active Final exam for the SAME subject client-side
+    // LEGACY: one active Final per subject
     try {
-      const isCreatingFinal = !editingId && String(currentForm.exam_type || '').toLowerCase() === 'final'
+      const isCreatingFinal = !editingId && currentGradingModeCheck !== 'POLICY' && String(currentForm.exam_type || '').toLowerCase() === 'final'
       if (isCreatingFinal) {
         const hasActiveFinal = exams.some(x => {
           const subjId = x.subject?.id ?? x.subject
@@ -218,9 +218,21 @@ export default function Exams() {
           return toast.error('An active Final exam already exists for this subject. Deactivate it before creating another Final exam.')
         }
       }
-    } catch (err) {
-      // Silently handle active final check failure
-    }
+    } catch (err) {}
+
+    // POLICY: one active exam per component
+    try {
+      if (!editingId && currentGradingModeCheck === 'POLICY' && currentForm.component) {
+        const hasActiveForComponent = exams.some(x => {
+          const compId = x.component?.id ?? x.component
+          return String(compId) === String(currentForm.component) && !!x.is_active
+        })
+        if (hasActiveForComponent) {
+          setCreateError('There is already an active exam for this assessment component.')
+          return
+        }
+      }
+    } catch (err) {}
 
     // build payload including description and duration
     const toDuration = (mins) => {
@@ -231,6 +243,7 @@ export default function Exams() {
     }
 
   const currentGradingMode = editingId ? editGradingMode : createGradingMode
+  const currentComponents = editingId ? editComponents : createComponents
   const rawDescription = currentForm.description || ''
   const payload = {
       title: currentForm.title,
@@ -238,7 +251,10 @@ export default function Exams() {
       exam_type: currentForm.exam_type,
       exam_date: currentForm.exam_date,
       ...(currentGradingMode === 'POLICY'
-        ? { component: currentForm.component }
+        ? {
+            component: currentForm.component,
+            total_marks: currentComponents.find(c => String(c.id) === String(currentForm.component))?.total_marks ?? 100,
+          }
         : { total_marks: Number(currentForm.total_marks) }),
       description: rawDescription.trim() || undefined,
       exam_duration: currentForm.exam_duration ? toDuration(currentForm.exam_duration) : undefined,
@@ -962,7 +978,7 @@ export default function Exams() {
       </div>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
@@ -970,7 +986,7 @@ export default function Exams() {
                     <h4 className="text-lg text-black font-medium">Create exam</h4>
                     <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
                 {createError && (
                   <div className="mt-3 mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
@@ -1042,7 +1058,7 @@ export default function Exams() {
                   </label>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
                   <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
                 </div>
               </form>
