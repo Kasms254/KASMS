@@ -1967,6 +1967,10 @@ export async function getOICUsers(params = '') {
 }
 
 // Assessment Components (POLICY grading mode)
+export async function getComponentChoices(subjectId) {
+  return request(`/api/exams/component_choices/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
 export async function getAssessmentComponents(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/assessment-components/${qs}`)
@@ -2306,6 +2310,7 @@ export default {
   deleteOICAssignment,
   bulkAssignOIC,
   getOICUsers,
+  getComponentChoices,
   getAssessmentComponents,
   getComponentsBySubject,
   getComponentWeightSummary,

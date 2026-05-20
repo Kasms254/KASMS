@@ -119,17 +119,6 @@ export default function SubjectsPage() {
               >
                 View exams
               </button>
-              {s.grading_mode === 'POLICY' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/list/assessment-components?subject_id=${s.id}`)
-                  }}
-                  className="px-3 py-1.5 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition"
-                >
-                  Components
-                </button>
-              )}
             </div>
           </div>
         ))}

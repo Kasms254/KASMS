@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -21,10 +21,15 @@ export default function Exams() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
-  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
+  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
+  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
   const [createError, setCreateError] = useState('')
   const [editError, setEditError] = useState('')
+
+  const [createComponents, setCreateComponents] = useState([])
+  const [createGradingMode, setCreateGradingMode] = useState('LEGACY')
+  const [editComponents, setEditComponents] = useState([])
+  const [editGradingMode, setEditGradingMode] = useState('LEGACY')
 
   const [createFiles, setCreateFiles] = useState([])
   const [editFiles, setEditFiles] = useState([])
@@ -114,12 +119,46 @@ export default function Exams() {
   }, [exams])
 
   const isCreateFormValid = useMemo(() => {
-    return !!(createForm.subject && createForm.title?.trim() && createForm.exam_date && createForm.total_marks)
-  }, [createForm])
+    if (!createForm.subject || !createForm.title?.trim() || !createForm.exam_date) return false
+    if (createGradingMode === 'POLICY') return !!createForm.component
+    return !!createForm.total_marks
+  }, [createForm, createGradingMode])
 
   const isEditFormValid = useMemo(() => {
-    return !!(editForm.subject && editForm.title?.trim() && editForm.exam_date && editForm.total_marks)
-  }, [editForm])
+    if (!editForm.subject || !editForm.title?.trim() || !editForm.exam_date) return false
+    if (editGradingMode === 'POLICY') return !!editForm.component
+    return !!editForm.total_marks
+  }, [editForm, editGradingMode])
+
+  const fetchComponentChoices = useCallback(async (subjectId, setComponents, setGradingMode, resetComponent) => {
+    if (!subjectId) { setComponents([]); setGradingMode('LEGACY'); return }
+    try {
+      const res = await api.getComponentChoices(subjectId)
+      setGradingMode(res.grading_mode || 'LEGACY')
+      setComponents(res.components || [])
+      if (res.grading_mode !== 'POLICY') resetComponent()
+    } catch {
+      setComponents([]); setGradingMode('LEGACY')
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchComponentChoices(
+      createForm.subject,
+      setCreateComponents,
+      setCreateGradingMode,
+      () => setCreateForm(f => ({ ...f, component: '' }))
+    )
+  }, [createForm.subject, fetchComponentChoices])
+
+  useEffect(() => {
+    fetchComponentChoices(
+      editForm.subject,
+      setEditComponents,
+      setEditGradingMode,
+      () => setEditForm(f => ({ ...f, component: '' }))
+    )
+  }, [editForm.subject, fetchComponentChoices])
 
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
@@ -140,7 +179,12 @@ export default function Exams() {
       setCreateError('Select exam date')
       return
     }
-    if (!currentForm.total_marks) {
+    const currentGradingModeCheck = editingId ? editGradingMode : createGradingMode
+    if (currentGradingModeCheck === 'POLICY' && !currentForm.component) {
+      setCreateError('Select an assessment component')
+      return
+    }
+    if (currentGradingModeCheck !== 'POLICY' && !currentForm.total_marks) {
       setCreateError('Enter total marks')
       return
     }
@@ -186,14 +230,17 @@ export default function Exams() {
       return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`
     }
 
+  const currentGradingMode = editingId ? editGradingMode : createGradingMode
   const rawDescription = currentForm.description || ''
   const payload = {
       title: currentForm.title,
       subject: Number(currentForm.subject),
       exam_type: currentForm.exam_type,
       exam_date: currentForm.exam_date,
-      total_marks: Number(currentForm.total_marks),
-  description: rawDescription.trim() || undefined,
+      ...(currentGradingMode === 'POLICY'
+        ? { component: currentForm.component }
+        : { total_marks: Number(currentForm.total_marks) }),
+      description: rawDescription.trim() || undefined,
       exam_duration: currentForm.exam_duration ? toDuration(currentForm.exam_duration) : undefined,
     }
 
@@ -286,9 +333,9 @@ export default function Exams() {
   exam_type: exam.exam_type || 'final',
       exam_date: exam.exam_date || '',
       total_marks: exam.total_marks ?? '',
+      component: exam.component != null ? String(exam.component?.id ?? exam.component) : '',
       description: exam.description || '',
       exam_duration: exam.exam_duration ? (function(d){
-        // backend likely returns HH:MM:SS — convert to minutes
         try{
           const parts = String(d).split(':').map(Number)
           return (parts[0] || 0) * 60 + (parts[1] || 0)
@@ -953,10 +1000,22 @@ export default function Exams() {
                       placeholder="Select date"
                       minDate={new Date()}
                     />
-                    <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                    </label>
+                    {createGradingMode === 'POLICY' ? (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
+                        <select value={createForm.component} onChange={(e) => updateField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                          <option value="">Select component</option>
+                          {createComponents.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                        <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      </label>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
@@ -1039,10 +1098,22 @@ export default function Exams() {
                       placeholder="Select date"
                       minDate={new Date()}
                     />
-                    <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                    </label>
+                    {editGradingMode === 'POLICY' ? (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
+                        <select value={editForm.component} onChange={(e) => updateEditField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                          <option value="">Select component</option>
+                          {editComponents.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                        <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      </label>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">

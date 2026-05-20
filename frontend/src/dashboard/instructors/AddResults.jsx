@@ -60,24 +60,25 @@ export default function AddResults() {
     return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`
   }
 
+  const [subjectsMap, setSubjectsMap] = useState({})
+  const [activeComponentId, setActiveComponentId] = useState(null)
+  const [examGradingMode, setExamGradingMode] = useState('LEGACY')
+
   useEffect(() => {
     let mounted = true
     async function load() {
       try {
         const [examsRes, subjectsRes] = await Promise.all([
           api.getMyExams?.() ?? api.getExams(),
-          api.getMySubjects?.().catch(() => []),
+          (api.getMySubjects?.() ?? Promise.resolve([])).catch(() => []),
         ])
         const arr = Array.isArray(examsRes.results) ? examsRes.results : (Array.isArray(examsRes) ? examsRes : (examsRes?.results ?? []))
         const subjArr = Array.isArray(subjectsRes) ? subjectsRes : (subjectsRes?.results ?? [])
-        const policySubjectIds = new Set(subjArr.filter(s => s.grading_mode === 'POLICY').map(s => String(s.id)))
-        // Exclude exams that belong to POLICY-mode subjects
-        const legacyExams = arr.filter(ex => {
-          const subjectId = String(ex.subject || ex.subject_id || '')
-          return !policySubjectIds.has(subjectId)
-        })
+        const map = {}
+        subjArr.forEach(s => { map[String(s.id)] = s })
         if (!mounted) return
-        setExams(legacyExams)
+        setExams(arr)
+        setSubjectsMap(map)
       } catch (err) {
         toast.error(err?.message || 'Failed to load exams')
       }
@@ -136,31 +137,62 @@ export default function AddResults() {
   useEffect(() => {
     let mounted = true
 
-    async function generateAndLoad(id) {
+    async function dispatchExam(id) {
       if (!id) return
-      setLoading(true)
-      try {
-        await api.generateExamResults(id)
-      } catch (err) {
-        toast.error(err?.message || 'Failed to create result entries')
-      }
-      try {
-        if (mounted) await loadResults(id, { skipSpinner: true })
-      } finally {
-        if (mounted) setLoading(false)
+      const exam = exams.find(e => String(e.id) === String(id))
+      const mode = exam?.grading_mode || 'LEGACY'
+      setExamGradingMode(mode)
+      setComponentStudents([])
+      setComponentInfo(null)
+      setActiveComponentId(null)
+      setResults([])
+      setExamInfo(null)
+
+      if (mode === 'POLICY') {
+        const compId = exam?.component || exam?.component_id
+        if (!compId) return
+        setActiveComponentId(String(compId))
+        const compInfo = {
+          name: exam.component_name,
+          total_marks: exam.total_marks,
+          weight: exam.component_weight,
+          pass_mark: exam.component_pass_mark,
+          is_critical: exam.component_is_critical,
+          retake_allowed: exam.component_retake_allowed,
+        }
+        const subjectId = exam?.subject?.id ?? exam?.subject
+        const subject = subjectsMap[String(subjectId)]
+        const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+        if (mounted) await loadComponentStudents(String(compId), compInfo, classId)
+      } else {
+        setLoading(true)
+        try {
+          await api.generateExamResults(id)
+        } catch (err) {
+          toast.error(err?.message || 'Failed to create result entries')
+        }
+        try {
+          if (mounted) await loadResults(id, { skipSpinner: true })
+        } finally {
+          if (mounted) setLoading(false)
+        }
       }
     }
 
     if (selectedExam) {
-      generateAndLoad(selectedExam)
+      dispatchExam(selectedExam)
     } else {
+      setExamGradingMode('LEGACY')
       setExamInfo(null)
       setResults([])
+      setActiveComponentId(null)
+      setComponentStudents([])
+      setComponentInfo(null)
     }
 
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExam])
+  }, [selectedExam, exams, subjectsMap])
 
   function updateRow(idx, key, value) {
     // mark the row dirty and run inline validation for marks
@@ -415,52 +447,17 @@ export default function AddResults() {
   const [examStats, setExamStats] = useState({ count: 0, submitted: 0, pending: 0 })
 
   // ── Component-based grading (POLICY mode) ──
-  const [gradingTab, setGradingTab] = useState('exam') // 'exam' | 'component'
-  const [policySubjects, setPolicySubjects] = useState([])
-  const [selectedPolicySubject, setSelectedPolicySubject] = useState('')
-  const [policyComponents, setPolicyComponents] = useState([])
-  const [selectedComponent, setSelectedComponent] = useState('')
   const [componentInfo, setComponentInfo] = useState(null)
   const [componentStudents, setComponentStudents] = useState([])
   const [componentLoading, setComponentLoading] = useState(false)
   const [componentSearchTerm, setComponentSearchTerm] = useState('')
   const [componentSaving, setComponentSaving] = useState(false)
 
-  useEffect(() => {
-    let mounted = true
-    async function loadPolicySubjects() {
-      try {
-        const res = await api.getMySubjects?.() ?? api.getAllSubjects?.() ?? []
-        const arr = Array.isArray(res) ? res : (res?.results ?? [])
-        if (mounted) setPolicySubjects(arr.filter(s => s.grading_mode === 'POLICY'))
-      } catch { /* non-critical */ }
-    }
-    loadPolicySubjects()
-    return () => { mounted = false }
-  }, [])
-
-  const loadPolicyComponents = useCallback(async (subjectId) => {
-    if (!subjectId) { setPolicyComponents([]); setSelectedComponent(''); setComponentInfo(null); setComponentStudents([]); return }
-    try {
-      const comps = await api.getComponentsBySubject(subjectId)
-      setPolicyComponents(Array.isArray(comps) ? comps : [])
-    } catch { setPolicyComponents([]) }
-  }, [])
-
-  useEffect(() => {
-    loadPolicyComponents(selectedPolicySubject)
-  }, [selectedPolicySubject, loadPolicyComponents])
-
-  const loadComponentStudents = useCallback(async (componentId) => {
+  const loadComponentStudents = useCallback(async (componentId, compInfo, classId) => {
     if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
     setComponentLoading(true)
     try {
-      const comp = policyComponents.find(c => String(c.id) === String(componentId))
-      setComponentInfo(comp || null)
-
-      // Get existing results and enrolled students in parallel
-      const subject = policySubjects.find(s => String(s.id) === String(selectedPolicySubject))
-      const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+      setComponentInfo(compInfo || null)
 
       const [existingResults, classStudentsData] = await Promise.all([
         api.getComponentResults(`component=${encodeURIComponent(componentId)}`).catch(() => []),
@@ -541,11 +538,7 @@ export default function AddResults() {
     } finally {
       setComponentLoading(false)
     }
-  }, [policyComponents, policySubjects, selectedPolicySubject, toast])
-
-  useEffect(() => {
-    loadComponentStudents(selectedComponent)
-  }, [selectedComponent, loadComponentStudents])
+  }, [toast])
 
   function updateComponentRow(idx, key, value) {
     setComponentStudents(prev => prev.map((r, i) => {
@@ -569,7 +562,7 @@ export default function AddResults() {
   }
 
   async function handleSaveComponentResults() {
-    if (!selectedComponent) return toast.error('Select a component')
+    if (!activeComponentId) return toast.error('No component loaded')
     const dirtyRows = componentStudents.filter(r => r.dirty && r.marks_obtained !== '' && r.can_enter)
     if (dirtyRows.length === 0) return toast.error('No changes to save')
 
@@ -581,14 +574,14 @@ export default function AddResults() {
     if (hasErrors) return toast.error('Fix validation errors before saving')
 
     const payload = {
-      component_id: selectedComponent,
+      component_id: activeComponentId,
       results: dirtyRows.map(r => ({ student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks || '' })),
     }
     setComponentSaving(true)
     try {
       await api.bulkGradeComponentResults(payload)
       toast.success(`${dirtyRows.length} result(s) saved`)
-      await loadComponentStudents(selectedComponent)
+      await loadComponentStudents(activeComponentId, componentInfo, null)
     } catch (err) {
       const d = err?.data
       if (d && typeof d === 'object') {
@@ -622,66 +615,31 @@ export default function AddResults() {
         <p className="text-xs sm:text-sm md:text-base text-gray-600">Enter marks for your students.</p>
       </header>
 
-      {/* Grading Mode Tabs */}
-      <div className="mb-4 sm:mb-6 flex border-b border-neutral-200">
-        <button
-          onClick={() => setGradingTab('exam')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'exam' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+      {/* Exam Selection — single selector for all exams */}
+      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
+        <select
+          value={selectedExam}
+          onChange={e => {
+            setSelectedExam(e.target.value)
+            setSearchTerm('')
+            setSortConfig({ key: null, direction: 'asc' })
+          }}
+          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
-          Exam Grading
-        </button>
-        {policySubjects.length > 0 && (
-          <button
-            onClick={() => setGradingTab('component')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'component' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
-          >
-            Component Grading
-            <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700">Policy</span>
-          </button>
-        )}
+          <option value="">-- Select an exam --</option>
+          {exams.map(ex => (
+            <option key={ex.id} value={ex.id}>
+              {ex.title} — {ex.subject_name || ex.subject?.name}
+              {ex.grading_mode === 'POLICY' ? ` (${ex.component_name || 'Policy'})` : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* ── Component Grading Section ── */}
-      {gradingTab === 'component' && (
+      {/* ── Component Grading Section (POLICY exams) ── */}
+      {examGradingMode === 'POLICY' && (
         <div>
-          {/* Subject + Component Selection */}
-          <div className="mb-4 bg-white rounded-lg shadow p-3 sm:p-4 space-y-3">
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Subject (Policy Mode)</label>
-              <select
-                value={selectedPolicySubject}
-                onChange={e => { setSelectedPolicySubject(e.target.value); setSelectedComponent('') }}
-                className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- Select a subject --</option>
-                {policySubjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} — {s.class_name || s.class_obj?.name || ''}</option>
-                ))}
-              </select>
-            </div>
-
-            {selectedPolicySubject && (
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Component</label>
-                <select
-                  value={selectedComponent}
-                  onChange={e => setSelectedComponent(e.target.value)}
-                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Select a component --</option>
-                  {policyComponents.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.total_marks} marks, {parseFloat(c.weight).toFixed(1)}% weight{c.is_critical ? ', CRITICAL' : ''})
-                    </option>
-                  ))}
-                </select>
-                {policyComponents.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">No components defined for this subject. Add components first via Subjects → Components.</p>
-                )}
-              </div>
-            )}
-          </div>
-
           {componentLoading && (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -689,7 +647,7 @@ export default function AddResults() {
             </div>
           )}
 
-          {!componentLoading && selectedComponent && componentStudents.length === 0 && (
+          {!componentLoading && activeComponentId && componentStudents.length === 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
               No student results found for this component. Students must be enrolled in the subject's class.
             </div>
@@ -731,7 +689,7 @@ export default function AddResults() {
                     {componentStudents.filter(r => r.is_submitted).length} / {componentStudents.length} submitted
                   </span>
                   <button
-                    onClick={() => loadComponentStudents(selectedComponent)}
+                    onClick={() => loadComponentStudents(activeComponentId, componentInfo, null)}
                     className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
                   >Refresh</button>
                 </div>
@@ -884,34 +842,9 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* ── Exam Grading Section ── */}
-      {gradingTab === 'exam' && (
+      {/* ── Exam Grading Section (LEGACY exams) ── */}
+      {examGradingMode === 'LEGACY' && (
         <div>
-
-      {/* Exam Selection */}
-      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
-        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
-        <div className="flex gap-3 items-center flex-wrap">
-          <select
-            value={selectedExam}
-            onChange={e => {
-              setSelectedExam(e.target.value);
-              setExamInfo(null);
-              setResults([]);
-              setSearchTerm('');
-              setSortConfig({ key: null, direction: 'asc' });
-            }}
-            className="flex-1 min-w-full sm:min-w-[250px] p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value="">-- Select an exam --</option>
-            {exams.map(ex => (
-              <option key={ex.id} value={ex.id}>
-                {ex.title} — {ex.subject_name || ex.subject?.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       {loading && (
         <div className="text-center py-8">
@@ -1461,7 +1394,7 @@ export default function AddResults() {
         </div>
       )}
 
-        </div>
+      </div>
       )}
     </div>
   )
