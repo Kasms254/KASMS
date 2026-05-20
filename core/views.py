@@ -1927,19 +1927,24 @@ class ExamViewSet(viewsets.ModelViewSet):
     ordering =['-created_at']
 
     def get_queryset(self):
-        submitted_results = Prefetch(
-            'results',
-            queryset=ExamResult.objects.filter(is_submitted=True),
-            to_attr='_submitted_results',
-        )
         queryset = Exam.all_objects.select_related(
             'subject', 'subject__class_obj', 'created_by', 'component'
-        ).prefetch_related('attachments', submitted_results).all()
+        ).annotate(
+            _avg_score=Avg(
+                'results__marks_obtained',
+                filter=Q(results__is_submitted=True),
+            ),
+            _sub_count=Count(
+                'results',
+                filter=Q(results__is_submitted=True),
+            ),
+        )
+ 
         user = self.request.user
-
+ 
         if not user.is_authenticated:
             return queryset.none()
-
+ 
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -1948,12 +1953,15 @@ class ExamViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(school=user.school)
         else:
             return queryset.none()
-
+ 
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
-
+ 
         queryset = queryset.exclude(subject__class_obj__is_closed=True)
-
+ 
+        if self.action == 'list':
+            queryset = queryset.prefetch_related('attachments')
+ 
         return queryset
     
     def check_final_exam_constraint(self, subject, instance=None):
@@ -2203,9 +2211,9 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = ExamResult.all_objects.select_related(
-            'exam', 'exam__component', 'exam__subject', 'exam__subject__class_obj',
-            'student', 'graded_by'
-        ).all()
+       'exam', 'exam__component', 'exam__subject', 'exam__subject__class_obj',
+       'exam__subject__class_obj__course', 'student', 'graded_by'
+   ).all()
         user = self.request.user
 
         if not user.is_authenticated:

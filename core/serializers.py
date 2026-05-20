@@ -998,8 +998,8 @@ class ExamSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
-    average_score = serializers.SerializerMethodField()
-    submission_count = serializers.SerializerMethodField()
+    average_score = serializers.FloatField(source='_avg_score', read_only=True, default=0)
+    submission_count = serializers.IntegerField(source='_sub_count', read_only=True, default=0)
     attachments = ExamAttachmentSerializer(many=True, read_only=True)
 
     component_name = serializers.CharField(
@@ -1034,19 +1034,6 @@ class ExamSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
-
-    def get_submission_count(self, obj):
-        if hasattr(obj, '_submitted_results'):
-            return len(obj._submitted_results)
-        return obj.submission_count
-
-    def get_average_score(self, obj):
-        if hasattr(obj, '_submitted_results'):
-            results = [r for r in obj._submitted_results if r.marks_obtained is not None]
-            if not results:
-                return 0
-            return sum(r.marks_obtained for r in results) / len(results)
-        return obj.average_score
 
     def validate_exam_date(self, value):
         if not self.instance and value < timezone.now().date():
@@ -1254,7 +1241,6 @@ class AssessmentComponentSerializer(serializers.ModelSerializer):
             })
         return attrs
 
-
 class StudentComponentResultSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(
         source='student.get_full_name', read_only=True
@@ -1314,7 +1300,6 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
                 )
         return value
 
-
 class SubjectEvaluationSerializer(serializers.Serializer):
     subject_id = serializers.CharField()
     subject_name = serializers.CharField()
@@ -1326,7 +1311,6 @@ class SubjectEvaluationSerializer(serializers.Serializer):
     component_results = serializers.ListField(child=serializers.DictField())
     failed_critical = serializers.ListField(child=serializers.CharField())
     retake_required = serializers.ListField(child=serializers.DictField())
-
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
 

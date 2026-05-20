@@ -323,25 +323,33 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             components = AssessmentComponent.all_objects.filter(
                 subject=subject, is_active=True,
             ).order_by('sort_order', 'name')
-
-            for comp in components:
-                comp_results = StudentComponentResult.all_objects.filter(
-                    component=comp,
+ 
+            comp_stats = (
+                StudentComponentResult.all_objects
+                .filter(
+                    component__subject=subject,
+                    component__is_active=True,
                     is_submitted=True,
                     marks_obtained__isnull=False,
                 )
-                comp_agg = comp_results.aggregate(
+                .values('component_id')
+                .annotate(
                     total_count=Count('id'),
                     avg_pct=Avg('percentage'),
                     max_pct=Max('percentage'),
                     min_pct=Min('percentage'),
                     passing=Count('id', filter=Q(status='PASS')),
                 )
-                comp_tc = comp_agg['total_count'] or 0
+            )
+            stats_map = {s['component_id']: s for s in comp_stats}
+ 
+            for comp in components:
+                s = stats_map.get(comp.id, {})
+                comp_tc = s.get('total_count', 0) or 0
                 comp_pass_rate = (
-                    (comp_agg['passing'] or 0) / comp_tc * 100
+                    (s.get('passing', 0) or 0) / comp_tc * 100
                 ) if comp_tc else 0
-
+ 
                 component_breakdown.append({
                     'component_id': str(comp.id),
                     'component_name': comp.name,
@@ -350,10 +358,10 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     'pass_mark': float(comp.pass_mark),
                     'weight': float(comp.weight),
                     'students_graded': comp_tc,
-                    'average_percentage': round(comp_agg['avg_pct'] or 0, 2),
+                    'average_percentage': round(s.get('avg_pct') or 0, 2),
                     'pass_rate': round(comp_pass_rate, 2),
-                    'highest_score': round(comp_agg['max_pct'] or 0, 2),
-                    'lowest_score': round(comp_agg['min_pct'] or 0, 2),
+                    'highest_score': round(s.get('max_pct') or 0, 2),
+                    'lowest_score': round(s.get('min_pct') or 0, 2),
                 })
 
         data = {
