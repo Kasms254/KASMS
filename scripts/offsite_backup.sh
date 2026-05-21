@@ -72,8 +72,11 @@ docker compose exec -T db \
 DB_SIZE=$(du -sh "${STAGING_DIR}/${DB_BACKUP_NAME}" | cut -f1)
 echo "[offsite-backup]   Database backup: ${DB_SIZE}"
 
-# Integrity check
-TABLE_COUNT=$(pg_restore --list < "${STAGING_DIR}/${DB_BACKUP_NAME}" | grep -c "TABLE DATA" || true)
+# Integrity check — run pg_restore inside the db container (not installed on host)
+TABLE_COUNT=$(docker compose exec -T db \
+    pg_restore --list \
+    < "${STAGING_DIR}/${DB_BACKUP_NAME}" 2>/dev/null \
+    | grep -c "TABLE DATA" || true)
 if [ "${TABLE_COUNT}" -lt 5 ]; then
     alert "Integrity check failed: only ${TABLE_COUNT} table dumps found. Aborting upload."
     exit 1
