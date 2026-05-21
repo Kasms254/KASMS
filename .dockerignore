@@ -41,7 +41,6 @@ node_modules/
 # Docker / deployment
 docker-compose*.yml
 Dockerfile*
-nginx/
 certbot/
 
 # Secrets (NEVER bake these into an image)
@@ -68,9 +67,15 @@ Thumbs.db
 *.md
 README*
 
-# Scripts (not needed inside container, entrypoint is copied explicitly)
+# Scripts (not needed inside container, entrypoints are copied explicitly)
 scripts/
 !scripts/entrypoint.sh
+!scripts/nginx-entrypoint.sh
+
+# Nginx config (needed by nginx Dockerfile build)
+nginx/
+!nginx/nginx.conf
+!nginx/templates/
 
 # Misc
 backup.json

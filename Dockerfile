@@ -1,5 +1,5 @@
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,7 +25,7 @@ RUN python -m venv /venv && \
 # Stage 2: Production Runtime
 # Lean image with only what Django needs to run. No compilers, no dev headers.
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 # Runtime-only system packages:
 #   libcairo2 / libpango-* / libgdk-pixbuf2.0-0 – WeasyPrint / pycairo at runtime

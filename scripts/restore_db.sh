@@ -2,26 +2,28 @@
 # =============================================================================
 # PostgreSQL Database Restore – KASMS
 #
-# Run this on the NEW server AFTER docker compose up -d db.
+# Run this on the server from /var/www/KASMS.
 #
 # Usage:
 #   chmod +x scripts/restore_db.sh
-#   ./scripts/restore_db.sh kasms_backup_20260423_140000.sql.gz
+#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump
 #
 # What this script does:
 #   1. Verifies the backup file is readable
-#   2. Waits for the PostgreSQL Docker container to be ready
-#   3. Drops and recreates the database (clean slate)
-#   4. Restores the backup
-#   5. Verifies row counts in key tables
+#   2. Stops backend services so no sessions are open
+#   3. Waits for the PostgreSQL Docker container to be ready
+#   4. Drops and recreates the database (clean slate)
+#   5. Restores the backup using pg_restore (custom format)
+#   6. Verifies row counts in key tables
+#   7. Restarts backend services
 # =============================================================================
 set -euo pipefail
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
 BACKUP_FILE="${1:-}"
 if [ -z "${BACKUP_FILE}" ]; then
-    echo "Usage: $0 <backup_file.sql.gz>"
-    echo "Example: $0 kasms_backup_20260423_140000.sql.gz"
+    echo "Usage: $0 <backup_file.dump>"
+    echo "Example: $0 /var/backups/kasms/db_20260518_010000.dump"
     exit 1
 fi
 
@@ -37,7 +39,6 @@ fi
 
 DB_NAME="${DB_NAME:-kasms_db}"
 DB_USER="${DB_USER:-kasms_user}"
-DB_PASSWORD="${DB_PASSWORD}"
 COMPOSE_SERVICE="db"
 BACKUP_SIZE=$(du -sh "${BACKUP_FILE}" | cut -f1)
 
@@ -57,8 +58,12 @@ if [ "${CONFIRM}" != "yes" ]; then
     exit 1
 fi
 
-# ── Wait for PostgreSQL to be ready ──────────────────────────────────────────
+# ── Stop application services to close all DB connections ─────────────────────
 echo ""
+echo "[restore] Stopping backend services..."
+docker compose stop backend celery_worker celery_beat || true
+
+# ── Wait for PostgreSQL to be ready ──────────────────────────────────────────
 echo "[restore] Waiting for PostgreSQL container to be ready..."
 until docker compose exec -T "${COMPOSE_SERVICE}" \
     pg_isready -U "${DB_USER}" -d postgres -q; do
@@ -80,11 +85,14 @@ docker compose exec -T "${COMPOSE_SERVICE}" \
 
 # ── Restore the backup ────────────────────────────────────────────────────────
 echo "[restore] Restoring backup (this may take several minutes for large databases)..."
-gunzip -c "${BACKUP_FILE}" | docker compose exec -T "${COMPOSE_SERVICE}" \
-    psql -U "${DB_USER}" -d "${DB_NAME}" \
-    --single-transaction \
-    -v ON_ERROR_STOP=0 \
-    2>&1 | grep -v "^SET$\|^--\|already exists\|^$" || true
+docker compose exec -T "${COMPOSE_SERVICE}" \
+    pg_restore \
+    --username="${DB_USER}" \
+    --dbname="${DB_NAME}" \
+    --no-owner \
+    --no-acl \
+    --format=custom \
+    < "${BACKUP_FILE}" || true
 
 echo ""
 echo "[restore] Restore pipeline completed."
@@ -97,18 +105,20 @@ docker compose exec -T "${COMPOSE_SERVICE}" \
     -c "
 SELECT
     schemaname,
-    tablename,
+    relname,
     n_live_tup AS row_count
 FROM pg_stat_user_tables
 ORDER BY n_live_tup DESC
 LIMIT 20;
 "
 
+# ── Restart application services ──────────────────────────────────────────────
+echo ""
+echo "[restore] Restarting backend services..."
+docker compose start backend celery_worker celery_beat
+
 echo ""
 echo "============================================================"
 echo "  Restore COMPLETE."
-echo "  Next steps:"
-echo "    1. Start backend:  docker compose up -d backend"
-echo "    2. Migrations run automatically on backend startup."
-echo "    3. Check logs:     docker compose logs -f backend"
+echo "  Check logs: docker compose logs -f backend"
 echo "============================================================"

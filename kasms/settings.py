@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "core",
+    "django_celery_beat",
     # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
@@ -117,10 +118,7 @@ CACHES = {
             else "django.core.cache.backends.locmem.LocMemCache",
         ),
         "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
-        "TIMEOUT": 300,  
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,
-        },
+        "TIMEOUT": 300,
     }
 }
 
