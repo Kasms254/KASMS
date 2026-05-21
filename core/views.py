@@ -1961,13 +1961,22 @@ class ExamViewSet(viewsets.ModelViewSet):
  
         return queryset
     
-    def check_final_exam_constraint(self, subject, instance=None):
+    def check_final_exam_constraint(self, subject, component=None, instance=None):
         qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+        if subject.grading_mode == 'POLICY' and component:
+            qs = qs.filter(component=component)
+        else:
+            qs = qs.filter(component__isnull=True)
         if instance:
-            qs  = qs.exclude(pk=instance.pk)
+            qs = qs.exclude(pk=instance.pk)
         if qs.exists():
-            
-            raise ValidationError("Theres already an existing final exam for this subject")
+            if component:
+                raise ValidationError(
+                    "There is already an existing final exam for this component."
+                )
+            raise ValidationError(
+                "There is already an existing final exam for this subject."
+            )
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
@@ -1997,10 +2006,12 @@ class ExamViewSet(viewsets.ModelViewSet):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
         exam_type = serializer.validated_data.get('exam_type', serializer.instance.exam_type)
         is_active = serializer.validated_data.get('is_active', serializer.instance.is_active)
-
+        component = serializer.validated_data.get('component', serializer.instance.component)
 
         if exam_type == 'final' and is_active:
-            self.check_final_exam_constraint(subject, instance = serializer.instance)
+            self.check_final_exam_constraint(
+                subject, component=component, instance=serializer.instance
+            )
 
         serializer.save()
         

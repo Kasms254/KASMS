@@ -1047,11 +1047,21 @@ class ExamSerializer(serializers.ModelSerializer):
         is_active = data.get('is_active', True)
 
      
-        if exam_type == 'final' and is_active:
+        if exam_type == 'final' and is_active and subject:
             qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+            if subject.grading_mode == 'POLICY' and component:
+                # POLICY subjects: one final per component
+                qs = qs.filter(component=component)
+            else:
+                # LEGACY subjects: one final per subject (no component)
+                qs = qs.filter(component__isnull=True)
             if self.instance:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
+                if component:
+                    raise serializers.ValidationError({
+                        "exam_type": "There is already an active Final Exam for this component."
+                    })
                 raise serializers.ValidationError({
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
@@ -2703,8 +2713,6 @@ class OICDashboardClassSerializer(serializers.ModelSerializer):
     def get_subject_count(self, obj):
         return obj.subjects.filter(is_active=True).count()
 
-# ── Attendance serializers ──
-
 class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
@@ -2795,7 +2803,6 @@ class BiometricDeviceSerializer(serializers.ModelSerializer):
         elif delta < 600:
             return 'Delayed'
         return 'Offline'
-
 
 class BiometricUserMappingSerializer(serializers.ModelSerializer):
     student = serializers.PrimaryKeyRelatedField(

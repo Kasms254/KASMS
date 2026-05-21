@@ -1008,7 +1008,7 @@ class Enrollment(models.Model):
         super().save(*args, **kwargs)
 # instructor
 class Exam(models.Model):
-    EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project')]
+    EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project'), ('practical', 'Practical'), ('theory', 'Theory')]
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exams', null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     component = models.ForeignKey(
