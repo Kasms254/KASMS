@@ -419,12 +419,18 @@ class User(AbstractUser):
     ]
     RANK_CHOICES = [
         ('private', 'Private'),
+        ('CIII', 'Constable'),
         ('lance_corporal', 'Lance Corporal'),
+        ('CII', 'CII_Corporal'),
         ('corporal', 'Corporal'),
+        ('CI', 'CI_Sergeant'),
         ('sergeant', 'Sergeant'),
         ('senior_sergeant', 'Senior Sergeant'),
+        ('HCII', 'HCII_Warrant Officer II'),
         ('warrant_officer_ii', 'Warrant Officer II'),
+        ('HCI', 'HCI_Warrant Officer I'),
         ('warrant_officer_i', 'Warrant Officer I'),
+        ('2nd_lieutenant', '2nd Lieutenant'),
         ('lieutenant', 'Lieutenant'),
         ('captain', 'Captain'),
         ('major', 'Major'),
@@ -434,6 +440,7 @@ class User(AbstractUser):
         ('major_general', 'Major General'),
         ('lieutenant_general', 'Lieutenant General'),
         ('general', 'General'),
+        ('civ', 'Civilian'),
     ]
 
     must_change_password = models.BooleanField(default=True)

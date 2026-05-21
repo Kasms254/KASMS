@@ -15,17 +15,28 @@ const roles = [
 
 const ranks = [
   { value: 'general', label: 'General' },
+  { value: 'lieutenant_general', label: 'Lieutenant General' },
+  { value: 'major_general', label: 'Major General' },
+  { value: 'brigadier', label: 'Brigadier' },
+  { value: 'colonel', label: 'Colonel' },
   { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
@@ -413,22 +424,9 @@ export default function AddUser({ onSuccess } = {}) {
                   }`}
                 >
                   <option value="" disabled>-- Select a rank --</option>
-                  <option value="general">General</option>
-                  <option value="lieutenant_general">Lieutenant General</option>
-                  <option value="major_general">Major General</option>
-                  <option value="brigadier">Brigadier</option>
-                  <option value="colonel">Colonel</option>
-                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
-                  <option value="major">Major</option>
-                  <option value="captain">Captain</option>
-                  <option value="lieutenant">Lieutenant</option>
-                  <option value="warrant_officer_i">Warrant Officer I</option>
-                  <option value="warrant_officer_ii">Warrant Officer II</option>
-                  <option value="senior_sergeant">Senior Sergeant</option>
-                  <option value="sergeant">Sergeant</option>
-                  <option value="corporal">Corporal</option>
-                  <option value="lance_corporal">Lance Corporal</option>
-                  <option value="private">Private</option>
+                  {ranks.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
                 {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>
