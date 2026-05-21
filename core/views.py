@@ -971,6 +971,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = []
     search_fields = ['name', 'description', 'code']
