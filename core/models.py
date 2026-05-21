@@ -2261,3 +2261,265 @@ class OICRemark(models.Model):
         if not self.school and self.class_obj:
             self.school = self.class_obj.school
         super().save(*args, **kwargs)
+
+
+# course reports
+class CourseReport(models.Model):
+
+    STATUS_CHOICES =[
+        ('instructor_draft', 'Instructor Draft'),
+        ('instructor_submitted', 'Instructor Submitted'),
+        ('oic_draft', 'OIC Draft'),
+        ('oic_submitted', 'OIC Submitted'),
+        ('ci_draft', 'Chief Instructor Draft'),
+        ('ci_submitted', 'Chief Instructor Submitted'),
+        ('commandant_draft', 'Commandant Draft'),
+        ('approved', 'Approved'),
+    ]
+
+    ROLE_WRITE_STATUS = {
+        'instructor':       ('instructor_draft',),
+        'oic':              ('oic_draft',),
+        'chief_instructor': ('ci_draft',),
+        'commandant':       ('commandant_draft',),
+    }
+
+    VALID_TRANSITIONS ={
+        'instructor_draft':      'instructor_submitted',
+        'instructor_submitted':  'oic_draft',
+        'oic_draft':             'oic_submitted',
+        'oic_submitted':         'ci_draft',
+        'ci_draft':              'ci_submitted',
+        'ci_submitted':          'commandant_draft',
+        'commandant_draft':      'approved',
+    }
+
+    SUBMIT_REQUIRES_STAGE = {
+        'instructor_draft':  'instructor',
+        'oic_draft':         'oic',
+        'ci_draft':          'chief_instructor',
+        'commandant_draft':  'commandant',
+    }
+
+    SUBMIT_ROLE_STATUS = {
+        'instructor':       'instructor_draft',
+        'oic':              'oic_draft',
+        'chief_instructor': 'ci_draft',
+        'commandant':       'commandant_draft',
+    }
+
+    ADVANCE_ROLE_STATUS = {
+        'oic':              'instructor_submitted',
+        'chief_instructor': 'oic_submitted',
+        'commandant':       'ci_submitted',
+    }
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='course_reports',
+    )
+
+    enrollment = models.ForeignKey(
+        'Enrollment', on_delete=models.PROTECT,
+        related_name='course_reports',
+        help_text = 'The specific student enrollment this report is for.'
+    )
+
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='course_reports',
+        help_text='Denormalized from enrollment for efficient filtering.',
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='instructor_draft',
+        db_index=True,
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_reports_created',
+    )
+    report_file = models.FileField(
+        upload_to='course_reports/pdf/',
+        null=True, blank=True,
+        help_text='Generated PDF after final approval.',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+ 
+    objects = SimpleTenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'course_reports'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['enrollment'],
+                condition=models.Q(is_active=True),
+                name='unique_active_report_per_enrollment',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['class_obj', 'status']),
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['enrollment', 'is_active']),
+            models.Index(fields=['status', 'is_active']),
+        ]
+
+    def __str__(self):
+            return (
+                f"CourseReport: {self.enrollment.student.username} "
+                f"in {self.class_obj} [{self.status}]"
+            )
+ 
+    def save(self, *args, **kwargs):
+            if self.enrollment_id:
+                if not self.school_id:
+                    self.school = self.enrollment.school
+                if not self.class_obj_id:
+                    self.class_obj = self.enrollment.class_obj
+            super().save(*args, **kwargs)
+    
+    def can_transition_to(self, new_status):
+            return self.VALID_TRANSITIONS.get(self.status) == new_status
+    
+    def get_visible_stages_for_role(self, role):
+
+            all_stages = ['instructor', 'oic', 'chief_instructor', 'commandant']
+            visibility = {
+                'instructor':       ['instructor'],
+                'oic':              ['instructor', 'oic'],
+                'chief_instructor': ['instructor', 'oic', 'chief_instructor'],
+                'commandant':       all_stages,
+                'admin':            all_stages,
+                'superadmin':       all_stages,
+            }
+            return visibility.get(role, [])
+
+class CourseReportStageRemark(models.Model):
+
+    STAGE_CHOICES = [
+        ('instructor', 'Instructor'),
+        ('oic', 'OIC'),
+        ('chief_instructor', 'Chief Instructor'),
+        ('commandant', 'Commandant'),
+    ]
+ 
+    PREREQUISITE_STAGE = {
+        'oic':              'instructor',
+        'chief_instructor': 'oic',
+        'commandant':       'chief_instructor',
+    }
+ 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        CourseReport, on_delete=models.CASCADE,
+        related_name='stage_remarks',
+    )
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, db_index=True)
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_report_remarks',
+    )
+    content = models.TextField(
+        help_text='The remark/assessment text for this student.',
+    )
+    is_submitted = models.BooleanField(
+        default=False,
+        help_text='Once True, this remark is locked and cannot be edited.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+ 
+    objects = models.Manager() 
+ 
+    class Meta:
+        db_table = 'course_report_stage_remarks'
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['report', 'stage'],
+                name='unique_stage_per_report',
+            ),
+        ]
+ 
+    def __str__(self):
+        return f"{self.stage} remark on {self.report_id} ({'submitted' if self.is_submitted else 'draft'})"
+ 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                existing = CourseReportStageRemark.objects.get(pk=self.pk)
+                if existing.is_submitted:
+                    raise ValidationError(
+                        f"Cannot edit a submitted {self.stage} remark."
+                    )
+            except CourseReportStageRemark.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+
+class CourseReportAuditLog(models.Model):
+
+    ACTION_CHOICES = [
+        ('created', 'Report Created'),
+        ('bulk_created', 'Bulk Reports Created'),
+        ('remark_saved', 'Remark Saved'),
+        ('remark_submitted', 'Remark Submitted'),
+        ('status_changed', 'Status Changed'),
+        ('bulk_submitted', 'Bulk Submitted'),
+        ('approved', 'Report Approved'),
+        ('pdf_generated', 'PDF Generated'),
+        ('pdf_downloaded', 'PDF Downloaded'),
+    ]
+ 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        CourseReport, on_delete=models.CASCADE,
+        related_name='audit_logs',
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_report_audit_actions',
+    )
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text='Additional context: old_status, new_status, stage, etc.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+ 
+    objects = models.Manager()
+ 
+    class Meta:
+        db_table = 'course_report_audit_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['report', 'action']),
+            models.Index(fields=['performed_by', 'created_at']),
+        ]
+ 
+    def __str__(self):
+        return f"{self.action} on {self.report_id} by {self.performed_by}"
+ 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                CourseReportAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except CourseReportAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+ 
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
+ 

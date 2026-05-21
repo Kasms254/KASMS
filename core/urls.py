@@ -45,6 +45,7 @@ from .commandant_views import (
 )
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
+from .course_report_views import CourseReportViewSet
 
 router = DefaultRouter()
 
@@ -133,6 +134,9 @@ oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-rem
 # biometric
 router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
 router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
+
+# course-report
+router.register(r'course-reports', CourseReportViewSet, basename='course-report')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")

@@ -74,7 +74,6 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         if request.user.role == 'superadmin':
             return True
 
-        # Enforce school isolation on all operations, including reads
         if hasattr(obj, 'school') and obj.school:
             if obj.school != request.user.school:
                 return False
@@ -286,7 +285,6 @@ class IsChiefInstructor(BasePermission):
             and request.user.role == 'chief_instructor'
         )
 
-
 class IsCommandantOrChiefInstructor(BasePermission):
 
     message = "Only Commandant, Chief Instructor, or Admin can access this."
@@ -318,7 +316,6 @@ class ReadOnlyForCommandantOrChiefInstructor(BasePermission):
         return False
 
 # oic
-
 class IsOIC(BasePermission):
 
     message = 'Only an Officer in Charge (OIC) can perform this action.'
@@ -396,3 +393,27 @@ class ReadOnlyForOIC(BasePermission):
             return request.method in SAFE_METHODS
 
         return False
+
+
+class IsCourseReportParticipant(BasePermission):
+
+    ALLOWED_ROLES={
+        'instructor', 'oic', 'chief_instructor', 'commandant', 'admin', 'superadmin',
+    }
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        return role in self.ALLOWED_ROLES
+
+
+class CanWriteCourseReportRemark(BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        allowed_statuses = CourseReport.ROLE_WRITE_STATUSES.get(role, ())
+        return obj.status in allowed_statuses
+
+        

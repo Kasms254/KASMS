@@ -3,7 +3,7 @@ from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
     ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, TwoFactorCode,
-    Department, DepartmentMembership, ResultEditRequest, AssessmentComponent, StudentComponentResult
+    Department,CourseReportStageRemark,CourseReportAuditLog, CourseReport, DepartmentMembership, ResultEditRequest, AssessmentComponent, StudentComponentResult
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -356,7 +356,6 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
 
 # oic
-
 class OICAssignmentAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ('oic', 'class_obj', 'is_active', 'assigned_by', 'assigned_at')
     list_filter = ('is_active', 'school')
@@ -446,3 +445,69 @@ class StudentComponentResultAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+# course report
+class CourseReportStageRemarkInline(admin.TabularInline):
+    model = CourseReportStageRemark
+    extra = 0
+    readonly_fields = ('id', 'stage', 'author', 'content', 'is_submitted', 'created_at', 'updated_at')
+    can_delete = False
+ 
+    def has_add_permission(self, request, obj=None):
+        return False
+ 
+class CourseReportAuditLogInline(admin.TabularInline):
+    model = CourseReportAuditLog
+    extra = 0
+    readonly_fields = ('id', 'action', 'performed_by', 'metadata', 'created_at')
+    can_delete = False
+ 
+    def has_add_permission(self, request, obj=None):
+        return False
+ 
+@admin.register(CourseReport)
+class CourseReportAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'get_student_name', 'get_class_name',
+        'status', 'is_active', 'created_at',
+    )
+    list_filter = ('status', 'is_active', 'school', 'class_obj')
+    search_fields = (
+        'enrollment__student__username',
+        'enrollment__student__first_name',
+        'enrollment__student__last_name',
+        'enrollment__student__svc_number',
+        'class_obj__name',
+        'class_obj__course__name',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('enrollment', 'class_obj', 'school', 'created_by')
+    inlines = [CourseReportStageRemarkInline, CourseReportAuditLogInline]
+ 
+    def get_student_name(self, obj):
+        student = obj.enrollment.student
+        return f"{student.first_name} {student.last_name}".strip() or student.username
+    get_student_name.short_description = 'Student'
+ 
+    def get_class_name(self, obj):
+        return str(obj.class_obj)
+    get_class_name.short_description = 'Class'
+ 
+@admin.register(CourseReportStageRemark)
+class CourseReportStageRemarkAdmin(admin.ModelAdmin):
+    list_display = ('id', 'report', 'stage', 'author', 'is_submitted', 'created_at')
+    list_filter = ('stage', 'is_submitted')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('report', 'author')
+ 
+@admin.register(CourseReportAuditLog)
+class CourseReportAuditLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'report', 'action', 'performed_by', 'created_at')
+    list_filter = ('action',)
+    readonly_fields = ('id', 'report', 'action', 'performed_by', 'metadata', 'created_at')
+ 
+    def has_change_permission(self, request, obj=None):
+        return False
+ 
+    def has_delete_permission(self, request, obj=None):
+        return False
