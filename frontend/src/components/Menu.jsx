@@ -203,6 +203,12 @@ const menuItems = [
         visible: ['commandant', 'chief_instructor'],
       },
       {
+        icon: 'FileText',
+        label: 'Course Reports',
+        href: '/commandant/course-reports',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
         icon: 'UserCheck',
         label: 'Attendance',
         href: '/commandant/attendance',
@@ -254,6 +260,12 @@ const menuItems = [
         icon: 'FileBarChart',
         label: 'Exam Reports',
         href: '/list/exam-reports',
+        visible: ['admin', 'instructor'],
+      },
+      {
+        icon: 'FileText',
+        label: 'Course Reports',
+        href: '/list/course-reports',
         visible: ['admin', 'instructor'],
       },
       
@@ -343,6 +355,12 @@ const menuItems = [
         icon: 'FileBarChart',
         label: 'Exam Reports',
         href: '/oic/exam-reports',
+        visible: ['oic'],
+      },
+      {
+        icon: 'FileText',
+        label: 'Course Reports',
+        href: '/oic/course-reports',
         visible: ['oic'],
       },
       {
