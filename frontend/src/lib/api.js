@@ -2028,6 +2028,57 @@ export async function evaluateStudentSubject(subjectId, studentId) {
   return request(`/api/subjects/${encodeURIComponent(subjectId)}/evaluate_student/?student_id=${encodeURIComponent(studentId)}`)
 }
 
+// ── Course Reports ─────────────────────────────────────────────────────────────
+
+export async function getCourseReports(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/course-reports/${qs}`)
+}
+
+export async function getCourseReportDetail(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/`)
+}
+
+export async function bulkCreateCourseReports(classId) {
+  return request('/api/course-reports/bulk-create/', { method: 'POST', body: { class_obj: classId } })
+}
+
+export async function saveCourseReportRemark(id, content) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/save-remark/`, { method: 'POST', body: { content } })
+}
+
+export async function submitCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/submit/`, { method: 'POST', body: {} })
+}
+
+export async function advanceCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/advance/`, { method: 'POST', body: {} })
+}
+
+export async function bulkSubmitCourseReports(classId) {
+  return request('/api/course-reports/bulk-submit/', { method: 'POST', body: { class_id: classId } })
+}
+
+export async function bulkAdvanceCourseReports(classId) {
+  return request('/api/course-reports/bulk-advance/', { method: 'POST', body: { class_id: classId } })
+}
+
+export async function downloadCourseReport(id) {
+  const url = `${API_BASE}/api/course-reports/${encodeURIComponent(id)}/download/`
+  const csrf = getCsrfToken()
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRFToken': csrf } : {},
+  })
+  if (!res.ok) throw new Error('Failed to download report')
+  return res.blob()
+}
+
+export async function getCourseReportAuditLog(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/audit-log/`)
+}
+
 export default {
   login,
   changePassword,
@@ -2306,6 +2357,17 @@ export default {
   deleteOICAssignment,
   bulkAssignOIC,
   getOICUsers,
+  // Course Reports
+  getCourseReports,
+  getCourseReportDetail,
+  bulkCreateCourseReports,
+  saveCourseReportRemark,
+  submitCourseReport,
+  advanceCourseReport,
+  bulkSubmitCourseReports,
+  bulkAdvanceCourseReports,
+  downloadCourseReport,
+  getCourseReportAuditLog,
   getAssessmentComponents,
   getComponentsBySubject,
   getComponentWeightSummary,
