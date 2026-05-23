@@ -1935,7 +1935,6 @@ class ExamViewSet(viewsets.ModelViewSet):
                         filter=Q(
                             component__student_results__is_submitted=True,
                             component__student_results__marks_obtained__isnull=False,
-                            # Only the latest attempt per student (retake supersedes original)
                             component__student_results__id=Subquery(
                                 StudentComponentResult.all_objects.filter(
                                     component_id=OuterRef('component_id'),

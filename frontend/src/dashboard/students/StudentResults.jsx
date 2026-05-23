@@ -688,10 +688,7 @@ export default function StudentResults() {
         }
       }
 
-      // ── DEDUPLICATION ────────────────────────────────────────────────────
-      // For POLICY component exams a retake creates a new ExamResult for the
-      // same component (same component_id). Keep only the latest attempt per
-      // component; pure legacy rows (no component_id) are kept as-is.
+
       function dedupeByComponent(resultRows) {
         const latestByComp = {}
         const legacyRows = []
@@ -712,11 +709,7 @@ export default function StudentResults() {
         return [...legacyRows, ...Object.values(latestByComp)]
       }
 
-      // ── SUBJECT GROUPING ─────────────────────────────────────────────────
-      // After component-level dedup, collapse multiple rows for the same
-      // subject into one aggregated row (sum marks, recompute percentage).
-      // This handles legacy ExamResult rows where component_id is null —
-      // dedupeByComponent cannot group those, so we group by subject key here.
+
       function groupBySubject(resultRows) {
         const afterCompDedup = dedupeByComponent(resultRows)
         const subjectMap = {}
@@ -822,7 +815,6 @@ export default function StudentResults() {
         finalisePages(classLabel)
       }
 
-      // Generate filename
       const dateStr = new Date().toISOString().split('T')[0]
       const nameSlug = studentName.toLowerCase().replace(/\s+/g, '-')
       let filename = `transcript-${nameSlug}`
@@ -913,7 +905,6 @@ export default function StudentResults() {
     let possible = 0
     currentClassSubjects.forEach(s => {
       const allResults = componentResultsMap[s.id]?.results ?? []
-      // Deduplicate: keep only the final attempt per component (same logic as unifiedResults)
       const finalByComponent = {}
       allResults
         .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
@@ -966,9 +957,7 @@ export default function StudentResults() {
         is_retake: false,
       }))
 
-    // Detect retakes in legacy rows: same component_id attempted more than once.
-    // Sort each group by date; all but the latest are "original", the latest is the retake.
-    const legacyByComp = {}
+  
     legacyRows.forEach(r => {
       if (r.component_id) {
         if (!legacyByComp[r.component_id]) legacyByComp[r.component_id] = []
@@ -1007,13 +996,10 @@ export default function StudentResults() {
             if (!prev) {
               finalByComponent[key] = r
             } else if (r.is_retake && !prev.is_retake) {
-              // Retake supersedes original
               finalByComponent[key] = r
             } else if (r.is_retake && prev.is_retake && r.id > prev.id) {
-              // Multiple retakes: keep latest
               finalByComponent[key] = r
             }
-            // Original never supersedes a retake
           })
 
         Object.values(finalByComponent).forEach(r => {
@@ -1148,7 +1134,6 @@ export default function StudentResults() {
 
                       const groups = {}
 
-                      // Add legacy ExamResult rows
                       for (const r of all) {
                         const classId = r.class_id
                         if (!groups[classId]) {
@@ -1166,7 +1151,6 @@ export default function StudentResults() {
                         })
                       }
 
-                      // Merge POLICY StudentComponentResult rows (normalized to same shape)
                       componentSubjects.forEach(s => {
                         const classId = s.class_obj?.id ?? s.class_obj ?? s.class_id
                         if (!classId) return

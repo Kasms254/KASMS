@@ -324,7 +324,6 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 subject=subject, is_active=True,
             ).order_by('sort_order', 'name')
 
-            # Latest result per student per component (retake supersedes original)
             latest_result_ids = list(
                 StudentComponentResult.all_objects
                 .filter(
@@ -373,8 +372,6 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     'lowest_score': round(s.get('min_pct') or 0, 2),
                 })
 
-            # Compute per-student weighted averages for top performers & grade distribution
-            # Reuse latest_result_ids so retakes are used instead of originals
             comp_rows = list(
                 StudentComponentResult.all_objects
                 .filter(id__in=latest_result_ids)

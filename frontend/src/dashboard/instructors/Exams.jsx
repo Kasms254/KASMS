@@ -189,8 +189,7 @@ export default function Exams() {
       return
     }
 
-    // Client-side unique constraint check: subject + exam_date must be unique
-    // Skip for POLICY subjects — each component is checked separately below
+
     try {
       if (currentGradingModeCheck !== 'POLICY') {
         const same = exams.find(x => {
