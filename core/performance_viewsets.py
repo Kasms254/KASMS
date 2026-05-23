@@ -121,6 +121,80 @@ def _subject_session_counts(class_obj):
     return {r['subject_id']: r['cnt'] for r in rows}
 
 
+def _get_policy_subject_stats(policy_subjects):
+    """
+    Compute per-subject class stats and per-student marks for POLICY subjects
+    from StudentComponentResult (latest attempt per student per component).
+
+    Returns:
+        subject_stats: {subject_id: {avg, pass_rate, highest, lowest, student_count}}
+        student_marks: {student_id: {subject_id: {marks, possible, pct}}}
+    """
+    subject_stats = {}
+    student_marks = {}
+
+    for subj in policy_subjects:
+        latest_ids = list(
+            StudentComponentResult.all_objects
+            .filter(
+                component__subject=subj,
+                component__is_active=True,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+                attempt_number=Subquery(
+                    StudentComponentResult.all_objects.filter(
+                        student_id=OuterRef('student_id'),
+                        component_id=OuterRef('component_id'),
+                        is_submitted=True,
+                        marks_obtained__isnull=False,
+                    ).order_by('-attempt_number').values('attempt_number')[:1]
+                ),
+            )
+            .values_list('id', flat=True)
+        )
+        comp_rows = list(
+            StudentComponentResult.all_objects
+            .filter(id__in=latest_ids)
+            .values('student_id', 'component__weight', 'percentage',
+                    'marks_obtained', 'component__total_marks')
+        )
+
+        student_wdata = {}
+        for r in comp_rows:
+            s_id = r['student_id']
+            if s_id not in student_wdata:
+                student_wdata[s_id] = {'ws': 0.0, 'wt': 0.0, 'marks': 0.0, 'possible': 0.0}
+            w = float(r['component__weight'] or 0)
+            student_wdata[s_id]['ws'] += float(r['percentage'] or 0) * w
+            student_wdata[s_id]['wt'] += w
+            student_wdata[s_id]['marks'] += float(r['marks_obtained'] or 0)
+            student_wdata[s_id]['possible'] += float(r['component__total_marks'] or 0)
+
+        student_pcts = []
+        for s_id, wdata in student_wdata.items():
+            if wdata['wt'] > 0:
+                pct = wdata['ws'] / wdata['wt']
+                if s_id not in student_marks:
+                    student_marks[s_id] = {}
+                student_marks[s_id][subj.id] = {
+                    'marks': wdata['marks'],
+                    'possible': wdata['possible'],
+                    'pct': pct,
+                }
+                student_pcts.append(pct)
+
+        n = len(student_pcts)
+        subject_stats[subj.id] = {
+            'avg': (sum(student_pcts) / n) if n else 0,
+            'pass_rate': (sum(1 for p in student_pcts if p >= 50) / n * 100) if n else 0,
+            'highest': max(student_pcts, default=0),
+            'lowest': min(student_pcts, default=0),
+            'student_count': n,
+        }
+
+    return subject_stats, student_marks
+
+
 def _get_school_from_request(request):
     return getattr(request, 'school', None)
 
@@ -516,20 +590,38 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         sam = {r['session__subject_id']: r['actual'] for r in subj_att}
         ssc = _subject_session_counts(class_obj)
 
+        # Compute POLICY subject averages from StudentComponentResult
+        policy_subjects_list = [s for s in subjects if s.grading_mode == 'POLICY']
+        policy_subj_stats, policy_student_marks = (
+            _get_policy_subject_stats(policy_subjects_list)
+            if policy_subjects_list else ({}, {})
+        )
+
         comparison = []
         for subj in subjects:
             sid = subj.id
-            es = sem.get(sid, {})
-            tm = float(es.get('tm', 0) or 0)
-            tp = es.get('tp', 0) or 0
-            rc = es.get('rc', 0)
-            pc = es.get('pc', 0)
-            avg = (tm / tp * 100) if tp else 0
-            pr = (pc / rc * 100) if rc else 0
             sc = ssc.get(sid, 0)
             exp = enrolled * sc
             act = sam.get(sid, 0)
             ar = (act / exp * 100) if exp else 0
+
+            if subj.grading_mode == 'POLICY':
+                ps = policy_subj_stats.get(sid, {})
+                avg = ps.get('avg', 0)
+                pr = ps.get('pass_rate', 0)
+                rc = ps.get('student_count', 0)
+                highest = ps.get('highest', 0)
+                lowest = ps.get('lowest', 0)
+            else:
+                es = sem.get(sid, {})
+                tm = float(es.get('tm', 0) or 0)
+                tp = es.get('tp', 0) or 0
+                rc = es.get('rc', 0)
+                pc = es.get('pc', 0)
+                avg = (tm / tp * 100) if tp else 0
+                pr = (pc / rc * 100) if rc else 0
+                highest = float(es.get('highest') or 0)
+                lowest = float(es.get('lowest') or 0)
 
             comparison.append({
                 'subject_id': sid,
@@ -541,8 +633,8 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'results_count': rc,
                 'average_percentage': round(avg, 2),
                 'pass_rate': round(pr, 2),
-                'highest_score': round(float(es.get('highest') or 0), 2),
-                'lowest_score': round(float(es.get('lowest') or 0), 2),
+                'highest_score': round(highest, 2),
+                'lowest_score': round(lowest, 2),
                 'attendance_rate': round(ar, 2),
                 'combined_performance': round(float(avg) * 0.7 + float(ar) * 0.3, 2),
             })
@@ -600,6 +692,50 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'average_percentage': round(e['avg_pct'] or 0, 2),
             'students_attempted': e['cnt'],
         } for e in exam_trend]
+
+        # For POLICY subjects, add component-level trend data from StudentComponentResult
+        if subject.grading_mode == 'POLICY':
+            component_exams = (
+                Exam.objects
+                .filter(
+                    subject=subject,
+                    component__isnull=False,
+                    is_active=True,
+                    exam_date__gte=cutoff,
+                )
+                .select_related('component')
+                .order_by('exam_date')
+            )
+            for comp_exam in component_exams:
+                latest_ids = list(
+                    StudentComponentResult.all_objects
+                    .filter(
+                        component=comp_exam.component,
+                        is_submitted=True,
+                        marks_obtained__isnull=False,
+                        attempt_number=Subquery(
+                            StudentComponentResult.all_objects.filter(
+                                student_id=OuterRef('student_id'),
+                                component_id=OuterRef('component_id'),
+                                is_submitted=True,
+                                marks_obtained__isnull=False,
+                            ).order_by('-attempt_number').values('attempt_number')[:1]
+                        ),
+                    )
+                    .values_list('id', flat=True)
+                )
+                agg = StudentComponentResult.all_objects.filter(
+                    id__in=latest_ids
+                ).aggregate(avg_pct=Avg('percentage'), cnt=Count('id'))
+                if agg['cnt']:
+                    trend.append({
+                        'date': comp_exam.exam_date,
+                        'type': 'exam',
+                        'exam_title': comp_exam.title,
+                        'exam_type': comp_exam.exam_type,
+                        'average_percentage': round(float(agg['avg_pct'] or 0), 2),
+                        'students_attempted': agg['cnt'],
+                    })
 
         sess_att = (
             SessionAttendance.objects
@@ -703,6 +839,13 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         subj_att_data = _student_subject_att_map(att_qs)
         ssc = _subject_session_counts(class_obj)
 
+        # Compute POLICY subject data from StudentComponentResult
+        policy_subjects_list = [s for s in subjects if s.grading_mode == 'POLICY']
+        policy_subj_stats, policy_student_marks = (
+            _get_policy_subject_stats(policy_subjects_list)
+            if policy_subjects_list else ({}, {})
+        )
+
         rankings = []
         for enr in enrollments:
             sid = enr.student_id
@@ -712,7 +855,15 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
 
             st = float(ed.get('total_marks', 0) or 0)
             sp = ed.get('total_possible', 0) or 0
-            ep = (st / sp * 100) if sp else 0
+
+            # Add POLICY subject marks to student totals
+            policy_sid_data = policy_student_marks.get(sid, {})
+            policy_marks = sum(d['marks'] for d in policy_sid_data.values())
+            policy_possible = sum(d['possible'] for d in policy_sid_data.values())
+            total_marks = st + policy_marks
+            total_possible = float(sp) + policy_possible
+            ep = (total_marks / total_possible * 100) if total_possible else 0
+
             attended = ad.get('attended', 0)
             pres = ad.get('present', 0)
             late = ad.get('late', 0)
@@ -723,14 +874,22 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             ssa = subj_att_data.get(sid, {})
             sb = []
             for subj in subjects:
-                se = sse.get(subj.id, {})
                 sa = ssa.get(subj.id, {})
-                stm = float(se.get('total_marks', 0) or 0)
-                stp = se.get('total_possible', 0) or 0
-                spct = (stm / stp * 100) if stp else 0
                 ssess = ssc.get(subj.id, 0)
                 satt = sa.get('attended', 0)
                 sar = (satt / ssess * 100) if ssess else 0
+
+                if subj.grading_mode == 'POLICY':
+                    ps_data = policy_sid_data.get(subj.id, {})
+                    stm = ps_data.get('marks', 0)
+                    stp = ps_data.get('possible', 0)
+                    spct = ps_data.get('pct', 0)
+                else:
+                    se = sse.get(subj.id, {})
+                    stm = float(se.get('total_marks', 0) or 0)
+                    stp = se.get('total_possible', 0) or 0
+                    spct = (stm / stp * 100) if stp else 0
+
                 if stm > 0 or satt > 0:
                     sb.append({
                         'subject_name': subj.name,
@@ -747,8 +906,8 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'student_name': s.get_full_name(),
                 'svc_number': getattr(s, 'svc_number', None),
                 'total_exams_taken': ed.get('exams_taken', 0),
-                'total_marks_obtained': st,
-                'total_marks_possible': float(sp),
+                'total_marks_obtained': total_marks,
+                'total_marks_possible': total_possible,
                 'exam_percentage': round(ep, 2),
                 'total_sessions': total_sessions,
                 'sessions_attended': attended,
@@ -777,17 +936,28 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
 
         subject_perf = []
         for subj in subjects:
-            es = sea_map.get(subj.id, {})
-            stm = float(es.get('tm', 0) or 0)
-            stp = es.get('tp', 0) or 0
-            src = es.get('rc', 0)
-            spc = es.get('pc', 0)
-            savg = (stm / stp * 100) if stp else 0
-            spr = (spc / src * 100) if src else 0
             sc = ssc.get(subj.id, 0)
             sexp = total_students * sc
             sact = saa_map.get(subj.id, 0)
             sar = (sact / sexp * 100) if sexp else 0
+
+            if subj.grading_mode == 'POLICY':
+                ps = policy_subj_stats.get(subj.id, {})
+                savg = ps.get('avg', 0)
+                spr = ps.get('pass_rate', 0)
+                src = ps.get('student_count', 0)
+                highest = ps.get('highest', 0)
+                lowest = ps.get('lowest', 0)
+            else:
+                es = sea_map.get(subj.id, {})
+                stm = float(es.get('tm', 0) or 0)
+                stp = es.get('tp', 0) or 0
+                src = es.get('rc', 0)
+                spc = es.get('pc', 0)
+                savg = (stm / stp * 100) if stp else 0
+                spr = (spc / src * 100) if src else 0
+                highest = float(es.get('highest') or 0)
+                lowest = float(es.get('lowest') or 0)
 
             subject_perf.append({
                 'subject_id': subj.id,
@@ -798,8 +968,8 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'results_count': src,
                 'exam_average': round(savg, 2),
                 'pass_rate': round(spr, 2),
-                'highest_score': round(float(es.get('highest') or 0), 2),
-                'lowest_score': round(float(es.get('lowest') or 0), 2),
+                'highest_score': round(highest, 2),
+                'lowest_score': round(lowest, 2),
                 'total_sessions': sc,
                 'attendance_rate': round(sar, 2),
                 'combined_performance': round(float(savg) * 0.7 + float(sar) * 0.3, 2),
@@ -1051,6 +1221,55 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'students_attempted': e['cnt'],
             'participation_rate': round((e['cnt'] / enrolled * 100), 2) if enrolled else 0,
         } for e in exam_trend]
+
+        # Append POLICY component exam data points
+        policy_subjects = Subject.objects.filter(
+            class_obj=class_obj, is_active=True, grading_mode='POLICY'
+        )
+        for policy_subj in policy_subjects:
+            component_exams = (
+                Exam.objects
+                .filter(
+                    subject=policy_subj,
+                    component__isnull=False,
+                    is_active=True,
+                    exam_date__gte=cutoff,
+                )
+                .select_related('component', 'subject')
+                .order_by('exam_date')
+            )
+            for comp_exam in component_exams:
+                latest_ids = list(
+                    StudentComponentResult.all_objects
+                    .filter(
+                        component=comp_exam.component,
+                        is_submitted=True,
+                        marks_obtained__isnull=False,
+                        attempt_number=Subquery(
+                            StudentComponentResult.all_objects.filter(
+                                student_id=OuterRef('student_id'),
+                                component_id=OuterRef('component_id'),
+                                is_submitted=True,
+                                marks_obtained__isnull=False,
+                            ).order_by('-attempt_number').values('attempt_number')[:1]
+                        ),
+                    )
+                    .values_list('id', flat=True)
+                )
+                agg = StudentComponentResult.all_objects.filter(id__in=latest_ids).aggregate(
+                    avg_pct=Avg('percentage'), cnt=Count('id')
+                )
+                if agg['cnt']:
+                    trend.append({
+                        'date': comp_exam.exam_date,
+                        'type': 'exam',
+                        'exam_title': comp_exam.title,
+                        'subject': policy_subj.name,
+                        'exam_type': comp_exam.exam_type,
+                        'average_percentage': round(float(agg['avg_pct'] or 0), 2),
+                        'students_attempted': agg['cnt'],
+                        'participation_rate': round((agg['cnt'] / enrolled * 100), 2) if enrolled else 0,
+                    })
 
         sess_att = (
             SessionAttendance.objects

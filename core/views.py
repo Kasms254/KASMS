@@ -6344,18 +6344,22 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             submitted_at=timezone.now() if has_marks else None,
         )
  
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def by_student_subject(self, request):
 
         student_id = request.query_params.get('student_id')
         subject_id = request.query_params.get('subject_id')
- 
+
         if not student_id or not subject_id:
             return Response(
                 {'error': 'student_id and subject_id parameters are required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
+
+        # Students may only view their own results
+        if request.user.role == 'student' and str(request.user.id) != str(student_id):
+            return Response({'error': 'You may only view your own results.'}, status=status.HTTP_403_FORBIDDEN)
+
         results = self.get_queryset().filter(
             student_id=student_id,
             component__subject_id=subject_id,

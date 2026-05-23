@@ -957,7 +957,7 @@ export default function StudentResults() {
         is_retake: false,
       }))
 
-  
+    const legacyByComp = {}
     legacyRows.forEach(r => {
       if (r.component_id) {
         if (!legacyByComp[r.component_id]) legacyByComp[r.component_id] = []
@@ -1135,6 +1135,8 @@ export default function StudentResults() {
                       const groups = {}
 
                       for (const r of all) {
+                        // Skip POLICY component ExamResult rows — they have no real marks
+                        if (r.component_id != null) continue
                         const classId = r.class_id
                         if (!groups[classId]) {
                           groups[classId] = {
@@ -1147,40 +1149,54 @@ export default function StudentResults() {
                         groups[classId].results.push({
                           ...r,
                           exam_total_marks: r.exam_total_marks,
-                          component_id: r.component_id ?? null,
+                          component_id: null,
                         })
                       }
 
+                      // Add ONE aggregated row per POLICY subject using weighted overall grade
                       componentSubjects.forEach(s => {
                         const classId = s.class_obj?.id ?? s.class_obj ?? s.class_id
                         if (!classId) return
                         const data = componentResultsMap[s.id]
                         if (!data) return
-                        ;(data.results ?? [])
-                          .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
-                          .forEach(r => {
-                            if (!groups[classId]) {
-                              groups[classId] = {
-                                classId,
-                                className: s.class_name || '',
-                                courseName: s.course_name || null,
-                                results: []
-                              }
-                            }
-                            groups[classId].results.push({
-                              subject_name: r.subject_name || s.name || '—',
-                              subject_code: s.subject_code || '—',
-                              class_id: classId,
-                              class_name: groups[classId].className,
-                              course_name: groups[classId].courseName,
-                              marks_obtained: r.marks_obtained,
-                              exam_total_marks: r.total_marks,
-                              percentage: r.percentage,
-                              graded_at: r.graded_at || r.submitted_at,
-                              component_id: r.component ?? null,
-                              _isPolicyRow: true,
-                            })
-                          })
+                        const submittedComponents = (data.results ?? []).filter(
+                          r => r.marks_obtained != null && r.status !== 'PENDING'
+                        )
+                        if (submittedComponents.length === 0) return
+                        const overallPct = data.evaluation?.overall_percentage ?? null
+                        if (overallPct == null) return
+                        const totalMarks = submittedComponents.reduce(
+                          (sum, r) => sum + Number(r.marks_obtained ?? 0), 0
+                        )
+                        const totalPossible = submittedComponents.reduce(
+                          (sum, r) => sum + Number(r.total_marks ?? 0), 0
+                        )
+                        const latestDate = submittedComponents
+                          .map(r => r.graded_at || r.submitted_at)
+                          .filter(Boolean)
+                          .sort()
+                          .pop() ?? null
+                        if (!groups[classId]) {
+                          groups[classId] = {
+                            classId,
+                            className: s.class_name || '',
+                            courseName: s.course_name || null,
+                            results: []
+                          }
+                        }
+                        groups[classId].results.push({
+                          subject_name: s.name || '—',
+                          subject_code: s.subject_code || '—',
+                          class_id: classId,
+                          class_name: groups[classId].className,
+                          course_name: groups[classId].courseName,
+                          marks_obtained: totalMarks,
+                          exam_total_marks: totalPossible,
+                          percentage: overallPct,
+                          graded_at: latestDate,
+                          component_id: null,
+                          _isPolicyRow: true,
+                        })
                       })
 
                       setTranscriptClasses(Object.values(groups))
