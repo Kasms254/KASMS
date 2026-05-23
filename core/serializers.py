@@ -2835,12 +2835,10 @@ class CourseReportStageRemarkSerializer(serializers.ModelSerializer):
         return ''
 
 class CourseReportRemarkWriteSerializer(serializers.Serializer):
-    """Used by OIC, Chief Instructor, and Commandant stages."""
     content = serializers.CharField(min_length=10, max_length=10000)
 
 
 class InstructorRemarkWriteSerializer(serializers.Serializer):
-    """Used exclusively for the instructor stage (section 3 of the course report)."""
     character_and_personality = serializers.CharField(min_length=5, max_length=5000)
     knowledge_and_ability = serializers.CharField(min_length=5, max_length=5000)
     command_and_leadership = serializers.CharField(min_length=5, max_length=5000)

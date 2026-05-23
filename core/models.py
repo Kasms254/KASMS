@@ -2441,7 +2441,6 @@ class CourseReportStageRemark(models.Model):
         help_text='The remark/assessment text for this student (OIC/CI/Commandant stages).',
         null=True, blank=True,
     )
-    # Instructor-stage sub-fields (section 3 of the course report)
     character_and_personality = models.TextField(null=True, blank=True)
     knowledge_and_ability = models.TextField(null=True, blank=True)
     command_and_leadership = models.TextField(null=True, blank=True)
