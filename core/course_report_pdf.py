@@ -10,7 +10,6 @@ from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
-# PAD subjects in the required order
 PAD_SUBJECTS = [
     "LEADERSHIP AND COMMAND SKILLS",
     "INSTRUCTIONAL ABILITY",
