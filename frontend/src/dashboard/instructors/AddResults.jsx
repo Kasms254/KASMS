@@ -696,7 +696,7 @@ export default function AddResults() {
               .filter(({ r }) => {
                 if (!componentSearchTerm) return true
                 const q = componentSearchTerm.toLowerCase()
-                return r.student_name?.toLowerCase().includes(q) || r.student_svc_number?.toLowerCase().includes(q)
+                return r.student_name?.toLowerCase().includes(q)
               })
             const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
             const paginatedComp = filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage)
@@ -735,7 +735,7 @@ export default function AddResults() {
                     <div className="flex-1">
                       <input
                         type="text"
-                        placeholder="Search by student name or SVC number..."
+                        placeholder="Search by student name..."
                         value={componentSearchTerm}
                         onChange={e => { setComponentSearchTerm(e.target.value); setComponentPage(1) }}
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -773,7 +773,6 @@ export default function AddResults() {
                     <thead className="bg-gray-100">
                       <tr>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Index</th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">SVC No</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Marks (/{componentInfo.total_marks})</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Percentage</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Grade</th>
@@ -792,9 +791,6 @@ export default function AddResults() {
                           <tr key={r.student_id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
                               {r.class_index || '—'}
-                            </td>
-                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {r.student_svc_number || '—'}
                             </td>
                             <td className="px-3 lg:px-4 py-3">
                               {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
@@ -899,7 +895,6 @@ export default function AddResults() {
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-indigo-700">{r.class_index || '—'}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{r.student_svc_number || ''}</div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
