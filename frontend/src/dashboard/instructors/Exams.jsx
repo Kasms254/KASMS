@@ -190,16 +190,19 @@ export default function Exams() {
     }
 
     // Client-side unique constraint check: subject + exam_date must be unique
+    // Skip for POLICY subjects — each component is checked separately below
     try {
-      const same = exams.find(x => {
-        const subjId = x.subject?.id ?? x.subject
-        const formSubj = Number(currentForm.subject)
-        const date = x.exam_date
-        return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
-      })
-      if (same) {
-        setCreateError('An exam for this subject on the selected date already exists.')
-        return
+      if (currentGradingModeCheck !== 'POLICY') {
+        const same = exams.find(x => {
+          const subjId = x.subject?.id ?? x.subject
+          const formSubj = Number(currentForm.subject)
+          const date = x.exam_date
+          return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
+        })
+        if (same) {
+          setCreateError('An exam for this subject on the selected date already exists.')
+          return
+        }
       }
     } catch (err) {
       // Silently handle duplicate check failure

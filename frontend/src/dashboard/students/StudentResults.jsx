@@ -688,35 +688,99 @@ export default function StudentResults() {
         }
       }
 
+      // ── DEDUPLICATION ────────────────────────────────────────────────────
+      // For POLICY component exams a retake creates a new ExamResult for the
+      // same component (same component_id). Keep only the latest attempt per
+      // component; pure legacy rows (no component_id) are kept as-is.
+      function dedupeByComponent(resultRows) {
+        const latestByComp = {}
+        const legacyRows = []
+        resultRows.forEach(r => {
+          if (r.component_id) {
+            const prev = latestByComp[r.component_id]
+            if (!prev) {
+              latestByComp[r.component_id] = r
+            } else {
+              const dPrev = new Date(prev.graded_at || 0)
+              const dNew  = new Date(r.graded_at  || 0)
+              if (dNew > dPrev) latestByComp[r.component_id] = r
+            }
+          } else {
+            legacyRows.push(r)
+          }
+        })
+        return [...legacyRows, ...Object.values(latestByComp)]
+      }
+
+      // ── SUBJECT GROUPING ─────────────────────────────────────────────────
+      // After component-level dedup, collapse multiple rows for the same
+      // subject into one aggregated row (sum marks, recompute percentage).
+      // This handles legacy ExamResult rows where component_id is null —
+      // dedupeByComponent cannot group those, so we group by subject key here.
+      function groupBySubject(resultRows) {
+        const afterCompDedup = dedupeByComponent(resultRows)
+        const subjectMap = {}
+        afterCompDedup.forEach(r => {
+          const key = r.subject_code || r.subject_name || 'unknown'
+          if (!subjectMap[key]) subjectMap[key] = []
+          subjectMap[key].push(r)
+        })
+        return Object.values(subjectMap).map(group => {
+          if (group.length === 1) return group[0]
+          let sumObtained = 0, sumPossible = 0, hasValid = false
+          group.forEach(r => {
+            if (r.marks_obtained != null && !isNaN(Number(r.marks_obtained))) {
+              sumObtained += Number(r.marks_obtained)
+              hasValid = true
+            }
+            if (r.exam_total_marks != null && !isNaN(Number(r.exam_total_marks))) {
+              sumPossible += Number(r.exam_total_marks)
+            }
+          })
+          const pct = hasValid && sumPossible > 0
+            ? (sumObtained / sumPossible) * 100
+            : (group[0].percentage ?? null)
+          return {
+            ...group[0],
+            marks_obtained: hasValid ? sumObtained : group[0].marks_obtained,
+            exam_total_marks: sumPossible || group[0].exam_total_marks,
+            percentage: pct,
+          }
+        })
+      }
+
       // ── GENERATION ───────────────────────────────────────────────────────
       if (transcriptClassId === 'all' && transcriptResultsByClass.length > 1) {
         let isFirst = true
         for (const cg of transcriptResultsByClass) {
           if (!isFirst) doc.addPage()
+          const dedupedResults = groupBySubject(cg.results)
           const classLabel = `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}`
           let yPos = drawHeader(classLabel)
-          yPos = drawStudentInfo(yPos, classLabel, cg.results.length)
-          yPos = drawResultsTable(yPos, cg.results)
+          yPos = drawStudentInfo(yPos, classLabel, dedupedResults.length)
+          yPos = drawResultsTable(yPos, dedupedResults)
           drawGradeKey(yPos)
           isFirst = false
         }
 
         // Summary page
+        const dedupedAllRows = groupBySubject(rows)
         doc.addPage()
         let yPos = drawHeader('Overall Summary — All Classes')
-        yPos = drawStudentInfo(yPos, 'All Classes', rows.length)
+        yPos = drawStudentInfo(yPos, 'All Classes', dedupedAllRows.length)
         yPos += 8
 
         const classSummaryBody = transcriptResultsByClass.map(cg => {
-          const t = calculateTotals(cg.results)
+          const deduped = groupBySubject(cg.results)
+          const t = calculateTotals(deduped)
           return [
             `${cg.className}${cg.courseName ? ` (${cg.courseName})` : ''}`,
-            String(cg.results.length),
+            String(deduped.length),
             t.percentage != null ? `${Number(t.percentage).toFixed(1)}%` : '—',
             t.percentage != null ? toLetterGrade(t.percentage) : '—'
           ]
         })
-        const overallT = calculateTotals(rows)
+        const overallT = calculateTotals(dedupedAllRows)
         const overallMean = overallT.percentage != null ? `${Number(overallT.percentage).toFixed(1)}%` : '—'
         const overallG = overallT.percentage != null ? toLetterGrade(overallT.percentage) : '—'
 
@@ -750,9 +814,10 @@ export default function StudentResults() {
         // Single class
         const cg = transcriptResultsByClass[0]
         const classLabel = cg ? `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}` : null
+        const dedupedRows = groupBySubject(rows)
         let yPos = drawHeader(classLabel)
-        yPos = drawStudentInfo(yPos, classLabel, rows.length)
-        yPos = drawResultsTable(yPos, rows)
+        yPos = drawStudentInfo(yPos, classLabel, dedupedRows.length)
+        yPos = drawResultsTable(yPos, dedupedRows)
         drawGradeKey(yPos)
         finalisePages(classLabel)
       }
@@ -847,8 +912,23 @@ export default function StudentResults() {
     let obtained = 0
     let possible = 0
     currentClassSubjects.forEach(s => {
-      const results = componentResultsMap[s.id]?.results ?? []
-      results.forEach(r => {
+      const allResults = componentResultsMap[s.id]?.results ?? []
+      // Deduplicate: keep only the final attempt per component (same logic as unifiedResults)
+      const finalByComponent = {}
+      allResults
+        .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
+        .forEach(r => {
+          const key = r.component != null ? r.component : r.component_name
+          const prev = finalByComponent[key]
+          if (!prev) {
+            finalByComponent[key] = r
+          } else if (r.is_retake && !prev.is_retake) {
+            finalByComponent[key] = r
+          } else if (r.is_retake && prev.is_retake && r.id > prev.id) {
+            finalByComponent[key] = r
+          }
+        })
+      Object.values(finalByComponent).forEach(r => {
         obtained += Number(r.marks_obtained) || 0
         possible += Number(r.total_marks) || 0
       })
@@ -882,7 +962,25 @@ export default function StudentResults() {
         percentage: r.percentage != null ? Number(r.percentage) : null,
         graded_at: r.graded_at || r.submitted_at || r.created_at,
         remarks: r.remarks,
+        component_id: r.component_id ?? null,
+        is_retake: false,
       }))
+
+    // Detect retakes in legacy rows: same component_id attempted more than once.
+    // Sort each group by date; all but the latest are "original", the latest is the retake.
+    const legacyByComp = {}
+    legacyRows.forEach(r => {
+      if (r.component_id) {
+        if (!legacyByComp[r.component_id]) legacyByComp[r.component_id] = []
+        legacyByComp[r.component_id].push(r)
+      }
+    })
+    Object.values(legacyByComp).forEach(group => {
+      if (group.length > 1) {
+        group.sort((a, b) => new Date(a.graded_at || 0) - new Date(b.graded_at || 0))
+        group[group.length - 1].is_retake = true
+      }
+    })
 
     const policyRows = []
     componentSubjects
@@ -897,24 +995,43 @@ export default function StudentResults() {
       .forEach(s => {
         const data = componentResultsMap[s.id]
         if (!data) return
+
+        // Deduplicate: for each component keep only the final attempt
+        // (retake supersedes original; highest ID wins among same type)
+        const finalByComponent = {}
         ;(data.results ?? [])
           .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
           .forEach(r => {
-            policyRows.push({
-              id: r.id,
-              resultType: 'policy',
-              subject_name: r.subject_name || s.name || '—',
-              label: r.component_name || '—',
-              component_type: r.component_type,
-              marks_obtained: r.marks_obtained,
-              total_marks: r.total_marks,
-              percentage: r.percentage != null ? Number(r.percentage) : null,
-              graded_at: r.graded_at || r.submitted_at,
-              remarks: r.remarks,
-              status: r.status,
-              is_retake: r.is_retake,
-            })
+            const key = r.component != null ? r.component : r.component_name
+            const prev = finalByComponent[key]
+            if (!prev) {
+              finalByComponent[key] = r
+            } else if (r.is_retake && !prev.is_retake) {
+              // Retake supersedes original
+              finalByComponent[key] = r
+            } else if (r.is_retake && prev.is_retake && r.id > prev.id) {
+              // Multiple retakes: keep latest
+              finalByComponent[key] = r
+            }
+            // Original never supersedes a retake
           })
+
+        Object.values(finalByComponent).forEach(r => {
+          policyRows.push({
+            id: r.id,
+            resultType: 'policy',
+            subject_name: r.subject_name || s.name || '—',
+            label: r.component_name || '—',
+            component_type: r.component_type,
+            marks_obtained: r.marks_obtained,
+            total_marks: r.total_marks,
+            percentage: r.percentage != null ? Number(r.percentage) : null,
+            graded_at: r.graded_at || r.submitted_at,
+            remarks: r.remarks,
+            status: r.status,
+            is_retake: r.is_retake,
+          })
+        })
       })
 
     return [...legacyRows, ...policyRows].sort(
@@ -1030,6 +1147,8 @@ export default function StudentResults() {
                       ? resAll.results : []
 
                       const groups = {}
+
+                      // Add legacy ExamResult rows
                       for (const r of all) {
                         const classId = r.class_id
                         if (!groups[classId]) {
@@ -1040,14 +1159,49 @@ export default function StudentResults() {
                             results: []
                           }
                         }
-                        groups[classId].results.push(r)
-                      
+                        groups[classId].results.push({
+                          ...r,
+                          exam_total_marks: r.exam_total_marks,
+                          component_id: r.component_id ?? null,
+                        })
                       }
+
+                      // Merge POLICY StudentComponentResult rows (normalized to same shape)
+                      componentSubjects.forEach(s => {
+                        const classId = s.class_obj?.id ?? s.class_obj ?? s.class_id
+                        if (!classId) return
+                        const data = componentResultsMap[s.id]
+                        if (!data) return
+                        ;(data.results ?? [])
+                          .filter(r => r.marks_obtained != null && r.status !== 'PENDING')
+                          .forEach(r => {
+                            if (!groups[classId]) {
+                              groups[classId] = {
+                                classId,
+                                className: s.class_name || '',
+                                courseName: s.course_name || null,
+                                results: []
+                              }
+                            }
+                            groups[classId].results.push({
+                              subject_name: r.subject_name || s.name || '—',
+                              subject_code: s.subject_code || '—',
+                              class_id: classId,
+                              class_name: groups[classId].className,
+                              course_name: groups[classId].courseName,
+                              marks_obtained: r.marks_obtained,
+                              exam_total_marks: r.total_marks,
+                              percentage: r.percentage,
+                              graded_at: r.graded_at || r.submitted_at,
+                              component_id: r.component ?? null,
+                              _isPolicyRow: true,
+                            })
+                          })
+                      })
+
                       setTranscriptClasses(Object.values(groups))
                   } catch {
-                    setTranscriptClasses(resultsByClass
-
-                    )
+                    setTranscriptClasses(resultsByClass)
                   }
                 }
                 setShowTranscriptMenu(v => !v)
@@ -1186,9 +1340,16 @@ export default function StudentResults() {
                       const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
                       const indicator = getPerformanceIndicator(r.percentage)
                       return (
-                        <tr key={r.id} className="hover:bg-gray-50 transition-colors duration-150" role="row">
+                        <tr key={r.id} className={`transition-colors duration-150 ${r.is_retake ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`} role="row">
                           <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                            <div>{r.subject_name}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{r.subject_name}</span>
+                              {r.is_retake && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                                  ↺ RETAKE
+                                </span>
+                              )}
+                            </div>
                             {r.resultType === 'policy' && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 mt-0.5">
                                 POLICY
@@ -1202,9 +1363,6 @@ export default function StudentResults() {
                             )}
                             {r.resultType === 'policy' && r.component_type && (
                               <span className="text-xs text-gray-400">{r.component_type}</span>
-                            )}
-                            {r.is_retake && (
-                              <span className="ml-1 text-xs text-amber-600">· Retake</span>
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
@@ -1258,13 +1416,13 @@ export default function StudentResults() {
                   return (
                     <div
                       key={r.id}
-                      className="border border-neutral-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow duration-200"
+                      className={`rounded-lg overflow-hidden transition-shadow duration-200 hover:shadow-md ${r.is_retake ? 'border border-amber-300 bg-amber-50' : 'border border-neutral-200'}`}
                       role="article"
                       aria-label={`Result for ${r.subject_name}`}
                     >
                       <button
                         onClick={() => toggleRowExpansion(r.id)}
-                        className="w-full p-4 text-left hover:bg-gray-50 transition-colors duration-150"
+                        className={`w-full p-4 text-left transition-colors duration-150 ${r.is_retake ? 'hover:bg-amber-100' : 'hover:bg-gray-50'}`}
                         aria-expanded={isExpanded}
                         aria-controls={`result-details-${r.id}`}
                       >
@@ -1272,6 +1430,11 @@ export default function StudentResults() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-gray-900 truncate">{r.subject_name}</span>
+                              {r.is_retake && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                                  ↺ RETAKE
+                                </span>
+                              )}
                               {r.resultType === 'policy' && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 shrink-0">
                                   POLICY

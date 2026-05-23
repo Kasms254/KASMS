@@ -619,19 +619,23 @@ export default function PerformanceAnalytics() {
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: subjectPerformance } = useQuery({
+  const { data: subjectPerformance, isPending: loadingSubjectPerf } = useQuery({
     queryKey: ['subject-performance', selectedSubject],
     queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
     enabled: viewMode === 'subject' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: trendData } = useQuery({
+  const { data: trendData, isPending: loadingTrends } = useQuery({
     queryKey: ['subject-trends', selectedSubject],
     queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
     enabled: viewMode === 'trends' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const analyticsLoading = loadingClassPerf
+  const analyticsLoading = viewMode === 'class'
+    ? (!!selectedClass && loadingClassPerf)
+    : viewMode === 'subject'
+    ? (!!selectedSubject && loadingSubjectPerf)
+    : (!!selectedSubject && loadingTrends)
 
   // Load classes and subjects (cached 10 min)
   const isInstructor = user?.role === 'instructor'
@@ -1147,26 +1151,30 @@ export default function PerformanceAnalytics() {
             </section>
           )}
 
-          {/* Grade Distribution & Top Performers — legacy only */}
-          {!isPolicySubject && (
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Icons.PieChart className="w-5 h-5 text-indigo-500" />
-                  Grade Distribution
-                </h3>
-                <GradeDistribution distribution={subjectPerformance.grade_distribution} />
-              </div>
+          {/* Grade Distribution & Top Performers */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Icons.PieChart className="w-5 h-5 text-indigo-500" />
+                Grade Distribution
+                {isPolicySubject && (
+                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                )}
+              </h3>
+              <GradeDistribution distribution={subjectPerformance.grade_distribution} />
+            </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Icons.Trophy className="w-5 h-5 text-amber-500" />
-                  Top Performers
-                </h3>
-                <TopPerformersList performers={subjectPerformance.top_performers} />
-              </div>
-            </section>
-          )}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Icons.Trophy className="w-5 h-5 text-amber-500" />
+                Top Performers
+                {isPolicySubject && (
+                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                )}
+              </h3>
+              <TopPerformersList performers={subjectPerformance.top_performers} />
+            </div>
+          </section>
 
           {/* Exam Breakdown — legacy only */}
           {!isPolicySubject && subjectPerformance.exam_breakdown && subjectPerformance.exam_breakdown.length > 0 && (

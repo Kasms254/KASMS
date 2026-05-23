@@ -323,8 +323,9 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             components = AssessmentComponent.all_objects.filter(
                 subject=subject, is_active=True,
             ).order_by('sort_order', 'name')
- 
-            comp_stats = (
+
+            # Latest result per student per component (retake supersedes original)
+            latest_result_ids = list(
                 StudentComponentResult.all_objects
                 .filter(
                     component__subject=subject,
@@ -332,6 +333,14 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     is_submitted=True,
                     marks_obtained__isnull=False,
                 )
+                .values('student_id', 'component_id')
+                .annotate(latest_id=Max('id'))
+                .values_list('latest_id', flat=True)
+            )
+
+            comp_stats = (
+                StudentComponentResult.all_objects
+                .filter(id__in=latest_result_ids)
                 .values('component_id')
                 .annotate(
                     total_count=Count('id'),
@@ -342,14 +351,14 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 )
             )
             stats_map = {s['component_id']: s for s in comp_stats}
- 
+
             for comp in components:
                 s = stats_map.get(comp.id, {})
                 comp_tc = s.get('total_count', 0) or 0
                 comp_pass_rate = (
                     (s.get('passing', 0) or 0) / comp_tc * 100
                 ) if comp_tc else 0
- 
+
                 component_breakdown.append({
                     'component_id': str(comp.id),
                     'component_name': comp.name,
@@ -363,6 +372,56 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     'highest_score': round(s.get('max_pct') or 0, 2),
                     'lowest_score': round(s.get('min_pct') or 0, 2),
                 })
+
+            # Compute per-student weighted averages for top performers & grade distribution
+            # Reuse latest_result_ids so retakes are used instead of originals
+            comp_rows = list(
+                StudentComponentResult.all_objects
+                .filter(id__in=latest_result_ids)
+                .values('student_id', 'component__weight', 'percentage')
+            )
+
+            student_info = {
+                enr.student_id: {
+                    'student_name': enr.student.get_full_name(),
+                    'svc_number': getattr(enr.student, 'svc_number', None),
+                }
+                for enr in enrollments
+            }
+
+            student_weighted = {}
+            for r in comp_rows:
+                sid = r['student_id']
+                if sid not in student_weighted:
+                    student_weighted[sid] = {'weighted_sum': 0.0, 'total_weight': 0.0}
+                w = float(r['component__weight'] or 0)
+                student_weighted[sid]['weighted_sum'] += float(r['percentage'] or 0) * w
+                student_weighted[sid]['total_weight'] += w
+
+            policy_grade_dist = {'A': 0, 'A-': 0, 'B+': 0, 'B': 0, 'B-': 0, 'C+': 0, 'C': 0, 'C-': 0, 'F': 0}
+            policy_students = []
+            for sid, wdata in student_weighted.items():
+                if wdata['total_weight'] == 0:
+                    continue
+                weighted_avg = wdata['weighted_sum'] / wdata['total_weight']
+                grade = _calculate_grade(weighted_avg)
+                policy_grade_dist[grade] = policy_grade_dist.get(grade, 0) + 1
+                sinfo = student_info.get(sid, {})
+                policy_students.append({
+                    'student_id': sid,
+                    'student_name': sinfo.get('student_name', ''),
+                    'svc_number': sinfo.get('svc_number'),
+                    'exam_percentage': round(weighted_avg, 2),
+                    'attendance_rate': 0,
+                    'rank': 0,
+                })
+
+            policy_students.sort(key=lambda x: x['exam_percentage'], reverse=True)
+            for i, ps in enumerate(policy_students, 1):
+                ps['rank'] = i
+
+            students = policy_students
+            grade_dist = policy_grade_dist
 
         data = {
             'subject': {

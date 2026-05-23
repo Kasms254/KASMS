@@ -148,6 +148,7 @@ export default function AddResults() {
       setComponentPage(1)
       setResults([])
       setExamInfo(null)
+      setRetakeActive(new Set())
 
       if (mode === 'POLICY') {
         const compId = exam?.component || exam?.component_id
@@ -319,7 +320,9 @@ export default function AddResults() {
     if (!editRequestForm.reason.trim()) errs.reason = 'Reason is required'
     if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
       const n = Number(editRequestForm.proposed_marks)
-      const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
+      const max = editRequestRow?._isComponent
+        ? (editRequestRow.total_marks != null ? Number(editRequestRow.total_marks) : null)
+        : (examInfo?.total_marks != null ? Number(examInfo.total_marks) : null)
       if (!Number.isFinite(n) || n < 0) errs.proposed_marks = 'Invalid number'
       else if (max != null && n > max) errs.proposed_marks = `Cannot exceed ${max}`
     }
@@ -328,8 +331,12 @@ export default function AddResults() {
     setEditRequestSaving(true)
     try {
       const payload = {
-        exam_result: editRequestRow.id,
         reason: editRequestForm.reason.trim(),
+      }
+      if (editRequestRow._isComponent) {
+        payload.component_result = editRequestRow.id
+      } else {
+        payload.exam_result = editRequestRow.id
       }
       if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
         payload.proposed_marks = Number(editRequestForm.proposed_marks)
@@ -455,6 +462,8 @@ export default function AddResults() {
   const [componentSaving, setComponentSaving] = useState(false)
   const [componentPage, setComponentPage] = useState(1)
   const [componentItemsPerPage, setComponentItemsPerPage] = useState(10)
+  // Tracks which student IDs have had their retake input explicitly activated
+  const [retakeActive, setRetakeActive] = useState(new Set())
 
   const loadComponentStudents = useCallback(async (componentId, compInfo, classId) => {
     if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
@@ -479,6 +488,18 @@ export default function AddResults() {
         }
       })
 
+      // Derive effective pass/fail from status, falling back to percentage when status is PENDING
+      // (legacy results saved before status computation was added)
+      function effectivelyFailed(r) {
+        if (['FAIL', 'RETAKE_REQUIRED'].includes(r.status)) return true
+        if (r.status === 'PASS') return false
+        // PENDING — infer from percentage vs pass_mark
+        const pct = r.percentage != null ? parseFloat(r.percentage) : null
+        const passMark = compInfo?.pass_mark != null ? parseFloat(compInfo.pass_mark) : null
+        if (pct != null && passMark != null) return pct < passMark
+        return false
+      }
+
       // Merge: all enrolled students, with existing result data if available
       const merged = studentsArr.map(st => {
         const r = resultByStudent[st.id] || {}
@@ -486,10 +507,10 @@ export default function AddResults() {
         const hasResult = !!r.id && r.marks_obtained != null
         const nextAttempt = (r.attempt_number || 0) + 1
         const isRetake = hasResult
-        // Allow entry: first time (no result/marks), OR retake allowed AND status is FAIL/RETAKE_REQUIRED
+        // Allow entry: first time (no result/marks), OR retake allowed AND student failed
         const canEnter = !hasResult || (
           compInfo?.retake_allowed &&
-          ['FAIL', 'RETAKE_REQUIRED'].includes(r.status)
+          effectivelyFailed(r)
         )
         return {
           id: r.id || null,
@@ -517,7 +538,7 @@ export default function AddResults() {
       const rows = merged.length > 0 ? merged : resultsArr.map(r => {
         const hasResult = !!r.id && r.marks_obtained != null
         const nextAttempt = (r.attempt_number || 0) + 1
-        const canEnter = !hasResult || (compInfo?.retake_allowed && ['FAIL', 'RETAKE_REQUIRED'].includes(r.status))
+        const canEnter = !hasResult || (compInfo?.retake_allowed && effectivelyFailed(r))
         return {
           id: r.id || null,
           student_id: r.student,
@@ -757,6 +778,7 @@ export default function AddResults() {
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Percentage</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Grade</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24"></th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -775,27 +797,42 @@ export default function AddResults() {
                               {r.student_svc_number || '—'}
                             </td>
                             <td className="px-3 lg:px-4 py-3">
-                              {r.is_retake && r.can_enter && (
-                                <div className="text-xs text-amber-600 mb-0.5">Retake {r.next_attempt}</div>
+                              {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-500">{r.current_marks ?? '—'}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
+                                    className="px-2 py-1 text-xs font-medium rounded bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition whitespace-nowrap"
+                                  >
+                                    Retake (Attempt {r.next_attempt})
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  {r.is_retake && r.can_enter && (
+                                    <div className="text-xs text-amber-600 font-medium mb-0.5">Retake — Attempt {r.next_attempt}</div>
+                                  )}
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={componentInfo.total_marks}
+                                    step="any"
+                                    value={r.marks_obtained}
+                                    onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
+                                    placeholder="Marks"
+                                    disabled={!r.can_enter}
+                                    className={`w-full px-2 py-1.5 text-sm rounded-md border ${
+                                      !r.can_enter
+                                        ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                        : r.errors?.marks_obtained
+                                        ? 'border-red-500 focus:ring-red-500'
+                                        : 'border-amber-400 focus:ring-amber-500'
+                                    } focus:ring-2 focus:border-transparent`}
+                                  />
+                                  {r.errors?.marks_obtained && <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>}
+                                </>
                               )}
-                              <input
-                                type="number"
-                                min="0"
-                                max={componentInfo.total_marks}
-                                step="any"
-                                value={r.marks_obtained}
-                                onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
-                                placeholder="Marks"
-                                disabled={!r.can_enter}
-                                className={`w-full px-2 py-1.5 text-sm rounded-md border ${
-                                  !r.can_enter
-                                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                                    : r.errors?.marks_obtained
-                                    ? 'border-red-500 focus:ring-red-500'
-                                    : 'border-gray-300 focus:ring-indigo-500'
-                                } focus:ring-2 focus:border-transparent`}
-                              />
-                              {r.errors?.marks_obtained && <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>}
                             </td>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                               <span className={`font-medium ${
@@ -829,6 +866,17 @@ export default function AddResults() {
                                   !r.can_enter ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300'
                                 } focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
                               />
+                            </td>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                              {r.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
+                                  className="px-2 py-1 rounded-md bg-orange-600 text-white text-xs hover:bg-orange-700 transition whitespace-nowrap"
+                                >
+                                  Request Edit
+                                </button>
+                              )}
                             </td>
                           </tr>
                         )
@@ -871,28 +919,51 @@ export default function AddResults() {
                       </div>
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                            Marks <span className="text-gray-400">(out of {componentInfo.total_marks})</span>
-                          </label>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min="0"
-                            max={componentInfo.total_marks}
-                            step="any"
-                            value={r.marks_obtained}
-                            onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
-                            placeholder="Enter marks"
-                            disabled={!r.can_enter}
-                            className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
-                              !r.can_enter
-                                ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                                : r.errors?.marks_obtained
-                                ? 'border-red-500 bg-red-50'
-                                : 'border-gray-300 focus:border-indigo-500'
-                            } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
-                          />
-                          {r.errors?.marks_obtained && <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>}
+                          {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-xs text-gray-500 mb-0.5">Previous marks</div>
+                                <div className="text-sm font-medium text-gray-700">{r.current_marks ?? '—'} / {componentInfo.total_marks}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
+                                className="px-3 py-2 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition"
+                              >
+                                Retake (Attempt {r.next_attempt})
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                {r.is_retake && r.can_enter
+                                  ? <>Retake Marks — Attempt {r.next_attempt} <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
+                                  : <>Marks <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
+                                }
+                              </label>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                max={componentInfo.total_marks}
+                                step="any"
+                                value={r.marks_obtained}
+                                onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
+                                placeholder="Enter marks"
+                                disabled={!r.can_enter}
+                                className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
+                                  !r.can_enter
+                                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                    : r.errors?.marks_obtained
+                                    ? 'border-red-500 bg-red-50'
+                                    : r.is_retake
+                                    ? 'border-amber-400 focus:border-amber-500'
+                                    : 'border-gray-300 focus:border-indigo-500'
+                                } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
+                              />
+                              {r.errors?.marks_obtained && <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>}
+                            </>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
@@ -907,6 +978,15 @@ export default function AddResults() {
                             } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
                           />
                         </div>
+                        {r.id && (
+                          <button
+                            type="button"
+                            onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
+                            className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                          >
+                            Request Edit
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -1440,7 +1520,10 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* Modal: Request Edit for Locked Result */}
+      </div>
+      )}
+
+      {/* Modal: Request Edit — shared by both LEGACY and POLICY modes */}
       {editRequestModal && editRequestRow && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 ring-1 ring-black/5">
@@ -1448,13 +1531,19 @@ export default function AddResults() {
               <div>
                 <h4 className="text-lg text-black font-medium">Request Result Edit</h4>
                 <p className="text-sm text-neutral-500">
-                  {editRequestRow.student_name} — Current marks: {editRequestRow.marks_obtained}/{examInfo?.total_marks || '?'}
+                  Index: {editRequestRow.class_index || editRequestRow.student_svc_number || '—'} — Current marks: {
+                    editRequestRow._isComponent
+                      ? `${editRequestRow.current_marks ?? '—'}/${editRequestRow.total_marks || '?'}`
+                      : `${editRequestRow.marks_obtained}/${examInfo?.total_marks || '?'}`
+                  }
                 </p>
               </div>
               <button type="button" aria-label="Close" onClick={() => setEditRequestModal(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-800">
-              This result is locked after grading. Submit an edit request for HOD approval.
+              {editRequestRow._isComponent
+                ? 'Submit an edit request for HOD approval. If approved, the proposed marks will be applied directly.'
+                : 'This result is locked after grading. Submit an edit request for HOD approval.'}
             </div>
             <form onSubmit={handleSubmitEditRequest}>
               <div className="space-y-3">
@@ -1471,15 +1560,17 @@ export default function AddResults() {
                   {editRequestErrors.reason && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.reason}</div>}
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Proposed Marks (optional)</label>
+                  <label className="text-sm text-neutral-600 mb-1 block">
+                    Proposed Marks {editRequestRow._isComponent ? '*' : '(optional)'}
+                  </label>
                   <input
                     type="number"
                     min="0"
-                    max={examInfo?.total_marks || undefined}
+                    max={editRequestRow._isComponent ? (editRequestRow.total_marks || undefined) : (examInfo?.total_marks || undefined)}
                     step="any"
                     value={editRequestForm.proposed_marks}
                     onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_marks: e.target.value })}
-                    placeholder={`New marks (max ${examInfo?.total_marks || '?'})`}
+                    placeholder={`New marks (max ${editRequestRow._isComponent ? (editRequestRow.total_marks || '?') : (examInfo?.total_marks || '?')})`}
                     className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.proposed_marks ? 'border-rose-500' : 'border-neutral-200'}`}
                   />
                   {editRequestErrors.proposed_marks && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.proposed_marks}</div>}
@@ -1505,9 +1596,6 @@ export default function AddResults() {
             </form>
           </div>
         </div>
-      )}
-
-      </div>
       )}
     </div>
   )

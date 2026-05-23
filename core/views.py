@@ -15,7 +15,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef, Prefetch
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -1927,13 +1927,58 @@ class ExamViewSet(viewsets.ModelViewSet):
         queryset = Exam.all_objects.select_related(
             'subject', 'subject__class_obj', 'created_by', 'component'
         ).annotate(
-            _avg_score=Avg(
-                'results__marks_obtained',
-                filter=Q(results__is_submitted=True),
+            _avg_score=Case(
+                When(
+                    component__isnull=False,
+                    then=Avg(
+                        'component__student_results__percentage',
+                        filter=Q(
+                            component__student_results__is_submitted=True,
+                            component__student_results__marks_obtained__isnull=False,
+                            # Only the latest attempt per student (retake supersedes original)
+                            component__student_results__id=Subquery(
+                                StudentComponentResult.all_objects.filter(
+                                    component_id=OuterRef('component_id'),
+                                    student_id=OuterRef('student_id'),
+                                    is_submitted=True,
+                                    marks_obtained__isnull=False,
+                                ).order_by('-id').values('id')[:1]
+                            ),
+                        ),
+                        output_field=FloatField(),
+                    ),
+                ),
+                default=Avg(
+                    'results__marks_obtained',
+                    filter=Q(results__is_submitted=True),
+                    output_field=FloatField(),
+                ),
+                output_field=FloatField(),
             ),
-            _sub_count=Count(
-                'results',
-                filter=Q(results__is_submitted=True),
+            _sub_count=Case(
+                When(
+                    component__isnull=False,
+                    then=Count(
+                        'component__student_results',
+                        filter=Q(
+                            component__student_results__is_submitted=True,
+                            component__student_results__marks_obtained__isnull=False,
+                            component__student_results__id=Subquery(
+                                StudentComponentResult.all_objects.filter(
+                                    component_id=OuterRef('component_id'),
+                                    student_id=OuterRef('student_id'),
+                                    is_submitted=True,
+                                    marks_obtained__isnull=False,
+                                ).order_by('-id').values('id')[:1]
+                            ),
+                        ),
+                    ),
+                ),
+                default=Count(
+                    'results',
+                    filter=Q(results__is_submitted=True),
+                ),
+                output_field=IntegerField(),
             ),
         )
  
@@ -2972,7 +3017,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -3059,7 +3106,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -5827,6 +5876,9 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
             'exam_result__exam__subject',
             'exam_result__exam__subject__class_obj__department',
             'exam_result__student',
+            'component_result__component__subject',
+            'component_result__component__subject__class_obj__department',
+            'component_result__student',
             'requested_by', 'reviewed_by',
         )
         if user.role in ('admin', 'superadmin'):
@@ -5837,7 +5889,9 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         if hod_depts.exists():
             return base.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_depts) |
-                Q(exam_result__exam__subject__department__in=hod_depts)
+                Q(exam_result__exam__subject__department__in=hod_depts) |
+                Q(component_result__component__subject__class_obj__department__in=hod_depts) |
+                Q(component_result__component__subject__department__in=hod_depts)
             )
         return base.filter(requested_by=user)
 
@@ -5876,7 +5930,10 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         action_choice = serializer.validated_data['action']
         note = serializer.validated_data.get('note', '')
 
-        dept = edit_request.exam_result.exam.subject.class_obj.department
+        if edit_request.exam_result_id:
+            dept = edit_request.exam_result.exam.subject.class_obj.department
+        else:
+            dept = edit_request.component_result.component.subject.class_obj.department
         if request.user.role not in ('admin', 'superadmin') and dept:
             is_hod = DepartmentMembership.objects.filter(
                 department=dept,
@@ -6212,13 +6269,14 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
  
     def get_queryset(self):
         queryset = StudentComponentResult.all_objects.select_related(
-            'component', 'component__subject', 'student', 'graded_by'
+            'component', 'component__subject', 'component__subject__class_obj',
+            'student', 'graded_by'
         ).all()
- 
+
         user = self.request.user
         if not user.is_authenticated:
             return queryset.none()
- 
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -6227,12 +6285,12 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(school=user.school)
         else:
             return queryset.none()
- 
+
         if user.role == 'instructor':
             queryset = queryset.filter(component__subject__instructor=user)
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
- 
+
         return queryset
  
     def perform_create(self, serializer):
@@ -6424,10 +6482,15 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 existing = StudentComponentResult.all_objects.filter(
                     student=student_obj, component=comp,
                 ).order_by('-attempt_number')
- 
+
+                pct = (float(marks) / comp.total_marks * 100) if comp.total_marks else 0
+                computed_status = 'PASS' if pct >= float(comp.pass_mark) else 'FAIL'
+
                 latest = existing.first()
                 if latest and not latest.is_submitted:
                     latest.marks_obtained = marks
+                    latest.percentage = pct
+                    latest.status = computed_status
                     latest.remarks = item.get('remarks', '')
                     latest.graded_by = request.user
                     latest.graded_at = timezone.now()
@@ -6438,14 +6501,14 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 else:
                     attempt_number = (latest.attempt_number + 1) if latest else 1
                     is_retake = attempt_number > 1
- 
+
                     if is_retake and not comp.retake_allowed:
                         errors.append({
                             'student_id': student_id,
                             'error': 'Retakes not allowed; student already has a graded attempt.',
                         })
                         continue
- 
+
                     if (
                         is_retake
                         and comp.max_retake_attempts > 0
@@ -6459,7 +6522,7 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                             ),
                         })
                         continue
- 
+
                     StudentComponentResult.all_objects.create(
                         school=request.user.school,
                         component=comp,
@@ -6467,6 +6530,8 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                         attempt_number=attempt_number,
                         is_retake=is_retake,
                         marks_obtained=marks,
+                        percentage=pct,
+                        status=computed_status,
                         remarks=item.get('remarks', ''),
                         graded_by=request.user,
                         graded_at=timezone.now(),

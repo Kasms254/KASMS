@@ -1015,6 +1015,13 @@ class ExamSerializer(serializers.ModelSerializer):
     component_is_critical = serializers.BooleanField(
         source='component.is_critical', read_only=True, default=None
     )
+    component_retake_allowed = serializers.BooleanField(
+        source='component.retake_allowed', read_only=True, default=None
+    )
+    component_weight = serializers.DecimalField(
+        source='component.weight', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
     grading_mode = serializers.CharField(
         source='subject.grading_mode', read_only=True
     )
@@ -1280,7 +1287,7 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
     is_critical = serializers.BooleanField(
         source='component.is_critical', read_only=True
     )
-
+    index_number = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = StudentComponentResult
@@ -1288,6 +1295,19 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
         )
+
+    def get_index_number(self, obj):
+        try:
+            class_obj = obj.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                return class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return None
 
     
     def validate_marks_obtained(self, value):
@@ -1966,11 +1986,13 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         source='reviewed_by.get_full_name', read_only=True
     )
     exam_result_detail = serializers.SerializerMethodField()
+    component_result_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = ResultEditRequest
         fields = [
             'id', 'school', 'exam_result', 'exam_result_detail',
+            'component_result', 'component_result_detail',
             'requested_by', 'requested_by_name', 'requested_by_rank',
             'reason', 'proposed_marks', 'proposed_remarks',
             'status', 'reviewed_by', 'reviewed_by_name',
@@ -1989,6 +2011,8 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_exam_result_detail(self, obj):
+        if not obj.exam_result_id:
+            return None
         r = obj.exam_result
         index_number = None
         try:
@@ -2012,6 +2036,33 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             'is_locked': r.is_locked,
         }
 
+    def get_component_result_detail(self, obj):
+        if not obj.component_result_id:
+            return None
+        r = obj.component_result
+        index_number = None
+        try:
+            class_obj = r.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=r.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                index_number = class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return {
+            'id': str(r.id),
+            'component': str(r.component_id),
+            'component_name': r.component.name,
+            'subject_name': r.component.subject.name,
+            'student': str(r.student_id),
+            'student_name': r.student.get_full_name(),
+            'index_number': index_number,
+            'marks_obtained': str(r.marks_obtained) if r.marks_obtained is not None else None,
+            'component_total_marks': str(r.component.total_marks),
+        }
+
     def validate_exam_result(self, value):
         if not value.is_locked:
             raise serializers.ValidationError(
@@ -2025,18 +2076,47 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_component_result(self, value):
+        if value.marks_obtained is None:
+            raise serializers.ValidationError(
+                "This result has no marks entered yet. Enter marks directly."
+            )
+        if ResultEditRequest.all_objects.filter(
+            component_result=value, status=ResultEditRequest.Status.PENDING
+        ).exists():
+            raise serializers.ValidationError(
+                "There is already a pending edit request for this result."
+            )
+        return value
+
     def validate(self, attrs):
         request = self.context.get('request')
         exam_result = attrs.get('exam_result')
+        component_result = attrs.get('component_result')
+
+        has_exam = exam_result is not None
+        has_comp = component_result is not None
+        if has_exam == has_comp:
+            raise serializers.ValidationError(
+                'Provide exactly one of exam_result or component_result.'
+            )
 
         if request and exam_result:
-
             exam = exam_result.exam
             is_grader = exam_result.graded_by == request.user
             is_class_instructor = exam.subject.instructor == request.user
             is_class_owner = exam.subject.class_obj.instructor == request.user
-
             if not (is_grader or is_class_instructor or is_class_owner):
+                raise serializers.ValidationError(
+                    "You can only request edits for results you graded or in classes you instruct."
+                )
+
+        if request and component_result:
+            subject = component_result.component.subject
+            is_grader = component_result.graded_by == request.user
+            is_subject_instructor = subject.instructor == request.user
+            is_class_owner = subject.class_obj.instructor == request.user
+            if not (is_grader or is_subject_instructor or is_class_owner):
                 raise serializers.ValidationError(
                     "You can only request edits for results you graded or in classes you instruct."
                 )

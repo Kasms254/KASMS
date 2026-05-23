@@ -291,7 +291,12 @@ class ResultEditRequest(models.Model):
         'School', on_delete=models.CASCADE, related_name='result_edit_requests'
     )
     exam_result = models.ForeignKey(
-        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests'
+        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests',
+        null=True, blank=True,
+    )
+    component_result = models.ForeignKey(
+        'StudentComponentResult', on_delete=models.CASCADE,
+        related_name='edit_requests', null=True, blank=True,
     )
     requested_by = models.ForeignKey(
         'User', on_delete=models.CASCADE, related_name='result_edit_requests_made'
@@ -328,35 +333,72 @@ class ResultEditRequest(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['exam_result', 'status']),
+            models.Index(fields=['component_result', 'status']),
             models.Index(fields=['requested_by', 'status']),
             models.Index(fields=['school', 'status']),
         ]
         constraints = [
-
             models.UniqueConstraint(
                 fields=['exam_result'],
-                condition=models.Q(status='pending'),
-                name='unique_pending_edit_request_per_result'
-            )
+                condition=models.Q(status='pending', exam_result__isnull=False),
+                name='unique_pending_edit_request_per_exam_result'
+            ),
+            models.UniqueConstraint(
+                fields=['component_result'],
+                condition=models.Q(status='pending', component_result__isnull=False),
+                name='unique_pending_edit_request_per_component_result'
+            ),
         ]
 
+    def clean(self):
+        has_exam = self.exam_result_id is not None
+        has_comp = self.component_result_id is not None
+        if has_exam == has_comp:
+            raise ValidationError(
+                'Exactly one of exam_result or component_result must be set.'
+            )
+
     def __str__(self):
+        if self.exam_result_id:
+            return (
+                f"EditRequest({self.status}) by {self.requested_by.svc_number} "
+                f"for ExamResult#{self.exam_result_id}"
+            )
         return (
             f"EditRequest({self.status}) by {self.requested_by.svc_number} "
-            f"for Result#{self.exam_result_id}"
+            f"for ComponentResult#{self.component_result_id}"
         )
 
     def approve(self, hod_user, note=''):
-
         self.status = self.Status.APPROVED
         self.reviewed_by = hod_user
         self.reviewed_at = timezone.now()
         self.review_note = note
         self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note', 'updated_at'])
 
-        # Unlock the result
-        self.exam_result.is_locked = False
-        self.exam_result.save(update_fields=['is_locked', 'updated_at'])
+        if self.exam_result_id:
+            # Unlock the exam result for re-entry by instructor
+            self.exam_result.is_locked = False
+            self.exam_result.save(update_fields=['is_locked', 'updated_at'])
+        elif self.component_result_id and self.proposed_marks is not None:
+            # Directly apply proposed marks to the component result
+            comp_result = self.component_result
+            comp_result.marks_obtained = self.proposed_marks
+            if self.proposed_remarks:
+                comp_result.remarks = self.proposed_remarks
+            comp_result.graded_by = hod_user
+            comp_result.graded_at = timezone.now()
+            # Recompute percentage and status
+            total = comp_result.component.total_marks
+            if total:
+                comp_result.percentage = (self.proposed_marks / total) * 100
+            pass_mark = comp_result.component.pass_mark
+            if pass_mark is not None and comp_result.percentage is not None:
+                comp_result.status = 'PASS' if comp_result.percentage >= pass_mark else 'FAIL'
+            comp_result.save(update_fields=[
+                'marks_obtained', 'remarks', 'graded_by', 'graded_at',
+                'percentage', 'status', 'updated_at',
+            ])
 
     def reject(self, hod_user, note=''):
         self.status = self.Status.REJECTED
