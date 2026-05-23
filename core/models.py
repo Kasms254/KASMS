@@ -291,7 +291,8 @@ class ResultEditRequest(models.Model):
         'School', on_delete=models.CASCADE, related_name='result_edit_requests'
     )
     exam_result = models.ForeignKey(
-        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests'
+        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests',
+        null=True, blank=True
     )
     requested_by = models.ForeignKey(
         'User', on_delete=models.CASCADE, related_name='result_edit_requests_made'
@@ -2437,8 +2438,17 @@ class CourseReportStageRemark(models.Model):
         related_name='course_report_remarks',
     )
     content = models.TextField(
-        help_text='The remark/assessment text for this student.',
+        help_text='The remark/assessment text for this student (OIC/CI/Commandant stages).',
+        null=True, blank=True,
     )
+    # Instructor-stage sub-fields (section 3 of the course report)
+    character_and_personality = models.TextField(null=True, blank=True)
+    knowledge_and_ability = models.TextField(null=True, blank=True)
+    command_and_leadership = models.TextField(null=True, blank=True)
+    strengths = models.TextField(null=True, blank=True)
+    weaknesses = models.TextField(null=True, blank=True)
+    deployment_recommendation = models.TextField(null=True, blank=True)
+
     is_submitted = models.BooleanField(
         default=False,
         help_text='Once True, this remark is locked and cannot be edited.',

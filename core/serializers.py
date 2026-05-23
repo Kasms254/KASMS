@@ -2816,24 +2816,37 @@ class CourseReportStageRemarkSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
     author_rank = serializers.CharField(source='author.rank', read_only=True, default='')
     author_svc_number = serializers.CharField(source='author.svc_number', read_only=True, default='')
- 
+
     class Meta:
         model = CourseReportStageRemark
         fields = [
             'id', 'stage', 'content', 'is_submitted',
+            'character_and_personality', 'knowledge_and_ability',
+            'command_and_leadership', 'strengths', 'weaknesses',
+            'deployment_recommendation',
             'author', 'author_name', 'author_rank', 'author_svc_number',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
- 
+
     def get_author_name(self, obj):
         if obj.author:
             return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
         return ''
- 
-class CourseReportRemarkWriteSerializer(serializers.Serializer):
 
+class CourseReportRemarkWriteSerializer(serializers.Serializer):
+    """Used by OIC, Chief Instructor, and Commandant stages."""
     content = serializers.CharField(min_length=10, max_length=10000)
+
+
+class InstructorRemarkWriteSerializer(serializers.Serializer):
+    """Used exclusively for the instructor stage (section 3 of the course report)."""
+    character_and_personality = serializers.CharField(min_length=5, max_length=5000)
+    knowledge_and_ability = serializers.CharField(min_length=5, max_length=5000)
+    command_and_leadership = serializers.CharField(min_length=5, max_length=5000)
+    strengths = serializers.CharField(min_length=5, max_length=5000)
+    weaknesses = serializers.CharField(min_length=5, max_length=5000)
+    deployment_recommendation = serializers.CharField(min_length=5, max_length=5000)
  
 class CourseReportAuditLogSerializer(serializers.ModelSerializer):
     performed_by_name = serializers.SerializerMethodField()

@@ -14,7 +14,8 @@ from .models import (
 from .serializers import (
     CourseReportListSerializer, CourseReportDetailSerializer,
     CourseReportBulkCreateSerializer, CourseReportRemarkWriteSerializer,
-    CourseReportStageRemarkSerializer, CourseReportAuditLogSerializer,
+    InstructorRemarkWriteSerializer, CourseReportStageRemarkSerializer,
+    CourseReportAuditLogSerializer,
 )
 from .permissions import IsCourseReportParticipant, CanWriteCourseReportRemark
 
@@ -223,16 +224,29 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_409_CONFLICT,
                 )
 
-        serializer = CourseReportRemarkWriteSerializer(data=request.data)
+        if stage == 'instructor':
+            serializer = InstructorRemarkWriteSerializer(data=request.data)
+        else:
+            serializer = CourseReportRemarkWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        if stage == 'instructor':
+            instructor_fields = {
+                k: serializer.validated_data[k]
+                for k in (
+                    'character_and_personality', 'knowledge_and_ability',
+                    'command_and_leadership', 'strengths', 'weaknesses',
+                    'deployment_recommendation',
+                )
+            }
+            defaults = {'author': request.user, **instructor_fields}
+        else:
+            defaults = {'author': request.user, 'content': serializer.validated_data['content']}
 
         remark, created = CourseReportStageRemark.objects.get_or_create(
             report=report,
             stage=stage,
-            defaults={
-                'author': request.user,
-                'content': serializer.validated_data['content'],
-            },
+            defaults=defaults,
         )
 
         if not created:
@@ -241,7 +255,11 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                     {'detail': 'This remark has already been submitted and cannot be edited.'},
                     status=status.HTTP_409_CONFLICT,
                 )
-            remark.content = serializer.validated_data['content']
+            if stage == 'instructor':
+                for field, value in instructor_fields.items():
+                    setattr(remark, field, value)
+            else:
+                remark.content = serializer.validated_data['content']
             remark.save()
 
         self._log_audit(
@@ -315,6 +333,19 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                 user=request.user,
                 metadata={'old_status': old_status, 'new_status': next_status},
             )
+
+        if next_status == 'approved':
+            try:
+                from .course_report_pdf import generate_course_report_pdf
+                generate_course_report_pdf(report)
+                self._log_audit(
+                    report=report,
+                    action='pdf_generated',
+                    user=request.user,
+                    metadata={},
+                )
+            except Exception:
+                logger.exception("PDF generation failed for report %s", report.pk)
 
         return Response({
             'detail': 'Report approved.' if next_status == 'approved'

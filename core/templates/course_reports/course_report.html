@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 1.8cm 1.5cm 2cm 1.5cm;
+      @top-center {
+        content: "CONFIDENTIAL";
+        font-family: Arial, sans-serif;
+        font-weight: bold;
+        font-size: 10pt;
+        letter-spacing: 2px;
+      }
+      @bottom-center {
+        content: counter(page) " of " counter(pages) "\A CONFIDENTIAL";
+        font-family: Arial, sans-serif;
+        font-size: 9pt;
+        white-space: pre;
+        text-align: center;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10.5pt;
+      color: #000;
+      line-height: 1.4;
+    }
+
+    h1 { font-size: 13pt; text-align: center; margin: 6px 0; }
+    h2 { font-size: 12pt; text-align: center; margin: 4px 0; }
+    h3 { font-size: 11pt; text-align: center; margin: 6px 0; }
+    h4 { font-size: 10.5pt; margin: 6px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8px;
+    }
+    td, th {
+      border: 1px solid #000;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+    th {
+      font-weight: bold;
+      text-align: center;
+      background-color: #f5f5f5;
+    }
+    td { text-align: center; }
+    td.left { text-align: left; }
+
+    .page-break { page-break-before: always; }
+
+    .section-num {
+      font-weight: bold;
+      font-size: 11pt;
+      margin: 12px 0 6px 0;
+    }
+
+    .sub-label {
+      font-weight: bold;
+      border: 1px solid #000;
+      padding: 4px 8px;
+      margin-bottom: 0;
+      background-color: #f5f5f5;
+    }
+
+    .remark-box {
+      border: 1px solid #000;
+      border-top: none;
+      min-height: 90px;
+      padding: 6px 8px;
+      margin-bottom: 10px;
+      text-align: justify;
+    }
+
+    .signature-area {
+      margin-top: 14px;
+      margin-bottom: 18px;
+      font-size: 10pt;
+    }
+
+    .school-header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .total-row td { font-weight: bold; }
+
+    .grading-table td, .grading-table th { font-size: 9.5pt; }
+
+    .pad-cell { text-align: center; }
+
+    .no-border { border: none; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 1 — Student Particulars & Course Summary
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div class="school-header">
+  <h1>{{ school_name }}</h1>
+  <h2>COURSE REPORT</h2>
+</div>
+
+<div class="section-num">1. PARTICULARS OF THE STUDENT</div>
+<table>
+  <thead>
+    <tr>
+      <th>SVC NO</th>
+      <th>RANK</th>
+      <th>NAME (S)</th>
+      <th>CORP</th>
+      <th>UNIT</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ svc_number }}</td>
+      <td>{{ rank }}</td>
+      <td>{{ full_name }}</td>
+      <td>{{ corp }}</td>
+      <td>{{ unit }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="section-num">2. COURSE DETAILS/SUMMARY OF ASSESSMENT RESULTS</div>
+<table>
+  <thead>
+    <tr>
+      <th>COURSE TITLE</th>
+      <th>COURSE CODE</th>
+      <th>FROM</th>
+      <th>TO</th>
+      <th>NO IN CLASS</th>
+      <th>POSITION</th>
+      <th>DRADE</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ course_title }}</td>
+      <td>{{ course_code }}</td>
+      <td>{{ start_date }}</td>
+      <td>{{ end_date }}</td>
+      <td>{{ class_size }}</td>
+      <td>{{ class_position }}</td>
+      <td>{{ overall_grade }}</td>
+    </tr>
+  </tbody>
+</table>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 2 — Instructor's Remarks
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div class="page-break">
+  <div class="section-num">3. INSTRUCTOR'S REMARKS</div>
+
+  <div class="sub-label">a. CHARACTER AND PERSONALITY</div>
+  <div class="remark-box">{{ character_and_personality }}</div>
+
+  <div class="sub-label">b. KNOWLEDGE AND ABILITY</div>
+  <div class="remark-box">{{ knowledge_and_ability }}</div>
+
+  <div class="sub-label">c. COMMAND AND LEADERSHIP</div>
+  <div class="remark-box">{{ command_and_leadership }}</div>
+
+  <div class="sub-label">d. STRENGTHS</div>
+  <div class="remark-box">{{ strengths }}</div>
+
+  <div class="sub-label">e. WEAKNESSES</div>
+  <div class="remark-box">{{ weaknesses }}</div>
+
+  <div class="sub-label">f. RECOMMENDED FOR DEPLOYMENT AS INSTRUCTOR</div>
+  <div class="remark-box">{{ deployment_recommendation }}</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 3 — Recommendations
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div class="page-break">
+  <div class="section-num">4. RECOMMENDATIONS</div>
+
+  <div class="sub-label">a. COURSE OIC REMARKS</div>
+  <div class="remark-box">{{ oic_content }}</div>
+  <div class="signature-area">
+    Date:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    Signature:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  </div>
+
+  <div class="sub-label">b. CHIEF INSTRUCTORS REMARKS</div>
+  <div class="remark-box">{{ ci_content }}</div>
+  <div class="signature-area">
+    Date:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    Signature:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  </div>
+
+  <div class="sub-label">c. COMMANDANT REMARKS</div>
+  <div class="remark-box">{{ commandant_content }}</div>
+  <div class="signature-area">
+    Date:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    Signature:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 4 — Final Performance Report / Academics
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div class="page-break">
+  <h3>FINAL PERFORMANCE REPORT</h3>
+
+  <div class="section-num">1. ACADEMICS</div>
+
+  <h4>a. Subjects</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>SER</th>
+        <th class="left">SUBJECT</th>
+        <th>HPS</th>
+        <th>SCORES</th>
+        <th>GRADE</th>
+        <th>REMARKS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in academic_rows %}
+      <tr>
+        <td>{{ forloop.counter }}.</td>
+        <td class="left">{{ row.subject_name }}</td>
+        <td>{{ row.hps }}</td>
+        <td>{{ row.score }}</td>
+        <td>{{ row.grade }}</td>
+        <td>{{ row.remarks }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="total-row">
+        <td colspan="2" class="left">TOTAL SCORE</td>
+        <td>{{ total_hps }}</td>
+        <td>{{ total_score }}</td>
+        <td></td>
+        <td></td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="2" class="left">MEAN SCORE</td>
+        <td colspan="2">{{ mean_score }}</td>
+        <td>{{ overall_grade }}</td>
+        <td>{{ grade_descriptor }}</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="2" class="left">CLASS POSITION</td>
+        <td colspan="4">{{ class_position }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>b. Grading</h4>
+  <table class="grading-table">
+    <thead>
+      <tr>
+        <th>SER</th>
+        <th>SCALE (%)</th>
+        <th>GRADE</th>
+        <th>DESCRIPTOR</th>
+        <th>EXPLANATORY NOTES</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1.</td><td>91 – 100</td><td>A</td>
+        <td rowspan="2">Outstanding/Exceeding Expectation</td>
+        <td rowspan="2" class="left">
+          1. Excellent understanding of key concept.<br>
+          2. Well-structured approach to tasks.<br>
+          3. Highly proficient application of skills.<br>
+          4. Very effective communication of info &amp; ideas.
+        </td>
+      </tr>
+      <tr><td>2.</td><td>86 – 90</td><td>A-</td></tr>
+      <tr>
+        <td>3.</td><td>81 – 85</td><td>B+</td>
+        <td rowspan="3">Above Average/Meeting Expectation</td>
+        <td rowspan="3" class="left">
+          1. Good understanding of key concepts with minor gaps.<br>
+          2. Fairly well-structured approach to tasks.<br>
+          3. Effective application of more skills.<br>
+          4. Effective communication of info &amp; ideas.
+        </td>
+      </tr>
+      <tr><td>4.</td><td>76 – 80</td><td>B</td></tr>
+      <tr><td>5.</td><td>71 – 75</td><td>B</td></tr>
+      <tr>
+        <td>6.</td><td>65 – 70</td><td>C</td>
+        <td rowspan="3">Average/Meeting Expectation</td>
+        <td rowspan="3" class="left">
+          1. Understanding of concepts may be incomplete/inaccurate.<br>
+          2. Weakly/flawed approach to tasks.<br>
+          3. Uneven proficiency in application of skills.<br>
+          4. Communicates information and ideas with evident weaknesses.
+        </td>
+      </tr>
+      <tr><td>7.</td><td>60 – 64</td><td>C</td></tr>
+      <tr><td>8.</td><td>50 – 59</td><td>C</td></tr>
+      <tr>
+        <td>9.</td><td>00 – 49</td><td>F</td>
+        <td>Fail/Below Expectation</td>
+        <td class="left">
+          1. Major gaps in knowledge &amp; understanding in all areas.<br>
+          2. Lack of understanding of concepts.<br>
+          3. Little evidence of specific skills.<br>
+          4. Significant weaknesses in communication of information &amp; ideas.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 5 — Personal Ability Dimension
+     ═══════════════════════════════════════════════════════════════ -->
+
+<div class="page-break">
+  <div class="section-num">2. PERSONAL ABILITY DIMENSION</div>
+
+  <h4>a. Performance</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>SER</th>
+        <th class="left">SUBJECT</th>
+        <th>SCORE</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in pad_rows %}
+      <tr>
+        <td>{{ forloop.counter }}.</td>
+        <td class="left">{{ item.subject }}</td>
+        <td class="pad-cell">{{ item.score }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h4>b. Rating</h4>
+  <table class="grading-table">
+    <thead>
+      <tr>
+        <th>SER</th>
+        <th>SCALE</th>
+        <th>DESCRIPTOR</th>
+        <th>EXPLANATORY NOTES</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1.</td><td>1</td><td>EXCEPTIONAL</td>
+        <td class="left">
+          1. Excellent understanding of key concept.<br>
+          2. Well-structured approach to tasks.<br>
+          3. Highly proficient application of skills.<br>
+          4. Very effective communication of information &amp; ideas.
+        </td>
+      </tr>
+      <tr>
+        <td>2.</td><td>2</td><td>EXCELLENT</td>
+        <td class="left">
+          1. Good understanding of key concepts with minor gaps.<br>
+          2. Fairly well-structured approach to tasks.<br>
+          3. Effective application of more skills.<br>
+          4. Effective communication of information &amp; ideas.
+        </td>
+      </tr>
+      <tr>
+        <td>3.</td><td>3</td><td>ABOVE AVERAGE</td>
+        <td class="left">
+          1. Good understanding of key concepts with minor gaps.<br>
+          2. Fairly well-structured approach to tasks.<br>
+          3. Effective application of more skills.<br>
+          4. Effective communication of info &amp; ideas.
+        </td>
+      </tr>
+      <tr>
+        <td>4.</td><td>4</td><td>AVERAGE</td>
+        <td class="left">
+          1. Understanding of concepts may be incomplete/inaccurate.<br>
+          2. Weakly/flawed approach to tasks.<br>
+          3. Uneven proficiency in application of skills.<br>
+          4. Communicates information and ideas with evident weaknesses.
+        </td>
+      </tr>
+      <tr>
+        <td>5.</td><td>5</td><td>BELOW AVERAGE</td>
+        <td class="left">
+          1. Major gaps in knowledge &amp; understanding in all areas.<br>
+          2. Lack of understanding of concepts.<br>
+          3. Little evidence of specific skills.<br>
+          4. Significant weaknesses in communication of information &amp; ideas.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
