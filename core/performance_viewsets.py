@@ -122,14 +122,7 @@ def _subject_session_counts(class_obj):
 
 
 def _get_policy_subject_stats(policy_subjects):
-    """
-    Compute per-subject class stats and per-student marks for POLICY subjects
-    from StudentComponentResult (latest attempt per student per component).
 
-    Returns:
-        subject_stats: {subject_id: {avg, pass_rate, highest, lowest, student_count}}
-        student_marks: {student_id: {subject_id: {marks, possible, pct}}}
-    """
     subject_stats = {}
     student_marks = {}
 
@@ -590,7 +583,6 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         sam = {r['session__subject_id']: r['actual'] for r in subj_att}
         ssc = _subject_session_counts(class_obj)
 
-        # Compute POLICY subject averages from StudentComponentResult
         policy_subjects_list = [s for s in subjects if s.grading_mode == 'POLICY']
         policy_subj_stats, policy_student_marks = (
             _get_policy_subject_stats(policy_subjects_list)
@@ -693,7 +685,6 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'students_attempted': e['cnt'],
         } for e in exam_trend]
 
-        # For POLICY subjects, add component-level trend data from StudentComponentResult
         if subject.grading_mode == 'POLICY':
             component_exams = (
                 Exam.objects
@@ -839,7 +830,6 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         subj_att_data = _student_subject_att_map(att_qs)
         ssc = _subject_session_counts(class_obj)
 
-        # Compute POLICY subject data from StudentComponentResult
         policy_subjects_list = [s for s in subjects if s.grading_mode == 'POLICY']
         policy_subj_stats, policy_student_marks = (
             _get_policy_subject_stats(policy_subjects_list)
@@ -856,7 +846,6 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             st = float(ed.get('total_marks', 0) or 0)
             sp = ed.get('total_possible', 0) or 0
 
-            # Add POLICY subject marks to student totals
             policy_sid_data = policy_student_marks.get(sid, {})
             policy_marks = sum(d['marks'] for d in policy_sid_data.values())
             policy_possible = sum(d['possible'] for d in policy_sid_data.values())
@@ -1222,7 +1211,6 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             'participation_rate': round((e['cnt'] / enrolled * 100), 2) if enrolled else 0,
         } for e in exam_trend]
 
-        # Append POLICY component exam data points
         policy_subjects = Subject.objects.filter(
             class_obj=class_obj, is_active=True, grading_mode='POLICY'
         )

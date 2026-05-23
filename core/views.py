@@ -6356,7 +6356,6 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Students may only view their own results
         if request.user.role == 'student' and str(request.user.id) != str(student_id):
             return Response({'error': 'You may only view your own results.'}, status=status.HTTP_403_FORBIDDEN)
 
