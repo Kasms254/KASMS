@@ -1930,20 +1930,14 @@ class ExamViewSet(viewsets.ModelViewSet):
             _avg_score=Case(
                 When(
                     component__isnull=False,
-                    then=Avg(
-                        'component__student_results__percentage',
-                        filter=Q(
-                            component__student_results__is_submitted=True,
-                            component__student_results__marks_obtained__isnull=False,
-                            component__student_results__id=Subquery(
-                                StudentComponentResult.all_objects.filter(
-                                    component_id=OuterRef('component_id'),
-                                    student_id=OuterRef('student_id'),
-                                    is_submitted=True,
-                                    marks_obtained__isnull=False,
-                                ).order_by('-id').values('id')[:1]
-                            ),
-                        ),
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            avg=Avg('percentage')
+                        ).values('avg')[:1],
                         output_field=FloatField(),
                     ),
                 ),
@@ -1957,20 +1951,15 @@ class ExamViewSet(viewsets.ModelViewSet):
             _sub_count=Case(
                 When(
                     component__isnull=False,
-                    then=Count(
-                        'component__student_results',
-                        filter=Q(
-                            component__student_results__is_submitted=True,
-                            component__student_results__marks_obtained__isnull=False,
-                            component__student_results__id=Subquery(
-                                StudentComponentResult.all_objects.filter(
-                                    component_id=OuterRef('component_id'),
-                                    student_id=OuterRef('student_id'),
-                                    is_submitted=True,
-                                    marks_obtained__isnull=False,
-                                ).order_by('-id').values('id')[:1]
-                            ),
-                        ),
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            cnt=Count('student_id', distinct=True)
+                        ).values('cnt')[:1],
+                        output_field=IntegerField(),
                     ),
                 ),
                 default=Count(

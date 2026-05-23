@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from django.db.models import (
     Avg, Count, Q, F, Sum, Max, Min,
     FloatField, CharField, Case, When, Value,
+    Subquery, OuterRef,
 )
 from django.utils import timezone
 from django.core.cache import cache
@@ -324,6 +325,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 subject=subject, is_active=True,
             ).order_by('sort_order', 'name')
 
+            # UUID PKs can't use MAX(); match on max attempt_number per (student, component)
             latest_result_ids = list(
                 StudentComponentResult.all_objects
                 .filter(
@@ -331,10 +333,16 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     component__is_active=True,
                     is_submitted=True,
                     marks_obtained__isnull=False,
+                    attempt_number=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            student_id=OuterRef('student_id'),
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).order_by('-attempt_number').values('attempt_number')[:1]
+                    ),
                 )
-                .values('student_id', 'component_id')
-                .annotate(latest_id=Max('id'))
-                .values_list('latest_id', flat=True)
+                .values_list('id', flat=True)
             )
 
             comp_stats = (
