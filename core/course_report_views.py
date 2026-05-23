@@ -117,7 +117,12 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         ).exists()
         can_advance = report.status in CourseReport.ADVANCE_ROLE_STATUS.values() and \
             CourseReport.ADVANCE_ROLE_STATUS.get(role) == report.status
-        can_download = report.status == 'approved' and report.report_file
+        can_download = (
+            report.status == 'approved' and
+            report.report_file and
+            role == 'instructor' and
+            report.class_obj.instructor_id == request.user.id
+        )
 
         serializer = self.get_serializer(report)
         data = serializer.data
@@ -553,6 +558,15 @@ class CourseReportViewSet(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         report = self.get_object()
         self._check_school(report)
+
+        role = self._get_role()
+
+        # Only the instructor of that specific class may download.
+        if role != 'instructor' or report.class_obj.instructor_id != request.user.id:
+            return Response(
+                {'detail': 'Only the class instructor may download course reports.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         if report.status != 'approved':
             return Response(
