@@ -32,6 +32,7 @@ const SENTENCE_CASE_CONFIG = {
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
     'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
+    'stage', // Preserve stage values for comparisons (instructor, oic, chief_instructor, commandant)
     'type', // Preserve type values
     'id', // Preserve ID fields
     'logo', // Preserve file paths (e.g., school_logos/...)
@@ -2043,8 +2044,8 @@ export async function bulkCreateCourseReports(classId) {
   return request('/api/course-reports/bulk-create/', { method: 'POST', body: { class_obj: classId } })
 }
 
-export async function saveCourseReportRemark(id, content) {
-  return request(`/api/course-reports/${encodeURIComponent(id)}/save-remark/`, { method: 'POST', body: { content } })
+export async function saveCourseReportRemark(id, payload) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/save-remark/`, { method: 'POST', body: payload })
 }
 
 export async function submitCourseReport(id) {
@@ -2071,7 +2072,11 @@ export async function downloadCourseReport(id) {
     credentials: 'include',
     headers: csrf ? { 'X-CSRFToken': csrf } : {},
   })
-  if (!res.ok) throw new Error('Failed to download report')
+  if (!res.ok) {
+    let msg = 'Failed to download report'
+    try { const e = await res.json(); msg = e.detail || msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
   return res.blob()
 }
 

@@ -26,6 +26,24 @@ const STAGE_LABEL = {
   commandant:       'Commandant',
 }
 
+const INSTRUCTOR_FIELDS = [
+  { key: 'character_and_personality',  label: 'Character & Personality' },
+  { key: 'knowledge_and_ability',      label: 'Knowledge & Ability' },
+  { key: 'command_and_leadership',     label: 'Command & Leadership' },
+  { key: 'strengths',                  label: 'Strengths' },
+  { key: 'weaknesses',                 label: 'Weaknesses' },
+  { key: 'deployment_recommendation',  label: 'Deployment Recommendation' },
+]
+
+const INSTRUCTOR_FIELDS_DEFAULT = {
+  character_and_personality: '',
+  knowledge_and_ability: '',
+  command_and_leadership: '',
+  strengths: '',
+  weaknesses: '',
+  deployment_recommendation: '',
+}
+
 function initials(first = '', last = '') {
   return `${(first[0] || '')}${(last[0] || '')}`.toUpperCase() || '?'
 }
@@ -79,6 +97,7 @@ function RemarkCard({ remark }) {
       hour: '2-digit', minute: '2-digit',
     })
   }
+  const isInstructorStage = remark.stage === 'instructor'
   return (
     <div className="border border-neutral-200 rounded-xl p-4 bg-neutral-50">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
@@ -97,11 +116,34 @@ function RemarkCard({ remark }) {
         </div>
         <span className="text-xs text-neutral-400 sm:flex-shrink-0">{fmt(remark.updated_at)}</span>
       </div>
-      <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed pl-9">{remark.content}</p>
-      {remark.author && (
+
+      <div className="pl-9 mt-1 space-y-3">
+        {isInstructorStage ? (
+          <>
+            {remark.character_and_personality  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Character &amp; Personality</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.character_and_personality}</p></div>}
+            {remark.knowledge_and_ability      && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Knowledge &amp; Ability</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.knowledge_and_ability}</p></div>}
+            {remark.command_and_leadership     && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Command &amp; Leadership</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.command_and_leadership}</p></div>}
+            {remark.strengths                  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Strengths</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.strengths}</p></div>}
+            {remark.weaknesses                 && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Weaknesses</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.weaknesses}</p></div>}
+            {remark.deployment_recommendation  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Deployment Recommendation</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.deployment_recommendation}</p></div>}
+            {!remark.character_and_personality && !remark.knowledge_and_ability && !remark.command_and_leadership && !remark.strengths && !remark.weaknesses && !remark.deployment_recommendation && (
+              remark.content
+                ? <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content}</p>
+                : <p className="text-sm text-neutral-400 italic">No assessment data recorded.</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content}</p>
+        )}
+      </div>
+
+      {(remark.author_name || remark.author_rank || remark.author_svc_number) && (
         <p className="text-xs text-neutral-400 mt-2 pl-9">
-          — {remark.author.rank ? `${remark.author.rank} ` : ''}{remark.author.first_name} {remark.author.last_name}
-          {remark.author.svc_number ? ` (${remark.author.svc_number})` : ''}
+          {isInstructorStage ? (
+            <>{remark.author_svc_number ? `${remark.author_svc_number} ` : ''}{remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}</>
+          ) : (
+            <>{remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}{remark.author_svc_number ? ` (${remark.author_svc_number})` : ''}</>
+          )}
         </p>
       )}
     </div>
@@ -114,10 +156,13 @@ export default function CourseReportDetail() {
   const toast = useToast()
   const navigate = useNavigate()
 
+  const isInstructor = user?.role === 'instructor'
+
   const [report, setReport]       = useState(null)
   const [loading, setLoading]     = useState(true)
   const [activeTab, setActiveTab] = useState('remarks')
   const [remarkContent, setRemarkContent] = useState('')
+  const [instructorFields, setInstructorFields] = useState(INSTRUCTOR_FIELDS_DEFAULT)
   const [saving, setSaving]       = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [advancing, setAdvancing] = useState(false)
@@ -138,7 +183,20 @@ export default function CourseReportDetail() {
       setReport(data)
       if (myStageKey && data.can_edit) {
         const existing = (data.visible_remarks || []).find(r => r.stage === myStageKey && !r.is_submitted)
-        if (existing) setRemarkContent(existing.content || '')
+        if (existing) {
+          if (myStageKey === 'instructor') {
+            setInstructorFields({
+              character_and_personality: existing.character_and_personality || '',
+              knowledge_and_ability:     existing.knowledge_and_ability     || '',
+              command_and_leadership:    existing.command_and_leadership    || '',
+              strengths:                 existing.strengths                 || '',
+              weaknesses:                existing.weaknesses                || '',
+              deployment_recommendation: existing.deployment_recommendation || '',
+            })
+          } else {
+            setRemarkContent(existing.content || '')
+          }
+        }
       }
     } catch (err) {
       toast.error(err.message || 'Failed to load report')
@@ -165,11 +223,26 @@ export default function CourseReportDetail() {
     if (activeTab === 'audit' && canViewAudit) loadAuditLog()
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function buildRemarkPayload() {
+    if (isInstructor) return { ...instructorFields }
+    return { content: remarkContent }
+  }
+
+  function validateRemark() {
+    if (isInstructor) {
+      const invalid = INSTRUCTOR_FIELDS.find(f => instructorFields[f.key].trim().length < 5)
+      if (invalid) { toast.error(`"${invalid.label}" must be at least 5 characters`); return false }
+      return true
+    }
+    if (remarkContent.trim().length < 10) { toast.error('Remark must be at least 10 characters'); return false }
+    return true
+  }
+
   async function handleSaveDraft() {
-    if (remarkContent.trim().length < 10) { toast.error('Remark must be at least 10 characters'); return }
+    if (!validateRemark()) return
     setSaving(true)
     try {
-      await api.saveCourseReportRemark(id, remarkContent)
+      await api.saveCourseReportRemark(id, buildRemarkPayload())
       toast.success('Draft saved')
       loadReport()
     } catch (err) {
@@ -180,10 +253,10 @@ export default function CourseReportDetail() {
   }
 
   async function handleSubmit() {
-    if (remarkContent.trim().length < 10) { toast.error('Remark must be at least 10 characters'); return }
+    if (!validateRemark()) return
     setSubmitting(true)
     try {
-      await api.saveCourseReportRemark(id, remarkContent)
+      await api.saveCourseReportRemark(id, buildRemarkPayload())
       const res = await api.submitCourseReport(id)
       toast.success(res.detail || 'Report submitted successfully')
       loadReport()
@@ -404,20 +477,29 @@ export default function CourseReportDetail() {
                     </span>
                   )}
                 </div>
-                <div className="p-4">
-                  <textarea
-                    value={remarkContent}
-                    onChange={e => setRemarkContent(e.target.value)}
-                    rows={7}
-                    placeholder="Write your assessment here… (minimum 10 characters)"
-                    className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-y bg-white"
-                  />
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-neutral-400">{remarkContent.length} / 10 000 characters</p>
-                    <div className="flex items-center gap-2">
+
+                {isInstructor ? (
+                  /* ── Instructor: 6 structured fields ── */
+                  <div className="p-4 space-y-4">
+                    {INSTRUCTOR_FIELDS.map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                          {f.label} <span className="text-neutral-400 font-normal">(min 5 chars)</span>
+                        </label>
+                        <textarea
+                          value={instructorFields[f.key]}
+                          onChange={e => setInstructorFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          rows={3}
+                          placeholder={`Enter ${f.label.toLowerCase()}…`}
+                          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-y bg-white"
+                        />
+                        <p className="text-xs text-neutral-400 mt-0.5 text-right">{instructorFields[f.key].length} / 5 000</p>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-end gap-2 pt-1">
                       <button
                         onClick={handleSaveDraft}
-                        disabled={saving || remarkContent.trim().length < 10}
+                        disabled={saving}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
                       >
                         <LucideIcons.Save className="w-4 h-4" />
@@ -426,7 +508,7 @@ export default function CourseReportDetail() {
                       {can_submit && (
                         <button
                           onClick={handleSubmit}
-                          disabled={submitting || remarkContent.trim().length < 10}
+                          disabled={submitting}
                           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
                         >
                           <LucideIcons.Send className="w-4 h-4" />
@@ -435,7 +517,41 @@ export default function CourseReportDetail() {
                       )}
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* ── Non-instructor: single textarea ── */
+                  <div className="p-4">
+                    <textarea
+                      value={remarkContent}
+                      onChange={e => setRemarkContent(e.target.value)}
+                      rows={7}
+                      placeholder="Write your assessment here… (minimum 10 characters)"
+                      className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-y bg-white"
+                    />
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-neutral-400">{remarkContent.length} / 10 000 characters</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSaveDraft}
+                          disabled={saving || remarkContent.trim().length < 10}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
+                        >
+                          <LucideIcons.Save className="w-4 h-4" />
+                          {saving ? 'Saving…' : 'Save Draft'}
+                        </button>
+                        {can_submit && (
+                          <button
+                            onClick={handleSubmit}
+                            disabled={submitting || remarkContent.trim().length < 10}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                          >
+                            <LucideIcons.Send className="w-4 h-4" />
+                            {submitting ? 'Submitting…' : status === 'commandant_draft' ? 'Submit & Approve' : 'Submit'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -464,14 +580,18 @@ export default function CourseReportDetail() {
 
             {/* Approved state */}
             {status === 'approved' && (
-              <div className="border border-green-200 rounded-xl p-4 bg-green-50 flex items-start gap-3">
-                <LucideIcons.CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className={`border rounded-xl p-4 flex items-start gap-3 ${report.report_file ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                {report.report_file
+                  ? <LucideIcons.CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  : <LucideIcons.AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />}
                 <div>
                   <p className="text-sm font-semibold text-black">Report fully approved</p>
                   <p className="text-xs text-neutral-600 mt-0.5">
                     {can_download
                       ? 'Use the Download PDF button at the top to get the report.'
-                      : 'PDF will be available once generated by the system.'}
+                      : report.report_file
+                        ? 'PDF is ready. Only the class instructor can download it.'
+                        : 'PDF generation failed. Please contact an administrator.'}
                   </p>
                 </div>
               </div>
@@ -509,9 +629,14 @@ export default function CourseReportDetail() {
                         <p className="text-xs text-neutral-500 mt-0.5">by {entry.performed_by_name}</p>
                       )}
                       {entry.metadata && Object.keys(entry.metadata).length > 0 && (
-                        <p className="text-xs text-neutral-400 mt-0.5 font-mono truncate">
-                          {JSON.stringify(entry.metadata)}
-                        </p>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+                          {Object.entries(entry.metadata).map(([k, v]) => (
+                            <span key={k} className="text-xs text-neutral-400">
+                              <span className="capitalize">{k.replace(/_/g, ' ')}</span>:{' '}
+                              <span className="text-neutral-600">{String(v)}</span>
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
