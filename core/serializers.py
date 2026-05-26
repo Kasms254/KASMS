@@ -1249,9 +1249,7 @@ class AssessmentComponentSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'school', 'created_at', 'updated_at')
 
     def run_validators(self, value):
-        # During PATCH, fields absent from the payload are missing from value.
-        # The UniqueConstraint(condition=Q(is_active=True)) validator needs
-        # is_active to evaluate its condition — inject it from the instance.
+        
         if self.instance and self.partial and 'is_active' not in value:
             value = {**value, 'is_active': self.instance.is_active}
         super().run_validators(value)
