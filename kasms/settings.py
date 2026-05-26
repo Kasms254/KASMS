@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_filters",
     "drf_yasg",
+    "django_celery_beat",
 ]
 
 MIDDLEWARE = [
@@ -116,10 +117,7 @@ CACHES = {
             else "django.core.cache.backends.locmem.LocMemCache",
         ),
         "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
-        "TIMEOUT": 300,  
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,
-        },
+        "TIMEOUT": 300,
     }
 }
 

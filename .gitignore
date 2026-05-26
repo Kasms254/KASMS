@@ -7,7 +7,7 @@ __pycache__/
 __pycache__/
 *.pyc
 core/management/
-core/migrations/
+core/migrations/__pycache__/
 
 .venv/
 env/
@@ -51,10 +51,6 @@ dump.sql
 kasms_db.sql
 kasms_db_2026-03-18_02-00-01 (1).dump
 
-core/migrations/0001_initial.py
-0001_initial.py
-core/migrations/0002_biometricdevice_certificatetemplate_department_and_more.py
-0002_biometricdevice_certificatetemplate_department_and_more.py
 celerybeat-schedule.*
 celerybeat-schedule.dir
 celerybeat-schedule.dat
