@@ -592,6 +592,12 @@ class UserListSerializer(serializers.ModelSerializer):
         return None
 
     def get_is_hod(self, obj):
+
+        if hasattr(obj, 'active_department_memberships'):
+            return any(
+                m.role == DepartmentMembership.Role.HOD
+                for m in obj.active_department_memberships
+            )
         return DepartmentMembership.objects.filter(
             user=obj,
             role=DepartmentMembership.Role.HOD,
@@ -599,6 +605,15 @@ class UserListSerializer(serializers.ModelSerializer):
         ).exists()
 
     def get_hod_department(self, obj):
+        if hasattr(obj, 'active_department_memberships'):
+            for m in obj.active_department_memberships:
+                if m.role == DepartmentMembership.Role.HOD:
+                    return {
+                        'id': str(m.department.id),
+                        'name': m.department.name,
+                        'membership_id': str(m.id),
+                    }
+            return None
         membership = DepartmentMembership.objects.filter(
             user=obj,
             role=DepartmentMembership.Role.HOD,

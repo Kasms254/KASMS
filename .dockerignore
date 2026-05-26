@@ -80,3 +80,5 @@ fix_all.py
 BIOMETRIC_SETUP.md
 test_*.py
 test_*.sh
+
+tests/

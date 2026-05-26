@@ -378,6 +378,22 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         'user__last_name'
     ]
 
+    def perform_create(self, serializer):
+
+        requester_school = self.get_school_for_request()
+        if requester_school is None:
+            raise PermissionDenied(
+                "No active school context. Cannot create a membership."
+            )
+
+        submitted_school = serializer.validated_data.get('school')
+        if submitted_school is not None and submitted_school != requester_school:
+            raise PermissionDenied(
+                "You do not have permission to create memberships for another school."
+            )
+
+        serializer.save(school=requester_school)
+
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         membership = self.get_object()
@@ -560,17 +576,36 @@ class UserViewSet(viewsets.ModelViewSet):
                     school_memberships__school=school,
                     school_memberships__status='active'
                 ).distinct()
-            return queryset.prefetch_related('enrollments', 'enrollments__class_obj')
+            return queryset.prefetch_related(*self._user_list_prefetches())
 
         if user.school:
             return queryset.filter(
                 school_memberships__school=user.school,
                 school_memberships__status='active'
-            ).distinct().prefetch_related(
-                'enrollments', 'enrollments__class_obj'
-            )
+            ).distinct().prefetch_related(*self._user_list_prefetches())
 
         return queryset.none()
+
+    @staticmethod
+    def _user_list_prefetches():
+
+        return [
+            Prefetch(
+                'school_memberships',
+                queryset=SchoolMembership.all_objects.select_related(
+                    'school', 'user', 'transfer_to'
+                ),
+            ),
+            Prefetch(
+                'department_memberships',
+                queryset=DepartmentMembership.all_objects.filter(
+                    is_active=True
+                ).select_related('department'),
+                to_attr='active_department_memberships',
+            ),
+            'enrollments',
+            'enrollments__class_obj',
+        ]
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor, IsAdmin])
     def my_students(self, request):
