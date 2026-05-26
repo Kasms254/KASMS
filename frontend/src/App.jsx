@@ -19,6 +19,7 @@ const AdminDashboard = lazy(() => import('./dashboard/admin/AdminDashboard'))
 const InstructorsDashboard = lazy(() => import('./dashboard/instructors/InstructorsDashboard'))
 const StudentsDashboard = lazy(() => import('./dashboard/students/StudentsDashboard'))
 const InstructorsSubjectsPage = lazy(() => import('./dashboard/instructors/SubjectsPage'))
+const AssessmentComponents = lazy(() => import('./dashboard/admin/AssessmentComponents'))
 const Exams = lazy(() => import('./dashboard/instructors/Exams'))
 const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
 const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
@@ -224,6 +225,11 @@ const App = () => {
 			{/* Exams listing (instructors only) */}
 			<Route path="/list/exams" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<Exams />} />
+			</Route>
+
+			{/* Assessment components (admin only) */}
+			<Route path="/list/assessment-components" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<AssessmentComponents />} />
 			</Route>
 
 			{/* Results listing - shows instructor grading UI for instructors, student results for students */}

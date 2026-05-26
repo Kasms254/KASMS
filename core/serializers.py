@@ -7,7 +7,7 @@ from .models import (
     ResultEditRequest, SessionAttendance, AttendanceSessionLog,
     ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
     Certificate, CertificateTemplate, CertificateDownloadLog,
-    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping,
+    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, StudentComponentResult
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -996,11 +996,36 @@ class ExamSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     subject_code = serializers.CharField(source='subject.subject_code', read_only=True)
     class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
+    subject_class_id = serializers.IntegerField(source='subject.class_obj_id', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
-    average_score = serializers.FloatField(read_only=True)
-    submission_count = serializers.IntegerField(read_only=True)
+    average_score = serializers.FloatField(source='_avg_score', read_only=True, default=0)
+    submission_count = serializers.IntegerField(source='_sub_count', read_only=True, default=0)
     attachments = ExamAttachmentSerializer(many=True, read_only=True)
+
+    component_name = serializers.CharField(
+        source='component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='component.get_component_type_display', read_only=True, default=None
+    )
+    component_pass_mark = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
+    component_is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True, default=None
+    )
+    component_retake_allowed = serializers.BooleanField(
+        source='component.retake_allowed', read_only=True, default=None
+    )
+    component_weight = serializers.DecimalField(
+        source='component.weight', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='subject.grading_mode', read_only=True
+    )
 
     class Meta:
         model = Exam
@@ -1011,12 +1036,13 @@ class ExamSerializer(serializers.ModelSerializer):
             'title': {'required': True},
             'subject': {'required': True},
             'exam_date': {'required': True},
-            'total_marks': {'required': True}
+            'total_marks': {'required': True},
+            'component': {'required': False},
         }
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
-    
+
     def validate_exam_date(self, value):
         if not self.instance and value < timezone.now().date():
             raise serializers.ValidationError("Exam date cannot be in the past.")
@@ -1025,16 +1051,57 @@ class ExamSerializer(serializers.ModelSerializer):
     def validate(self, data):
         exam_type = data.get('exam_type')
         subject = data.get('subject')
+        component = data.get('component')
         is_active = data.get('is_active', True)
 
-        if exam_type == 'final' and is_active:
+     
+        if exam_type == 'final' and is_active and subject:
             qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+            if subject.grading_mode == 'POLICY' and component:
+                # POLICY subjects: one final per component
+                qs = qs.filter(component=component)
+            else:
+                # LEGACY subjects: one final per subject (no component)
+                qs = qs.filter(component__isnull=True)
             if self.instance:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
+                if component:
+                    raise serializers.ValidationError({
+                        "exam_type": "There is already an active Final Exam for this component."
+                    })
                 raise serializers.ValidationError({
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
+
+   
+        if subject:
+            if subject.grading_mode == 'POLICY':
+                if not component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Policy grading. "
+                            "You must select an assessment component."
+                        )
+                    })
+                if component.subject_id != subject.id:
+                    raise serializers.ValidationError({
+                        "component": "Selected component does not belong to this subject."
+                    })
+                if not component.is_active:
+                    raise serializers.ValidationError({
+                        "component": "Selected component is not active."
+                    })
+            else:
+              
+                if component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Legacy grading. "
+                            "Do not select a component."
+                        )
+                    })
+
         return data
 
 class ExamResultSerializer(serializers.ModelSerializer):
@@ -1055,6 +1122,20 @@ class ExamResultSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source='exam.subject.class_obj_id', read_only=True)
     class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
     course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
+
+   
+    component_id = serializers.UUIDField(
+        source='exam.component_id', read_only=True, default=None
+    )
+    component_name = serializers.CharField(
+        source='exam.component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='exam.component.get_component_type_display', read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='exam.subject.grading_mode', read_only=True
+    )
 
     is_notification_read = serializers.SerializerMethodField()
     notification_read_at = serializers.SerializerMethodField()
@@ -1155,6 +1236,118 @@ class BulkExamResultSerializer(serializers.Serializer):
             if 'marks_obtained' not in result:
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
+
+class AssessmentComponentSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source = 'subject.name', read_only = True)
+    class_name = serializers.CharField(
+        source = 'subject.class_obj.name', read_only = True
+    )
+
+    class Meta:
+        model = AssessmentComponent
+        fields = '__all__'
+        read_only_fields = ('id', 'school', 'created_at', 'updated_at')
+
+    def run_validators(self, value):
+        
+        if self.instance and self.partial and 'is_active' not in value:
+            value = {**value, 'is_active': self.instance.is_active}
+        super().run_validators(value)
+
+    def validate(self, attrs):
+        subject = attrs.get('subject') or (
+            self.instance.subject if self.instance else None
+        )
+
+        if subject and subject.grading_mode != 'POLICY':
+            raise serializers.ValidationError ({
+                'subject': 'Components can only be added to subjects with grading_mode = POLICY.',
+            })
+        return attrs
+
+class StudentComponentResultSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(
+        source='student.get_full_name', read_only=True
+    )
+    student_svc_number = serializers.CharField(
+        source='student.svc_number', read_only=True
+    )
+    student_rank = serializers.CharField(
+        source='student.rank', read_only=True
+    )
+    component_name = serializers.CharField(
+        source='component.name', read_only=True
+    )
+    component_type = serializers.CharField(
+        source='component.component_type', read_only=True
+    )
+    subject_name = serializers.CharField(
+        source='component.subject.name', read_only=True
+    )
+    total_marks = serializers.IntegerField(
+        source='component.total_marks', read_only=True
+    )
+    pass_mark_threshold = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True,
+    )
+    is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True
+    )
+    index_number = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = StudentComponentResult
+        fields  = '__all__'
+        read_only_fields = (
+            'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
+        )
+
+    def get_index_number(self, obj):
+        try:
+            class_obj = obj.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                return class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return None
+
+    
+    def validate_marks_obtained(self, value):
+        if value is not None:
+            component = (
+                self.instance.component if self.instance
+                else None
+            )
+            if not component:
+                component_id = self.initial_data.get('component')
+                if component_id:
+                    try:
+                        from .models import AssessmentComponent
+                        component = AssessmentComponent.objects.get(pk=component_id)
+                    except AssessmentComponent.DoesNotExist:
+                        pass
+            if component and value > component.total_marks:
+                raise serializers.ValidationError(
+                    f'Marks obtained cannot exceed total marks ({component.total_marks}).'
+                )
+        return value
+
+class SubjectEvaluationSerializer(serializers.Serializer):
+    subject_id = serializers.CharField()
+    subject_name = serializers.CharField()
+    grading_mode = serializers.CharField()
+    is_complete = serializers.BooleanField()
+    is_passed = serializers.BooleanField()
+    overall_percentage = serializers.FloatField(allow_null=True)
+    reason = serializers.CharField()
+    component_results = serializers.ListField(child=serializers.DictField())
+    failed_critical = serializers.ListField(child=serializers.CharField())
+    retake_required = serializers.ListField(child=serializers.DictField())
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
@@ -1800,11 +1993,13 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         source='reviewed_by.get_full_name', read_only=True
     )
     exam_result_detail = serializers.SerializerMethodField()
+    component_result_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = ResultEditRequest
         fields = [
             'id', 'school', 'exam_result', 'exam_result_detail',
+            'component_result', 'component_result_detail',
             'requested_by', 'requested_by_name', 'requested_by_rank',
             'reason', 'proposed_marks', 'proposed_remarks',
             'status', 'reviewed_by', 'reviewed_by_name',
@@ -1823,6 +2018,8 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_exam_result_detail(self, obj):
+        if not obj.exam_result_id:
+            return None
         r = obj.exam_result
         index_number = None
         try:
@@ -1846,6 +2043,33 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             'is_locked': r.is_locked,
         }
 
+    def get_component_result_detail(self, obj):
+        if not obj.component_result_id:
+            return None
+        r = obj.component_result
+        index_number = None
+        try:
+            class_obj = r.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=r.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                index_number = class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return {
+            'id': str(r.id),
+            'component': str(r.component_id),
+            'component_name': r.component.name,
+            'subject_name': r.component.subject.name,
+            'student': str(r.student_id),
+            'student_name': r.student.get_full_name(),
+            'index_number': index_number,
+            'marks_obtained': str(r.marks_obtained) if r.marks_obtained is not None else None,
+            'component_total_marks': str(r.component.total_marks),
+        }
+
     def validate_exam_result(self, value):
         if not value.is_locked:
             raise serializers.ValidationError(
@@ -1859,18 +2083,47 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_component_result(self, value):
+        if value.marks_obtained is None:
+            raise serializers.ValidationError(
+                "This result has no marks entered yet. Enter marks directly."
+            )
+        if ResultEditRequest.all_objects.filter(
+            component_result=value, status=ResultEditRequest.Status.PENDING
+        ).exists():
+            raise serializers.ValidationError(
+                "There is already a pending edit request for this result."
+            )
+        return value
+
     def validate(self, attrs):
         request = self.context.get('request')
         exam_result = attrs.get('exam_result')
+        component_result = attrs.get('component_result')
+
+        has_exam = exam_result is not None
+        has_comp = component_result is not None
+        if has_exam == has_comp:
+            raise serializers.ValidationError(
+                'Provide exactly one of exam_result or component_result.'
+            )
 
         if request and exam_result:
-
             exam = exam_result.exam
             is_grader = exam_result.graded_by == request.user
             is_class_instructor = exam.subject.instructor == request.user
             is_class_owner = exam.subject.class_obj.instructor == request.user
-
             if not (is_grader or is_class_instructor or is_class_owner):
+                raise serializers.ValidationError(
+                    "You can only request edits for results you graded or in classes you instruct."
+                )
+
+        if request and component_result:
+            subject = component_result.component.subject
+            is_grader = component_result.graded_by == request.user
+            is_subject_instructor = subject.instructor == request.user
+            is_class_owner = subject.class_obj.instructor == request.user
+            if not (is_grader or is_subject_instructor or is_class_owner):
                 raise serializers.ValidationError(
                     "You can only request edits for results you graded or in classes you instruct."
                 )
@@ -2547,8 +2800,6 @@ class OICDashboardClassSerializer(serializers.ModelSerializer):
     def get_subject_count(self, obj):
         return obj.subjects.filter(is_active=True).count()
 
-# ── Attendance serializers ──
-
 class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.get_full_name', read_only=True)
     student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
@@ -2639,7 +2890,6 @@ class BiometricDeviceSerializer(serializers.ModelSerializer):
         elif delta < 600:
             return 'Delayed'
         return 'Offline'
-
 
 class BiometricUserMappingSerializer(serializers.ModelSerializer):
     student = serializers.PrimaryKeyRelatedField(
