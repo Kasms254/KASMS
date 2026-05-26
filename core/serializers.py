@@ -2912,8 +2912,8 @@ class CourseReportDetailSerializer(serializers.ModelSerializer):
  
 class CourseReportBulkCreateSerializer(serializers.Serializer):
 
-    class_obj = serializers.UUIDField()
- 
+    class_obj = serializers.IntegerField()
+
     def validate_class_obj(self, value):
         request = self.context['request']
         user = request.user

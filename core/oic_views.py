@@ -164,15 +164,17 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            oic_user = User.all_objects.get(
-                id=oic_id,
-                role='oic',
-                school=school
-            )
+            oic_user = User.all_objects.get(id=oic_id, role='oic')
         except User.DoesNotExist:
             return Response(
                 {'error': 'OIC user not found.'},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not oic_user.school_memberships.filter(school=school, status='active').exists():
+            return Response(
+                {'error': 'OIC user is not an active member of this school.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         classes = Class.all_objects.filter(

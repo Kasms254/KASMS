@@ -72,3 +72,7 @@ test_skteco_connection.py
 test_settings.py
 core/tests/
 test_policy.py
+tests/
+pytest.ini
+settings_test.py
+

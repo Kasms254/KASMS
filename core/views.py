@@ -1953,8 +1953,7 @@ class ExamViewSet(viewsets.ModelViewSet):
  
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
- 
-        queryset = queryset.exclude(subject__class_obj__is_closed=True)
+            queryset = queryset.exclude(subject__class_obj__is_closed=True)
  
         if self.action == 'list':
             queryset = queryset.prefetch_related('attachments')

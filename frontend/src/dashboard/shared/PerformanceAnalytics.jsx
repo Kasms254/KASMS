@@ -1066,7 +1066,6 @@ export default function PerformanceAnalytics() {
                         <td className="py-2 md:py-3 px-2 md:px-3">
                           <span className={`inline-flex px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full ${
                             exam.exam_type === 'final' ? 'bg-red-100 text-red-700' :
-                            exam.exam_type === 'midterm' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
                             {exam.exam_type}

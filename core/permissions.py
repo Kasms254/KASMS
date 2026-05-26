@@ -406,6 +406,8 @@ class IsCourseReportParticipant(BasePermission):
             return False
 
         role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        if role:
+            role = role.replace(' ', '_')
         return role in self.ALLOWED_ROLES
 
 
@@ -413,7 +415,9 @@ class CanWriteCourseReportRemark(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
-        allowed_statuses = CourseReport.ROLE_WRITE_STATUSES.get(role, ())
+        if role:
+            role = role.replace(' ', '_')
+        allowed_statuses = CourseReport.ROLE_WRITE_STATUS.get(role, ())
         return obj.status in allowed_statuses
 
         

@@ -35,7 +35,7 @@ function _gradeFromPct(pct) {
   return 'F'
 }
 
-const EXAM_TYPES = ['cat', 'final', 'project', 'quiz', 'midterm', 'assignment']
+const EXAM_TYPES = ['cat', 'final', 'project', 'assignment']
 
 export default function CommandantExamReports() {
   const toast = useToast()

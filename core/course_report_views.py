@@ -29,7 +29,8 @@ class CourseReportViewSet(viewsets.ModelViewSet):
 
     def _get_role(self):
         user = self.request.user
-        return getattr(user, 'active_role', None) or getattr(user, 'role', None)
+        role = getattr(user, 'active_role', None) or getattr(user, 'role', None)
+        return role.replace(' ', '_') if role else role
 
     def _get_school(self):
         return self.request.user.school
@@ -110,7 +111,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             stage__in=visible_stages
         ).select_related('author')
 
-        can_edit = report.status in CourseReport.ROLE_WRITE_STATUSES.get(role, ())
+        can_edit = report.status in CourseReport.ROLE_WRITE_STATUS.get(role, ())
         can_submit = can_edit and report.stage_remarks.filter(
             stage=CourseReport.SUBMIT_REQUIRES_STAGE.get(report.status, ''),
             is_submitted=False,
@@ -119,7 +120,6 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             CourseReport.ADVANCE_ROLE_STATUS.get(role) == report.status
         can_download = (
             report.status == 'approved' and
-            report.report_file and
             role == 'instructor' and
             report.class_obj.instructor_id == request.user.id
         )
@@ -575,10 +575,16 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             )
 
         if not report.report_file:
-            return Response(
-                {'detail': 'PDF has not been generated yet.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            try:
+                from .course_report_pdf import generate_course_report_pdf
+                generate_course_report_pdf(report)
+                report.refresh_from_db(fields=['report_file'])
+            except Exception:
+                logger.exception("On-demand PDF generation failed for report %s", report.pk)
+                return Response(
+                    {'detail': 'PDF generation failed. Please contact an administrator.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         self._log_audit(
             report=report,
