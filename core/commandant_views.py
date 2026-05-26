@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from .views import PageSizeAwarePagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -208,6 +209,7 @@ class CommandantClassViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'class_code', 'course__name']
     ordering_fields = ['start_date', 'end_date', 'name']
     ordering = ['-start_date']
+    pagination_class = PageSizeAwarePagination
 
     def get_queryset(self):
         user = self.request.user
