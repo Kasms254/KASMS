@@ -971,6 +971,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = []
     search_fields = ['name', 'description', 'code']
@@ -1890,6 +1891,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
+    pagination_class = PageSizeAwarePagination
 
     def get_queryset(self):
         queryset = Exam.all_objects.select_related('subject', 'created_by').all()

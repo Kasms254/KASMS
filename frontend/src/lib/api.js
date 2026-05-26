@@ -784,6 +784,26 @@ export async function getExams(params = '') {
   return data
 }
 
+// Fetches all exam pages by looping until next is null
+export async function getAllExams(params = '') {
+  let allExams = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+  while (hasMore) {
+    try {
+      const data = await request(`/api/exams/?${baseParams}page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
+      allExams = [...allExams, ...results]
+      hasMore = !!(data?.next)
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+  return allExams
+}
+
 export async function getMyExams() {
   // backend provides a `my_exams` action
   const data = await request('/api/exams/my_exams/')
@@ -1705,8 +1725,22 @@ export async function getCommandantDepartmentDetails(id) {
 }
 
 export async function getCommandantClasses(params = '') {
-  const q = params ? `?${params}` : ''
-  return request(`/api/commandant/classes/${q}`)
+  let allClasses = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+  while (hasMore) {
+    try {
+      const data = await request(`/api/commandant/classes/?${baseParams}page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
+      allClasses = [...allClasses, ...results]
+      hasMore = !!(data?.next)
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+  return allClasses
 }
 
 export async function getCommandantClassStudents(id) {
@@ -2014,6 +2048,7 @@ export default {
   deleteSubject,
   getMySubjects,
   getExams,
+  getAllExams,
   getMyExams,
   createExam,
   createExamReport,
