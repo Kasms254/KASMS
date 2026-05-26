@@ -1469,9 +1469,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only instructors can access this.'}, status=403)
 
         subjects = self.get_queryset().filter(
-            instructor=request.user,
+            Q(instructor=request.user) | Q(class_obj__instructor=request.user),
             is_active=True
-        )
+        ).distinct()
 
         serializer = SubjectSerializer(subjects, many=True)
         return Response({
@@ -1985,8 +1985,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             return queryset.none()
  
         if user.role == 'instructor':
-            queryset = queryset.filter(subject__instructor=user)
- 
+            queryset = queryset.filter(
+                Q(subject__instructor=user) | Q(subject__class_obj__instructor=user)
+            )
+
         queryset = queryset.exclude(subject__class_obj__is_closed=True)
  
         if self.action == 'list':
@@ -2200,7 +2202,10 @@ class ExamViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN
             )
         
-        exams = self.get_queryset().filter(is_active=True)
+        exams = self.get_queryset().filter(
+            subject__instructor=request.user,
+            is_active=True,
+        )
 
         serializer = self.get_serializer(exams, many=True)
 
@@ -2856,7 +2861,9 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         if user.school:
             queryset = queryset.filter(school=user.school)
             if user.role == 'instructor':
-                queryset = queryset.filter(subject__instructor=user)
+                queryset = queryset.filter(
+                    Q(subject__instructor=user) | Q(class_obj__instructor=user)
+                )
             return queryset
 
         return queryset.none()

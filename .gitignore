@@ -72,3 +72,9 @@ test_skteco_connection.py
 test_settings.py
 core/tests/
 test_policy.py
+conftest.py
+test_tenant_isolation.py
+test_zkteco_connection.py
+tests/
+settings_test.py
+pytest.ini

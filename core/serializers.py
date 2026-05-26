@@ -996,6 +996,7 @@ class ExamSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     subject_code = serializers.CharField(source='subject.subject_code', read_only=True)
     class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
+    subject_class_id = serializers.IntegerField(source='subject.class_obj_id', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
     average_score = serializers.FloatField(source='_avg_score', read_only=True, default=0)
