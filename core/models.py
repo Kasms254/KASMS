@@ -159,6 +159,12 @@ class SchoolMembership(models.Model):
                 condition=models.Q(status='active'),
                 name='unique_active_membership_per_school'
             ),
+            # A user may only hold one active membership at a time (across all schools).
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status='active'),
+                name='unique_active_membership_per_user'
+            ),
         ]
         indexes = [
             models.Index(fields=['user', 'status']),
@@ -504,12 +510,21 @@ class User(AbstractUser):
     @property
     def active_membership(self):
         if not hasattr(self, '_active_membership_cache'):
-            self._active_membership_cache = (
-                self.school_memberships
-                .filter(status=SchoolMembership.Status.ACTIVE)
-                .select_related('school')
-                .first()
-            )
+            # Use prefetched data if the queryset was annotated via prefetch_related.
+            prefetch_cache = getattr(self, '_prefetched_objects_cache', {})
+            if 'school_memberships' in prefetch_cache:
+                self._active_membership_cache = next(
+                    (m for m in prefetch_cache['school_memberships']
+                     if m.status == SchoolMembership.Status.ACTIVE),
+                    None
+                )
+            else:
+                self._active_membership_cache = (
+                    self.school_memberships
+                    .filter(status=SchoolMembership.Status.ACTIVE)
+                    .select_related('school')
+                    .first()
+                )
         return self._active_membership_cache
 
     def clear_membership_cache(self):

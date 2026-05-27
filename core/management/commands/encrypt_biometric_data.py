@@ -1,12 +1,4 @@
-"""
-Migrate existing plaintext biometric data to encrypted fields.
 
-Run once after deploying the encryption changes:
-    python manage.py encrypt_biometric_data
-
-This command is idempotent — it only processes records
-that have plaintext data but no encrypted data.
-"""
 import json
 import logging
 
