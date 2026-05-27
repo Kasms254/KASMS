@@ -1259,10 +1259,17 @@ class ExamReport(models.Model):
 
     @property
     def total_students(self):
+        # Use annotated value when available (set by queryset.annotate())
+        if 'total_students' in self.__dict__:
+            return self.__dict__['total_students']
         return self.class_obj.enrollments.filter(is_active=True).count()
 
     @property
     def average_performance(self):
+        # Use annotated value when available (set by queryset.annotate())
+        if 'average_performance' in self.__dict__:
+            val = self.__dict__['average_performance']
+            return round(float(val), 2) if val is not None else 0
         exam_ids = self.exams.values_list('id', flat=True)
         results = ExamResult.objects.filter(exam_id__in=exam_ids, is_submitted=True)
         if not results.exists():

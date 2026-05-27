@@ -787,7 +787,7 @@ export async function getExams(params = '') {
   return data
 }
 
-// Fetches all exam pages by looping until next is null
+
 export async function getAllExams(params = '') {
   let allExams = []
   let page = 1
@@ -795,7 +795,7 @@ export async function getAllExams(params = '') {
   const baseParams = params ? `${params}&` : ''
   while (hasMore) {
     try {
-      const data = await request(`/api/exams/?${baseParams}page=${page}`)
+      const data = await request(`/api/exams/?${baseParams}page_size=1000&page=${page}`)
       const results = Array.isArray(data) ? data : (data?.results ?? [])
       allExams = [...allExams, ...results]
       hasMore = !!(data?.next)

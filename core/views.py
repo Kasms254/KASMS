@@ -15,7 +15,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -2848,7 +2848,24 @@ class ExamReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = ExamReport.all_objects.select_related(
             'subject', 'class_obj', 'created_by'
-        ).all()
+        ).prefetch_related('exams').annotate(
+            total_students=Count(
+                'class_obj__enrollments',
+                filter=Q(class_obj__enrollments__is_active=True),
+                distinct=True,
+            ),
+            average_performance=Avg(
+                ExpressionWrapper(
+                    F('exams__results__marks_obtained') * 100.0 / F('exams__total_marks'),
+                    output_field=FloatField(),
+                ),
+                filter=Q(
+                    exams__results__is_submitted=True,
+                    exams__results__marks_obtained__isnull=False,
+                    exams__total_marks__gt=0,
+                ),
+            ),
+        )
         user = self.request.user
 
         if not user.is_authenticated:
