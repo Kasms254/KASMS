@@ -465,22 +465,28 @@ class User(AbstractUser):
         ('oic', 'Officer in Charge'),
     ]
     RANK_CHOICES = [
-        ('private', 'Private'),
-        ('lance_corporal', 'Lance Corporal'),
-        ('corporal', 'Corporal'),
-        ('sergeant', 'Sergeant'),
-        ('senior_sergeant', 'Senior Sergeant'),
-        ('warrant_officer_ii', 'Warrant Officer II'),
-        ('warrant_officer_i', 'Warrant Officer I'),
-        ('lieutenant', 'Lieutenant'),
-        ('captain', 'Captain'),
-        ('major', 'Major'),
-        ('lieutenant_colonel', 'Lieutenant Colonel'),
-        ('colonel', 'Colonel'),
-        ('brigadier', 'Brigadier'),
-        ('major_general', 'Major General'),
-        ('lieutenant_general', 'Lieutenant General'),
         ('general', 'General'),
+        ('lieutenant_general', 'Lieutenant General'),
+        ('major_general', 'Major General'),
+        ('brigadier', 'Brigadier'),
+        ('colonel', 'Colonel'),
+        ('lieutenant_colonel', 'Lieutenant Colonel'),
+        ('major', 'Major'),
+        ('captain', 'Captain'),
+        ('lieutenant', 'Lieutenant'),
+        ('warrant_officer_i', 'Warrant Officer I'),
+        ('warrant_officer_ii', 'Warrant Officer II'),
+        ('senior_sergeant', 'Senior Sergeant'),
+        ('sergeant', 'Sergeant'),
+        ('corporal', 'Corporal'),
+        ('lance_corporal', 'Lance Corporal'),
+        ('private', 'Private'),
+        ('head_constable_i', 'Head Constable I'),
+        ('head_constable_ii', 'Head Constable II'),
+        ('constable_i', 'Constable I'),
+        ('constable_ii', 'Constable II'),
+        ('constable_iii', 'Constable III'),
+        ('civilian', 'Civilian'),
     ]
 
     must_change_password = models.BooleanField(default=True)
@@ -1272,14 +1278,16 @@ class ExamReport(models.Model):
 
     @property
     def total_students(self):
-        # Use annotated value when available (set by queryset.annotate())
         if 'total_students' in self.__dict__:
             return self.__dict__['total_students']
         return self.class_obj.enrollments.filter(is_active=True).count()
 
+    @total_students.setter
+    def total_students(self, value):
+        self.__dict__['total_students'] = value
+
     @property
     def average_performance(self):
-        # Use annotated value when available (set by queryset.annotate())
         if 'average_performance' in self.__dict__:
             val = self.__dict__['average_performance']
             return round(float(val), 2) if val is not None else 0
@@ -1288,6 +1296,10 @@ class ExamReport(models.Model):
         if not results.exists():
             return 0
         return sum(r.percentage for r in results) / results.count()
+
+    @average_performance.setter
+    def average_performance(self, value):
+        self.__dict__['average_performance'] = value
     
 class NoticeReadStatus(models.Model):
 

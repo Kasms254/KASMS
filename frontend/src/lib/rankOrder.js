@@ -17,6 +17,12 @@ const RANK_ORDER = {
   corporal: 13,
   lance_corporal: 14,
   private: 15,
+  head_constable_i: 16,
+  head_constable_ii: 17,
+  constable_i: 18,
+  constable_ii: 19,
+  constable_iii: 20,
+  civilian: 21,
 }
 
 // Display-label → internal-value lookup (case-insensitive)
@@ -37,6 +43,12 @@ const LABEL_TO_VALUE = {
   'corporal': 'corporal',
   'lance corporal': 'lance_corporal',
   'private': 'private',
+  'head constable i': 'head_constable_i',
+  'head constable ii': 'head_constable_ii',
+  'constable i': 'constable_i',
+  'constable ii': 'constable_ii',
+  'constable iii': 'constable_iii',
+  'civilian': 'civilian',
 }
 
 // Internal value → display label with correct casing (roman numerals preserved)
@@ -57,6 +69,12 @@ const VALUE_TO_LABEL = {
   corporal: 'Corporal',
   lance_corporal: 'Lance Corporal',
   private: 'Private',
+  head_constable_i: 'Head Constable I',
+  head_constable_ii: 'Head Constable II',
+  constable_i: 'Constable I',
+  constable_ii: 'Constable II',
+  constable_iii: 'Constable III',
+  civilian: 'Civilian',
 }
 
 // Shared RANK_OPTIONS array (senior → junior) — import this instead of duplicating per-file

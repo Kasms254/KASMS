@@ -654,11 +654,12 @@ export default function PerformanceAnalytics() {
   const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
   const subjects = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results ?? [])
 
-  const classIds = classes.map(c => c.id)
+  const selectedClassObj = classes.find(c => c.id === Number(selectedClass))
+  const selectedCourseId = selectedClassObj?.course
   const { data: classComparison } = useQuery({
-    queryKey: ['class-comparison', classIds.join(',')],
-    queryFn: () => api.compareClasses(classIds).catch(() => null),
-    enabled: viewMode === 'class' && !!selectedClass && classIds.length > 0,
+    queryKey: ['class-comparison', selectedCourseId],
+    queryFn: () => api.compareClasses(selectedCourseId).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass && !!selectedCourseId,
     staleTime: 5 * 60 * 1000,
   })
 

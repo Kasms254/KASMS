@@ -15,6 +15,7 @@ from .models import (
     User, School, Department, Course, Class, Subject,
     Enrollment, StudentIndex,
     Exam, ExamResult, ExamReport, ExamReportRemark,
+    AssessmentComponent, StudentComponentResult,
     Attendance, AttendanceSession, SessionAttendance,
     Certificate, Notice, SchoolMembership,
     PersonalNotification, OICAssignment, OICRemark,
@@ -853,46 +854,81 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
         report = self.get_object()
         school = _get_school(request.user)
 
-        enrollments = Enrollment.all_objects.filter(
-            class_obj=report.class_obj, is_active=True,
-        ).select_related('student')
+        enrollments = list(
+            Enrollment.all_objects.filter(
+                class_obj=report.class_obj, is_active=True,
+            ).select_related('student')
+        )
+        enrolled_student_ids = [e.student_id for e in enrollments]
 
-        exam_ids = list(report.exams.values_list('id', flat=True))
+        score_map = defaultdict(lambda: {'total_marks': 0.0, 'total_possible': 0.0, 'results': []})
 
-        all_results = ExamResult.all_objects.filter(
-            exam_id__in=exam_ids,
-            is_submitted=True,
-            school=school,
-        ).select_related('exam', 'student')
+        exams = list(report.exams.select_related('component'))
+        policy_exams = [e for e in exams if e.component_id]
+        legacy_exams = [e for e in exams if not e.component_id]
 
-        results_map = defaultdict(list)
+        if legacy_exams:
+            legacy_exam_ids = [e.id for e in legacy_exams]
+            legacy_results = ExamResult.all_objects.filter(
+                exam_id__in=legacy_exam_ids,
+                is_submitted=True,
+                school=school,
+            ).select_related('exam')
 
-        for r in all_results:
-            results_map[r.student_id].append(r)
+            for r in legacy_results:
+                score_map[r.student_id]['total_marks'] += float(r.marks_obtained or 0)
+                score_map[r.student_id]['total_possible'] += float(r.exam.total_marks or 0)
+                score_map[r.student_id]['results'].append(r)
+
+        if policy_exams:
+            comp_ids = [e.component_id for e in policy_exams]
+            comp_total_marks = {e.component_id: e.component.total_marks for e in policy_exams}
+
+            all_comp_results = StudentComponentResult.all_objects.filter(
+                component_id__in=comp_ids,
+                student_id__in=enrolled_student_ids,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective_map = defaultdict(dict)
+            for r in all_comp_results:
+                key = r.component_id
+                existing = effective_map[r.student_id].get(key)
+                if existing is None:
+                    effective_map[r.student_id][key] = r
+                elif r.component.retake_evaluation == 'best':
+                    if float(r.percentage or 0) > float(existing.percentage or 0):
+                        effective_map[r.student_id][key] = r
+                else:  # latest
+                    if r.attempt_number > existing.attempt_number:
+                        effective_map[r.student_id][key] = r
+
+            for student_id, comp_dict in effective_map.items():
+                for comp_id, r in comp_dict.items():
+                    score_map[student_id]['total_marks'] += float(r.marks_obtained or 0)
+                    score_map[student_id]['total_possible'] += float(comp_total_marks.get(comp_id) or 100)
 
         student_data = []
-
         for enrollment in enrollments:
-            results = results_map.get(enrollment.student_id, [])
-
-            total_marks = sum(float(r.marks_obtained or 0) for r in results)
-            total_possible = sum(r.exam.total_marks for r in results)
-
+            student_id = enrollment.student_id
+            scores = score_map.get(student_id, {})
+            total_marks = scores.get('total_marks', 0.0)
+            total_possible = scores.get('total_possible', 0.0)
             percentage = round(total_marks / total_possible * 100, 2) if total_possible else 0
 
             student_data.append({
-                'student_id': str(enrollment.student.id),
+                'student_id': str(student_id),
                 'name': enrollment.student.get_full_name(),
                 'svc_number': enrollment.student.svc_number,
                 'rank': enrollment.student.get_rank_display() if enrollment.student.rank else None,
                 'total_marks': float(total_marks),
-                'total_possible': total_possible,
+                'total_possible': float(total_possible),
                 'percentage': percentage,
-                'results': ExamResultSerializer(results, many=True).data,
+                'results': ExamResultSerializer(scores.get('results', []), many=True).data,
             })
 
         student_data.sort(key=lambda x: x['percentage'], reverse=True)
-
         for i, s in enumerate(student_data, 1):
             s['position'] = i
 
@@ -902,6 +938,8 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
             sum(s['percentage'] for s in student_data) / len(student_data), 2
         ) if student_data else 0
 
+        pass_mark = float(report.subject.pass_mark) if report.subject and report.subject.pass_mark else 50
+
         return Response({
             'report': report_data,
             'students': student_data,
@@ -910,8 +948,8 @@ class OICExamReportViewSet(viewsets.ReadOnlyModelViewSet):
                 'average_percentage': avg,
                 'highest_percentage': student_data[0]['percentage'] if student_data else 0,
                 'lowest_percentage': student_data[-1]['percentage'] if student_data else 0,
-                'pass_count': sum(1 for s in student_data if s['percentage'] >= 50),
-                'fail_count': sum(1 for s in student_data if s['percentage'] < 50),
+                'pass_count': sum(1 for s in student_data if s['percentage'] >= pass_mark),
+                'fail_count': sum(1 for s in student_data if s['percentage'] < pass_mark),
             },
         })
 

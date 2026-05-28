@@ -9,18 +9,12 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ['SECRET_KEY']  # Fail loudly at boot if missing — never silently insecure
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False") == "True"  # Default False — never expose debug in production
+SECRET_KEY = os.environ['SECRET_KEY']  
 
-# When Django runs behind Nginx (production), Nginx terminates TLS and
-# forwards requests via HTTP internally. Without this setting:
-#   - request.is_secure() returns False
-#   - CSRF / session cookies are NOT marked Secure
-#   - Cookie SameSite=None breaks (requires Secure flag)
-# X-Forwarded-Proto is set by Nginx in nginx/templates/kasms.conf.template.
+DEBUG = os.getenv("DEBUG", "False") == "True" 
+
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
@@ -86,10 +80,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "kasms.wsgi.application"
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
     "default": {

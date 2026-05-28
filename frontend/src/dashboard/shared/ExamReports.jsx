@@ -76,18 +76,18 @@ export default function ExamReports() {
     description: '',
   })
 
-  // Fetch initial data with React Query (cached 5 min)
-  // For admin: filter by class on the server and page-loop to get all results.
-  // queryKey includes selectedClass so the cache is per-class.
+
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
     queryKey: ['exams', isAdmin, selectedClass],
     queryFn: () => {
       if (isAdmin) {
-        const params = selectedClass ? `subject__class_obj=${selectedClass}` : ''
+        const params = `subject__class_obj=${selectedClass}`
         return api.getAllExams(params)
       }
       return api.getMyExams()
     },
+    enabled: isAdmin ? !!selectedClass : true,
+    staleTime: 5 * 60 * 1000,
   })
   const { data: classesQueryData } = useQuery({
     queryKey: ['classes', 'active', isAdmin],
@@ -100,7 +100,8 @@ export default function ExamReports() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const loading = loadingExams
+ 
+  const loading = loadingExams && (isAdmin ? !!selectedClass : true)
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
@@ -965,13 +966,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-4 h-4" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-4 h-4" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1026,13 +1029,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-5 h-5" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-5 h-5" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1092,14 +1097,16 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center gap-2 justify-end flex-wrap">
-                            <button
-                              onClick={() => handleOpenCreateReportModal(exam)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-                              title="Create exam report for this exam"
-                            >
-                              <LucideIcons.Plus className="w-4 h-4" />
-                              Create Report
-                            </button>
+                            {!isAdmin && (
+                              <button
+                                onClick={() => handleOpenCreateReportModal(exam)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                                title="Create exam report for this exam"
+                              >
+                                <LucideIcons.Plus className="w-4 h-4" />
+                                Create Report
+                              </button>
+                            )}
                             <button
                               onClick={() => handleViewReport(exam)}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
@@ -1643,7 +1650,10 @@ export default function ExamReports() {
                     </div>
                   ) : !loadingReport ? (
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-sm text-amber-700">
-                      No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.
+                      {isAdmin
+                        ? 'No report exists for this exam yet. The instructor must create a report to enable remarks.'
+                        : <>No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.</>
+                      }
                     </div>
                   ) : null}
 
@@ -1679,36 +1689,38 @@ export default function ExamReports() {
                         )}
                       </div>
 
-                      {/* Add Remark Form */}
-                      <div className="border-t border-neutral-200 pt-4">
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                        <textarea
-                          value={newRemark}
-                          onChange={(e) => setNewRemark(e.target.value)}
-                          placeholder="Enter your remark (minimum 10 characters)..."
-                          rows={4}
-                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                        />
-                        <div className="flex gap-3 justify-end mt-3">
-                          <button
-                            onClick={handleAddRemark}
-                            disabled={remarkSubmitting || !newRemark.trim()}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            {remarkSubmitting ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Submitting...
-                              </>
-                            ) : (
-                              <>
-                                <LucideIcons.Send className="w-4 h-4" />
-                                Submit Remark
-                              </>
-                            )}
-                          </button>
+                      {/* Add Remark Form — hidden for admin */}
+                      {!isAdmin && (
+                        <div className="border-t border-neutral-200 pt-4">
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                          <textarea
+                            value={newRemark}
+                            onChange={(e) => setNewRemark(e.target.value)}
+                            placeholder="Enter your remark (minimum 10 characters)..."
+                            rows={4}
+                            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                          />
+                          <div className="flex gap-3 justify-end mt-3">
+                            <button
+                              onClick={handleAddRemark}
+                              disabled={remarkSubmitting || !newRemark.trim()}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {remarkSubmitting ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <LucideIcons.Send className="w-4 h-4" />
+                                  Submit Remark
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -1173,7 +1173,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            # C6: scope by school to prevent assigning instructors from other schools
             instructor = User.all_objects.get(
                 id=instructor_id,
                 role='instructor',
@@ -1254,7 +1253,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             is_active=True
         ).order_by ('first_name', 'last_name')
 
-        # Build a map of student_id → formatted index number for this class
         index_map = {}
         for si in StudentIndex.all_objects.filter(
             class_obj=class_obj,
@@ -2109,19 +2107,51 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         results = exam.results.select_related('student', 'graded_by').all()
 
-        stats = results.aggregate(
-            total=Count('id'),
-            submitted=Count('id', filter=Q(is_submitted=True)),
-            pending=Count('id', filter=Q(is_submitted=False))
-        )
-        
-        serializer = ExamResultSerializer(results, many=True)
+        serialized_results = ExamResultSerializer(results, many=True).data
+
+       
+        if exam.component_id:
+            comp_results = StudentComponentResult.all_objects.filter(
+                component_id=exam.component_id,
+                student_id__in=[r['student'] for r in serialized_results],
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective: dict = {}
+            for cr in comp_results:
+                sid = cr.student_id
+                existing = effective.get(sid)
+                if existing is None:
+                    effective[sid] = cr
+                elif cr.component.retake_evaluation == 'best':
+                    if float(cr.percentage or 0) > float(existing.percentage or 0):
+                        effective[sid] = cr
+                else:  
+                    if cr.attempt_number > existing.attempt_number:
+                        effective[sid] = cr
+
+            enriched = []
+            for r in serialized_results:
+                r = dict(r)
+                cr = effective.get(r['student'])
+                if cr is not None:
+                    r['marks_obtained'] = float(cr.marks_obtained)
+                    r['percentage'] = float(cr.percentage or 0)
+                    r['is_submitted'] = True
+                    r['grade'] = cr.status  # PASS/FAIL from component
+                enriched.append(r)
+            serialized_results = enriched
+
+        submitted_count = sum(1 for r in serialized_results if r.get('is_submitted') and r.get('marks_obtained') is not None)
+        pending_count = len(serialized_results) - submitted_count
+
         return Response({
             'exam': ExamSerializer(exam).data,
-            'count': stats['total'],
-            'submitted': stats['submitted'],
-            'pending': stats['pending'],
-            'results': serializer.data
+            'count': len(serialized_results),
+            'submitted': submitted_count,
+            'pending': pending_count,
+            'results': serialized_results,
         })
 
 
@@ -3499,13 +3529,37 @@ class StudentDashboardViewset(viewsets.ViewSet):
             active_class_results = ExamResult.objects.filter(
                 student=user,
                 is_submitted=True,
-                marks_obtained__isnull = False,
-                exam__subject__class_obj_id = active_class_id
-            )
+                marks_obtained__isnull=False,
+                exam__subject__class_obj_id=active_class_id,
+            ).select_related('exam')
 
-            if active_class_results.exists():
-                total_marks = sum(r.marks_obtained for r in active_class_results)
-                total_possible = sum(r.exam.total_marks for r in active_class_results)
+            policy_comp_results = StudentComponentResult.objects.filter(
+                student=user,
+                component__subject__class_obj_id=active_class_id,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective_policy = {}
+            for r in policy_comp_results:
+                cid = r.component_id
+                existing = effective_policy.get(cid)
+                if existing is None:
+                    effective_policy[cid] = r
+                elif r.component.retake_evaluation == 'best':
+                    if float(r.percentage or 0) > float(existing.percentage or 0):
+                        effective_policy[cid] = r
+                else:
+                    if r.attempt_number > existing.attempt_number:
+                        effective_policy[cid] = r
+
+            has_results = active_class_results.exists() or bool(effective_policy)
+            if has_results:
+                total_marks = sum(float(r.marks_obtained) for r in active_class_results)
+                total_possible = sum(float(r.exam.total_marks) for r in active_class_results)
+                for r in effective_policy.values():
+                    total_marks += float(r.marks_obtained)
+                    total_possible += float(r.component.total_marks)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
                 if average_percentage >=91:

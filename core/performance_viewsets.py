@@ -770,7 +770,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             return Response({'error': 'class_id parameter is required'}, status=400)
 
         school = _get_school_from_request(request)
-        cache_key = f'class_perf:{class_id}:{school.id if school else "all"}'
+        cache_key = f'class_perf_v2:{class_id}:{school.id if school else "all"}'
         cached = cache.get(cache_key)
         if cached:
             return Response(cached)
@@ -789,6 +789,20 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 status=403,
             )
 
+        try:
+            return self._compute_summary(request, class_obj, cache_key)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                'ClassPerformanceViewSet.summary failed for class %s: %s',
+                class_id, exc, exc_info=True,
+            )
+            return Response(
+                {'error': 'Failed to compute class performance summary. Please try again.'},
+                status=500,
+            )
+
+    def _compute_summary(self, request, class_obj, cache_key):
         enrollments = Enrollment.objects.filter(
             class_obj=class_obj, is_active=True
         ).select_related('student')
@@ -843,21 +857,10 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             ed = exam_map.get(sid, {})
             ad = att_map_data.get(sid, {})
 
-            st = float(ed.get('total_marks', 0) or 0)
-            sp = ed.get('total_possible', 0) or 0
-
             policy_sid_data = policy_student_marks.get(sid, {})
-            policy_marks = sum(d['marks'] for d in policy_sid_data.values())
-            policy_possible = sum(d['possible'] for d in policy_sid_data.values())
-            total_marks = st + policy_marks
-            total_possible = float(sp) + policy_possible
-            ep = (total_marks / total_possible * 100) if total_possible else 0
 
             attended = ad.get('attended', 0)
-            pres = ad.get('present', 0)
-            late = ad.get('late', 0)
             ar = (attended / total_sessions * 100) if total_sessions else 0
-            combined = float(ep) * 0.7 + float(ar) * 0.3
 
             sse = subj_exam_data.get(sid, {})
             ssa = subj_att_data.get(sid, {})
@@ -880,23 +883,30 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     spct = (stm / stp * 100) if stp else 0
 
                 if stm > 0 or satt > 0:
+                 
                     sb.append({
                         'subject_name': subj.name,
                         'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
-                        'marks_obtained': stm,
-                        'total_possible': float(stp),
+                        'marks_obtained': round(spct, 2),
+                        'total_possible': 100.0,
                         'exam_percentage': round(spct, 2),
                         'attendance_rate': round(sar, 2),
                         'combined_score': round(float(spct) * 0.7 + float(sar) * 0.3, 2),
                     })
+
+          
+            total_marks_obtained = round(sum(item['marks_obtained'] for item in sb), 2)
+            total_marks_possible = float(len(sb) * 100)
+            ep = (total_marks_obtained / total_marks_possible * 100) if total_marks_possible else 0
+            combined = float(ep) * 0.7 + float(ar) * 0.3
 
             rankings.append({
                 'student_id': s.id,
                 'student_name': s.get_full_name(),
                 'svc_number': getattr(s, 'svc_number', None),
                 'total_exams_taken': ed.get('exams_taken', 0),
-                'total_marks_obtained': total_marks,
-                'total_marks_possible': total_possible,
+                'total_marks_obtained': total_marks_obtained,
+                'total_marks_possible': total_marks_possible,
                 'exam_percentage': round(ep, 2),
                 'total_sessions': total_sessions,
                 'sessions_attended': attended,
@@ -1084,37 +1094,69 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
 
         if school:
             qs = qs.filter(school=school)
-        classes = qs.select_related('course', 'instructor')
+        classes = list(qs.select_related('course', 'instructor'))
 
-        comparison = []
-        for cls in classes:
-            enrolled = Enrollment.objects.filter(class_obj=cls, is_active=True).count()
-            results_qs = ExamResult.objects.filter(
-                exam__subject__class_obj=cls, is_submitted=True, marks_obtained__isnull=False,
-            )
-            ov = results_qs.aggregate(
+        if not classes:
+            return Response({'total_classes': 0, 'classes': []})
+
+        class_id_list = [cls.id for cls in classes]
+
+        enrollment_counts = {
+            row['class_obj_id']: row['cnt']
+            for row in Enrollment.objects.filter(
+                class_obj_id__in=class_id_list, is_active=True,
+            ).values('class_obj_id').annotate(cnt=Count('id'))
+        }
+
+        exam_aggs = {
+            row['class_id']: row
+            for row in ExamResult.objects.filter(
+                exam__subject__class_obj_id__in=class_id_list,
+                is_submitted=True, marks_obtained__isnull=False,
+            ).values(class_id=F('exam__subject__class_obj_id')).annotate(
                 tm=Sum('marks_obtained'),
                 tp=Sum('exam__total_marks'),
                 tc=Count('id'),
                 pc=Count('id', filter=Q(marks_obtained__gte=F('exam__total_marks') * 0.5)),
             )
-            _tm = float(ov['tm'] or 0)
-            _tp = ov['tp'] or 0
-            _tc = ov['tc'] or 0
-            _pc = ov['pc'] or 0
+        }
+
+        session_counts = {
+            row['class_obj_id']: row['cnt']
+            for row in AttendanceSession.objects.filter(
+                class_obj_id__in=class_id_list,
+            ).values('class_obj_id').annotate(cnt=Count('id'))
+        }
+
+        attendance_counts = {
+            row['class_id']: row['cnt']
+            for row in SessionAttendance.objects.filter(
+                session__class_obj_id__in=class_id_list,
+            ).values(class_id=F('session__class_obj_id')).annotate(cnt=Count('id'))
+        }
+
+        comparison = []
+        for cls in classes:
+            cid = cls.id
+            enrolled = enrollment_counts.get(cid, 0)
+            agg = exam_aggs.get(cid, {})
+            _tm = float(agg.get('tm') or 0)
+            _tp = agg.get('tp') or 0
+            _tc = agg.get('tc') or 0
+            _pc = agg.get('pc') or 0
             avg = (_tm / _tp * 100) if _tp else 0
             pr = (_pc / _tc * 100) if _tc else 0
 
-            ts = AttendanceSession.objects.filter(class_obj=cls).count()
+            ts = session_counts.get(cid, 0)
+            act = attendance_counts.get(cid, 0)
             exp = enrolled * ts
-            act = SessionAttendance.objects.filter(session__class_obj=cls).count()
             ar = (act / exp * 100) if exp else 0
 
             comparison.append({
-                'class_id': cls.id,
+                'class_id': cid,
                 'class_name': cls.name,
-                'course': cls.course.name if hasattr(cls, 'course') and cls.course else None,
-                'instructor': cls.instructor.get_full_name() if hasattr(cls, 'instructor') and cls.instructor else None,
+                'course': cls.course.name if cls.course else None,
+                'instructor': cls.instructor.get_full_name() if cls.instructor else None,
                 'total_students': enrolled,
                 'total_results': _tc,
                 'average_percentage': round(avg, 2),

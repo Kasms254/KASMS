@@ -1055,8 +1055,8 @@ export async function getClassTopPerformers(classId, limit = 10) {
   return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
 }
 
-export async function compareClasses(classIds = []) {
-  const qs = classIds.length > 0 ? `?class_ids=${classIds.map(encodeURIComponent).join(',')}` : ''
+export async function compareClasses(courseId) {
+  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
   return request(`/api/class-performance/compare_classes/${qs}`)
 }
 

@@ -46,6 +46,12 @@ const RANK_OPTIONS = [
   { value: 'corporal', label: 'Corporal' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'private', label: 'Private' },
+  { value: 'head_constable_i', label: 'Head Constable I' },
+  { value: 'head_constable_ii', label: 'Head Constable II' },
+  { value: 'constable_i', label: 'Constable I' },
+  { value: 'constable_ii', label: 'Constable II' },
+  { value: 'constable_iii', label: 'Constable III' },
+  { value: 'civilian', label: 'Civilian' },
 ]
 
 const RANK_LABEL_TO_VALUE = {}
