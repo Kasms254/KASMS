@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.11",
-    "exceljs": "^4.4.0",
+    "exceljs": "^3.4.0",
     "framer-motion": "^12.40.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",

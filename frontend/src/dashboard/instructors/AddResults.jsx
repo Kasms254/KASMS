@@ -146,6 +146,7 @@ export default function AddResults() {
       setComponentInfo(null)
       setActiveComponentId(null)
       setComponentPage(1)
+      setComponentSortConfig({ key: null, direction: 'asc' })
       setResults([])
       setExamInfo(null)
       setRetakeActive(new Set())
@@ -372,6 +373,11 @@ export default function AddResults() {
     setSortConfig({ key, direction })
   }
 
+  function handleComponentSort(key) {
+    const direction = componentSortConfig.key === key && componentSortConfig.direction === 'asc' ? 'desc' : 'asc'
+    setComponentSortConfig({ key, direction })
+  }
+
   // Filter and sort results
   const filteredAndSortedResults = React.useMemo(() => {
     let filtered = results.filter(r => {
@@ -464,6 +470,11 @@ export default function AddResults() {
   const [componentItemsPerPage, setComponentItemsPerPage] = useState(10)
   // Tracks which student IDs have had their retake input explicitly activated
   const [retakeActive, setRetakeActive] = useState(new Set())
+  const [componentSortConfig, setComponentSortConfig] = useState({ key: null, direction: 'asc' })
+
+  React.useEffect(() => {
+    setComponentPage(1)
+  }, [componentSearchTerm, componentSortConfig])
 
   const loadComponentStudents = useCallback(async (componentId, compInfo, classId) => {
     if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
@@ -696,7 +707,32 @@ export default function AddResults() {
               .filter(({ r }) => {
                 if (!componentSearchTerm) return true
                 const q = componentSearchTerm.toLowerCase()
-                return r.student_name?.toLowerCase().includes(q)
+                return r.student_name?.toLowerCase().includes(q) || (r.class_index || '').toLowerCase().includes(q)
+              })
+              .sort(({ r: a }, { r: b }) => {
+                if (!componentSortConfig.key) return 0
+                let aVal, bVal
+                if (componentSortConfig.key === 'marks_obtained') {
+                  aVal = Number(a.marks_obtained) || 0
+                  bVal = Number(b.marks_obtained) || 0
+                } else if (componentSortConfig.key === 'percentage') {
+                  aVal = a.marks_obtained !== '' && a.marks_obtained != null && componentInfo.total_marks
+                    ? (parseFloat(a.marks_obtained) / componentInfo.total_marks) * 100
+                    : (a.current_percentage != null ? parseFloat(a.current_percentage) : 0)
+                  bVal = b.marks_obtained !== '' && b.marks_obtained != null && componentInfo.total_marks
+                    ? (parseFloat(b.marks_obtained) / componentInfo.total_marks) * 100
+                    : (b.current_percentage != null ? parseFloat(b.current_percentage) : 0)
+                } else if (componentSortConfig.key === 'status') {
+                  const order = { PASS: 1, FAIL: 2, RETAKE_REQUIRED: 3, PENDING: 4 }
+                  aVal = order[a.current_status] || 5
+                  bVal = order[b.current_status] || 5
+                } else {
+                  aVal = String(a[componentSortConfig.key] || '').toLowerCase()
+                  bVal = String(b[componentSortConfig.key] || '').toLowerCase()
+                }
+                if (aVal < bVal) return componentSortConfig.direction === 'asc' ? -1 : 1
+                if (aVal > bVal) return componentSortConfig.direction === 'asc' ? 1 : -1
+                return 0
               })
             const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
             const paginatedComp = filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage)
@@ -735,7 +771,7 @@ export default function AddResults() {
                     <div className="flex-1">
                       <input
                         type="text"
-                        placeholder="Search by student name..."
+                        placeholder="Search by name or index..."
                         value={componentSearchTerm}
                         onChange={e => { setComponentSearchTerm(e.target.value); setComponentPage(1) }}
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -772,10 +808,51 @@ export default function AddResults() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Index</th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Marks (/{componentInfo.total_marks})</th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Percentage</th>
+                        <th
+                          onClick={() => handleComponentSort('class_index')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Index
+                            <span className={componentSortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'class_index' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th
+                          onClick={() => handleComponentSort('marks_obtained')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Marks (/{componentInfo.total_marks})
+                            <span className={componentSortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'marks_obtained' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th
+                          onClick={() => handleComponentSort('percentage')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Percentage
+                            <span className={componentSortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'percentage' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Grade</th>
+                        <th
+                          onClick={() => handleComponentSort('status')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Status
+                            <span className={componentSortConfig.key === 'status' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'status' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Remarks</th>
                         <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24"></th>
                       </tr>
@@ -851,6 +928,17 @@ export default function AddResults() {
                                 {g}
                               </span>
                             </td>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                              {r.current_status ? (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
+                                  r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
+                                </span>
+                              ) : <span className="text-gray-300 text-xs">—</span>}
+                            </td>
                             <td className="px-3 lg:px-4 py-3">
                               <input
                                 type="text"
@@ -910,6 +998,15 @@ export default function AddResults() {
                             displayPct >= 50 ? 'text-yellow-600' :
                             'text-red-600'
                           }`}>{displayPct != null ? formatPercentage(displayPct) : '-'}</span>
+                          {r.current_status && (
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
+                              r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-3">
@@ -1254,9 +1351,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Index
-                        {sortConfig.key === 'class_index' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'class_index' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1265,9 +1362,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Marks (/{examInfo?.total_marks || '?'})
-                        {sortConfig.key === 'marks_obtained' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'marks_obtained' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1276,9 +1373,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Percentage
-                        {sortConfig.key === 'percentage' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'percentage' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1287,9 +1384,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Grade
-                        {sortConfig.key === 'grade' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'grade' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'grade' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
