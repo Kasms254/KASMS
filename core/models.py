@@ -159,7 +159,6 @@ class SchoolMembership(models.Model):
                 condition=models.Q(status='active'),
                 name='unique_active_membership_per_school'
             ),
-            # A user may only hold one active membership at a time (across all schools).
             models.UniqueConstraint(
                 fields=['user'],
                 condition=models.Q(status='active'),
@@ -510,7 +509,6 @@ class User(AbstractUser):
     @property
     def active_membership(self):
         if not hasattr(self, '_active_membership_cache'):
-            # Use prefetched data if the queryset was annotated via prefetch_related.
             prefetch_cache = getattr(self, '_prefetched_objects_cache', {})
             if 'school_memberships' in prefetch_cache:
                 self._active_membership_cache = next(

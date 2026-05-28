@@ -1254,12 +1254,25 @@ class ClassViewSet(viewsets.ModelViewSet):
             is_active=True
         ).order_by ('first_name', 'last_name')
 
+        # Build a map of student_id → formatted index number for this class
+        index_map = {}
+        for si in StudentIndex.all_objects.filter(
+            class_obj=class_obj,
+            enrollment__is_active=True,
+        ).select_related('enrollment'):
+            try:
+                index_map[si.enrollment.student_id] = class_obj.format_index(int(si.index_number))
+            except (ValueError, TypeError):
+                pass
 
         serializer = UserListSerializer(students, many=True)
-        
+        results = serializer.data
+        for student_data in results:
+            student_data['index_number'] = index_map.get(student_data['id'])
+
         return Response({
             'count': students.count(),
-            'results': serializer.data,
+            'results': results,
             'class':class_obj.name
         })
 
@@ -4367,13 +4380,11 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # C3: scope session lookup to the current school to prevent cross-tenant manipulation
         session = AttendanceSession.objects.get(
             id=serializer.validated_data['session_id'],
             school=request.user.school,
         )
 
-        # Verify the user has permission to mark attendance for this session
         user = request.user
         if user.role == 'instructor':
             if not (
@@ -4392,7 +4403,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         for record in records:
             try:
-                # C4: scope by school to prevent marking attendance for students from other schools
                 student = User.all_objects.get(
                     id=record['student_id'],
                     role='student',
