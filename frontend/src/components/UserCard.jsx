@@ -21,7 +21,7 @@ export default function UserCard({ type = 'student', count = null }) {
   const cfg = typeMap[key] || typeMap.student
   return (
     <Card
-      badge="2024/25"
+      badge={String(new Date().getFullYear())}
       title={cfg.title}
       value={count}
       className=""
