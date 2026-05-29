@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import Card from '../../components/Card'
 import UserCard from '../../components/UserCard'
 import Calendar from '../../components/Calendar'
@@ -7,101 +8,68 @@ import EmptyState from '../../components/EmptyState'
 import * as Icons from 'lucide-react'
 import { getCommandantOverview, getCommandantNotices } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
-import useToast from '../../hooks/useToast'
+
+const pad = (n) => String(n).padStart(2, '0')
+const toISO = (d) => {
+  try {
+    const dt = new Date(d)
+    if (Number.isNaN(dt.getTime())) return null
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+  } catch { return null }
+}
 
 export default function CommandantDashboard() {
   const { user } = useAuth()
-  const toast = useToast()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [calendarEvents, setCalendarEvents] = useState({})
-  const [recentItems, setRecentItems] = useState([])
-  const [recentLoading, setRecentLoading] = useState(true)
 
-  const reportError = useCallback((msg) => {
-    if (!msg) return
-    if (toast?.error) return toast.error(msg)
-    if (toast?.showToast) return toast.showToast(msg, { type: 'error' })
-  }, [toast])
+  const { data, isPending: loading, error } = useQuery({
+    queryKey: ['commandant-overview'],
+    queryFn: getCommandantOverview,
+    staleTime: 5 * 60 * 1000,
+  })
 
-  // Load main overview data
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await getCommandantOverview()
-        setData(res)
-      } catch (err) {
-        setError(err?.message || 'Failed to load dashboard')
-        reportError(err?.message || 'Failed to load dashboard')
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [reportError])
+  const { data: noticesRaw, isPending: recentLoading } = useQuery({
+    queryKey: ['commandant-notices'],
+    queryFn: () => getCommandantNotices().catch(() => []),
+    staleTime: 5 * 60 * 1000,
+  })
 
-  // Load notices and map to calendar events
-  useEffect(() => {
-    let mounted = true
+  const notices = useMemo(() => {
+    if (!noticesRaw) return []
+    return Array.isArray(noticesRaw) ? noticesRaw : (noticesRaw?.results ?? [])
+  }, [noticesRaw])
 
-    const pad = (n) => String(n).padStart(2, '0')
-    const toISO = (d) => {
-      try {
-        const dt = new Date(d)
-        if (Number.isNaN(dt.getTime())) return null
-        return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
-      } catch { return null }
-    }
+  const calendarEvents = useMemo(() => {
+    const ev = {}
+    notices.forEach((n) => {
+      const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
+      const iso = date ? toISO(date) : null
+      if (!iso) return
+      ev[iso] = ev[iso] || []
+      ev[iso].push({
+        kind: 'notice',
+        title: n.title || 'Notice',
+        noticeId: n.id,
+        priority: n.priority || null,
+        expiry_date: n.expiry_date || null,
+      })
+    })
+    return ev
+  }, [notices])
 
-    async function loadNotices() {
-      try {
-        const resp = await getCommandantNotices().catch(() => [])
-        const notices = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.results) ? resp.results : [])
-        const ev = {}
-        notices.forEach((n) => {
-          const date = n?.expiry_date || n?.expiry || n?.created_at || n?.created
-          const iso = date ? toISO(date) : null
-          if (!iso) return
-          ev[iso] = ev[iso] || []
-          ev[iso].push({
-            kind: 'notice',
-            title: n.title || 'Notice',
-            noticeId: n.id,
-            priority: n.priority || null,
-            expiry_date: n.expiry_date || null,
-          })
-        })
-
-        // Also build recent items from notices
-        const nItems = notices.map((n) => ({
-          kind: 'notice',
-          id: n.id,
-          title: n.title || 'Notice',
-          date: n.created_at || n.created || n.start_date || null,
-          meta: n,
-        }))
-
-        if (mounted) {
-          setCalendarEvents(ev)
-          setRecentItems((prev) => {
-            const merged = [...nItems, ...prev.filter((i) => i.kind !== 'notice')]
-            const normalized = merged
-              .map((i) => ({ ...i, _date: i.date ? new Date(i.date) : null }))
-              .filter((i) => i._date && !Number.isNaN(i._date.getTime()))
-            normalized.sort((a, b) => b._date - a._date)
-            return normalized.slice(0, 8)
-          })
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (mounted) setRecentLoading(false)
-      }
-    }
-
-    loadNotices()
-    return () => { mounted = false }
-  }, [])
+  const recentItems = useMemo(() => {
+    const items = notices.map((n) => ({
+      kind: 'notice',
+      id: n.id,
+      title: n.title || 'Notice',
+      date: n.created_at || n.created || n.start_date || null,
+      meta: n,
+    }))
+    return items
+      .map((i) => ({ ...i, _date: i.date ? new Date(i.date) : null }))
+      .filter((i) => i._date && !Number.isNaN(i._date.getTime()))
+      .sort((a, b) => b._date - a._date)
+      .slice(0, 8)
+  }, [notices])
 
   const roleLabel = user?.role === 'chief_instructor' ? 'Chief Instructor' : 'Commandant'
 
@@ -121,7 +89,7 @@ export default function CommandantDashboard() {
         </div>
       ) : error ? (
         <div className="bg-white rounded-xl border border-red-200 p-6">
-          <EmptyState icon="AlertCircle" title="Failed to load dashboard" description={error} variant="minimal" />
+          <EmptyState icon="AlertCircle" title="Failed to load dashboard" description={error?.message || 'Something went wrong'} variant="minimal" />
         </div>
       ) : (
         <>
@@ -183,15 +151,13 @@ export default function CommandantDashboard() {
 
               {recentLoading && <div className="text-sm text-neutral-500">Loading…</div>}
 
-              {!recentLoading && (!recentItems || recentItems.length === 0) && (
+              {!recentLoading && recentItems.length === 0 && (
                 <div className="text-sm text-neutral-500">No Recent Activity</div>
               )}
 
-              {!recentLoading && recentItems && recentItems.length > 0 && (
+              {!recentLoading && recentItems.length > 0 && (
                 <ul className="relative">
-                  {/* vertical timeline line */}
                   <div className="absolute left-6 top-6 bottom-4 w-px bg-neutral-200" aria-hidden="true" />
-
                   {recentItems.slice(0, 5).map((it, idx) => {
                     const deltaS = it._date ? Math.floor((Date.now() - it._date.getTime()) / 1000) : null
                     const absS = deltaS == null ? null : Math.abs(deltaS)

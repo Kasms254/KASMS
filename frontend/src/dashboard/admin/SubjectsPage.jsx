@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import SearchableSelect from '../../components/SearchableSelect'
-import { getRankSortIndex } from '../../lib/rankOrder'
+import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
 function sanitizeInput(value) {
@@ -18,6 +19,7 @@ function sanitizeInput(value) {
 }
 
 export default function SubjectsPage() {
+  const navigate = useNavigate()
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
@@ -32,18 +34,18 @@ export default function SubjectsPage() {
   const [selectedInstructor, setSelectedInstructor] = useState('all')
 
   // sorting state
-  const [sortField, setSortField] = useState('name') // name, code, class, instructor
-  const [sortDirection, setSortDirection] = useState('asc') // asc, desc
+  const [sortField, setSortField] = useState('rank') // name, code, class, instructor, rank
+  const [sortDirection, setSortDirection] = useState('asc') // asc = senior first for rank
 
   // edit/delete state
   const [editingSubject, setEditingSubject] = useState(null)
-  const [editForm, setEditForm] = useState({ name: '', code: '', instructor: '' })
+  const [editForm, setEditForm] = useState({ name: '', code: '', instructor: '', grading_mode: 'LEGACY', pass_mark: '50' })
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   // instructors state kept for add-subject modal enrichment (populated from React Query)
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '' })
+  const [form, setForm] = useState({ name: '', subject_code: '', description: '', instructor: '', class_obj: '', grading_mode: 'LEGACY', pass_mark: '50' })
   const [isSaving, setIsSaving] = useState(false)
   const modalRef = useRef(null)
   const toast = useToast()
@@ -96,7 +98,7 @@ export default function SubjectsPage() {
       const instructor = instructors.find((i) => i.id === iid)
       const instructorName = instructor ? (instructor.full_name || `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim()) : (s.instructor_name || '-')
       const instructorSvcNumber = instructor?.svc_number || '-'
-      const instructorRank = instructor?.rank || instructor?.rank_display || '-'
+      const instructorRank = getRankLabel(instructor?.rank || instructor?.rank_display) || '-'
 
       return {
         ...s,
@@ -174,10 +176,11 @@ export default function SubjectsPage() {
           aVal = a.instructorSvcNumber.toLowerCase()
           bVal = b.instructorSvcNumber.toLowerCase()
           break
-        case 'rank':
-          aVal = a.instructorRank.toLowerCase()
-          bVal = b.instructorRank.toLowerCase()
-          break
+        case 'rank': {
+          const aIdx = getRankSortIndex(a.instructorRank)
+          const bIdx = getRankSortIndex(b.instructorRank)
+          return sortDirection === 'asc' ? aIdx - bIdx : bIdx - aIdx
+        }
         default:
           aVal = ''
           bVal = ''
@@ -221,12 +224,14 @@ export default function SubjectsPage() {
       name: subj.name || subj.title || '',
       code: subj.subject_code || subj.code || '',
       instructor: subj.instructor ? (typeof subj.instructor === 'object' ? String(subj.instructor.id) : String(subj.instructor)) : (subj.instructor_id ? String(subj.instructor_id) : ''),
+      grading_mode: subj.grading_mode || 'LEGACY',
+      pass_mark: String(subj.pass_mark ?? '50'),
     })
   }
 
   function closeEdit() {
     setEditingSubject(null)
-    setEditForm({ name: '', code: '', instructor: '' })
+    setEditForm({ name: '', code: '', instructor: '', grading_mode: 'LEGACY', pass_mark: '50' })
   }
 
   function handleEditChange(key, value) {
@@ -236,12 +241,22 @@ export default function SubjectsPage() {
   async function submitEdit(e) {
     e.preventDefault()
     if (!editingSubject) return
+    if (editForm.grading_mode === 'POLICY') {
+      const pm = parseFloat(editForm.pass_mark)
+      if (editForm.pass_mark === '' || editForm.pass_mark == null || isNaN(pm)) return reportError('Pass mark is required for Policy grading mode')
+      if (pm < 0 || pm > 100) return reportError('Pass mark must be between 0 and 100')
+    }
     setEditLoading(true)
-    
+
     try {
-      const payload = { name: editForm.name, subject_code: editForm.code }
+      const payload = {
+        name: editForm.name,
+        subject_code: editForm.code,
+        grading_mode: editForm.grading_mode || 'LEGACY',
+        pass_mark: parseFloat(editForm.pass_mark) || 50,
+      }
       if (editForm.instructor) payload.instructor = Number(editForm.instructor)
-      
+
       await api.partialUpdateSubject(editingSubject.id, payload)
       queryClient.invalidateQueries({ queryKey: ['subjects'] })
       closeEdit()
@@ -274,7 +289,7 @@ export default function SubjectsPage() {
 
   async function openAddSubjectModal(classId = ''){
     // instructors already loaded via React Query
-    setForm({ name: '', subject_code: '', description: '', instructor: '', class_obj: classId || '' })
+    setForm({ name: '', subject_code: '', description: '', instructor: '', class_obj: classId || '', grading_mode: 'LEGACY', pass_mark: '50' })
     setModalOpen(true)
     setTimeout(()=>{ modalRef.current?.querySelector('input,select,button,textarea')?.focus() }, 20)
   }
@@ -287,12 +302,19 @@ export default function SubjectsPage() {
     if (!form.description) return (toast?.error || alert)('Subject description required')
     if (!form.class_obj) return (toast?.error || alert)('Please select a class')
     if (!form.instructor) return (toast?.error || alert)('Please select an instructor')
+    if (form.grading_mode === 'POLICY') {
+      const pm = parseFloat(form.pass_mark)
+      if (form.pass_mark === '' || form.pass_mark == null || isNaN(pm)) return (toast?.error || alert)('Pass mark is required for Policy grading mode')
+      if (pm < 0 || pm > 100) return (toast?.error || alert)('Pass mark must be between 0 and 100')
+    }
     const payload = {
       name: form.name,
       subject_code: form.subject_code || undefined,
       description: form.description,
       class_obj: Number(form.class_obj),
       instructor: Number(form.instructor),
+      grading_mode: form.grading_mode || 'LEGACY',
+      pass_mark: parseFloat(form.pass_mark) || 50,
     }
     setIsSaving(true)
     try{
@@ -492,7 +514,10 @@ export default function SubjectsPage() {
               <tbody>
                 {paginatedSubjects.map((s) => (
                   <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm text-neutral-700 font-medium">{s.name ?? s.title ?? 'Untitled'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700 font-medium">
+                      <div>{s.name ?? s.title ?? 'Untitled'}</div>
+                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{s.subject_code ?? s.code ?? '-'}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
@@ -502,6 +527,13 @@ export default function SubjectsPage() {
                     <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {s.grading_mode === 'POLICY' && (
+                          <button
+                            onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                            className="px-3 py-1.5 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition"
+                            aria-label={`Manage components for ${s.name || s.title || 'subject'}`}
+                          >Components</button>
+                        )}
                         <button
                           onClick={() => openEdit(s)}
                           className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
@@ -560,6 +592,7 @@ export default function SubjectsPage() {
                     <td className="px-3 py-3">
                       <div className="font-medium text-black text-sm">{s.name ?? s.title ?? 'Untitled'}</div>
                       <div className="text-xs text-neutral-500">{s.subject_code ?? s.code ?? '-'}</div>
+                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
@@ -571,6 +604,12 @@ export default function SubjectsPage() {
                     <td className="px-3 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-3 py-3">
                       <div className="flex flex-col items-stretch gap-1.5">
+                        {s.grading_mode === 'POLICY' && (
+                          <button
+                            onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                            className="px-3 py-1.5 rounded-md bg-amber-600 text-xs text-white hover:bg-amber-700 transition whitespace-nowrap text-center"
+                          >Components</button>
+                        )}
                         <button
                           onClick={() => openEdit(s)}
                           className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center"
@@ -603,6 +642,10 @@ export default function SubjectsPage() {
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
                     </div>
                     <div className="flex items-start">
+                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Grading:</span>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
+                    </div>
+                    <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Service No:</span>
                       <span className="text-sm text-neutral-700">{s.instructorSvcNumber}</span>
                     </div>
@@ -616,7 +659,13 @@ export default function SubjectsPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-neutral-100">
+                  <div className="flex gap-2 pt-3 border-t border-neutral-100 flex-wrap">
+                    {s.grading_mode === 'POLICY' && (
+                      <button
+                        onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                        className="flex-1 px-3 py-2 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition whitespace-nowrap"
+                      >Components</button>
+                    )}
                     <button
                       onClick={() => openEdit(s)}
                       className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
@@ -814,10 +863,23 @@ export default function SubjectsPage() {
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => setForm({ ...form, instructor: val })}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${ins.rank || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Grading mode</label>
+                    <select value={form.grading_mode} onChange={(e) => setForm({ ...form, grading_mode: e.target.value })} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                      <option value="LEGACY">Legacy (Final Exam Only)</option>
+                      <option value="POLICY">Policy (Component-Based)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-neutral-600 mb-1 block">Pass mark (%){form.grading_mode === 'POLICY' ? ' *' : ''}</label>
+                    <input type="number" min="0" max="100" step="0.01" value={form.pass_mark} onChange={(e) => setForm({ ...form, pass_mark: e.target.value })} placeholder="50" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                   </div>
 
                   <div className="sm:col-span-2">
@@ -862,11 +924,22 @@ export default function SubjectsPage() {
                   <SearchableSelect
                     value={editForm.instructor}
                     onChange={(val) => handleEditChange('instructor', val)}
-                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${ins.rank || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
+                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
                     placeholder="Unassigned"
                     searchPlaceholder="Search by service number, rank, or name..."
                   />
                 </div>
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Grading mode</div>
+                  <select value={editForm.grading_mode} onChange={(e) => handleEditChange('grading_mode', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                    <option value="LEGACY">Legacy (Final Exam Only)</option>
+                    <option value="POLICY">Policy (Component-Based)</option>
+                  </select>
+                </label>
+                <label className="block mb-3">
+                  <div className="text-sm text-neutral-600 mb-1">Pass mark (%)</div>
+                  <input type="number" min="0" max="100" step="0.01" value={editForm.pass_mark} onChange={(e) => handleEditChange('pass_mark', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                </label>
               </div>
               <div className="flex justify-end gap-3 mt-4">
                 <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>

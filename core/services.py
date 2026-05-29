@@ -4,7 +4,7 @@ from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
-    AttendanceSession, SessionAttendance, StudentIndex)
+    AttendanceSession, SessionAttendance, StudentIndex, StudentComponentResult, AssessmentComponent)
 from django.conf import settings
 import io
 import os
@@ -79,7 +79,7 @@ def get_class_completion_status(class_obj, student):
 
     subject_statuses = []
     for subject in subjects:
-        status = get_subject_completion_status(subject, student)
+        status = get_subject_completion_status_v2(subject, student)
         subject_statuses.append(status)
 
     completed_count = sum(1 for s in subject_statuses if s ['is_complete'])
@@ -115,6 +115,217 @@ def check_class_completion_for_all_students(class_obj):
 
 
     return results
+
+def _get_effective_result(component, student):
+    attempts  = StudentComponentResult.all_objects.filter(
+        component=component,
+        student=student,
+        is_submitted=True,
+        mark_obtained__isnull=False,
+    )
+
+    if not attempts.exists():
+        return None
+
+    if component.retake_evaluation == 'best':
+        return attempts.order_by('-percentage').first()
+    else:
+        return attempts.order_by('-attempt_number').first()
+
+def compute_component_results(subject, student):
+    components = AssessmentComponent.all_objects.filter(
+        subject=subject,
+        is_active=True,
+    ).order_by('sort_order', 'name')
+
+    results = []
+    for comp in components:
+        effective = _get_effective_result(comp, student)
+
+        all_attempts_count = StudentComponentResult.all_objects.filter(
+            component = comp, student=student,
+        ).count()
+
+        effective_data = None
+        is_passed = False
+        is_pending =True
+
+        if effective:
+            is_pending =False
+            is_passed = effective.status =='PASS'
+            effective_data = {
+                'result_id': str(effective.id),
+                'attempt_number': effective.attempt_number,
+                'marks_obtained':float(effective.mark_obtained),
+                'percentage':float(effective.percentage) if effective.percentage else 0,
+                'status': effective.status,
+                'graded_at': effective.graded_at,
+            }
+
+        results.append({
+            'component_id': str(comp.id),
+            'component_name': comp.name,
+            'component_type':comp.component_type,
+            'is_critical': comp.is_critical,
+            'weight': float(comp.weight),
+            'pass_mark': float(comp.pass_mark),
+            'retake_allowed': comp.retake_allowed,
+            'effective_reuslt': effective_data,
+            'all_attempts_count': all_attempts_count,
+            'is_passed': is_passed,
+            'is_pending': is_pending
+        })
+
+    return results
+
+def evaluate_subject_pass_fail(subject, student):
+
+    if subject.grading_mode == 'LEGACY':
+        legacy_status = get_subject_completion_status(subject, student)
+        return{
+            'subject_id': str(subject.id),
+            'subject_name': subject.name,
+            'grading_mode': 'LEGACY',
+            'is_complete': legacy_status['is_complete'],
+            'is_passed': legacy_status['is_complete'],
+            'overall_percentage':(
+                legacy_status['result']['percentage']
+                if legacy_status.get('result') else None
+            ),
+            'component_results':[],
+            'failed_critical': [],
+            'retake_required': [],
+            'reason': legacy_status['reason'],
+            'legacy_result': legacy_status.get('result'),
+
+        }
+
+    component_results = compute_component_results(subject, student)
+
+    if not component_results:
+        return{
+            'subject_id': str(subject.id),
+            'subject_name': subject.name,
+            'grading_mode': 'POLICY',
+            'is_complete': False,
+            'is_passed': False,
+            'overall_percentage': None,
+            'component_results': component_results,
+            'failed_critical': [],
+            'retake_required': [],
+            'reason': 'no_components_defined',
+        }
+
+    pending_components = [c for c in component_results if c ['is_pending']]
+    is_complete = len(pending_components) == 0
+
+    failed_critical = [
+        c['component_name']
+        for c in component_results
+        if c['is_critical'] and not c['is_pending'] and not c['is_passed']
+    ]
+
+    retake_required = [
+        {
+            'component_id': c['component_id'],
+            'component_name': c['component_name'],
+        }
+        for c in component_results
+        if (
+            c.get('effective_result')
+            and c['effective_result']['status'] == 'RETAKE_REQUIRED'
+        )
+    ]
+
+    total_weight = sum(c['weight'] for c in component_results)
+    weighted_sum = 0.0
+
+    for c in component_results:
+        if c['effective_result'] and c['effective_result']['percentage'] is not None:
+            weighted_sum += c['effective_result']['percentage'] * c['weight']
+
+    overall_percentage = (weighted_sum / total_weight) if total_weight > 0 else 0.0
+
+    is_passed = (
+        is_complete
+        and len(failed_critical) == 0
+        and overall_percentage >= float(subject.pass_mark)
+    )
+
+    if not is_complete:
+        reason = 'incomplete_components'
+    elif failed_critical:
+        reason = f'failed_critical_components: {", ".join(failed_critical)}'
+    elif overall_percentage < float (subject.pass_mark):
+        reason = f'below_pass_mark ({overall_percentage:.1f}% < {subject.pass_mark}%)'
+    else:
+        reason = 'passed'
+
+    return {
+        'subject_id': str(subject.id),
+        'subject_name': subject.name,
+        'grading_mode': 'POLICY',
+        'is_complete': is_complete,
+        'is_passed': is_passed,
+        'overall_percentage': round(overall_percentage, 2),
+        'component_results': component_results,
+        'failed_critical': failed_critical,
+        'retake_required': retake_required,
+        'reason': reason,
+    }
+
+def determine_retake_requirements(subject, student):
+
+    if subject.grading_mode != 'POLICY':
+        return []
+
+    component_results = compute_component_results(subject, student)
+    retakes = []
+
+    for c in component_results:
+        effective = c['effective_reuslt']
+        if effective and effective['status'] in ('FAIL', 'RETAKE_REQUIRED'):
+            comp = AssessmentComponent.all_objects.get(id=c['component_id'])
+            can_retake = comp.retake_allowed
+            if can_retake and comp.max_retake_attempts > 0:
+                can_retake = c['all_attempts_count'] < comp.max_retake_attempts
+
+            retakes.append ({
+                'component_id': c['component_id'],
+                'component_name': c['component_name'],
+                'current_percentage': effective['percentage'],
+                'pass_mark': c['pass_mark'],
+                'attempts_used': c['all_attempts_count'],
+                'max_attempts': comp.max_retake_attempts,
+                'can_retake': can_retake,
+            })
+
+    return retakes
+
+def get_subject_completion_status_v2(subject, student):
+
+    if subject.grading_mode == 'LEGACY':
+        return get_subject_completion_status(subject, student)
+
+    eval_result = evaluate_subject_pass_fail(subject, student)
+
+    return {
+        'subject_id': str(subject.id),
+        'subject_name': subject.name,
+        'grading_mode': 'POLICY',
+        'is_complete': eval_result['is_complete'],
+        'is_passed': eval_result['is_passed'],
+        'reason': eval_result['reason'],
+        'overall_percentage': eval_result['overall_percentage'],
+        'component_results': eval_result['component_results'],
+        'failed_critical': eval_result['failed_critical'],
+        'retake_required': eval_result['retake_required'],
+        'final_exam_id': None,
+        'final_exam_title': None,
+        'result': {
+            'percentage': eval_result['overall_percentage'],
+        } if eval_result['is_complete'] else None,
+    }
 
 def calculate_student_grade(class_obj, student) -> Dict[str, Any]:
 

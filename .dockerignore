@@ -1,0 +1,87 @@
+# =============================================================================
+# .dockerignore – KASMS
+# Excludes files from Docker build context to reduce image size and prevent
+# secrets from being baked into images.
+# =============================================================================
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Django
+db.sqlite3
+*.sqlite3
+staticfiles/
+media/
+logs/
+*.log
+celerybeat-schedule.*
+
+# Testing / profiling
+*.prof
+tests.py
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Frontend (built inside Docker, not needed in Django image)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+node_modules/
+
+# Docker / deployment
+docker-compose*.yml
+Dockerfile*
+certbot/
+
+# Secrets (NEVER bake these into an image)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md
+README*
+
+# Scripts (not needed inside container, entrypoints are copied explicitly)
+scripts/
+!scripts/entrypoint.sh
+!scripts/nginx-entrypoint.sh
+
+# Nginx config (needed by nginx Dockerfile build)
+nginx/
+!nginx/nginx.conf
+!nginx/templates/
+
+# Misc
+backup.json
+render.yaml
+find_old_references.sh
+fix_all.py
+BIOMETRIC_SETUP.md
+test_*.py
+test_*.sh

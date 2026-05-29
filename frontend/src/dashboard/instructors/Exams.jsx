@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -21,10 +21,15 @@ export default function Exams() {
   const [editLoading, setEditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
-  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '' })
+  const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
+  const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
   const [createError, setCreateError] = useState('')
   const [editError, setEditError] = useState('')
+
+  const [createComponents, setCreateComponents] = useState([])
+  const [createGradingMode, setCreateGradingMode] = useState('LEGACY')
+  const [editComponents, setEditComponents] = useState([])
+  const [editGradingMode, setEditGradingMode] = useState('LEGACY')
 
   const [createFiles, setCreateFiles] = useState([])
   const [editFiles, setEditFiles] = useState([])
@@ -114,12 +119,46 @@ export default function Exams() {
   }, [exams])
 
   const isCreateFormValid = useMemo(() => {
-    return !!(createForm.subject && createForm.title?.trim() && createForm.exam_date && createForm.total_marks)
-  }, [createForm])
+    if (!createForm.subject || !createForm.title?.trim() || !createForm.exam_date) return false
+    if (createGradingMode === 'POLICY') return !!createForm.component
+    return !!createForm.total_marks
+  }, [createForm, createGradingMode])
 
   const isEditFormValid = useMemo(() => {
-    return !!(editForm.subject && editForm.title?.trim() && editForm.exam_date && editForm.total_marks)
-  }, [editForm])
+    if (!editForm.subject || !editForm.title?.trim() || !editForm.exam_date) return false
+    if (editGradingMode === 'POLICY') return !!editForm.component
+    return !!editForm.total_marks
+  }, [editForm, editGradingMode])
+
+  const fetchComponentChoices = useCallback(async (subjectId, setComponents, setGradingMode, resetComponent) => {
+    if (!subjectId) { setComponents([]); setGradingMode('LEGACY'); return }
+    try {
+      const res = await api.getComponentChoices(subjectId)
+      setGradingMode(res.grading_mode || 'LEGACY')
+      setComponents(res.components || [])
+      if (res.grading_mode !== 'POLICY') resetComponent()
+    } catch {
+      setComponents([]); setGradingMode('LEGACY')
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchComponentChoices(
+      createForm.subject,
+      setCreateComponents,
+      setCreateGradingMode,
+      () => setCreateForm(f => ({ ...f, component: '' }))
+    )
+  }, [createForm.subject, fetchComponentChoices])
+
+  useEffect(() => {
+    fetchComponentChoices(
+      editForm.subject,
+      setEditComponents,
+      setEditGradingMode,
+      () => setEditForm(f => ({ ...f, component: '' }))
+    )
+  }, [editForm.subject, fetchComponentChoices])
 
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
@@ -140,30 +179,37 @@ export default function Exams() {
       setCreateError('Select exam date')
       return
     }
-    if (!currentForm.total_marks) {
+    const currentGradingModeCheck = editingId ? editGradingMode : createGradingMode
+    if (currentGradingModeCheck === 'POLICY' && !currentForm.component) {
+      setCreateError('Select an assessment component')
+      return
+    }
+    if (currentGradingModeCheck !== 'POLICY' && !currentForm.total_marks) {
       setCreateError('Enter total marks')
       return
     }
 
-    // Client-side unique constraint check: subject + exam_date must be unique
+
     try {
-      const same = exams.find(x => {
-        const subjId = x.subject?.id ?? x.subject
-        const formSubj = Number(currentForm.subject)
-        const date = x.exam_date
-        return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
-      })
-      if (same) {
-        setCreateError('An exam for this subject on the selected date already exists.')
-        return
+      if (currentGradingModeCheck !== 'POLICY') {
+        const same = exams.find(x => {
+          const subjId = x.subject?.id ?? x.subject
+          const formSubj = Number(currentForm.subject)
+          const date = x.exam_date
+          return Number(subjId) === Number(formSubj) && String(date) === String(currentForm.exam_date) && x.id !== editingId
+        })
+        if (same) {
+          setCreateError('An exam for this subject on the selected date already exists.')
+          return
+        }
       }
     } catch (err) {
       // Silently handle duplicate check failure
     }
 
-    // Prevent creating another active Final exam for the SAME subject client-side
+    // LEGACY: one active Final per subject
     try {
-      const isCreatingFinal = !editingId && String(currentForm.exam_type || '').toLowerCase() === 'final'
+      const isCreatingFinal = !editingId && currentGradingModeCheck !== 'POLICY' && String(currentForm.exam_type || '').toLowerCase() === 'final'
       if (isCreatingFinal) {
         const hasActiveFinal = exams.some(x => {
           const subjId = x.subject?.id ?? x.subject
@@ -174,9 +220,21 @@ export default function Exams() {
           return toast.error('An active Final exam already exists for this subject. Deactivate it before creating another Final exam.')
         }
       }
-    } catch (err) {
-      // Silently handle active final check failure
-    }
+    } catch (err) {}
+
+    // POLICY: one active exam per component
+    try {
+      if (!editingId && currentGradingModeCheck === 'POLICY' && currentForm.component) {
+        const hasActiveForComponent = exams.some(x => {
+          const compId = x.component?.id ?? x.component
+          return String(compId) === String(currentForm.component) && !!x.is_active
+        })
+        if (hasActiveForComponent) {
+          setCreateError('There is already an active exam for this assessment component.')
+          return
+        }
+      }
+    } catch (err) {}
 
     // build payload including description and duration
     const toDuration = (mins) => {
@@ -186,14 +244,21 @@ export default function Exams() {
       return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`
     }
 
+  const currentGradingMode = editingId ? editGradingMode : createGradingMode
+  const currentComponents = editingId ? editComponents : createComponents
   const rawDescription = currentForm.description || ''
   const payload = {
       title: currentForm.title,
       subject: Number(currentForm.subject),
       exam_type: currentForm.exam_type,
       exam_date: currentForm.exam_date,
-      total_marks: Number(currentForm.total_marks),
-  description: rawDescription.trim() || undefined,
+      ...(currentGradingMode === 'POLICY'
+        ? {
+            component: currentForm.component,
+            total_marks: currentComponents.find(c => String(c.id) === String(currentForm.component))?.total_marks ?? 100,
+          }
+        : { total_marks: Number(currentForm.total_marks) }),
+      description: rawDescription.trim() || undefined,
       exam_duration: currentForm.exam_duration ? toDuration(currentForm.exam_duration) : undefined,
     }
 
@@ -286,9 +351,9 @@ export default function Exams() {
   exam_type: exam.exam_type || 'final',
       exam_date: exam.exam_date || '',
       total_marks: exam.total_marks ?? '',
+      component: exam.component != null ? String(exam.component?.id ?? exam.component) : '',
       description: exam.description || '',
       exam_duration: exam.exam_duration ? (function(d){
-        // backend likely returns HH:MM:SS — convert to minutes
         try{
           const parts = String(d).split(':').map(Number)
           return (parts[0] || 0) * 60 + (parts[1] || 0)
@@ -915,7 +980,7 @@ export default function Exams() {
       </div>
         {createModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
               <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
                 <div className="flex items-start justify-between gap-4">
@@ -923,7 +988,7 @@ export default function Exams() {
                     <h4 className="text-lg text-black font-medium">Create exam</h4>
                     <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
                 </div>
                 {createError && (
                   <div className="mt-3 mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
@@ -953,10 +1018,22 @@ export default function Exams() {
                       placeholder="Select date"
                       minDate={new Date()}
                     />
-                    <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                      <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                    </label>
+                    {createGradingMode === 'POLICY' ? (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
+                        <select value={createForm.component} onChange={(e) => updateField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                          <option value="">Select component</option>
+                          {createComponents.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                        <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      </label>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
@@ -983,7 +1060,7 @@ export default function Exams() {
                   </label>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
                   <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
                 </div>
               </form>
@@ -1039,10 +1116,22 @@ export default function Exams() {
                       placeholder="Select date"
                       minDate={new Date()}
                     />
-                    <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                      <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
-                    </label>
+                    {editGradingMode === 'POLICY' ? (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
+                        <select value={editForm.component} onChange={(e) => updateEditField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                          <option value="">Select component</option>
+                          {editComponents.map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="block">
+                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
+                        <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      </label>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">

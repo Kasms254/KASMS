@@ -65,24 +65,19 @@ export default function NavBar({
 
   // fetch notifications when opening bell
   async function fetchNotifications() {
-    // Admins don't receive notifications - they create them
-    if (user && user.role === 'admin') {
-      setNotifs([])
-      setUnreadCount(0)
-      setNotifsLoading(false)
-      return
-    }
+    const userRole = user?.role || 'student'
 
     setNotifsLoading(true)
     try {
       // Combine user-scoped class notices with urgent/global notices so bell shows everything
       const promises = [
-        api.getMyClassNotices(),
+        // Admins don't have class notices — skip to avoid errors
+        userRole === 'admin' || userRole === 'superadmin' ? Promise.resolve([]) : api.getMyClassNotices(),
         api.getUrgentNotices(),
         // Also include active/global notices so admin-posted notices appear
         api.getActiveNotices(),
-        // Include personal notifications (grade results) for students
-        user && user.role === 'student' ? api.getUnreadPersonalNotifications() : Promise.resolve({ count: 0, results: [] }),
+        // Include personal notifications (grade results) for students only
+        userRole === 'student' ? api.getUnreadPersonalNotifications() : Promise.resolve({ count: 0, results: [] }),
       ]
 
       const settled = await Promise.allSettled(promises)
@@ -96,8 +91,11 @@ export default function NavBar({
   const activeNotices = activeResp.status === 'fulfilled' ? (Array.isArray(activeResp.value) ? activeResp.value : (activeResp.value && Array.isArray(activeResp.value.results) ? activeResp.value.results : [])) : []
   const personalNotifs = personalNotifsResp.status === 'fulfilled' ? (personalNotifsResp.value && Array.isArray(personalNotifsResp.value.results) ? personalNotifsResp.value.results : []) : []
 
-  // Merge all notifications and remove duplicates by ID
-  const allNotices = [...activeNotices, ...urgentNotices, ...classNotices]
+  // For admins, backend returns ALL notices — filter client-side to only those targeted at them
+  let allNotices = [...activeNotices, ...urgentNotices, ...classNotices]
+  if (userRole === 'admin' || userRole === 'superadmin') {
+    allNotices = allNotices.filter(n => !n.target_role || n.target_role === 'all' || n.target_role === userRole)
+  }
   const seenIds = new Set()
   let merged = allNotices.filter(n => {
     if (!n || !n.id) return false
@@ -258,8 +256,6 @@ export default function NavBar({
   // shows a count without requiring the user to click it first.
   useEffect(() => {
     if (!user) return
-    // Admins don't get notifications
-    if (user.role === 'admin') return
     // Don't refetch if we already have notifications loaded
     if (notifs.length === 0) {
       fetchNotifications().catch(() => {

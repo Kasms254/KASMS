@@ -7,6 +7,7 @@ import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
+import AdminPagination from '../../components/AdminPagination'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -21,138 +22,6 @@ function _gradeFromPct(pct) {
   if (p >= 60) return 'C'
   if (p >= 50) return 'C-'
   return 'F'
-}
-
-/**
- * Pagination Component
- */
-function Pagination({ currentPage, totalPages, onPageChange }) {
-  if (totalPages <= 1) return null
-
-  const getPageNumbers = () => {
-    const pages = []
-    const showPages = 5 // Number of page buttons to show
-
-    if (totalPages <= showPages) {
-      // Show all pages if total is less than showPages
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i)
-      }
-    } else {
-      // Always show first page
-      pages.push(1)
-
-      let startPage = Math.max(2, currentPage - 1)
-      let endPage = Math.min(totalPages - 1, currentPage + 1)
-
-      // Adjust if at the start
-      if (currentPage <= 3) {
-        startPage = 2
-        endPage = showPages - 1
-      }
-
-      // Adjust if at the end
-      if (currentPage >= totalPages - 2) {
-        startPage = totalPages - (showPages - 2)
-        endPage = totalPages - 1
-      }
-
-      // Add ellipsis after first page if needed
-      if (startPage > 2) {
-        pages.push('...')
-      }
-
-      // Add middle pages
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i)
-      }
-
-      // Add ellipsis before last page if needed
-      if (endPage < totalPages - 1) {
-        pages.push('...')
-      }
-
-      // Always show last page
-      pages.push(totalPages)
-    }
-
-    return pages
-  }
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-neutral-200 sm:px-6">
-      <div className="flex justify-between items-center w-full sm:hidden">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-        <span className="text-sm text-neutral-700">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
-      </div>
-
-      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-neutral-700">
-            Page <span className="font-medium">{currentPage}</span> of{' '}
-            <span className="font-medium">{totalPages}</span>
-          </p>
-        </div>
-        <div>
-          <nav className="inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center px-2 py-2 text-neutral-400 rounded-l-md border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <LucideIcons.ChevronLeft className="w-5 h-5" />
-            </button>
-
-            {getPageNumbers().map((page, idx) => (
-              page === '...' ? (
-                <span
-                  key={`ellipsis-${idx}`}
-                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300"
-                >
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={page}
-                  onClick={() => onPageChange(page)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
-                    currentPage === page
-                      ? 'z-10 bg-indigo-600 border-indigo-600 text-white'
-                      : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              )
-            ))}
-
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="relative inline-flex items-center px-2 py-2 text-neutral-400 rounded-r-md border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <LucideIcons.ChevronRight className="w-5 h-5" />
-            </button>
-          </nav>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 /**
@@ -189,8 +58,8 @@ export default function ExamReports() {
   const [examListPage, setExamListPage] = useState(1)
   const [resultsPage, setResultsPage] = useState(1)
   const [resultsSearchTerm, setResultsSearchTerm] = useState('')
-  const examsPerPage = 10
-  const resultsPerPage = 10
+  const [examsPerPage, setExamsPerPage] = useState(10)
+  const [resultsPerPage, setResultsPerPage] = useState(10)
 
   // Exam report (for remarks in the detail view)
   const [examReport, setExamReport] = useState(null)
@@ -207,10 +76,18 @@ export default function ExamReports() {
     description: '',
   })
 
-  // Fetch initial data with React Query (cached 5 min)
+
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
-    queryKey: ['exams', isAdmin],
-    queryFn: () => isAdmin ? api.getExams() : api.getMyExams(),
+    queryKey: ['exams', isAdmin, selectedClass],
+    queryFn: () => {
+      if (isAdmin) {
+        const params = `subject__class_obj=${selectedClass}`
+        return api.getAllExams(params)
+      }
+      return api.getMyExams()
+    },
+    enabled: isAdmin ? !!selectedClass : true,
+    staleTime: 5 * 60 * 1000,
   })
   const { data: classesQueryData } = useQuery({
     queryKey: ['classes', 'active', isAdmin],
@@ -223,32 +100,29 @@ export default function ExamReports() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const loading = loadingExams
+ 
+  const loading = loadingExams && (isAdmin ? !!selectedClass : true)
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
 
-  // Filter exams based on selections
+  // Filter exams based on selections (class is already filtered server-side for admin)
   const filteredExams = useMemo(() => {
-    // Don't show any exams if no class is selected
     if (!selectedClass) return []
 
     return exams.filter(exam => {
-      // Class filter is required
-      if (exam.subject_class_id !== parseInt(selectedClass) && exam.class_id !== parseInt(selectedClass)) {
-        // Try matching via subject
-        const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
+      if (!isAdmin) {
+        // For non-admin, still filter by class client-side
+        const subj = subjects.find(s => s.id === exam.subject)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
       }
-      if (selectedSubject && exam.subject !== parseInt(selectedSubject) && exam.subject_id !== parseInt(selectedSubject)) return false
+      if (selectedSubject && exam.subject !== parseInt(selectedSubject)) return false
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
-
-      // Only show exams that have results
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
-  }, [exams, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
+  }, [exams, isAdmin, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Reset exam list page when filters change (must be outside useMemo)
   useEffect(() => {
@@ -1092,13 +966,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-4 h-4" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-4 h-4" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1153,13 +1029,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-5 h-5" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-5 h-5" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1219,14 +1097,16 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center gap-2 justify-end flex-wrap">
-                            <button
-                              onClick={() => handleOpenCreateReportModal(exam)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-                              title="Create exam report for this exam"
-                            >
-                              <LucideIcons.Plus className="w-4 h-4" />
-                              Create Report
-                            </button>
+                            {!isAdmin && (
+                              <button
+                                onClick={() => handleOpenCreateReportModal(exam)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                                title="Create exam report for this exam"
+                              >
+                                <LucideIcons.Plus className="w-4 h-4" />
+                                Create Report
+                              </button>
+                            )}
                             <button
                               onClick={() => handleViewReport(exam)}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
@@ -1243,10 +1123,14 @@ export default function ExamReports() {
               </div>
 
               {/* Pagination for Exam List */}
-              <Pagination
+              <AdminPagination
                 currentPage={examListPage}
                 totalPages={totalExamPages}
+                totalCount={filteredExams.length}
+                pageSize={examsPerPage}
                 onPageChange={setExamListPage}
+                onPageSizeChange={setExamsPerPage}
+                label="exams"
               />
             </div>
           )}
@@ -1720,85 +1604,15 @@ export default function ExamReports() {
                 </div>
 
                 {/* Pagination for Student Results */}
-                {totalResultsPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
-                    <div className="text-sm text-gray-600">
-                      Showing <span className="font-semibold text-gray-900">{(resultsPage - 1) * resultsPerPage + 1}</span> to{' '}
-                      <span className="font-semibold text-gray-900">{Math.min(resultsPage * resultsPerPage, allResults.length)}</span> of{' '}
-                      <span className="font-semibold text-gray-900">{allResults.length}</span> students
-                      {pendingResults.length > 0 && (
-                        <span className="text-amber-600 ml-1">({pendingResults.length} pending)</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setResultsPage(1)}
-                        disabled={resultsPage === 1}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="First page"
-                      >
-                        <LucideIcons.ChevronsLeft className="w-4 h-4 text-black" />
-                      </button>
-
-                      <button
-                        onClick={() => setResultsPage(p => Math.max(1, p - 1))}
-                        disabled={resultsPage === 1}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Previous page"
-                      >
-                        <LucideIcons.ChevronLeft className="w-4 h-4 text-black" />
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalResultsPages) }, (_, i) => {
-                          let pageNum
-                          if (totalResultsPages <= 5) {
-                            pageNum = i + 1
-                          } else if (resultsPage <= 3) {
-                            pageNum = i + 1
-                          } else if (resultsPage >= totalResultsPages - 2) {
-                            pageNum = totalResultsPages - 4 + i
-                          } else {
-                            pageNum = resultsPage - 2 + i
-                          }
-
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => setResultsPage(pageNum)}
-                              className={`min-w-[2rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                                resultsPage === pageNum
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      <button
-                        onClick={() => setResultsPage(p => Math.min(totalResultsPages, p + 1))}
-                        disabled={resultsPage === totalResultsPages}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Next page"
-                      >
-                        <LucideIcons.ChevronRight className="w-4 h-4 text-black" />
-                      </button>
-
-                      <button
-                        onClick={() => setResultsPage(totalResultsPages)}
-                        disabled={resultsPage === totalResultsPages}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Last page"
-                      >
-                        <LucideIcons.ChevronsRight className="w-4 h-4 text-black" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <AdminPagination
+                  currentPage={resultsPage}
+                  totalPages={totalResultsPages}
+                  totalCount={allResults.length}
+                  pageSize={resultsPerPage}
+                  onPageChange={setResultsPage}
+                  onPageSizeChange={setResultsPerPage}
+                  label="students"
+                />
 
                 {examResults.length === 0 && (
                   <div className="p-8 text-center text-neutral-500">
@@ -1836,7 +1650,10 @@ export default function ExamReports() {
                     </div>
                   ) : !loadingReport ? (
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-sm text-amber-700">
-                      No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.
+                      {isAdmin
+                        ? 'No report exists for this exam yet. The instructor must create a report to enable remarks.'
+                        : <>No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.</>
+                      }
                     </div>
                   ) : null}
 
@@ -1872,36 +1689,38 @@ export default function ExamReports() {
                         )}
                       </div>
 
-                      {/* Add Remark Form */}
-                      <div className="border-t border-neutral-200 pt-4">
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                        <textarea
-                          value={newRemark}
-                          onChange={(e) => setNewRemark(e.target.value)}
-                          placeholder="Enter your remark (minimum 10 characters)..."
-                          rows={4}
-                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                        />
-                        <div className="flex gap-3 justify-end mt-3">
-                          <button
-                            onClick={handleAddRemark}
-                            disabled={remarkSubmitting || !newRemark.trim()}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            {remarkSubmitting ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Submitting...
-                              </>
-                            ) : (
-                              <>
-                                <LucideIcons.Send className="w-4 h-4" />
-                                Submit Remark
-                              </>
-                            )}
-                          </button>
+                      {/* Add Remark Form — hidden for admin */}
+                      {!isAdmin && (
+                        <div className="border-t border-neutral-200 pt-4">
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                          <textarea
+                            value={newRemark}
+                            onChange={(e) => setNewRemark(e.target.value)}
+                            placeholder="Enter your remark (minimum 10 characters)..."
+                            rows={4}
+                            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                          />
+                          <div className="flex gap-3 justify-end mt-3">
+                            <button
+                              onClick={handleAddRemark}
+                              disabled={remarkSubmitting || !newRemark.trim()}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {remarkSubmitting ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <LucideIcons.Send className="w-4 h-4" />
+                                  Submit Remark
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </>
                   )}
                 </div>

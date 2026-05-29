@@ -17,6 +17,12 @@ const RANK_ORDER = {
   corporal: 13,
   lance_corporal: 14,
   private: 15,
+  head_constable_i: 16,
+  head_constable_ii: 17,
+  constable_i: 18,
+  constable_ii: 19,
+  constable_iii: 20,
+  civilian: 21,
 }
 
 // Display-label → internal-value lookup (case-insensitive)
@@ -37,6 +43,61 @@ const LABEL_TO_VALUE = {
   'corporal': 'corporal',
   'lance corporal': 'lance_corporal',
   'private': 'private',
+  'head constable i': 'head_constable_i',
+  'head constable ii': 'head_constable_ii',
+  'constable i': 'constable_i',
+  'constable ii': 'constable_ii',
+  'constable iii': 'constable_iii',
+  'civilian': 'civilian',
+}
+
+// Internal value → display label with correct casing (roman numerals preserved)
+const VALUE_TO_LABEL = {
+  general: 'General',
+  lieutenant_general: 'Lieutenant General',
+  major_general: 'Major General',
+  brigadier: 'Brigadier',
+  colonel: 'Colonel',
+  lieutenant_colonel: 'Lieutenant Colonel',
+  major: 'Major',
+  captain: 'Captain',
+  lieutenant: 'Lieutenant',
+  warrant_officer_i: 'Warrant Officer I',
+  warrant_officer_ii: 'Warrant Officer II',
+  senior_sergeant: 'Senior Sergeant',
+  sergeant: 'Sergeant',
+  corporal: 'Corporal',
+  lance_corporal: 'Lance Corporal',
+  private: 'Private',
+  head_constable_i: 'Head Constable I',
+  head_constable_ii: 'Head Constable II',
+  constable_i: 'Constable I',
+  constable_ii: 'Constable II',
+  constable_iii: 'Constable III',
+  civilian: 'Civilian',
+}
+
+// Shared RANK_OPTIONS array (senior → junior) — import this instead of duplicating per-file
+export const RANK_OPTIONS = Object.entries(VALUE_TO_LABEL).map(([value, label]) => ({ value, label }))
+
+// Normalize any rank string (internal value or display label) to its internal value
+export function normalizeRank(raw) {
+  if (!raw) return ''
+  const key = String(raw).toLowerCase().trim()
+  if (VALUE_TO_LABEL[key]) return key // already an internal value
+  const fromLabel = LABEL_TO_VALUE[key]
+  return fromLabel || ''
+}
+
+export function getRankLabel(rankValue) {
+  if (!rankValue) return ''
+  const key = String(rankValue).toLowerCase().trim()
+  // Try as internal value (e.g. warrant_officer_ii)
+  if (VALUE_TO_LABEL[key]) return VALUE_TO_LABEL[key]
+  // Try as display label with any casing (e.g. "Warrant Officer Ii", "warrant officer ii")
+  const internal = LABEL_TO_VALUE[key]
+  if (internal) return VALUE_TO_LABEL[internal] || rankValue
+  return rankValue
 }
 
 export function getRankSortIndex(rank) {

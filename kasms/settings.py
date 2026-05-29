@@ -9,15 +9,20 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY') or 'dev-secret-key'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+SECRET_KEY = os.environ['SECRET_KEY']  
+
+DEBUG = os.getenv("DEBUG", "False") == "True" 
+
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+    SECURE_SSL_REDIRECT = False  # Nginx handles the HTTP→HTTPS redirect
 
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,192.168.2.254"
+    "localhost,127.0.0.1,192.168.100.7,192.168.100.17,192.168.100.50"
 ).split(",")
 
 # Application definition
@@ -37,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_filters",
     "drf_yasg",
+    "django_celery_beat",
 ]
 
 MIDDLEWARE = [
@@ -74,10 +80,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "kasms.wsgi.application"
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
     "default": {
@@ -90,7 +93,6 @@ DATABASES = {
         "HOST": os.getenv('HOST', default='localhost'),
         "PORT": os.getenv('PORT', default='5432'),
         "CONN_MAX_AGE": 600,
-        
     }
     #  "default": dj_database_url.config(
     #     default=os.environ.get("DATABASE_URL")
@@ -106,10 +108,7 @@ CACHES = {
             else "django.core.cache.backends.locmem.LocMemCache",
         ),
         "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
-        "TIMEOUT": 300,  
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,
-        },
+        "TIMEOUT": 300,
     }
 }
 
@@ -258,7 +257,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", ",".join([
     "http://localhost:8000",
 ])).split(",")
 
-CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_HTTPONLY = True  # Prevent XSS from reading the CSRF token via JavaScript
 CSRF_COOKIE_NAME = "csrftoken"
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
@@ -270,11 +269,6 @@ JWT_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 JWT_COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None) 
 JWT_ACCESS_COOKIE_NAME = 'access_token'
 JWT_REFRESH_COOKIE_NAME = 'refresh_token'
-
-AUTHENTICATION_BACKENDS = [
-    'core.backends.SvcNumberBackend',
-    'django.contrib.auth.backends.ModelBackend',
-]
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
@@ -333,3 +327,25 @@ LOGGING = {
 LOGIN_MAX_ATTEMPTS = int(os.getenv('LOGIN_MAX_ATTEMPTS', 5))
 LOGIN_LOCKOUT_DURATION = int(os.getenv('LOGIN_LOCKOUT_DURATION', 1800))
 LOGIN_ATTEMPT_WINDOW = int(os.getenv('LOGIN_ATTEMPT_WINDOW', 300))
+
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Nairobi'
+CELERY_BEAT_SCHEDULE = {
+    'sync-biometric-devices': {
+        'task': 'core.tasks.sync_all_devices', 
+        'schedule': 300.0,
+    },
+    'process-pending-biometric-records':{
+        'task': 'core.tasks.process_pending_records',
+        'schedule': 60.0,
+    },
+    'sync-device-clocks':{
+        'task': 'core.tasks.sync_device_clocks',
+        'schedule': 3600.0
+    },
+}
+

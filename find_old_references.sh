@@ -1,12 +1,5 @@
 #!/bin/bash
-# ──────────────────────────────────────────────────────────────────
-# Run this from your project root (where manage.py is):
-#   bash find_old_references.sh
-#
-# It finds every remaining reference to the old User->School FK
-# pattern that will break now that User.school is a @property
-# resolved through SchoolMembership.
-# ──────────────────────────────────────────────────────────────────
+
 
 echo "======================================================"
 echo " Scanning for old User.school FK references..."

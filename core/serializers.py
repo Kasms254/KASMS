@@ -1,15 +1,19 @@
 from rest_framework import serializers
 from .models import (
-    StudentIndex,Profile,AttendanceSession, User, Course, Class, Enrollment, ExamReportRemark,Subject, Notice, Exam, ExamReport, PersonalNotification,
-    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership, ResultEditRequest,
-    SessionAttendance, AttendanceSessionLog, ExamResultNotificationReadStatus, SchoolAdmin, School,SchoolMembership,Certificate, CertificateTemplate, CertificateDownloadLog
+    StudentIndex, Profile, AttendanceSession, User, Course, Class, Enrollment,
+    ExamReportRemark, Subject, Notice, Exam, ExamReport, PersonalNotification,
+    Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus,
+    ClassNoticeReadStatus, BiometricRecord, Department, DepartmentMembership,
+    ResultEditRequest, SessionAttendance, AttendanceSessionLog,
+    ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
+    Certificate, CertificateTemplate, CertificateDownloadLog,
+    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, StudentComponentResult
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
 from django.utils import timezone
 from django.db import transaction
 from datetime import date as _date, datetime as _datetime
-
 
 class SchoolThemeSerializer(serializers.Serializer):
     primary_color = serializers.CharField()
@@ -340,7 +344,7 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField(read_only=True)
     
     class_obj = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.filter(is_active=True),
+        queryset=Class.all_objects.none(),  # overridden per-request in get_fields()
         required=False,
         write_only=True,
         allow_null=True,
@@ -361,7 +365,17 @@ class UserSerializer(serializers.ModelSerializer):
         
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
-    
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        school = getattr(request, 'school', None) if request else None
+        if school:
+            fields['class_obj'].queryset = Class.objects.filter(school=school, is_active=True)
+        else:
+            fields['class_obj'].queryset = Class.all_objects.filter(is_active=True)
+        return fields
+
     def validate(self, attrs):
         if attrs.get('password') != attrs.get('password2'):
             raise serializers.ValidationError({"password": "Password fields didn't match."})
@@ -458,14 +472,14 @@ class UserSerializer(serializers.ModelSerializer):
         if existing_user:
             user = existing_user
             for attr, value in validated_data.items():
-                if attr not in ('username',):  # Don't overwrite username
+                if attr not in ('username',):  
                     setattr(user, attr, value)
             user.set_password(password)
             user.must_change_password = True
             user.is_active = True
             user.save()
+            user.sync_memberships_role()
         else:
-            # Brand new user
             user = User(**validated_data)
             user.set_password(password)
             user.must_change_password = True
@@ -473,17 +487,17 @@ class UserSerializer(serializers.ModelSerializer):
 
         membership = None
         if school:
-            # Check there's no existing active membership for this user at this school
             existing_membership = SchoolMembership.all_objects.filter(
                 user=user,
                 school=school,
                 status=SchoolMembership.Status.ACTIVE,
             ).first()
             if not existing_membership:
+                membership_role = User.ROLE_TO_MEMBERSHIP_ROLE.get(user.role, user.role)
                 membership = SchoolMembership.objects.create(
                     user=user,
                     school=school,
-                    role=user.role,
+                    role=membership_role,
                     status=SchoolMembership.Status.ACTIVE,
                 )
             else:
@@ -506,7 +520,17 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('password', None)
         validated_data.pop('password2', None)
         validated_data.pop('class_obj', None)
-        return super().update(instance, validated_data)
+
+        role_changed = 'role' in validated_data and validated_data['role'] != instance.role
+        new_role = validated_data.get('role')
+
+        user = super().update(instance, validated_data)
+
+        if role_changed:
+            user.role = new_role 
+            user.sync_memberships_role()
+
+        return user
 
 class UserListSerializer(serializers.ModelSerializer):
     school_name = serializers.SerializerMethodField()
@@ -568,6 +592,8 @@ class UserListSerializer(serializers.ModelSerializer):
         return None
 
     def get_is_hod(self, obj):
+        if hasattr(obj, '_hod_memberships'):
+            return any(m.role == DepartmentMembership.Role.HOD for m in obj._hod_memberships)
         return DepartmentMembership.objects.filter(
             user=obj,
             role=DepartmentMembership.Role.HOD,
@@ -575,11 +601,17 @@ class UserListSerializer(serializers.ModelSerializer):
         ).exists()
 
     def get_hod_department(self, obj):
-        membership = DepartmentMembership.objects.filter(
-            user=obj,
-            role=DepartmentMembership.Role.HOD,
-            is_active=True,
-        ).select_related('department').first()
+        if hasattr(obj, '_hod_memberships'):
+            membership = next(
+                (m for m in obj._hod_memberships if m.role == DepartmentMembership.Role.HOD),
+                None,
+            )
+        else:
+            membership = DepartmentMembership.objects.filter(
+                user=obj,
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
+            ).select_related('department').first()
         if membership:
             return {
                 'id': str(membership.department.id),
@@ -716,6 +748,27 @@ class ClassSerializer(serializers.ModelSerializer):
             return obj._current_enrollment
         return obj.enrollments.filter(is_active=True).count()
 
+    def validate_class_code(self, value):
+        if not value:
+            return value
+
+        course = (
+            self.initial_data.get('course')
+            or (self.instance.course_id if self.instance else None)
+        )
+        if not course:
+            return value
+
+        from core.models import Class as ClassModel
+        qs = ClassModel.all_objects.filter(course_id=course, class_code=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "A class with this code already exists for the selected course."
+            )
+        return value
+
     def validate(self, attrs):
         start_date = attrs.get('start_date', self.instance.start_date if self.instance else None)
         end_date = attrs.get('end_date', self.instance.end_date if self.instance else None)
@@ -725,7 +778,7 @@ class ClassSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "end_date": "End date cannot be earlier than start date."
             })
-        
+
         if instructor and instructor.role != 'instructor':
             raise serializers.ValidationError({
                 "instructor": "Assigned instructor must have the role of 'instructor'."
@@ -739,14 +792,24 @@ class ClassListSerializer(serializers.ModelSerializer):
     instructor_name = serializers.SerializerMethodField(read_only=True)
     current_enrollment = serializers.IntegerField(read_only=True)
     enrollment_status = serializers.CharField(read_only=True)
+    instructor_rank = serializers.SerializerMethodField(read_only=True)
+    instructor_svc_number=serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Class
-        fields = ['id', 'name', 'course', 'course_name', 'instructor', 'instructor_name', 
+        fields = ['id', 'name', 'course', 'course_name', 'instructor', 'instructor_name', 'instructor_rank', 'instructor_svc_number',
                   'start_date', 'end_date', 'capacity', 'current_enrollment', 'enrollment_status', 'is_active', 'class_code']
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
+
+    def get_instructor_rank(self, obj):
+        if obj.instructor and obj.instructor.rank:
+            return obj.instructor.get_rank_display()
+        return None
+    
+    def get_instructor_svc_number(self, obj):
+        return obj.instructor.svc_number if obj.instructor else None
 
 class CourseSerializer(serializers.ModelSerializer):
     total_classes = serializers.IntegerField(source='classes.count', read_only=True)
@@ -891,8 +954,14 @@ class NoticeSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
-    expiry_date = SafeDateTimeField(required=False, allow_null=True)
+    target_role_display = serializers.CharField(
+        source='get_target_role_display', read_only=True,
+    )
+    expiry_date = serializers.DateField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     is_read = serializers.SerializerMethodField()
     read_at = serializers.SerializerMethodField()
@@ -905,6 +974,15 @@ class NoticeSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
 
+    def get_created_by_role(self, obj):
+        return obj.created_by.role if obj.created_by else None
+
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+    
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
 
@@ -912,7 +990,7 @@ class NoticeSerializer(serializers.ModelSerializer):
         return getattr(obj, '_user_read_at', None)
 
     def validate_expiry_date(self, value):
-        if value and value < timezone.now():
+        if value and value < timezone.localdate():
             raise serializers.ValidationError("Expiry date cannot be in the past.")
         return value
 
@@ -926,11 +1004,36 @@ class ExamSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     subject_code = serializers.CharField(source='subject.subject_code', read_only=True)
     class_name = serializers.CharField(source='subject.class_obj.name', read_only=True)
+    subject_class_id = serializers.IntegerField(source='subject.class_obj_id', read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
-    average_score = serializers.FloatField(read_only=True)
-    submission_count = serializers.IntegerField(read_only=True)
+    average_score = serializers.FloatField(source='_avg_score', read_only=True, default=0)
+    submission_count = serializers.IntegerField(source='_sub_count', read_only=True, default=0)
     attachments = ExamAttachmentSerializer(many=True, read_only=True)
+
+    component_name = serializers.CharField(
+        source='component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='component.get_component_type_display', read_only=True, default=None
+    )
+    component_pass_mark = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
+    component_is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True, default=None
+    )
+    component_retake_allowed = serializers.BooleanField(
+        source='component.retake_allowed', read_only=True, default=None
+    )
+    component_weight = serializers.DecimalField(
+        source='component.weight', max_digits=5, decimal_places=2,
+        read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='subject.grading_mode', read_only=True
+    )
 
     class Meta:
         model = Exam
@@ -941,12 +1044,13 @@ class ExamSerializer(serializers.ModelSerializer):
             'title': {'required': True},
             'subject': {'required': True},
             'exam_date': {'required': True},
-            'total_marks': {'required': True}
+            'total_marks': {'required': True},
+            'component': {'required': False},
         }
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
-    
+
     def validate_exam_date(self, value):
         if not self.instance and value < timezone.now().date():
             raise serializers.ValidationError("Exam date cannot be in the past.")
@@ -955,16 +1059,57 @@ class ExamSerializer(serializers.ModelSerializer):
     def validate(self, data):
         exam_type = data.get('exam_type')
         subject = data.get('subject')
+        component = data.get('component')
         is_active = data.get('is_active', True)
 
-        if exam_type == 'final' and is_active:
+     
+        if exam_type == 'final' and is_active and subject:
             qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+            if subject.grading_mode == 'POLICY' and component:
+                # POLICY subjects: one final per component
+                qs = qs.filter(component=component)
+            else:
+                # LEGACY subjects: one final per subject (no component)
+                qs = qs.filter(component__isnull=True)
             if self.instance:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
+                if component:
+                    raise serializers.ValidationError({
+                        "exam_type": "There is already an active Final Exam for this component."
+                    })
                 raise serializers.ValidationError({
                     "exam_type": "There is already an active Final Exam for this subject."
                 })
+
+   
+        if subject:
+            if subject.grading_mode == 'POLICY':
+                if not component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Policy grading. "
+                            "You must select an assessment component."
+                        )
+                    })
+                if component.subject_id != subject.id:
+                    raise serializers.ValidationError({
+                        "component": "Selected component does not belong to this subject."
+                    })
+                if not component.is_active:
+                    raise serializers.ValidationError({
+                        "component": "Selected component is not active."
+                    })
+            else:
+              
+                if component:
+                    raise serializers.ValidationError({
+                        "component": (
+                            "This subject uses Legacy grading. "
+                            "Do not select a component."
+                        )
+                    })
+
         return data
 
 class ExamResultSerializer(serializers.ModelSerializer):
@@ -985,6 +1130,20 @@ class ExamResultSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source='exam.subject.class_obj_id', read_only=True)
     class_name = serializers.CharField(source='exam.subject.class_obj.name', read_only=True)
     course_name = serializers.CharField(source='exam.subject.class_obj.course.name', read_only=True)
+
+   
+    component_id = serializers.UUIDField(
+        source='exam.component_id', read_only=True, default=None
+    )
+    component_name = serializers.CharField(
+        source='exam.component.name', read_only=True, default=None
+    )
+    component_type_display = serializers.CharField(
+        source='exam.component.get_component_type_display', read_only=True, default=None
+    )
+    grading_mode = serializers.CharField(
+        source='exam.subject.grading_mode', read_only=True
+    )
 
     is_notification_read = serializers.SerializerMethodField()
     notification_read_at = serializers.SerializerMethodField()
@@ -1086,61 +1245,117 @@ class BulkExamResultSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Each result must include 'marks_obtained'.")
         return value
 
-class AttendanceSerializer(serializers.ModelSerializer):
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
-    class_name = serializers.CharField(source='class_obj.name', read_only=True)
-    subject_name = serializers.CharField(source='subject.name', read_only=True)
-    marked_by_name = serializers.SerializerMethodField(read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+class AssessmentComponentSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source = 'subject.name', read_only = True)
+    class_name = serializers.CharField(
+        source = 'subject.class_obj.name', read_only = True
+    )
 
     class Meta:
-        model = Attendance
+        model = AssessmentComponent
         fields = '__all__'
-        read_only_fields = ('marked_by', 'id', 'created_by', 'updated_at')
+        read_only_fields = ('id', 'school', 'created_at', 'updated_at')
 
-    def get_marked_by_name(self, obj):
-        return obj.marked_by.get_full_name() if obj.marked_by else None
-    
+    def run_validators(self, value):
+        
+        if self.instance and self.partial and 'is_active' not in value:
+            value = {**value, 'is_active': self.instance.is_active}
+        super().run_validators(value)
+
     def validate(self, attrs):
-        student = attrs.get('student')
-        class_obj = attrs.get('class_obj')
+        subject = attrs.get('subject') or (
+            self.instance.subject if self.instance else None
+        )
 
-        if student and class_obj:
-            if not Enrollment.objects.filter(
-                student=student,
-                class_obj=class_obj,
-                is_active=True
-            ).exists():
-                raise serializers.ValidationError({
-                    "student": "Student is not enrolled in this class."
-                })
+        if subject and subject.grading_mode != 'POLICY':
+            raise serializers.ValidationError ({
+                'subject': 'Components can only be added to subjects with grading_mode = POLICY.',
+            })
         return attrs
 
-class BulkAttendanceSerializer(serializers.Serializer):
-    class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.objects.all())
-    subject = serializers.PrimaryKeyRelatedField(
-        queryset=Subject.objects.all(),
-        required=False,
-        allow_null=True
+class StudentComponentResultSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(
+        source='student.get_full_name', read_only=True
     )
-    date = serializers.DateField()
-    attendance_records = serializers.ListField(
-        child=serializers.DictField(),
-        allow_empty=False
+    student_svc_number = serializers.CharField(
+        source='student.svc_number', read_only=True
     )
+    student_rank = serializers.CharField(
+        source='student.rank', read_only=True
+    )
+    component_name = serializers.CharField(
+        source='component.name', read_only=True
+    )
+    component_type = serializers.CharField(
+        source='component.component_type', read_only=True
+    )
+    subject_name = serializers.CharField(
+        source='component.subject.name', read_only=True
+    )
+    total_marks = serializers.IntegerField(
+        source='component.total_marks', read_only=True
+    )
+    pass_mark_threshold = serializers.DecimalField(
+        source='component.pass_mark', max_digits=5, decimal_places=2,
+        read_only=True,
+    )
+    is_critical = serializers.BooleanField(
+        source='component.is_critical', read_only=True
+    )
+    index_number = serializers.SerializerMethodField(read_only=True)
 
-    def validate_attendance_records(self, value):
-        valid_statuses = ['present', 'absent', 'late', 'excused']
-        for record in value:
-            if 'student_id' not in record:
-                raise serializers.ValidationError("Each record must have a student_id.")
-            if 'status' not in record:
-                raise serializers.ValidationError("Each record must have a status.")
-            if record['status'] not in valid_statuses:
-                raise serializers.ValidationError(f"Invalid status: {record['status']}")
+    class Meta:
+        model = StudentComponentResult
+        fields  = '__all__'
+        read_only_fields = (
+            'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
+        )
+
+    def get_index_number(self, obj):
+        try:
+            class_obj = obj.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=obj.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                return class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return None
+
+    
+    def validate_marks_obtained(self, value):
+        if value is not None:
+            component = (
+                self.instance.component if self.instance
+                else None
+            )
+            if not component:
+                component_id = self.initial_data.get('component')
+                if component_id:
+                    try:
+                        from .models import AssessmentComponent
+                        component = AssessmentComponent.objects.get(pk=component_id)
+                    except AssessmentComponent.DoesNotExist:
+                        pass
+            if component and value > component.total_marks:
+                raise serializers.ValidationError(
+                    f'Marks obtained cannot exceed total marks ({component.total_marks}).'
+                )
         return value
 
+class SubjectEvaluationSerializer(serializers.Serializer):
+    subject_id = serializers.CharField()
+    subject_name = serializers.CharField()
+    grading_mode = serializers.CharField()
+    is_complete = serializers.BooleanField()
+    is_passed = serializers.BooleanField()
+    overall_percentage = serializers.FloatField(allow_null=True)
+    reason = serializers.CharField()
+    component_results = serializers.ListField(child=serializers.DictField())
+    failed_critical = serializers.ListField(child=serializers.CharField())
+    retake_required = serializers.ListField(child=serializers.DictField())
 
 class ClassNotificationSerializer(serializers.ModelSerializer):
 
@@ -1150,6 +1365,9 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
     )
     expiry_date = SafeDateTimeField(required=False, allow_null=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
+    created_by_rank = serializers.SerializerMethodField(read_only=True)
+    created_by_role = serializers.SerializerMethodField(read_only=True)
+    created_by_svc_number = serializers.SerializerMethodField(read_only=True)
     priority_display = serializers.CharField(
         source='get_priority_display', read_only=True,
     )
@@ -1164,6 +1382,15 @@ class ClassNotificationSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_created_by_rank(self, obj):
+        return obj.created_by.get_rank_display() if obj.created_by and obj.created_by.rank else None
+ 
+    def get_created_by_role(self, obj):
+        return obj.created_by.role if obj.created_by else None
+ 
+    def get_created_by_svc_number(self, obj):
+        return obj.created_by.svc_number if obj.created_by else None
 
     def get_is_read(self, obj):
         return getattr(obj, '_user_read_at', None) is not None
@@ -1512,7 +1739,7 @@ class PersonalNotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PersonalNotification
         fields = '__all__'
-        read_only_fields = ('created_at', 'read_at', 'created_by')
+        read_only_fields = ('created_at', 'read_at', 'created_by', 'user', 'school')
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else 'System'
@@ -1774,11 +2001,13 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         source='reviewed_by.get_full_name', read_only=True
     )
     exam_result_detail = serializers.SerializerMethodField()
+    component_result_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = ResultEditRequest
         fields = [
             'id', 'school', 'exam_result', 'exam_result_detail',
+            'component_result', 'component_result_detail',
             'requested_by', 'requested_by_name', 'requested_by_rank',
             'reason', 'proposed_marks', 'proposed_remarks',
             'status', 'reviewed_by', 'reviewed_by_name',
@@ -1797,6 +2026,8 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_exam_result_detail(self, obj):
+        if not obj.exam_result_id:
+            return None
         r = obj.exam_result
         index_number = None
         try:
@@ -1820,6 +2051,33 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             'is_locked': r.is_locked,
         }
 
+    def get_component_result_detail(self, obj):
+        if not obj.component_result_id:
+            return None
+        r = obj.component_result
+        index_number = None
+        try:
+            class_obj = r.component.subject.class_obj
+            index = StudentIndex.all_objects.filter(
+                enrollment__student=r.student,
+                class_obj=class_obj,
+            ).first()
+            if index:
+                index_number = class_obj.format_index(int(index.index_number))
+        except Exception:
+            pass
+        return {
+            'id': str(r.id),
+            'component': str(r.component_id),
+            'component_name': r.component.name,
+            'subject_name': r.component.subject.name,
+            'student': str(r.student_id),
+            'student_name': r.student.get_full_name(),
+            'index_number': index_number,
+            'marks_obtained': str(r.marks_obtained) if r.marks_obtained is not None else None,
+            'component_total_marks': str(r.component.total_marks),
+        }
+
     def validate_exam_result(self, value):
         if not value.is_locked:
             raise serializers.ValidationError(
@@ -1833,18 +2091,47 @@ class ResultEditRequestSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_component_result(self, value):
+        if value.marks_obtained is None:
+            raise serializers.ValidationError(
+                "This result has no marks entered yet. Enter marks directly."
+            )
+        if ResultEditRequest.all_objects.filter(
+            component_result=value, status=ResultEditRequest.Status.PENDING
+        ).exists():
+            raise serializers.ValidationError(
+                "There is already a pending edit request for this result."
+            )
+        return value
+
     def validate(self, attrs):
         request = self.context.get('request')
         exam_result = attrs.get('exam_result')
+        component_result = attrs.get('component_result')
+
+        has_exam = exam_result is not None
+        has_comp = component_result is not None
+        if has_exam == has_comp:
+            raise serializers.ValidationError(
+                'Provide exactly one of exam_result or component_result.'
+            )
 
         if request and exam_result:
-
             exam = exam_result.exam
             is_grader = exam_result.graded_by == request.user
             is_class_instructor = exam.subject.instructor == request.user
             is_class_owner = exam.subject.class_obj.instructor == request.user
-
             if not (is_grader or is_class_instructor or is_class_owner):
+                raise serializers.ValidationError(
+                    "You can only request edits for results you graded or in classes you instruct."
+                )
+
+        if request and component_result:
+            subject = component_result.component.subject
+            is_grader = component_result.graded_by == request.user
+            is_subject_instructor = subject.instructor == request.user
+            is_class_owner = subject.class_obj.instructor == request.user
+            if not (is_grader or is_subject_instructor or is_class_owner):
                 raise serializers.ValidationError(
                     "You can only request edits for results you graded or in classes you instruct."
                 )
@@ -2290,6 +2577,7 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
     )
     commandant_remark = serializers.SerializerMethodField(read_only=True)
     chief_instructor_remark = serializers.SerializerMethodField(read_only=True)
+    oic_remark = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = ExamReport
@@ -2299,8 +2587,12 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_name', 'created_by_rank', 'created_by_svc_number', 'exams_count', 'exam_ids',
             'total_students', 'average_performance',
             'remarks_list', 'commandant_remark', 'chief_instructor_remark',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at','oic_remark',
         ]
+
+    def get_oic_remark(self, obj):
+        remark = obj.remarks.filter(author_role='oic').first()
+        return ExamReportRemarkSerializer(remark).data if remark else None
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else None
@@ -2315,3 +2607,308 @@ class DashboardExamReportSerializer(serializers.ModelSerializer):
     def get_chief_instructor_remark(self, obj):
         remark = obj.remarks.filter(author_role='chief_instructor').first()
         return ExamReportRemarkSerializer(remark).data if remark else None
+
+# ── OIC serializers ──
+
+class OICAssignmentSerializer(serializers.ModelSerializer):
+
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    assigned_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = OICAssignment
+        fields = [
+            'id', 'school', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name', 'course_name',
+            'assigned_by', 'assigned_by_name',
+            'is_active', 'notes', 'assigned_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'assigned_by', 'assigned_at', 'updated_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+    def get_assigned_by_name(self, obj):
+        return obj.assigned_by.get_full_name() if obj.assigned_by else None
+
+    def validate(self, attrs):
+
+        oic_user = attrs.get('oic')
+        class_obj = attrs.get('class_obj')
+
+        if oic_user and oic_user.role != 'oic':
+            raise serializers.ValidationError({
+                'oic': 'The selected user does not have the OIC role.'
+            })
+
+        if class_obj and oic_user:
+            existing = OICAssignment.all_objects.filter(
+                oic=oic_user,
+                class_obj=class_obj,
+                is_active=True,
+            )
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError(
+                    'This OIC is already actively assigned to this class.'
+                )
+
+        return attrs
+
+class OICAssignmentListSerializer(serializers.ModelSerializer):
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    department_name = serializers.CharField(
+        source='class_obj.department.name', read_only=True, default=None
+    )
+
+    class Meta:
+        model = OICAssignment
+        fields = [
+            'id', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name', 'course_name', 'department_name',
+            'is_active', 'assigned_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+class OICRemarkValidationMixin:
+
+    def validate_remark(self, value):
+        cleaned = value.strip()
+        if len(cleaned) < 10:
+            raise serializers.ValidationError(
+                'Remark must be at least 10 characters long.'
+            )
+        return cleaned
+
+class OICRemarkSerializer(OICRemarkValidationMixin, serializers.ModelSerializer):
+
+    oic_name = serializers.SerializerMethodField(read_only=True)
+    oic_svc_number = serializers.CharField(source='oic.svc_number', read_only=True)
+    oic_rank = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(
+        source='subject.name', read_only=True, default=None
+    )
+    remark_type_display = serializers.CharField(
+        source='get_remark_type_display', read_only=True
+    )
+
+    class Meta:
+        model = OICRemark
+        fields = [
+            'id', 'school', 'oic', 'oic_name', 'oic_svc_number', 'oic_rank',
+            'class_obj', 'class_name',
+            'subject', 'subject_name',
+            'remark_type', 'remark_type_display',
+            'remark',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'school', 'oic', 'remark_type',
+            'created_at', 'updated_at',
+        ]
+
+    def get_oic_name(self, obj):
+        return obj.oic.get_full_name() if obj.oic else None
+
+    def get_oic_rank(self, obj):
+        return obj.oic.get_rank_display() if obj.oic and obj.oic.rank else None
+
+    def validate(self, attrs):
+        class_obj = attrs.get('class_obj') or (
+            self.instance.class_obj if self.instance else None
+        )
+        subject = attrs.get('subject') or (
+            self.instance.subject if self.instance else None
+        )
+        if subject and class_obj and subject.class_obj_id != class_obj.id:
+            raise serializers.ValidationError({
+                'subject': 'This subject does not belong to the specified class.'
+            })
+        return attrs
+
+class OICRemarkCreateSerializer(OICRemarkValidationMixin, serializers.Serializer):
+
+    class_obj = serializers.UUIDField(
+        help_text='UUID of the class to add a remark on.'
+    )
+    subject = serializers.UUIDField(
+        required=False, allow_null=True,
+        help_text='UUID of the subject (omit for overall class remark).'
+    )
+    remark = serializers.CharField(
+        max_length=5000,
+        trim_whitespace=True,
+        error_messages={
+            'blank': 'Remark cannot be empty.',
+            'required': 'Remark text is required.',
+        },
+    )
+
+    def validate(self, attrs):
+
+        subject_id = attrs.get('subject')
+        class_obj_id = attrs.get('class_obj')
+        if subject_id and class_obj_id:
+            if not Subject.all_objects.filter(
+                id=subject_id, class_obj_id=class_obj_id,
+            ).exists():
+                raise serializers.ValidationError({
+                    'subject': 'This subject does not belong to the specified class.'
+                })
+        return attrs
+
+class OICDashboardClassSerializer(serializers.ModelSerializer):
+
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    course_code = serializers.CharField(source='course.code', read_only=True)
+    instructor_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(
+        source='department.name', read_only=True, default=None
+    )
+    current_enrollment = serializers.IntegerField(read_only=True)
+    enrollment_status = serializers.CharField(read_only=True)
+    subject_count = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Class
+        fields = [
+            'id', 'name', 'class_code',
+            'course', 'course_name', 'course_code',
+            'instructor', 'instructor_name',
+            'department', 'department_name',
+            'start_date', 'end_date', 'capacity',
+            'current_enrollment', 'enrollment_status',
+            'is_active', 'is_closed',
+            'subject_count',
+        ]
+
+    def get_instructor_name(self, obj):
+        return obj.instructor.get_full_name() if obj.instructor else None
+
+    def get_subject_count(self, obj):
+        return obj.subjects.filter(is_active=True).count()
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    student_svc_number = serializers.CharField(source='student.svc_number', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    marked_by_name = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+        read_only_fields = ('marked_by', 'id', 'created_by', 'updated_at')
+
+    def get_marked_by_name(self, obj):
+        return obj.marked_by.get_full_name() if obj.marked_by else None
+
+    def validate(self, attrs):
+        student = attrs.get('student')
+        class_obj = attrs.get('class_obj')
+
+        if student and class_obj:
+            if not Enrollment.objects.filter(
+                student=student,
+                class_obj=class_obj,
+                is_active=True
+            ).exists():
+                raise serializers.ValidationError({
+                    "student": "Student is not enrolled in this class."
+                })
+        return attrs
+
+class BulkAttendanceSerializer(serializers.Serializer):
+    class_obj = serializers.PrimaryKeyRelatedField(queryset=Class.all_objects.none())
+    subject = serializers.PrimaryKeyRelatedField(
+        queryset=Subject.all_objects.none(),
+        required=False,
+        allow_null=True
+    )
+    date = serializers.DateField()
+    attendance_records = serializers.ListField(
+        child=serializers.DictField(),
+        allow_empty=False
+    )
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        school = getattr(request, 'school', None) if request else None
+        if school:
+            fields['class_obj'].queryset = Class.objects.filter(school=school)
+            fields['subject'].queryset = Subject.objects.filter(school=school)
+        else:
+            fields['class_obj'].queryset = Class.all_objects.all()
+            fields['subject'].queryset = Subject.all_objects.all()
+        return fields
+
+    def validate_attendance_records(self, value):
+        valid_statuses = ['present', 'absent', 'late', 'excused']
+        for record in value:
+            if 'student_id' not in record:
+                raise serializers.ValidationError("Each record must have a student_id.")
+            if 'status' not in record:
+                raise serializers.ValidationError("Each record must have a status.")
+            if record['status'] not in valid_statuses:
+                raise serializers.ValidationError(f"Invalid status: {record['status']}")
+        return value
+
+class BiometricDeviceSerializer(serializers.ModelSerializer):
+    sync_status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BiometricDevice
+        fields = '__all__'
+        read_only_fields = (
+            'school',
+            'last_sync_at', 'last_sync_status',
+            'last_sync_records', 'total_synced_records',
+            'serial_number', 'firmware_version'
+        )
+
+    def get_sync_status_display(self, obj):
+        if not obj.last_sync_at:
+            return 'Never synced'
+        delta = (timezone.now() - obj.last_sync_at).total_seconds()
+
+        if delta < 120:
+            return 'ONline'
+        elif delta < 600:
+            return 'Delayed'
+        return 'Offline'
+
+class BiometricUserMappingSerializer(serializers.ModelSerializer):
+    student = serializers.PrimaryKeyRelatedField(
+            queryset = User.all_objects.filter(role='student', is_active=True)
+        )
+    student_name = serializers.CharField(
+        source='student.get_full_name', read_only=True
+    )
+    student_svc = serializers.CharField(source = 'student.svc_number', read_only=True)
+
+    class Meta:
+        model = BiometricUserMapping
+        fields = '__all__'
+        read_only_fields = ('mapped_at',)

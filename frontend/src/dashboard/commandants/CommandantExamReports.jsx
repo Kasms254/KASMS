@@ -7,6 +7,7 @@ import EmptyState from '../../components/EmptyState'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
+import AdminPagination from '../../components/AdminPagination'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -60,7 +61,9 @@ export default function CommandantExamReports() {
   const [loadingDetail,     setLoadingDetail]     = useState(false)
   const [resultsSearch,     setResultsSearch]     = useState('')
   const [resultsPage,       setResultsPage]       = useState(1)
-  const resultsPerPage = 10
+  const [resultsPerPage,    setResultsPerPage]    = useState(10)
+  const [examListPage,      setExamListPage]      = useState(1)
+  const [examsPerPage,      setExamsPerPage]      = useState(10)
 
   // ── Comprehensive results ─────────────────────────────────────────────────
   const [showComprehensive,    setShowComprehensive]    = useState(false)
@@ -197,6 +200,16 @@ export default function CommandantExamReports() {
       return ex.submission_count > 0 || (ex.average_score != null && ex.average_score > 0)
     })
   }, [exams, selectedExamType, dateRange])
+
+  // ── Paginate the exam list ────────────────────────────────────────────────
+  const totalExamPages = Math.ceil(filteredExams.length / examsPerPage)
+  const paginatedExams = useMemo(() => {
+    const start = (examListPage - 1) * examsPerPage
+    return filteredExams.slice(start, start + examsPerPage)
+  }, [filteredExams, examListPage, examsPerPage])
+
+  // Reset exam list page when filters change
+  useEffect(() => { setExamListPage(1) }, [selectedClass, selectedSubject, selectedExamType, dateRange])
 
   // ── Exams that have a report but no remark from the current user's role ───
   const myRole = user?.role || 'commandant'
@@ -888,66 +901,16 @@ export default function CommandantExamReports() {
                 })}
               </div>
 
-              {/* Pagination */}
-              {totalResultsPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-neutral-200 flex-wrap gap-3">
-                  <p className="text-sm text-neutral-700">
-                    Showing <span className="font-semibold text-black">{(resultsPage - 1) * resultsPerPage + 1}</span>–<span className="font-semibold text-black">{Math.min(resultsPage * resultsPerPage, sortedResults.length)}</span> of <span className="font-semibold text-black">{sortedResults.length}</span> results
-                  </p>
-                  <nav className="inline-flex items-center gap-1">
-                    {/* Prev */}
-                    <button
-                      onClick={() => setResultsPage(p => Math.max(1, p - 1))}
-                      disabled={resultsPage === 1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    >
-                      <LucideIcons.ChevronLeft className="w-4 h-4" />
-                    </button>
-
-                    {/* Page numbers */}
-                    {(() => {
-                      const pages = []
-                      const delta = 1 // siblings on each side
-                      const left  = Math.max(2, resultsPage - delta)
-                      const right = Math.min(totalResultsPages - 1, resultsPage + delta)
-
-                      // Always first page
-                      pages.push(1)
-                      if (left > 2) pages.push('...')
-                      for (let i = left; i <= right; i++) pages.push(i)
-                      if (right < totalResultsPages - 1) pages.push('...')
-                      if (totalResultsPages > 1) pages.push(totalResultsPages)
-
-                      return pages.map((page, i) =>
-                        page === '...' ? (
-                          <span key={`dots-${i}`} className="inline-flex items-center justify-center w-8 h-8 text-sm text-neutral-500">…</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => setResultsPage(page)}
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded-md border text-sm font-medium transition ${
-                              resultsPage === page
-                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                                : 'bg-white border-neutral-300 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      )
-                    })()}
-
-                    {/* Next */}
-                    <button
-                      onClick={() => setResultsPage(p => Math.min(totalResultsPages, p + 1))}
-                      disabled={resultsPage === totalResultsPages}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    >
-                      <LucideIcons.ChevronRight className="w-4 h-4" />
-                    </button>
-                  </nav>
-                </div>
-              )}
+              {/* Pagination for Student Results */}
+              <AdminPagination
+                currentPage={resultsPage}
+                totalPages={totalResultsPages}
+                totalCount={sortedResults.length}
+                pageSize={resultsPerPage}
+                onPageChange={setResultsPage}
+                onPageSizeChange={setResultsPerPage}
+                label="results"
+              />
             </div>
 
             {/* Remarks Section */}
@@ -1187,7 +1150,7 @@ export default function CommandantExamReports() {
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
           {/* Mobile cards */}
           <div className="lg:hidden divide-y divide-neutral-200">
-            {filteredExams.map(ex => {
+            {paginatedExams.map(ex => {
               const isPending = pendingRemarkExams.some(p => p.id === ex.id)
               const report = examReports[ex.id]
               return (
@@ -1272,7 +1235,7 @@ export default function CommandantExamReports() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {filteredExams.map(ex => (
+                {paginatedExams.map(ex => (
                   <tr key={ex.id} className={`transition ${pendingRemarkExams.some(p => p.id === ex.id) ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-neutral-50'}`}>
                     <td className="px-4 py-4">
                       {ex.title && <div className="font-medium text-black">{ex.title}</div>}
@@ -1333,6 +1296,17 @@ export default function CommandantExamReports() {
             </table>
           </div>
         </div>
+
+        {/* Exam List Pagination */}
+        <AdminPagination
+          currentPage={examListPage}
+          totalPages={totalExamPages}
+          totalCount={filteredExams.length}
+          pageSize={examsPerPage}
+          onPageChange={setExamListPage}
+          onPageSizeChange={setExamsPerPage}
+          label="exams"
+        />
         </>
       )}
 

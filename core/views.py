@@ -3,18 +3,19 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult)
 from .serializers import (
-    CertificateTemplateSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
+
+    CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
     NoticeSerializer,BulkAttendanceSerializer, UserListSerializer, ClassNotificationSerializer, ClassListSerializer, ClassSerializer,
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer)
+    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer, AssessmentComponentSerializer, StudentComponentResultSerializer, SubjectEvaluationSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value,Subquery, OuterRef
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -34,12 +35,24 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
-from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
+from django.contrib.auth.password_validation import validate_password as django_validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
-from .services import close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, check_class_completion_for_all_students,get_class_completion_status, bulk_issue_certificates, bulk_assign_indexes, assign_student_index
+from .services import (
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    check_class_completion_for_all_students,get_class_completion_status,
+    bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
+from core.services.zkteco_service import ZKTecoSyncService
+from datetime import datetime
+from django.db.models import Sum
+import logging
+logger = logging.getLogger(__name__)
+
 class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -84,13 +97,12 @@ class TenantFilterMixin:
     
     def perform_create(self, serializer):
         school = self.get_school_for_request()
-        
+
         model = serializer.Meta.model
         if hasattr(model, 'school'):
-            if 'school' not in serializer.validated_data or serializer.validated_data.get('school') is None:
-                serializer.save(school=school)
-                return
-        
+            serializer.save(school=school)
+            return
+
         serializer.save()
 
 class IsSuperAdmin(BasePermission):
@@ -303,10 +315,28 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload_logo(self, request, pk=None):
+        import os
         school = self.get_object()
         logo = request.FILES.get('logo')
         if not logo:
             return Response({'error': 'No logo file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        _ALLOWED_LOGO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+        _ALLOWED_LOGO_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+        _MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
+
+        ext = os.path.splitext(logo.name)[1].lower()
+        if ext not in _ALLOWED_LOGO_EXTENSIONS or logo.content_type not in _ALLOWED_LOGO_MIME_TYPES:
+            return Response(
+                {'error': 'Invalid file type. Only JPG, PNG, and WEBP images are allowed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if logo.size > _MAX_LOGO_SIZE:
+            return Response(
+                {'error': 'File too large. Maximum logo size is 2 MB.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         school.logo = logo
         school.save(update_fields=['logo'])
         return Response({
@@ -340,6 +370,13 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         'user', 'school', 'transfer_to'
     )
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def perform_create(self, serializer):
+        school = self.get_school_for_request()
+        submitted_school = serializer.validated_data.get('school')
+        if submitted_school and submitted_school != school:
+            raise ValidationError({"school": "You can only create memberships for your own school."})
+        serializer.save(school=school)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['status', 'role']
     search_fields = [
@@ -414,11 +451,15 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         url_path='user-history/(?P<svc_number>[^/.]+)'
     )
     def user_history(self, request, svc_number=None):
-        memberships = SchoolMembership.all_objects.filter(
+        qs = SchoolMembership.all_objects.filter(
             user__svc_number=svc_number
         ).select_related('school', 'transfer_to').order_by('started_at')
+
+        if request.user.role != 'superadmin':
+            qs = qs.filter(school=request.user.school)
+
         return Response(
-            SchoolMembershipSerializer(memberships, many=True).data
+            SchoolMembershipSerializer(qs, many=True).data
         )
 
 class UserViewSetWithSchool(viewsets.ModelViewSet):
@@ -433,7 +474,13 @@ class UserViewSetWithSchool(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            student = User.objects.get(id=student_id, role='student')
+            # C4: scope by school to prevent cross-tenant data read
+            student = User.all_objects.get(
+                id=student_id,
+                role='student',
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'Student not found',
@@ -455,7 +502,7 @@ class UserViewSetWithSchool(viewsets.ModelViewSet):
             blocking_enrollment = active_enrollments.first()
 
         return Response({
-            'student': UserSerializerWithSchool(student).data,
+            'student': UserListSerializer(student).data,
             'can_enroll_in_current_school':can_enroll,
             'current_school':{
                 'id':str(current_school.id),
@@ -512,6 +559,20 @@ class UserViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return queryset.none()
 
+        _user_prefetches = [
+            Prefetch(
+                'school_memberships',
+                queryset=SchoolMembership.all_objects.select_related('school'),
+            ),
+            Prefetch(
+                'department_memberships',
+                queryset=DepartmentMembership.objects.filter(is_active=True).select_related('department'),
+                to_attr='_hod_memberships',
+            ),
+            'enrollments',
+            'enrollments__class_obj',
+        ]
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -519,15 +580,13 @@ class UserViewSet(viewsets.ModelViewSet):
                     school_memberships__school=school,
                     school_memberships__status='active'
                 ).distinct()
-            return queryset.prefetch_related('enrollments', 'enrollments__class_obj')
+            return queryset.prefetch_related(*_user_prefetches)
 
         if user.school:
             return queryset.filter(
                 school_memberships__school=user.school,
                 school_memberships__status='active'
-            ).distinct().prefetch_related(
-                'enrollments', 'enrollments__class_obj'
-            )
+            ).distinct().prefetch_related(*_user_prefetches)
 
         return queryset.none()
     
@@ -537,21 +596,29 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({
             'error': 'Only instructors can access their students.'
             })
-        
+
+        school = request.user.school
+        if not school:
+            return Response({'count': 0, 'results': []})
+
         instructor_classes = Class.objects.filter(
             Q(instructor=request.user) | Q(subjects__instructor=request.user),
-            is_active=True).distinct().values_list('id', flat=True)
-        
+            school=school,
+            is_active=True,
+        ).distinct().values_list('id', flat=True)
+
         student_ids = Enrollment.objects.filter(
             class_obj_id__in=instructor_classes,
-            is_active=True
+            is_active=True,
         ).values_list('student_id', flat=True).distinct()
 
-        students = User.objects.filter(
+        students = User.all_objects.filter(
             id__in=student_ids,
             role='student',
-            is_active=True
-        ).order_by('first_name', 'last_name')
+            is_active=True,
+            school_memberships__school=school,
+            school_memberships__status='active',
+        ).distinct().order_by('first_name', 'last_name')
 
         serializer = UserListSerializer(students, many=True)
 
@@ -597,9 +664,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        page_number = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        
+        # H2: cap page_size to prevent DoS via enormous result sets
+        try:
+            page_number = max(1, int(request.query_params.get('page', 1)))
+            page_size = max(1, min(int(request.query_params.get('page_size', 10)), 200))
+        except (TypeError, ValueError):
+            page_number, page_size = 1, 10
+
         queryset = queryset.order_by('first_name', 'last_name')
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page_number)
@@ -640,9 +711,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        page_number = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 10))
-        
+        # H2: cap page_size to prevent DoS via enormous result sets
+        try:
+            page_number = max(1, int(request.query_params.get('page', 1)))
+            page_size = max(1, min(int(request.query_params.get('page_size', 10)), 200))
+        except (TypeError, ValueError):
+            page_number, page_size = 1, 10
+
         queryset = queryset.order_by('first_name', 'last_name')
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page_number)
@@ -733,13 +808,23 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'error': 'New password is required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+        # C7: enforce password policy — admin resets must still meet strength requirements
+        try:
+            django_validate_password(new_password, user)
+        except DjangoValidationError as e:
+            return Response(
+                {'error': list(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.set_password(new_password)
+        user.must_change_password = True  # Force user to change on next login
         user.save()
 
         return Response({
             'status': 'success',
-            'message': f'Password for user {user.username} has been reset'  
+            'message': f'Password for user {user.username} has been reset'
         })
     
     @action(detail=False, methods=['get'], url_path='students/export_csv')
@@ -913,6 +998,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = []
     search_fields = ['name', 'description', 'code']
@@ -953,7 +1039,6 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def classes(self, request, pk=None):
-        """Get all classes for a course."""
         course = self.get_object()
         classes_qs = course.classes.filter(is_active=True)
         serializer = ClassSerializer(classes_qs, many=True)
@@ -992,16 +1077,40 @@ class ClassViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     serializer_class = ClassSerializer
 
+    def get_permissions(self):
+        
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsAdmin(), BelongsToSameSchool()]
+        return [IsAuthenticated()]
+
     def perform_create(self, serializer):
+        from django.db import IntegrityError
+        from rest_framework.exceptions import ValidationError
+
         school = get_current_school()
         if not school and self.request.user.school:
             school = self.request.user.school
-        
+
         if not school:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({'school': 'Unable to determine school for this request.'})
-        
-        serializer.save(school=school)
+
+        try:
+            serializer.save(school=school)
+        except IntegrityError:
+            raise ValidationError(
+                {'class_code': 'A class with this code already exists for the selected course.'}
+            )
+
+    def perform_update(self, serializer):
+        from django.db import IntegrityError
+        from rest_framework.exceptions import ValidationError
+
+        try:
+            serializer.save()
+        except IntegrityError:
+            raise ValidationError(
+                {'class_code': 'A class with this code already exists for the selected course.'}
+            )
 
     def get_serializer_class(self):
 
@@ -1064,7 +1173,13 @@ class ClassViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            instructor = User.objects.get(id=instructor_id, role='instructor', is_active=True)
+            instructor = User.all_objects.get(
+                id=instructor_id,
+                role='instructor',
+                is_active=True,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
             class_obj.instructor = instructor
             class_obj.save()
 
@@ -1078,7 +1193,7 @@ class ClassViewSet(viewsets.ModelViewSet):
                 {'error': 'Instructor not found or not active.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
     @action(detail=True, methods=['post'])
     def remove_instructor(self, request, pk=None):
         class_obj = self.get_object()
@@ -1099,7 +1214,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'count':classes.count(),
             'results': serializer.data
         })
-    
     
     # instructor specific classes
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrInstructor], url_path='my-classes')
@@ -1139,12 +1253,24 @@ class ClassViewSet(viewsets.ModelViewSet):
             is_active=True
         ).order_by ('first_name', 'last_name')
 
+        index_map = {}
+        for si in StudentIndex.all_objects.filter(
+            class_obj=class_obj,
+            enrollment__is_active=True,
+        ).select_related('enrollment'):
+            try:
+                index_map[si.enrollment.student_id] = class_obj.format_index(int(si.index_number))
+            except (ValueError, TypeError):
+                pass
 
         serializer = UserListSerializer(students, many=True)
-        
+        results = serializer.data
+        for student_data in results:
+            student_data['index_number'] = index_map.get(student_data['id'])
+
         return Response({
             'count': students.count(),
-            'results': serializer.data,
+            'results': results,
             'class':class_obj.name
         })
 
@@ -1166,7 +1292,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class': ClassSerializer(class_obj).data
         })
 
-    
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdmin])
     def completion_status(self, request, pk=None):
 
@@ -1187,7 +1312,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             'students': results
         })
         
-
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def issue_certificates(self, request, pk=None):
         class_obj = self.get_object()
@@ -1322,7 +1446,13 @@ class SubjectViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            instructor = User.objects.get(id=instructor_id, role='instructor', is_active=True)
+            instructor = User.all_objects.get(
+                id=instructor_id,
+                role='instructor',
+                is_active=True,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
             subject.instructor = instructor
             subject.save()
 
@@ -1377,9 +1507,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only instructors can access this.'}, status=403)
 
         subjects = self.get_queryset().filter(
-            instructor=request.user,
+            Q(instructor=request.user) | Q(class_obj__instructor=request.user),
             is_active=True
-        )
+        ).distinct()
 
         serializer = SubjectSerializer(subjects, many=True)
         return Response({
@@ -1387,16 +1517,47 @@ class SubjectViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
   
+    @action(detail=True, methods=['get'])
+    def evaluate_student(self, request, pk=None):
+
+        subject = self.get_object()
+        student_id = request.query_params.get('student_id')
+ 
+        if not student_id:
+            return Response(
+                {'error': 'student_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        try:
+            student = User.all_objects.get(
+                pk=student_id,
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Student not found in your school.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        evaluation = evaluate_subject_pass_fail(subject, student)
+        retake_info = determine_retake_requirements(subject, student)
+ 
+        return Response({
+            'evaluation': evaluation,
+            'retake_requirements': retake_info,
+        })
+
 class NoticeActionMixin:
 
     read_status_model = None
     read_status_fk_name = None
 
     def _not_expired_q(self):
-        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.now())
+        return Q(expiry_date__isnull=True) | Q(expiry_date__gte=timezone.localdate())
 
     def _annotate_read_status(self, qs):
-        """Annotate queryset with the current user's read_at timestamp."""
         user = self.request.user
         if not user.is_authenticated:
             return qs
@@ -1428,7 +1589,7 @@ class NoticeActionMixin:
             )
         qs = self._annotate_read_status(
             self._get_base_queryset_unfiltered().filter(
-                expiry_date__lt=timezone.now(),
+                expiry_date__lt=timezone.localdate(),
             ).order_by('-created_at')
         )
         serializer = self.get_serializer(qs, many=True)
@@ -1516,7 +1677,7 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'priority']
+    filterset_fields = ['is_active', 'priority', 'target_role', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'title', 'priority']
     ordering = ['-created_at']
@@ -1526,8 +1687,11 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsAdmin()]
+            return [IsAuthenticated(), IsAdmin(), IsCommandantOrChiefInstructor()]
         return [IsAuthenticated()]
+
+    def _target_role_q(self, user):
+        return Q(target_role='all') | Q(target_role=user.role)
 
     def get_queryset(self):
         qs = Notice.all_objects.select_related('created_by').filter(
@@ -1544,6 +1708,14 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
             qs = qs.filter(school=user.school)
         else:
             return qs.none()
+
+
+        if user.role == 'admin':
+            pass  # admin sees all notices in their school for management purposes
+        elif user.role in ('commandant', 'chief_instructor'):
+            qs = qs.filter(target_role='all')
+        else:
+            qs = qs.filter(Q(target_role='all') | Q(target_role=user.role))
 
         return self._annotate_read_status(qs)
 
@@ -1562,7 +1734,31 @@ class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
-        serializer.save(school=school, created_by=self.request.user)
+        notice = serializer.save(school=school, created_by=self.request.user)
+
+        # Create PersonalNotifications for commandant/chief_instructor targeted notices
+        if notice.target_role in ('commandant', 'chief_instructor'):
+            target_memberships = school.memberships.filter(
+                role=notice.target_role,
+                status='active',
+            ).select_related('user')
+
+            personal_notifications = [
+                PersonalNotification(
+                    school=school,
+                    user=membership.user,
+                    notification_type='general',
+                    priority=notice.priority,
+                    title=notice.title,
+                    content=notice.content,
+                    created_by=notice.created_by,
+                    is_active=True,
+                )
+                for membership in target_memberships
+            ]
+
+            if personal_notifications:
+                PersonalNotification.objects.bulk_create(personal_notifications)
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
 
@@ -1598,6 +1794,15 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         school = get_current_school() or user.school
+
+        student = serializer.validated_data.get('student')
+        class_obj = serializer.validated_data.get('class_obj')
+
+        if student and not student.school_memberships.filter(school=school, status='active').exists():
+            raise ValidationError("Student has no active membership at this school.")
+        if class_obj and class_obj.school != school:
+            raise ValidationError("Class does not belong to your school.")
+
         serializer.save(school=school, enrolled_by=user)
     
     @action(detail=True, methods=['post'])
@@ -1723,12 +1928,12 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
-  
+        qs = self.get_queryset()
         stats = {
-            'total_enrollments': Enrollment.objects.count(),
-            'active_enrollments': Enrollment.objects.filter(is_active=True).count(),
-            'completed_enrollments': Enrollment.objects.filter(completion_date__isnull=False).count(),
-            'withdrawn_enrollments': Enrollment.objects.filter(is_active=False, completion_date__isnull=True).count(),
+            'total_enrollments': qs.count(),
+            'active_enrollments': qs.filter(is_active=True).count(),
+            'completed_enrollments': qs.filter(completion_date__isnull=False).count(),
+            'withdrawn_enrollments': qs.filter(is_active=False, completion_date__isnull=True).count(),
         }
         return Response(stats)
     
@@ -1753,7 +1958,6 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         status_data['has_certificate'] = hasattr(enrollment, 'certificate')
 
         return Response(status_data)
-
 # instructor
 class ExamViewSet(viewsets.ModelViewSet):
 
@@ -1765,14 +1969,60 @@ class ExamViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
+    pagination_class = PageSizeAwarePagination
 
     def get_queryset(self):
-        queryset = Exam.all_objects.select_related('subject', 'created_by').all()
+        queryset = Exam.all_objects.select_related(
+            'subject', 'subject__class_obj', 'created_by', 'component'
+        ).annotate(
+            _avg_score=Case(
+                When(
+                    component__isnull=False,
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            avg=Avg('percentage')
+                        ).values('avg')[:1],
+                        output_field=FloatField(),
+                    ),
+                ),
+                default=Avg(
+                    'results__marks_obtained',
+                    filter=Q(results__is_submitted=True),
+                    output_field=FloatField(),
+                ),
+                output_field=FloatField(),
+            ),
+            _sub_count=Case(
+                When(
+                    component__isnull=False,
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            cnt=Count('student_id', distinct=True)
+                        ).values('cnt')[:1],
+                        output_field=IntegerField(),
+                    ),
+                ),
+                default=Count(
+                    'results',
+                    filter=Q(results__is_submitted=True),
+                ),
+                output_field=IntegerField(),
+            ),
+        )
+ 
         user = self.request.user
-
+ 
         if not user.is_authenticated:
             return queryset.none()
-
+ 
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -1781,40 +2031,73 @@ class ExamViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(school=user.school)
         else:
             return queryset.none()
-
+ 
         if user.role == 'instructor':
-            queryset = queryset.filter(subject__instructor=user)
-        
-        queryset = queryset.exclude(subject__class_obj__is_closed=True)
+            queryset = queryset.filter(
+                Q(subject__instructor=user) | Q(subject__class_obj__instructor=user)
+            )
 
+        queryset = queryset.exclude(subject__class_obj__is_closed=True)
+ 
+        if self.action == 'list':
+            queryset = queryset.prefetch_related('attachments')
+ 
         return queryset
     
-    def check_final_exam_constraint(self, subject, instance=None):
+    def check_final_exam_constraint(self, subject, component=None, instance=None):
         qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+        if subject.grading_mode == 'POLICY' and component:
+            qs = qs.filter(component=component)
+        else:
+            qs = qs.filter(component__isnull=True)
         if instance:
-            qs  = qs.exclude(pk=instance.pk)
+            qs = qs.exclude(pk=instance.pk)
         if qs.exists():
-            
-            raise ValidationError("Theres already an existing final exam for this subject")
+            if component:
+                raise ValidationError(
+                    "There is already an existing final exam for this component."
+                )
+            raise ValidationError(
+                "There is already an existing final exam for this subject."
+            )
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
-        
+
         subject = serializer.validated_data.get('subject')
+        component = serializer.validated_data.get('component')
+
+        if subject and subject.school != school:
+            raise ValidationError("Subject does not belong to your school.")
+
         if self.request.user.role == 'instructor':
             if subject.instructor != self.request.user:
                 raise PermissionDenied("You can only create exams for subjects you teach")
         
-        serializer.save(school=school, created_by=self.request.user)
+     
+        save_kwargs = {
+            'school': school,
+            'created_by': self.request.user,
+        }
+        if (
+            subject.grading_mode == 'POLICY'
+            and component
+            and not self.request.data.get('total_marks')
+        ):
+            save_kwargs['total_marks'] = component.total_marks
+
+        serializer.save(**save_kwargs)
 
     def perform_update(self, serializer):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
         exam_type = serializer.validated_data.get('exam_type', serializer.instance.exam_type)
         is_active = serializer.validated_data.get('is_active', serializer.instance.is_active)
-
+        component = serializer.validated_data.get('component', serializer.instance.component)
 
         if exam_type == 'final' and is_active:
-            self.check_final_exam_constraint(subject, instance = serializer.instance)
+            self.check_final_exam_constraint(
+                subject, component=component, instance=serializer.instance
+            )
 
         serializer.save()
         
@@ -1824,19 +2107,51 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         results = exam.results.select_related('student', 'graded_by').all()
 
-        stats = results.aggregate(
-            total=Count('id'),
-            submitted=Count('id', filter=Q(is_submitted=True)),
-            pending=Count('id', filter=Q(is_submitted=False))
-        )
-        
-        serializer = ExamResultSerializer(results, many=True)
+        serialized_results = ExamResultSerializer(results, many=True).data
+
+       
+        if exam.component_id:
+            comp_results = StudentComponentResult.all_objects.filter(
+                component_id=exam.component_id,
+                student_id__in=[r['student'] for r in serialized_results],
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective: dict = {}
+            for cr in comp_results:
+                sid = cr.student_id
+                existing = effective.get(sid)
+                if existing is None:
+                    effective[sid] = cr
+                elif cr.component.retake_evaluation == 'best':
+                    if float(cr.percentage or 0) > float(existing.percentage or 0):
+                        effective[sid] = cr
+                else:  
+                    if cr.attempt_number > existing.attempt_number:
+                        effective[sid] = cr
+
+            enriched = []
+            for r in serialized_results:
+                r = dict(r)
+                cr = effective.get(r['student'])
+                if cr is not None:
+                    r['marks_obtained'] = float(cr.marks_obtained)
+                    r['percentage'] = float(cr.percentage or 0)
+                    r['is_submitted'] = True
+                    r['grade'] = cr.status  # PASS/FAIL from component
+                enriched.append(r)
+            serialized_results = enriched
+
+        submitted_count = sum(1 for r in serialized_results if r.get('is_submitted') and r.get('marks_obtained') is not None)
+        pending_count = len(serialized_results) - submitted_count
+
         return Response({
             'exam': ExamSerializer(exam).data,
-            'count': stats['total'],
-            'submitted': stats['submitted'],
-            'pending': stats['pending'],
-            'results': serializer.data
+            'count': len(serialized_results),
+            'submitted': submitted_count,
+            'pending': pending_count,
+            'results': serialized_results,
         })
 
 
@@ -1845,7 +2160,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         class_obj = exam.subject.class_obj
 
-        # Prevent generating results for a closed class
         if class_obj.is_closed:
             return Response(
                 {'error': 'Cannot generate exam results for a closed class.'},
@@ -1868,13 +2182,100 @@ class ExamViewSet(viewsets.ModelViewSet):
             if created:
                 created_count += 1
 
+       
+        component_created = 0
+        if exam.component:
+            for enrollment in enrollments:
+                _, comp_created = StudentComponentResult.all_objects.get_or_create(
+                    component=exam.component,
+                    student=enrollment.student,
+                    attempt_number=1,
+                    defaults={
+                        'school': exam.school,
+                        'is_retake': False,
+                    },
+                )
+                if comp_created:
+                    component_created += 1
 
         return Response({
             'status': 'success',
             'message': f'{created_count} results created',
-            'total_students': enrollments.count()
+            'total_students': enrollments.count(),
+            'component_results_created': component_created,
         })
     
+    @action(detail=False, methods=['get'])
+    def component_choices(self, request):
+
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        school = get_current_school() or user.school
+        try:
+            subject_qs = Subject.all_objects.select_related('class_obj')
+            if user.role == 'superadmin':
+                if school:
+                    subject_qs = subject_qs.filter(school=school)
+            elif school:
+                subject_qs = subject_qs.filter(school=school)
+            else:
+                return Response(
+                    {'error': 'Unable to determine school.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            subject = subject_qs.get(id=subject_id, is_active=True)
+        except Subject.DoesNotExist:
+            return Response(
+                {'error': 'Subject not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.role == 'instructor' and subject.instructor != user:
+            return Response(
+                {'error': 'You do not teach this subject.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if subject.grading_mode != 'POLICY':
+            return Response({
+                'grading_mode': 'LEGACY',
+                'components': [],
+                'message': 'This subject uses Legacy grading. No component selection needed.',
+            })
+
+        components = AssessmentComponent.all_objects.filter(
+            subject=subject,
+            school=school,
+            is_active=True,
+        ).order_by('sort_order', 'name')
+
+        return Response({
+            'grading_mode': 'POLICY',
+            'subject_id': str(subject.id),
+            'subject_name': subject.name,
+            'components': [
+                {
+                    'id': str(c.id),
+                    'name': c.name,
+                    'component_type': c.component_type,
+                    'component_type_display': c.get_component_type_display(),
+                    'total_marks': c.total_marks,
+                    'pass_mark': float(c.pass_mark),
+                    'weight': float(c.weight),
+                    'is_critical': c.is_critical,
+                    'retake_allowed': c.retake_allowed,
+                }
+                for c in components
+            ],
+        })
+
     @action(detail=False, methods=['get'])
     def my_exams(self, request):
         if request.user.role != 'instructor':
@@ -1884,7 +2285,10 @@ class ExamViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN
             )
         
-        exams = self.get_queryset().filter(is_active=True)
+        exams = self.get_queryset().filter(
+            subject__instructor=request.user,
+            is_active=True,
+        )
 
         serializer = self.get_serializer(exams, many=True)
 
@@ -1935,7 +2339,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     ordering = ['-exam__exam_date', 'created_at']
     
     def get_queryset(self):
-        queryset = ExamResult.all_objects.select_related('exam', 'student', 'graded_by').all()
+        queryset = ExamResult.all_objects.select_related(
+       'exam', 'exam__component', 'exam__subject', 'exam__subject__class_obj',
+       'exam__subject__class_obj__course', 'student', 'graded_by'
+   ).all()
         user = self.request.user
 
         if not user.is_authenticated:
@@ -2047,25 +2454,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def _create_grade_notification(self, exam_result):
         try:
             percentage = (exam_result.marks_obtained / exam_result.exam.total_marks * 100) if exam_result.exam.total_marks > 0 else 0
-
-            if percentage >= 91:
-                return 'A'
-            elif percentage >= 86:
-                return 'A-'
-            elif percentage >= 81:
-                return 'B+'
-            elif percentage >= 76:
-                return 'B'
-            elif percentage >= 71:
-                return 'B-'
-            elif percentage >= 65:
-                return 'C+'
-            elif percentage >= 60:
-                return 'C'
-            elif percentage >= 50:
-                return 'C-'
-            else:
-                return 'F'
+            grade_letter = self._calculate_overall_grade(percentage)
 
             title = f"Grade Posted: {exam_result.exam.title}"
 
@@ -2087,17 +2476,16 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             PersonalNotification.objects.create(
                 user=exam_result.student,
                 notification_type='exam_result',
-                priority = 'medium',
-                title = title,
-                content = content,
-                exam_result= exam_result,
-                created_by= exam_result.graded_by,
-                is_active=True
+                priority='medium',
+                title=title,
+                content=content,
+                exam_result=exam_result,
+                created_by=exam_result.graded_by,
+                is_active=True,
             )
 
             return True
-        except Exception as e:
-
+        except Exception:
             return False
 
     def perform_update(self, serializer):
@@ -2134,8 +2522,9 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             for result_data in results_data:
                 try:
                     result = ExamResult.objects.get(
-                        id = result_data.get('id'),
-                        exam__subject__instructor = request.user
+                        id=result_data.get('id'),
+                        school=request.user.school,
+                        exam__subject__instructor=request.user,
                     )
 
                     # Prevent grading if the class is closed
@@ -2163,8 +2552,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     errors.append(f"Error processing result {result_data.get('id')}: {str(e)}")
 
-
-            
         return Response({
             'status': 'success',
             'updated': updated_count,
@@ -2176,7 +2563,6 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def grade(self, request, pk=None):
         result = self.get_object()
 
-        # Prevent grading if the class is closed
         if result.exam.subject.class_obj.is_closed:
             return Response(
                 {'error': 'Cannot grade exams for a closed class.'},
@@ -2437,7 +2823,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
     serializer_class = ClassNotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject']
+    filterset_fields = ['class_obj', 'is_active', 'priority', 'subject', 'created_by__role']
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'priority']
     ordering = ['-created_at']
@@ -2469,7 +2855,9 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
         else:
             return qs.none()
 
-        if user.role == 'instructor':
+        if user.role in ('commandant', 'chief_instructor'):
+            return qs.none()
+        elif user.role == 'instructor':
             qs = qs.filter(
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
@@ -2501,6 +2889,7 @@ class ClassNoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
                 Q(class_obj__instructor=user) | Q(subject__instructor=user)
             )
 
+
         return qs
 
     def perform_create(self, serializer):
@@ -2522,7 +2911,24 @@ class ExamReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = ExamReport.all_objects.select_related(
             'subject', 'class_obj', 'created_by'
-        ).all()
+        ).prefetch_related('exams').annotate(
+            total_students=Count(
+                'class_obj__enrollments',
+                filter=Q(class_obj__enrollments__is_active=True),
+                distinct=True,
+            ),
+            average_performance=Avg(
+                ExpressionWrapper(
+                    F('exams__results__marks_obtained') * 100.0 / F('exams__total_marks'),
+                    output_field=FloatField(),
+                ),
+                filter=Q(
+                    exams__results__is_submitted=True,
+                    exams__results__marks_obtained__isnull=False,
+                    exams__total_marks__gt=0,
+                ),
+            ),
+        )
         user = self.request.user
 
         if not user.is_authenticated:
@@ -2537,14 +2943,16 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         if user.school:
             queryset = queryset.filter(school=user.school)
             if user.role == 'instructor':
-                queryset = queryset.filter(subject__instructor=user)
+                queryset = queryset.filter(
+                    Q(subject__instructor=user) | Q(class_obj__instructor=user)
+                )
             return queryset
 
         return queryset.none()
 
     def perform_create(self, serializer):
-        school = get_current_school()
-        serializer.save(school=school, created_by = self.request.user)
+        school = get_current_school() or self.request.user.school
+        serializer.save(school=school, created_by=self.request.user)
 
     
     @action(detail=False, methods=['get'], url_path='by_exam/(?P<exam_id>[^/.]+)')
@@ -2686,7 +3094,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -2773,7 +3183,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -3047,10 +3459,12 @@ class StudentDashboardViewset(viewsets.ViewSet):
         ) [:10]
 
         general_notices = Notice.objects.filter(
-            is_active=True
+                is_active = True
         ).filter(
-            Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
-        ).select_related('created_by').order_by('-created_at')[:5]
+                Q(target_role='all') | Q(target_role='student')
+        ).filter(
+                Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+        ).select_related('created_by').order_by('-created_at')
 
         personal_notifications = PersonalNotification.objects.filter(
             user=user,
@@ -3115,13 +3529,37 @@ class StudentDashboardViewset(viewsets.ViewSet):
             active_class_results = ExamResult.objects.filter(
                 student=user,
                 is_submitted=True,
-                marks_obtained__isnull = False,
-                exam__subject__class_obj_id = active_class_id
-            )
+                marks_obtained__isnull=False,
+                exam__subject__class_obj_id=active_class_id,
+            ).select_related('exam')
 
-            if active_class_results.exists():
-                total_marks = sum(r.marks_obtained for r in active_class_results)
-                total_possible = sum(r.exam.total_marks for r in active_class_results)
+            policy_comp_results = StudentComponentResult.objects.filter(
+                student=user,
+                component__subject__class_obj_id=active_class_id,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective_policy = {}
+            for r in policy_comp_results:
+                cid = r.component_id
+                existing = effective_policy.get(cid)
+                if existing is None:
+                    effective_policy[cid] = r
+                elif r.component.retake_evaluation == 'best':
+                    if float(r.percentage or 0) > float(existing.percentage or 0):
+                        effective_policy[cid] = r
+                else:
+                    if r.attempt_number > existing.attempt_number:
+                        effective_policy[cid] = r
+
+            has_results = active_class_results.exists() or bool(effective_policy)
+            if has_results:
+                total_marks = sum(float(r.marks_obtained) for r in active_class_results)
+                total_possible = sum(float(r.exam.total_marks) for r in active_class_results)
+                for r in effective_policy.values():
+                    total_marks += float(r.marks_obtained)
+                    total_possible += float(r.component.total_marks)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
                 if average_percentage >=91:
@@ -3240,6 +3678,11 @@ class StudentDashboardViewset(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def my_notices(self, request):
 
+        today = timezone.now()
+        user = request.user
+
+        target_q = Q(target_role='all') | Q(target_role=user.role)
+
         if request.user.role == 'student':
                 
             enrolled_class_ids = Enrollment.objects.filter(
@@ -3266,6 +3709,8 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             general_notices = Notice.objects.filter(
                 is_active = True
+            ).filter(
+                Q(target_role='all') | Q(target_role='student')
             ).filter(
                 Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
             ).select_related('created_by').order_by('-created_at')
@@ -3294,14 +3739,13 @@ class StudentDashboardViewset(viewsets.ViewSet):
 
             elif request.user.role  == "instructor":
                 notices = Notice.objects.filter(
-                    Q(created_by = request.user) | Q(created_by__isnull=True),
                     is_active=True
-                )
+                ).filter(target_q)
             else:
-                notices = Notice.objects.filter(is_active=True)
+                notices = Notice.objects.filter(is_active=True).filter(target_q)
 
             notices = notices.filter(
-                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.now())
+                Q(expiry_date__isnull = True) | Q(expiry_date__gte=timezone.localdate())
 
             ).select_related('created_by').order_by('-created_at')
 
@@ -3402,7 +3846,11 @@ class StudentDashboardViewset(viewsets.ViewSet):
         
         from datetime import timedelta
 
-        days = int(request.query_params.get('days', 30))
+        # H3: cap days to prevent querying unbounded date ranges
+        try:
+            days = max(1, min(int(request.query_params.get('days', 30)), 365))
+        except (TypeError, ValueError):
+            days = 30
         today = timezone.now()
         end_date = today + timedelta(days=days)
 
@@ -3474,8 +3922,17 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
+
+        class_obj = serializer.validated_data.get('class_obj')
+        subject = serializer.validated_data.get('subject')
+
+        if class_obj and class_obj.school != school:
+            raise ValidationError("Class does not belong to your school.")
+        if subject and subject.school != school:
+            raise ValidationError("Subject does not belong to your school.")
+
         session = serializer.save(school=school, created_by=self.request.user)
-        
+
         AttendanceSessionLog.objects.create(
             school=school,
             session=session,
@@ -3521,7 +3978,7 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         if session.end_session():
 
             marked_student_ids = session.session_attendances.values_list('student_id', flat=True)
-            unmarked_students = User.objects.filter(
+            unmarked_students = User.all_objects.filter(
                 enrollments__class_obj = session.class_obj,
                 enrollments__is_active = True,
                 role='student',
@@ -3897,17 +4354,19 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         if user.role == 'instructor':
             queryset = queryset.filter(
-                Q(session__class_obj__instructor=user) | Q(session__subject__instructor=user)
-            )
+                Q(session__class_obj__instructor=user)
+                | Q(session__subject__instructor=user)
+                | Q(session__created_by=user)
+            ).distinct()
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
         return queryset
 
     def perform_create(self, serializer):
-        
-        school = get_current_school()
-        attendance = serializer.save(marked_by=self.request.user)
+        user = self.request.user
+        school = get_current_school() or user.school
+        attendance = serializer.save(marked_by=user, school=school)
 
         AttendanceSessionLog.objects.create(
             session=attendance.session,
@@ -3975,8 +4434,21 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        session = AttendanceSession.objects.get(
+            id=serializer.validated_data['session_id'],
+            school=request.user.school,
+        )
 
-        session = AttendanceSession.objects.get(id=serializer.validated_data['session_id'])
+        user = request.user
+        if user.role == 'instructor':
+            if not (
+                session.class_obj.instructor == user
+                or (session.subject and session.subject.instructor == user)
+                or session.created_by == user
+            ):
+                return Response({
+                    'error': 'You do not have permission to mark attendance for this session.'
+                }, status=status.HTTP_403_FORBIDDEN)
         records = serializer.validated_data['attendance_records']
 
         created_count = 0
@@ -3985,7 +4457,12 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         for record in records:
             try:
-                student = User.objects.get(id=record['student_id'], role='student')
+                student = User.all_objects.get(
+                    id=record['student_id'],
+                    role='student',
+                    school_memberships__school=request.user.school,
+                    school_memberships__status='active',
+                )
 
                 if not Enrollment.objects.filter(
                     student=student,
@@ -4002,7 +4479,7 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
                         'status': record['status'],
                         'marking_method': 'manual',
                         'marked_by': request.user,
-                        'remarks':record.get('remarks', '')
+                        'remarks': record.get('remarks', '').strip() or None
                     }
                 )
 
@@ -4085,7 +4562,7 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
 
     serializer_class = BiometricRecordSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-    filterset_fields =['device_id', 'device_type', 'student', 'session', 'processed']
+    filterset_fields = ['device_id', 'device_type', 'student', 'session', 'processed']
     search_fields = ['student__first_name', 'student__last_name', 'biometric_id']
     ordering = ['-scan_time']
 
@@ -4116,70 +4593,96 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
         device_type = serializer.validated_data['device_type']
         records = serializer.validated_data['records']
 
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
+
+        if school is None:
+            return Response(
+                {'detail': 'Unable to determine school for the requesting user.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         created_count = 0
         processed_count = 0
         errors = []
 
         for record in records:
             try:
-
                 scan_time = parser.parse(record['scan_time'])
 
-                student = User.objects.filter(
+
+                student = User.all_objects.filter(
                     svc_number=record['biometric_id'],
                     role='student',
-                    is_active=True
+                    is_active=True,
+                    school=school,
                 ).first()
 
                 if not student:
-                    errors.append(f"Student not found for biometric ID: {record['biometric_id']}")
+                    errors.append(
+                        f"Student not found for biometric ID: {record['biometric_id']}"
+                    )
                     continue
-                biometric_record, created = BiometricRecord.objects.get_or_create(
-                    device_id = device_id,
-                    biometric_id = record['biometric_id'],
-                    scan_time = scan_time,
-                    defaults = {
+
+
+                biometric_record, created = BiometricRecord.all_objects.get_or_create(
+                    device_id=device_id,
+                    biometric_id=record['biometric_id'],
+                    scan_time=scan_time,
+                    school=school,
+                    defaults={
                         'device_type': device_type,
                         'student': student,
                         'verification_type': record.get('verification_type', ''),
-                        'verification_score':record.get('verification_score'),
-                        'raw_data': record
-                    }
+                        'verification_score': record.get('verification_score'),
+                        'raw_data': record,
+                    },
                 )
 
                 if created:
-                    created_count +=1
+                    created_count += 1
 
+                if not biometric_record.processed:
                     attendance = biometric_record.process_to_attendance()
                     if attendance:
-                        processed_count +=1
+                        processed_count += 1
+
             except Exception as e:
-                errors.append(f"Error processing record for {record.get('biometric_id')}: {str(e)}")
-        
+                errors.append(
+                    f"Error processing record for {record.get('biometric_id')}: {str(e)}"
+                )
+
         return Response({
             'status': 'success',
             'created': created_count,
             'processed': processed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['post'])
     def process_pending(self, request):
-        pending_records = BiometricRecord.objects.filter(
-            processed = False
-        ).select_related('student')
+        school = getattr(request.user, 'school', None)
+        if school is None and request.user.role == 'superadmin':
+            school = get_current_school()
 
-        processed_count =0 
+        pending_qs = BiometricRecord.all_objects.filter(processed=False)
+        if school:
+            pending_qs = pending_qs.filter(school=school)
+
+        pending_records = pending_qs.select_related('student')
+
+        processed_count = 0
         failed_count = 0
         errors = []
 
         for record in pending_records:
             try:
-                attendance  =record.process_to_attendance()
+                attendance = record.process_to_attendance()
                 if attendance:
-                    processed_count +=1
+                    processed_count += 1
                 else:
-                    failed_count +=1
+                    failed_count += 1
                     if record.error_message:
                         errors.append(f"Record {record.id}: {record.error_message}")
             except Exception as e:
@@ -4187,24 +4690,21 @@ class BiometricRecordViewset(viewsets.ModelViewSet):
                 errors.append(f"Record {record.id}: {str(e)}")
 
         return Response({
-            'status':'success',
-            'processed':processed_count,
+            'status': 'success',
+            'processed': processed_count,
             'failed': failed_count,
-            'errors':errors
+            'errors': errors,
         })
 
     @action(detail=False, methods=['get'])
     def unprocessed(self, request):
         unprocessed = self.get_queryset().filter(processed=False)
         serializer = self.get_serializer(unprocessed, many=True)
-
-        return Response(
-            {
-                'count':unprocessed.count(),
-                'records':serializer.data
-            }
-        )
-
+        return Response({
+            'count': unprocessed.count(),
+            'records': serializer.data
+        })
+    
 class AttendanceReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -4220,7 +4720,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
 
         except Class.DoesNotExist:
             return Response({
@@ -4329,7 +4830,13 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            student = User.objects.get(id=student_id, role='student')
+            # C4: scope by school to prevent cross-tenant data read
+            student = User.all_objects.get(
+                id=student_id,
+                role='student',
+                school_memberships__school=request.user.school,
+                school_memberships__status='active',
+            )
         except User.DoesNotExist:
             return Response({
                 'error': 'Student not found'
@@ -4489,14 +4996,19 @@ class AttendanceReportViewSet(viewsets.ViewSet):
     def trend_analysis(self, request):
 
         class_id = request.query_params.get('class_id')
-        days = int(request.query_params.get('days', 30))
+        # H3: cap days to prevent querying unbounded date ranges (DoS / memory exhaustion)
+        try:
+            days = max(1, min(int(request.query_params.get('days', 30)), 365))
+        except (TypeError, ValueError):
+            days = 30
 
         if not class_id:
             return Response({
                 'error': 'class_id parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
         except Class.DoesNotExist:
             return Response({
                 'error': 'Class not found'
@@ -4587,7 +5099,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            class_obj = Class.objects.get(id=class_id)
+            # C4: scope by school to prevent cross-tenant data read
+            class_obj = Class.objects.get(id=class_id, school=request.user.school)
         except Class.DoesNotExist:
             return Response({
                 'error': "Class Not Found"
@@ -4664,8 +5177,8 @@ class AttendanceReportViewSet(viewsets.ViewSet):
             'count':len(low_attendance_students),
             'students':low_attendance_students
         })
-# personalnotification
-class PersonalNotificationViewSet(viewsets.ModelViewSet):
+
+class PersonalNotificationViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
 
     serializer_class = PersonalNotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -4757,6 +5270,12 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['-created_at']
+
+    def get_permissions(self):
+       
+        if self.action in ('create', 'update', 'partial_update', 'destroy', 'set_default'):
+            return [IsAuthenticated(), IsAdmin(), BelongsToSameSchool()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = CertificateTemplate.all_objects.select_related('school').all()
@@ -5125,8 +5644,6 @@ class EnrollmentCertificateView(APIView):
             ).data,
         }, status=status.HTTP_201_CREATED)
 
-
-# student indexes
 class MarksEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
@@ -5138,7 +5655,7 @@ class MarksEntryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path="exam/(?P<exam_id>[^/.]+)")
     def exam_results(self, request, exam_id=None):
 
-        exam = get_object_or_404(Exam, pk=exam_id, is_active=True)
+        exam = get_object_or_404(Exam, pk=exam_id, is_active=True, school=request.user.school)
 
         if request.user.role == "instructor":
             if exam.subject.instructor != request.user:
@@ -5261,6 +5778,7 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "results": updated,
             "errors": errors,
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
+
 class AdminRosterViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated, IsAdminOnly]
@@ -5353,11 +5871,25 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         qs = Department.objects.select_related('school').prefetch_related(
             'department_memberships__user'
         )
-        if user.role in ('instructor',):
+
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                qs = qs.filter(school=school)
+            return qs
+
+        school = user.school
+        if not school:
+            return qs.none()
+
+        qs = qs.filter(school=school)
+
+        if user.role == 'instructor':
             qs = qs.filter(
                 department_memberships__user=user,
                 department_memberships__is_active=True,
             ).distinct()
+
         return qs
 
     def get_permissions(self):
@@ -5442,12 +5974,37 @@ class DepartmentMembershipViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def get_queryset(self):
-        return DepartmentMembership.objects.select_related(
+        user = self.request.user
+        qs = DepartmentMembership.objects.select_related(
             'department', 'user', 'assigned_by'
         ).filter(is_active=True)
 
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                return qs.filter(department__school=school)
+            return qs
+
+        school = user.school
+        if not school:
+            return qs.none()
+
+        return qs.filter(department__school=school)
+
     def perform_create(self, serializer):
-        serializer.save(assigned_by=self.request.user)
+        user = self.request.user
+        school = get_current_school() or user.school
+
+        department = serializer.validated_data.get('department')
+        member = serializer.validated_data.get('user')
+
+        if department and department.school != school:
+            raise ValidationError("Department does not belong to your school.")
+
+        if member and not member.school_memberships.filter(school=school, status='active').exists():
+            raise ValidationError("User has no active membership at this school.")
+
+        serializer.save(assigned_by=user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -5465,17 +6022,26 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
             'exam_result__exam__subject',
             'exam_result__exam__subject__class_obj__department',
             'exam_result__student',
+            'component_result__component__subject',
+            'component_result__component__subject__class_obj__department',
+            'component_result__student',
             'requested_by', 'reviewed_by',
         )
-        if user.role in ('admin', 'superadmin'):
-            return base
+        if user.role == 'superadmin':
+            school = get_current_school()
+            return base.filter(school=school) if school else base
+        if user.role == 'admin':
+            school = user.school
+            return base.filter(school=school) if school else base.none()
         hod_depts = DepartmentMembership.objects.filter(
             user=user, role=DepartmentMembership.Role.HOD, is_active=True
         ).values_list('department_id', flat=True)
         if hod_depts.exists():
             return base.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_depts) |
-                Q(exam_result__exam__subject__department__in=hod_depts)
+                Q(exam_result__exam__subject__department__in=hod_depts) |
+                Q(component_result__component__subject__class_obj__department__in=hod_depts) |
+                Q(component_result__component__subject__department__in=hod_depts)
             )
         return base.filter(requested_by=user)
 
@@ -5514,7 +6080,10 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         action_choice = serializer.validated_data['action']
         note = serializer.validated_data.get('note', '')
 
-        dept = edit_request.exam_result.exam.subject.class_obj.department
+        if edit_request.exam_result_id:
+            dept = edit_request.exam_result.exam.subject.class_obj.department
+        else:
+            dept = edit_request.component_result.component.subject.class_obj.department
         if request.user.role not in ('admin', 'superadmin') and dept:
             is_hod = DepartmentMembership.objects.filter(
                 department=dept,
@@ -5628,3 +6197,505 @@ class ExamResultViewSetPatch:
             'updated': updated,
             'errors': errors,
         }, status=status.HTTP_200_OK)
+
+class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricDevice.objects.all()
+    serializer_class = BiometricDeviceSerializer
+    filterset_fields = ['status', 'is_active']
+    search_fields = ['name', 'ip_address', 'serial_number']
+
+    INSTRUCTOR_ALLOWED_ACTIONS = {'trigger_sync', 'sync_now', 'sync_clock', 'device_users'}
+
+
+    def get_permissions(self):
+        if self.action in self.INSTRUCTOR_ALLOWED_ACTIONS or self.action in ('list', 'retrieve'):
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+  
+        return [IsAuthenticated(), IsAdmin()]
+
+    @action(detail=True, methods=['post'])
+    def trigger_sync(self, request, pk=None):
+
+        device = self.get_object()
+        from core.tasks import sync_single_device
+        task = sync_single_device.delay(str(device.id))
+        return Response({
+            'status': 'sync_started',
+            'task_id': task.id,
+            'device': device.name            
+                    })
+
+    @action(detail=True, methods=['post'])
+    def sync_now(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        result = service.fetch_and_store_logs()
+        return Response(result)
+    
+    @action(detail=True, methods=['get'])
+    def device_users(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        users = service.fetch_device_users()
+        return Response({'users': users, 'count': len(users)})
+
+    @action(detail=True, methods=['post'])
+    def sync_clock(self, request, pk=None):
+
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        success = service.sync_device_time()
+        return Response({
+            'status': 'success' if success else 'failed'
+        })
+    
+    @action(detail=True, methods=['post'])
+    def auto_map_users(self, request, pk=None):
+        device = self.get_object()
+        service = ZKTecoSyncService(device)
+        device_users = service.fetch_device_users()
+
+        if device_users is None or (isinstance(device_users, list) and len(device_users) == 0):
+            return Response({
+                'status': 'error',
+                'message': 'Unable to fetch device users. Ensure the device is reachable and users are registered.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        mapped = 0
+        unmapped = []
+        for du in device_users:
+            student = User.objects.filter(
+                svc_number=du['user_id'],
+                role='student',
+                is_active=True,
+                school_memberships__school = device.school,
+                school_memberships__status = 'active'
+            ).first()
+
+            if student:
+                BiometricUserMapping.objects.get_or_create(
+                    device=device,
+                    device_user_id=du['user_id'],
+                    defaults = {
+                        'school': device.school,
+                        'student': student,
+                        'device_user_name': du['name'],
+                        'mapped_by': request.user
+                    }
+                )
+                mapped += 1
+
+            else:
+                unmapped.append(du)
+
+        return Response({
+            'mapped': mapped,
+            'unmapped': unmapped,
+            'unmapped_count': len(unmapped)
+                    })
+
+class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
+
+    queryset = BiometricUserMapping.objects.select_related(
+        'student', 'device'
+    ).all()
+
+    serializer_class = BiometricUserMappingSerializer
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+    filterset_fields = ['device', 'student', 'is_active']
+
+class AssessmentComponentViewSet(viewsets.ModelViewSet):
+
+    queryset = AssessmentComponent.objects.select_related(
+        'subject', 'subject__class_obj'
+    ).all()
+    serializer_class = AssessmentComponentSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'component_type', 'is_critical', 'is_active']
+    search_fields = ['name', 'subject__name']
+    ordering_fields = ['sort_order', 'name', 'created_at']
+    ordering = ['sort_order', 'name']
+ 
+    def get_queryset(self):
+        queryset = AssessmentComponent.all_objects.select_related(
+            'subject', 'subject__class_obj'
+        ).all()
+ 
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+ 
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                queryset = queryset.filter(school=school)
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
+ 
+        # Instructors only see components for their subjects
+        if user.role == 'instructor':
+            queryset = queryset.filter(subject__instructor=user)
+ 
+        return queryset
+ 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        if not school and self.request.user.school:
+            school = self.request.user.school
+ 
+        if not school:
+            raise ValidationError({'school': 'Unable to determine school.'})
+ 
+        subject = serializer.validated_data.get('subject')
+ 
+        # Instructor can only add components to their own subjects
+        if self.request.user.role == 'instructor':
+            if subject.instructor != self.request.user:
+                raise ValidationError({
+                    'subject': 'You can only add components to subjects you teach.'
+                })
+ 
+        # Verify subject belongs to same school
+        if subject.school != school:
+            raise ValidationError({
+                'subject': 'Subject does not belong to your school.'
+            })
+ 
+        serializer.save(school=school)
+ 
+    @action(detail=False, methods=['get'])
+    def by_subject(self, request):
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        components = self.get_queryset().filter(
+            subject_id=subject_id, is_active=True,
+        )
+        serializer = self.get_serializer(components, many=True)
+        return Response(serializer.data)
+ 
+    @action(detail=False, methods=['get'])
+    def weight_summary(self, request):
+
+        subject_id = request.query_params.get('subject_id')
+        if not subject_id:
+            return Response(
+                {'error': 'subject_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        from django.db.models import Sum as DbSum
+        total = self.get_queryset().filter(
+            subject_id=subject_id, is_active=True,
+        ).aggregate(total_weight=DbSum('weight'))
+ 
+        return Response({
+            'subject_id': subject_id,
+            'total_weight': float(total['total_weight'] or 0),
+            'remaining': float(100 - (total['total_weight'] or 0)),
+        })
+ 
+class StudentComponentResultViewSet(viewsets.ModelViewSet):
+
+    queryset = StudentComponentResult.objects.select_related(
+        'component', 'component__subject', 'student', 'graded_by'
+    ).all()
+    serializer_class = StudentComponentResultSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['component', 'student', 'status', 'is_retake', 'is_submitted']
+    search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
+    ordering_fields = ['attempt_number', 'created_at', 'marks_obtained']
+    ordering = ['-created_at']
+ 
+    def get_queryset(self):
+        queryset = StudentComponentResult.all_objects.select_related(
+            'component', 'component__subject', 'component__subject__class_obj',
+            'student', 'graded_by'
+        ).all()
+
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                queryset = queryset.filter(school=school)
+        elif user.school:
+            queryset = queryset.filter(school=user.school)
+        else:
+            return queryset.none()
+
+        if user.role == 'instructor':
+            queryset = queryset.filter(component__subject__instructor=user)
+        elif user.role == 'student':
+            queryset = queryset.filter(student=user)
+
+        return queryset
+ 
+    def perform_create(self, serializer):
+        school = get_current_school()
+        if not school and self.request.user.school:
+            school = self.request.user.school
+ 
+        if not school:
+            raise ValidationError({'school': 'Unable to determine school.'})
+ 
+        component = serializer.validated_data.get('component')
+        student = serializer.validated_data.get('student')
+ 
+        # Verify component belongs to same school
+        if component.school != school:
+            raise ValidationError({
+                'component': 'Component does not belong to your school.'
+            })
+ 
+        if not student.school_memberships.filter(school=school, status='active').exists():
+            raise ValidationError({
+                'student': 'Student has no active membership at this school.'
+            })
+ 
+        # Instructor permission check
+        if self.request.user.role == 'instructor':
+            if component.subject.instructor != self.request.user:
+                raise ValidationError({
+                    'component': 'You can only grade components for subjects you teach.'
+                })
+ 
+        existing_attempts = StudentComponentResult.all_objects.filter(
+            student=student, component=component,
+        ).count()
+        attempt_number = existing_attempts + 1
+        is_retake = attempt_number > 1
+ 
+        # Validate retake eligibility
+        if is_retake:
+            if not component.retake_allowed:
+                raise ValidationError({
+                    'component': 'Retakes are not allowed for this component.'
+                })
+            if (
+                component.max_retake_attempts > 0
+                and existing_attempts >= component.max_retake_attempts
+            ):
+                raise ValidationError({
+                    'component': (
+                        f'Maximum retake attempts ({component.max_retake_attempts}) '
+                        f'reached for this component.'
+                    ),
+                })
+ 
+        has_marks = serializer.validated_data.get('marks_obtained') is not None
+        serializer.save(
+            school=school,
+            attempt_number=attempt_number,
+            is_retake=is_retake,
+            graded_by=self.request.user,
+            graded_at=timezone.now() if has_marks else None,
+            is_submitted=has_marks,
+            submitted_at=timezone.now() if has_marks else None,
+        )
+ 
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def by_student_subject(self, request):
+
+        student_id = request.query_params.get('student_id')
+        subject_id = request.query_params.get('subject_id')
+
+        if not student_id or not subject_id:
+            return Response(
+                {'error': 'student_id and subject_id parameters are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.user.role == 'student' and str(request.user.id) != str(student_id):
+            return Response({'error': 'You may only view your own results.'}, status=status.HTTP_403_FORBIDDEN)
+
+        results = self.get_queryset().filter(
+            student_id=student_id,
+            component__subject_id=subject_id,
+        )
+ 
+        try:
+            subject = Subject.all_objects.get(id=subject_id)
+            user = request.user
+            if user.role != 'superadmin' and subject.school != user.school:
+                return Response(
+                    {'error': 'Subject not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+ 
+            student_obj = User.all_objects.get(id=student_id)
+ 
+            evaluation = evaluate_subject_pass_fail(subject, student_obj)
+            retake_info = determine_retake_requirements(subject, student_obj)
+ 
+        except (Subject.DoesNotExist, User.DoesNotExist):
+            return Response(
+                {'error': 'Subject or student not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        serializer = self.get_serializer(results, many=True)
+ 
+        return Response({
+            'results': serializer.data,
+            'evaluation': evaluation,
+            'retake_requirements': retake_info,
+        })
+ 
+    @action(detail=False, methods=['post'])
+    def bulk_grade(self, request):
+
+        component_id = request.data.get('component_id')
+        results_data = request.data.get('results', [])
+ 
+        if not component_id:
+            return Response(
+                {'error': 'component_id is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        if not results_data:
+            return Response(
+                {'error': 'results array is required and cannot be empty'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+ 
+        try:
+            comp = AssessmentComponent.all_objects.get(
+                id=component_id,
+                school=request.user.school,
+            )
+        except AssessmentComponent.DoesNotExist:
+            return Response(
+                {'error': 'Component not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+ 
+        if request.user.role == 'instructor' and comp.subject.instructor != request.user:
+            return Response(
+                {'error': 'You can only grade components for subjects you teach.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+ 
+        created_count = 0
+        updated_count = 0
+        errors = []
+ 
+        with transaction.atomic():
+            for item in results_data:
+                student_id = item.get('student_id')
+                marks = item.get('marks_obtained')
+ 
+                if marks is None:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'marks_obtained is required',
+                    })
+                    continue
+ 
+                try:
+                    student_obj = User.all_objects.get(
+                        pk=student_id,
+                        school_memberships__school=request.user.school,
+                        school_memberships__status='active',
+                    )
+                except User.DoesNotExist:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'Student not found in your school.',
+                    })
+                    continue
+ 
+                if float(marks) > comp.total_marks:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': f'Marks ({marks}) exceed total marks ({comp.total_marks}).',
+                    })
+                    continue
+ 
+                if float(marks) < 0:
+                    errors.append({
+                        'student_id': student_id,
+                        'error': 'Marks cannot be negative.',
+                    })
+                    continue
+ 
+                existing = StudentComponentResult.all_objects.filter(
+                    student=student_obj, component=comp,
+                ).order_by('-attempt_number')
+
+                pct = (float(marks) / comp.total_marks * 100) if comp.total_marks else 0
+                computed_status = 'PASS' if pct >= float(comp.pass_mark) else 'FAIL'
+
+                latest = existing.first()
+                if latest and not latest.is_submitted:
+                    latest.marks_obtained = marks
+                    latest.percentage = pct
+                    latest.status = computed_status
+                    latest.remarks = item.get('remarks', '')
+                    latest.graded_by = request.user
+                    latest.graded_at = timezone.now()
+                    latest.is_submitted = True
+                    latest.submitted_at = timezone.now()
+                    latest.save()
+                    updated_count += 1
+                else:
+                    attempt_number = (latest.attempt_number + 1) if latest else 1
+                    is_retake = attempt_number > 1
+
+                    if is_retake and not comp.retake_allowed:
+                        errors.append({
+                            'student_id': student_id,
+                            'error': 'Retakes not allowed; student already has a graded attempt.',
+                        })
+                        continue
+
+                    if (
+                        is_retake
+                        and comp.max_retake_attempts > 0
+                        and existing.count() >= comp.max_retake_attempts
+                    ):
+                        errors.append({
+                            'student_id': student_id,
+                            'error': (
+                                f'Maximum retake attempts ({comp.max_retake_attempts}) '
+                                f'reached.'
+                            ),
+                        })
+                        continue
+
+                    StudentComponentResult.all_objects.create(
+                        school=request.user.school,
+                        component=comp,
+                        student=student_obj,
+                        attempt_number=attempt_number,
+                        is_retake=is_retake,
+                        marks_obtained=marks,
+                        percentage=pct,
+                        status=computed_status,
+                        remarks=item.get('remarks', ''),
+                        graded_by=request.user,
+                        graded_at=timezone.now(),
+                        is_submitted=True,
+                        submitted_at=timezone.now(),
+                    )
+                    created_count += 1
+ 
+        return Response({
+            'status': 'success',
+            'created': created_count,
+            'updated': updated_count,
+            'errors': errors,
+        })

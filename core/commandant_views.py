@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status, filters
+from .views import PageSizeAwarePagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -43,7 +44,6 @@ def _get_school(user):
     return user.school
 
 class CommandantDashboardViewSet(viewsets.ViewSet):
-
 
     permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
 
@@ -209,6 +209,7 @@ class CommandantClassViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'class_code', 'course__name']
     ordering_fields = ['start_date', 'end_date', 'name']
     ordering = ['-start_date']
+    pagination_class = PageSizeAwarePagination
 
     def get_queryset(self):
         user = self.request.user
@@ -298,7 +299,6 @@ class CommandantUserViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Role-based count summary."""
         qs = self.get_queryset()
         role_counts = qs.values('role').annotate(count=Count('id')).order_by('role')
         return Response({
@@ -373,7 +373,6 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         class_id = request.query_params.get('class_id')
 
-        # No class_id → return a summary list for ALL active classes in the school
         if not class_id:
             classes = Class.all_objects.filter(
                 school=school, is_active=True
@@ -388,7 +387,6 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
                 total_sessions = sessions_qs.count()
                 completed_sessions = sessions_qs.filter(status='completed').count()
 
-                # Compute overall attendance rate across all completed sessions
                 total_present = 0
                 total_possible = 0
                 for session in sessions_qs.filter(status='completed'):
@@ -658,9 +656,9 @@ class CommandantExamReportViewSet(viewsets.ReadOnlyModelViewSet):
         ]
  
         PersonalNotification.objects.bulk_create(notifications)
+    
     @action(detail=True, methods=['get'])
     def remarks(self, request, pk=None):
-        """List all remarks on this exam report."""
         report = self.get_object()
         remarks = report.remarks.all().select_related('author')
         return Response({
@@ -735,7 +733,7 @@ class CommandantEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
             school=school
         ).select_related('student', 'class_obj')
 
-class CommandantNoticeViewSet(viewsets.ReadOnlyModelViewSet):
+class CommandantNoticeViewSet(viewsets.ModelViewSet):
 
     serializer_class = NoticeSerializer
     permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
@@ -750,6 +748,51 @@ class CommandantNoticeViewSet(viewsets.ReadOnlyModelViewSet):
         if not school:
             return Notice.objects.none()
         return Notice.all_objects.filter(school=school)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        school = _get_school(user)
+        serializer.save(school=school, created_by=user)
+
+    def perform_update(self, serializer):
+        notice = self.get_object()
+        if notice.created_by != self.request.user and self.request.user.role not in ('admin', 'superadmin'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only edit notices you created.')
+        serializer.save()
+
+    
+    def perform_destroy(self, instance):
+        if instance.created_by != self.request.user and self.request.user.role not in ('admin', 'superadmin'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only delete notices you created')
+        instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def my_created(self, request):
+        qs = self.get_queryset().filter(created_by=request.user)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+    @action(detail=False, methods=['get'])
+    def by_target(self, request):
+        target = request.query_params.get('target_role')
+        if not target:
+            return Response({
+                'error': 'target_role parameter is required'
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = self.get_queryset().filter(target_role=target, is_active=True)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({
+            'count': qs.count(),
+            'results': serializer.data,
+        })
+
 
 
 

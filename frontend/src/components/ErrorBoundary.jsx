@@ -12,8 +12,10 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error details in development
     this.setState({ errorInfo })
+
+    console.error('[ErrorBoundary] Caught render error:', error)
+    console.error('[ErrorBoundary] Component stack:', errorInfo?.componentStack)
   }
 
   handleReset = () => {
@@ -42,8 +44,9 @@ class ErrorBoundary extends React.Component {
               We're sorry for the inconvenience. The application encountered an unexpected error.
             </p>
 
-            {import.meta.env.DEV && this.state.error && (
+            {this.state.error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                <p className="text-xs font-semibold text-red-700 mb-1">Error Details (check browser console for full trace):</p>
                 <p className="text-sm font-mono text-red-800 break-all">
                   {this.state.error.toString()}
                 </p>

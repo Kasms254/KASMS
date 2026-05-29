@@ -1,48 +1,96 @@
+# =============================================================================
+# .gitignore – KASMS
+# =============================================================================
+
+# Python
 __pycache__/
 *.py[cod]
-*.pyc
 *.pyo
 *.pyd
+*.pyw
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.coverage
+htmlcov/
 .pytest_cache/
-__pycache__/
-*.pyc
-core/management/
-core/migrations/
 
+# Virtual environments
+venv/
 .venv/
 env/
-venv/
-frontend/.env/
-frontend/.gitignore
-db.sqlite3
+ENV/
 
+# Django
+db.sqlite3
+*.sqlite3
 media/
 staticfiles/
+logs/
+*.log
 
+# Celery
+celerybeat-schedule.*
+
+# Migrations cache only (migration files MUST be tracked)
+core/migrations/__pycache__/
+
+# Environment / secrets (NEVER commit these)
 .env
 .env.*
-backup.json
+!.env.example
 
+# Database dumps
+*.dump
+*.sql
+*.sql.gz
+backup.json
+datadump.json
+
+# SSL certificates (server-specific, generated on server)
+certbot/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+node_modules/
+
+# IDE
 .vscode/
 .idea/
 *.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
 Thumbs.db
 desktop.ini
 
-# Node (frontend) - optional, frontend has its own .gitignore
-frontend/node_modules/
-frontend/src/lib/api.js
-node_modules/
-frontend/node_modules/
-dist/
-db.sqlite3
-datadump.json
-api.js
+# Claude Code
+CLAUDE.md
+
+# Developer handover docs (shared separately)
+DOCKER_MIGRATION.md
+
+# One-off / legacy files
+find_old_references.sh
+fix_all.py
+debug_jass_jwt.py
 jitsi_private.pk
-core/tests/test_meetings.py
 jaas_private.pem
 jaas_public.pem
-debug_jass_jwt.py
-
+BIOMETRIC_SETUP.md
+kasms_db_2026-03-18_02-00-01 (1).dump
+tests/
 tests.py
+pytest.ini
+core/migrations
+settings_test.py
+test_settings.py
+seed_system.py
+0003_gradefront_additions.py
 

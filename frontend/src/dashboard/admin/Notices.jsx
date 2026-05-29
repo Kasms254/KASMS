@@ -7,10 +7,8 @@ export default function Notices() {
   const toast = useToast()
   const [loading, setLoading] = useState(false)
   const [notices, setNotices] = useState([])
-  const [form, setForm] = useState({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true })
-  const [recipient, setRecipient] = useState('all')
+  const [form, setForm] = useState({ title: '', content: '', priority: 'medium', target_role: 'all', expiry_date: '', is_active: true })
   const [saving, setSaving] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -41,14 +39,11 @@ export default function Notices() {
     urgent: 'bg-rose-100 text-rose-700',
   }
 
-  // Check if a notice has expired based on expiry_date
+  // Check if a notice has expired based on expiry_date (plain date YYYY-MM-DD)
   const isExpired = (notice) => {
     if (!notice.expiry_date) return false
-    const now = new Date()
-    const expiryDate = new Date(notice.expiry_date)
-    // Set to end of day for expiry date
-    expiryDate.setHours(23, 59, 59, 999)
-    return now > expiryDate
+    const [y, m, d] = notice.expiry_date.split('-').map(Number)
+    return new Date() > new Date(y, m - 1, d, 23, 59, 59)
   }
 
   // Check if any filter is active (search or filter inputs are being used)
@@ -133,7 +128,7 @@ export default function Notices() {
         }
 
         // Use paginated API with page parameter and server-side filters
-        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage })
+        const params = new URLSearchParams({ page: effectivePage, page_size: itemsPerPage, created_by__role: 'admin' })
         if (searchTerm.trim()) params.append('search', searchTerm.trim())
         if (filterPriority) params.append('priority', filterPriority)
         if (filterStatus) params.append('is_active', filterStatus)
@@ -199,12 +194,6 @@ export default function Notices() {
       return
     }
 
-    if (recipient !== 'all') {
-      // open confirmation modal that informs admin that backend will publish to all
-      setConfirmOpen(true)
-      return
-    }
-
     await doCreate()
   }
 
@@ -213,7 +202,6 @@ export default function Notices() {
     try {
       const payload = { ...form }
       if (!payload.expiry_date) delete payload.expiry_date
-      // Note: 'recipient' is not sent because backend currently doesn't support it.
       if (editTarget && editTarget.id) {
         const updated = await api.updateNotice(editTarget.id, payload)
         toast.success('Notice updated')
@@ -234,8 +222,7 @@ export default function Notices() {
         setNotices(s => [created, ...s])
     try { window.dispatchEvent(new CustomEvent('notices:changed')) } catch { /* Silently handle */ }
       }
-      setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true })
-      setRecipient('all')
+      setForm({ title: '', content: '', priority: 'medium', target_role: 'all', expiry_date: '', is_active: true })
       // close modal on success
       setModalOpen(false)
       setEditTarget(null)
@@ -251,7 +238,7 @@ export default function Notices() {
         setErrors(serverErrors)
       }
       toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : (editTarget ? 'Failed to update notice' : 'Failed to create notice'))
-    } finally { setSaving(false); setConfirmOpen(false) }
+    } finally { setSaving(false) }
   }
 
   function openEdit(n) {
@@ -260,10 +247,10 @@ export default function Notices() {
       title: n.title || '',
       content: n.content || '',
       priority: n.priority || 'medium',
+      target_role: n.target_role || 'all',
       expiry_date: n.expiry_date || '',
       is_active: n.is_active === undefined ? true : !!n.is_active,
     })
-    setRecipient('all')
     setErrors({})
     setModalOpen(true)
   }
@@ -304,7 +291,7 @@ export default function Notices() {
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage and publish notices to users</p>
         </div>
         <div className="text-right">
-          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="w-full sm:w-auto px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Add notice</button>
+          <button onClick={() => { setModalOpen(true); setForm({ title: '', content: '', priority: 'medium', target_role: 'all', expiry_date: '', is_active: true }); setErrors({}); setEditTarget(null) }} className="w-full sm:w-auto px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition">Add notice</button>
         </div>
       </header>
 
@@ -451,16 +438,16 @@ export default function Notices() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Recipient</label>
-                  <select value={recipient} onChange={e => setRecipient(e.target.value)} className="mt-2 p-2 rounded-md border w-full bg-white">
+                  <label className="block text-sm font-medium text-gray-700">Target Audience</label>
+                  <select value={form.target_role} onChange={e => update('target_role', e.target.value)} className="mt-2 p-2 rounded-md border w-full bg-white">
                     <option value="all">All users</option>
-                    <option value="students">Students</option>
-                    <option value="instructors">Instructors</option>
+                    <option value="commandant">Commandant</option>
+                    <option value="chief_instructor">Chief Instructor</option>
+                    <option value="admin">Admins</option>
+                    <option value="instructor">Instructors</option>
+                    <option value="student">Students</option>
                   </select>
-                  {recipient !== 'all' && (
-                    <div className="mt-2 text-xs text-amber-700">Note: targeted delivery is not yet implemented on the backend; selecting this will publish the notice to all users. You will be prompted to confirm.</div>
-                  )}
-                  {errors.recipient && <div className="text-rose-600 text-sm mt-1">{errors.recipient}</div>}
+                  {errors.target_role && <div className="text-rose-600 text-sm mt-1">{errors.target_role}</div>}
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -470,7 +457,7 @@ export default function Notices() {
                   </label>
 
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => { setForm({ title: '', content: '', priority: 'medium', expiry_date: '', is_active: true }); setRecipient('all'); setErrors({}); setEditTarget(null) }} className="px-3 py-2 rounded-md border">Reset</button>
+                    <button type="button" onClick={() => { setForm({ title: '', content: '', priority: 'medium', target_role: 'all', expiry_date: '', is_active: true }); setErrors({}); setEditTarget(null) }} className="px-3 py-2 rounded-md border">Reset</button>
                     <button type="submit" disabled={saving} className="px-4 py-2 rounded-md bg-indigo-600 text-white">{saving ? 'Saving…' : (editTarget ? 'Update notice' : 'Publish notice')}</button>
                   </div>
                 </div>
@@ -520,12 +507,17 @@ export default function Notices() {
                     </div>
 
                     <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                    {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
+                      <p className="mt-2 text-xs text-neutral-400">
+                        By: {[n.created_by_svc_number, n.created_by_rank, n.created_by_name].filter(Boolean).join(' ')}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
                     <div className="text-xs text-neutral-500">
                       <span className={expired ? 'text-red-600 font-medium' : ''}>
-                        Expiry: {n.expiry_date ? new Date(n.expiry_date).toLocaleDateString() : '—'}
+                        Expiry: {n.expiry_date ? n.expiry_date : '—'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -584,22 +576,6 @@ export default function Notices() {
         </div>
       </div>
 
-      {/* Confirm modal when recipient != all */}
-      {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
-          <div className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-6 shadow-2xl">
-              <h4 className="text-lg font-medium">Confirm targeted notice</h4>
-              <p className="text-sm text-neutral-600 mt-2">You selected <strong>{recipient}</strong> as recipient. The backend currently does not support sending notices to specific roles — publishing will deliver this notice to all users. Do you want to continue?</p>
-              <div className="mt-4 flex justify-end gap-3">
-                <button onClick={() => setConfirmOpen(false)} className="px-3 py-2 rounded-md border">Cancel</button>
-                <button onClick={doCreate} className="px-4 py-2 rounded-md bg-indigo-600 text-white">Publish to all</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Delete confirmation modal */}
       {deleteConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

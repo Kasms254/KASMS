@@ -3,10 +3,11 @@ from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
     ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, TwoFactorCode,
-    Department, DepartmentMembership, ResultEditRequest
+    Department, DepartmentMembership, ResultEditRequest, AssessmentComponent, StudentComponentResult
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import OICAssignment, OICRemark
 
 class SchoolAdminFilter(admin.SimpleListFilter):
     title = 'school'
@@ -83,7 +84,7 @@ class SchoolMembershipInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(TenantAdminMixin, BaseUserAdmin):
-    list_display = ['username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
+    list_display = ['id','username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
     ordering = ['-created_at']
@@ -353,3 +354,95 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
     search_fields = ('user__svc_number', 'user__email')
     readonly_fields = ('id', 'code', 'created_at')
     ordering = ('-created_at',)
+
+# oic
+
+class OICAssignmentAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ('oic', 'class_obj', 'is_active', 'assigned_by', 'assigned_at')
+    list_filter = ('is_active', 'school')
+    search_fields = (
+        'oic__svc_number', 'oic__first_name', 'oic__last_name',
+        'class_obj__name', 'class_obj__course__name',
+    )
+    raw_id_fields = ('oic', 'class_obj', 'assigned_by')
+    readonly_fields = ('id', 'assigned_at', 'updated_at')
+    list_select_related = ('oic', 'class_obj', 'assigned_by', 'school')
+ 
+class OICRemarkAdmin(TenantAdminMixin, admin.ModelAdmin):
+    list_display = ('oic', 'class_obj', 'subject', 'remark_type', 'created_at')
+    list_filter = ('remark_type', 'school')
+    search_fields = (
+        'oic__svc_number', 'oic__first_name', 'oic__last_name',
+        'class_obj__name', 'remark',
+    )
+    raw_id_fields = ('oic', 'class_obj', 'subject')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    list_select_related = ('oic', 'class_obj', 'subject', 'school')
+ 
+admin.site.register(OICAssignment, OICAssignmentAdmin)
+admin.site.register(OICRemark, OICRemarkAdmin)
+
+@admin.register(AssessmentComponent)
+class AssessmentComponentAdmin(admin.ModelAdmin):
+    list_display = [
+        'name', 'subject', 'component_type', 'is_critical',
+        'pass_mark', 'weight', 'retake_allowed', 'is_active',
+    ]
+    list_filter = ['component_type', 'is_critical', 'retake_allowed', 'is_active', 'school']
+    search_fields = ['name', 'subject__name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    raw_id_fields = ['subject', 'school']
+    ordering = ['subject', 'sort_order', 'name']
+ 
+    fieldsets = (
+        (None, {
+            'fields': ('school', 'subject', 'name', 'component_type', 'description'),
+        }),
+        ('Scoring', {
+            'fields': ('total_marks', 'weight', 'pass_mark'),
+        }),
+        ('Rules', {
+            'fields': ('is_critical', 'retake_allowed', 'max_retake_attempts', 'retake_evaluation'),
+        }),
+        ('Display', {
+            'fields': ('sort_order', 'is_active'),
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+@admin.register(StudentComponentResult)
+class StudentComponentResultAdmin(admin.ModelAdmin):
+    list_display = [
+        'student', 'component', 'attempt_number', 'marks_obtained',
+        'percentage', 'status', 'is_retake', 'is_submitted',
+    ]
+    list_filter = ['status', 'is_retake', 'is_submitted', 'school']
+    search_fields = [
+        'student__svc_number', 'student__first_name', 'student__last_name',
+        'component__name', 'component__subject__name',
+    ]
+    readonly_fields = ['id', 'percentage', 'status', 'created_at', 'updated_at']
+    raw_id_fields = ['student', 'component', 'school', 'graded_by']
+    ordering = ['-created_at']
+ 
+    fieldsets = (
+        (None, {
+            'fields': ('school', 'component', 'student'),
+        }),
+        ('Attempt', {
+            'fields': ('attempt_number', 'is_retake'),
+        }),
+        ('Scoring', {
+            'fields': ('marks_obtained', 'percentage', 'status'),
+        }),
+        ('Grading Metadata', {
+            'fields': ('graded_by', 'graded_at', 'remarks', 'is_submitted', 'submitted_at'),
+        }),
+        ('System', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )

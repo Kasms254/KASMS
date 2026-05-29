@@ -31,6 +31,7 @@ export default function Courses() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [pageSize] = useState(12)
+  const [refreshKey, setRefreshKey] = useState(0)
   // modal state
   const addModalRef = useRef(null)
   const navigate = useNavigate()
@@ -88,39 +89,7 @@ export default function Courses() {
         setLoading(false)
       }
     })()
-  }, [reportError, currentPage, pageSize])
-
-  async function load() {
-    setLoading(true)
-    try {
-      const params = `page=${currentPage}&page_size=${pageSize}`
-      const data = await getCoursesPaginated(params)
-      const list = Array.isArray(data) ? data : (data && data.results) ? data.results : []
-
-      // Update pagination metadata
-      if (data && data.count !== undefined) {
-        setTotalCount(data.count)
-        setTotalPages(Math.ceil(data.count / pageSize))
-      }
-
-      // fetch active class counts per course
-      const counts = await Promise.allSettled(list.map((course) => getClasses(`course=${course.id}&is_active=true`).catch(() => null)))
-      const mapped = list.map((course, idx) => {
-        const res = counts[idx]
-        let active = null
-        if (res && res.status === 'fulfilled' && res.value) {
-          const v = res.value
-          active = Array.isArray(v) ? v.length : (v?.count ?? null)
-        }
-        return { ...course, active_classes: active }
-      })
-      setCourses(mapped)
-    } catch (err) {
-      reportError(err?.message || 'Failed to load courses')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [reportError, currentPage, pageSize, refreshKey])
 
   async function handleAddCourse(e) {
     e.preventDefault()
@@ -131,7 +100,8 @@ export default function Courses() {
       reportSuccess('Course Added')
       setNewCourse({ name: '', code: '', description: '', department: '' })
       setAddModalOpen(false)
-      load()
+      setCurrentPage(1)
+      setRefreshKey(k => k + 1)
     } catch (err) {
       // map field errors if present
       if (err?.data && typeof err.data === 'object') {
@@ -252,9 +222,9 @@ export default function Courses() {
         </div>
       )}
 
-      {totalCount > 0 && (
+      {totalCount > 0 && courses.length > 0 && (
         <div className="mb-3 text-sm text-neutral-600">
-          Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} courses
+          Showing {((currentPage - 1) * pageSize) + 1} - {((currentPage - 1) * pageSize) + courses.length} of {totalCount} courses
         </div>
       )}
 
@@ -280,7 +250,7 @@ export default function Courses() {
                   await updateCourse(editingCourse.id, payload)
                   reportSuccess('Course Updated')
                   setEditCourseModalOpen(false)
-                  load()
+                  setRefreshKey(k => k + 1)
                 } catch (err) {
                   reportError(err?.message || 'Failed to update course')
                 }
@@ -355,7 +325,8 @@ export default function Courses() {
                       reportSuccess('Course Deleted')
                       setConfirmDeleteCourse(null)
                       setEditCourseModalOpen(false)
-                      load()
+                      setCurrentPage(1)
+                      setRefreshKey(k => k + 1)
                     } catch (err) {
                       reportError(err?.message || 'Failed to delete course')
                     } finally {
@@ -391,7 +362,7 @@ export default function Courses() {
                 value={course.name}
                 badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
                 icon="BookOpen"
-                accent="bg-indigo-600"
+                accent="bg-white-500"
                 colored={true}
               >
                 <div className="flex items-center justify-between gap-2">
