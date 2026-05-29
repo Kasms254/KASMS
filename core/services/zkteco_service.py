@@ -19,7 +19,8 @@ class ZKTecoSyncService:
         self.zk = ZK(
             device.ip_address,
             port=device.port,
-            timeout=device.connection_timeout
+            timeout=device.connection_timeout,
+            ommit_ping=True
         )
         self.conn = None
 
