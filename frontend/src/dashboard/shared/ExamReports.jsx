@@ -701,25 +701,29 @@ export default function ExamReports() {
         <div className="flex items-center gap-3 flex-wrap">
           {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
           {selectedClass && !selectedExam && !showComprehensive && (() => {
-            // Only show for admins/superadmins/commandants, or if instructor is the class instructor
             const cls = classes.find(c => String(c.id) === selectedClass)
+            // Primary class instructor: in charge of the whole class, always has access
+            const isPrimaryInstructor = user?.role === 'instructor' && cls && cls.instructor === user?.id
             const canViewComprehensive = ['admin', 'superadmin', 'commandant'].includes(user?.role)
-              || (cls && cls.instructor === user?.id)
-            return canViewComprehensive
-          })() && (
-            <button
-              onClick={handleViewComprehensive}
-              disabled={loadingComprehensive || filteredExams.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {loadingComprehensive ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                <LucideIcons.ClipboardList className="w-4 h-4" />
-              )}
-              {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
-            </button>
-          )}
+              || isPrimaryInstructor
+            if (!canViewComprehensive) return null
+            // Primary instructor can view even with no submitted exams — they oversee the whole class
+            const isDisabled = loadingComprehensive || (filteredExams.length === 0 && !isPrimaryInstructor)
+            return (
+              <button
+                onClick={handleViewComprehensive}
+                disabled={isDisabled}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {loadingComprehensive ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <LucideIcons.ClipboardList className="w-4 h-4" />
+                )}
+                {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
+              </button>
+            )
+          })()}
 
           {/* Back from comprehensive view */}
           {showComprehensive && (
