@@ -623,6 +623,21 @@ CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
+  @font-face {{ font-family: 'Castellar'; src: url('fonts/Castellar Regular.ttf'); }}
+  @font-face {{ font-family: 'Copperplate Gothic Bold'; src: url('fonts/copperplategothic_bold.ttf'); font-weight: bold; }}
+  @font-face {{ font-family: 'Copperplate'; src: url('fonts/Copperplate-Regular.ttf'); font-weight: normal; font-style: normal; }}
+  @font-face {{ font-family: 'Copperplate'; src: url('fonts/Copperplate-Bold.ttf'); font-weight: bold; font-style: normal; }}
+  @font-face {{ font-family: 'Old English Text MT'; src: url('fonts/oldenglishtextmt.ttf'); }}
+  @font-face {{ font-family: 'UnifrakturMaguntia'; src: url('fonts/UnifrakturMaguntia-Book.ttf'); }}
+  @font-face {{ font-family: 'Texturina'; src: url('fonts/Texturina-Regular.ttf'); font-weight: normal; font-style: normal; }}
+  @font-face {{ font-family: 'Georgia'; src: url('fonts/Georgia.ttf'); font-weight: normal; font-style: normal; }}
+  @font-face {{ font-family: 'Georgia'; src: url('fonts/Georgia Bold.ttf'); font-weight: bold; font-style: normal; }}
+  @font-face {{ font-family: 'Georgia'; src: url('fonts/Georgia Italic.ttf'); font-weight: normal; font-style: italic; }}
+  @font-face {{ font-family: 'Georgia'; src: url('fonts/Georgia Bold Italic.ttf'); font-weight: bold; font-style: italic; }}
+  @font-face {{ font-family: 'Times New Roman'; src: url('fonts/Times New Roman.ttf'); font-weight: normal; font-style: normal; }}
+  @font-face {{ font-family: 'Times New Roman'; src: url('fonts/Times New Roman Bold.ttf'); font-weight: bold; font-style: normal; }}
+  @font-face {{ font-family: 'Times New Roman'; src: url('fonts/Times New Roman Italic.ttf'); font-weight: normal; font-style: italic; }}
+  @font-face {{ font-family: 'Times New Roman'; src: url('fonts/Times New Roman Bold Italic.ttf'); font-weight: bold; font-style: italic; }}
   @page {{ size: A4 portrait; margin: 0; }}
   body {{ margin: 0; padding: 0; font-family: 'Georgia', 'Times New Roman', serif; }}
   .certificate {{ width: 210mm; height: 297mm; position: relative; background: #fff;
@@ -988,7 +1003,7 @@ class CertificateGenerator:
         from weasyprint import HTML as WeasyprintHTML
         from weasyprint.text.fonts import FontConfiguration
         font_config = FontConfiguration()
-        doc = WeasyprintHTML(string=html, base_url=str(settings.MEDIA_ROOT))
+        doc = WeasyprintHTML(string=html, base_url=str(settings.BASE_DIR))
         return doc.write_pdf(font_config=font_config)
 
     def _via_xhtml2pdf(self, html: str) -> bytes:
