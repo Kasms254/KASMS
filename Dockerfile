@@ -64,6 +64,15 @@ WORKDIR /app
 # Copy project source. .dockerignore excludes venv, __pycache__, node_modules, etc.
 COPY . .
 
+# Install custom fonts system-wide and give django user a writable fontconfig cache.
+RUN mkdir -p /usr/local/share/fonts/kasms \
+    && cp -r /app/fonts/. /usr/local/share/fonts/kasms/ \
+    && fc-cache -fv \
+    && mkdir -p /var/cache/fontconfig \
+    && chmod 777 /var/cache/fontconfig
+
+ENV FONTCONFIG_CACHE=/var/cache/fontconfig
+
 # Create directories that must exist at runtime. Doing this here (as root)
 # before the chown ensures we own them. These are bind-mounted in prod anyway.
 RUN mkdir -p /app/logs /app/media /app/staticfiles
