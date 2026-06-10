@@ -905,8 +905,8 @@ class CertificateGenerator:
             </div>'''
 
         completion_date_formatted = ''
-        if cert.completion_date:
-            completion_date_formatted = cert.completion_date.strftime('%d %b %Y').upper()
+        if cert.class_obj and cert.class_obj.end_date:
+            completion_date_formatted = cert.class_obj.end_date.strftime('%d %b %Y').upper()
 
         course_start_date = ''
         if cert.class_obj and cert.class_obj.start_date:
