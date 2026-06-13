@@ -67,6 +67,7 @@ def health_check(request):
 
 
 urlpatterns = [
+    path("", include("django_prometheus.urls")),
     # Health check MUST be first — no authentication, no tenant middleware impact.
     path("health/", health_check, name="health"),
     path("admin/", admin.site.urls),

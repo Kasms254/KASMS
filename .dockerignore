@@ -77,6 +77,9 @@ nginx/
 !nginx/nginx.conf
 !nginx/templates/
 
+# Monitoring stack (separate docker compose project, not part of app build)
+monitoring/
+
 # Misc
 backup.json
 render.yaml

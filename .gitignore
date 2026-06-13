@@ -41,6 +41,7 @@ core/migrations/__pycache__/
 .env
 .env.*
 !.env.example
+monitoring/.env
 
 # Database dumps
 *.dump
@@ -75,6 +76,8 @@ CLAUDE.md
 
 # Developer handover docs (shared separately)
 DOCKER_MIGRATION.md
+DEVELOPER_GUIDE.md
+DEPLOY.md
 
 # One-off / legacy files
 find_old_references.sh

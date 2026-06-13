@@ -28,6 +28,7 @@ ALLOWED_HOSTS = os.getenv(
 # Application definition
 
 INSTALLED_APPS = [
+    "django_prometheus",
     "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -58,6 +60,7 @@ MIDDLEWARE = [
     "core.middleware.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "kasms.urls"
@@ -336,7 +339,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Africa/Nairobi'
 CELERY_BEAT_SCHEDULE = {
     'sync-biometric-devices': {
-        'task': 'core.tasks.sync_all_devices', 
+        'task': 'core.tasks.sync_all_devices',
         'schedule': 300.0,
     },
     'process-pending-biometric-records':{
@@ -348,4 +351,22 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 3600.0
     },
 }
+
+# =============================================================================
+# Sentry — error tracking and performance monitoring
+# Set SENTRY_DSN in .env to enable. Leave unset to disable (e.g. in dev).
+# =============================================================================
+_SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[DjangoIntegration(), CeleryIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        environment=os.getenv('SENTRY_ENVIRONMENT', 'production'),
+    )
 
