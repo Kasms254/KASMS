@@ -40,7 +40,6 @@ core/migrations/__pycache__/
 # Environment / secrets (NEVER commit these)
 .env
 .env.*
-!.env.example
 monitoring/.env
 
 # Database dumps
