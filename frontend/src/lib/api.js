@@ -41,6 +41,7 @@ const SENTENCE_CASE_CONFIG = {
     'image', // Preserve image paths
     'image_url', // Preserve image URL paths
     'exam_type', // Preserve choice values sent back to API
+    'grading_mode', // Preserve grading mode choice values (LEGACY, POLICY)
     'template_type', // Preserve certificate template type choice values
     'grade', // Preserve grade values (e.g. A-, B+, C-)
     'overall_grade',
@@ -69,6 +70,8 @@ const SENTENCE_CASE_CONFIG = {
     'instructor_rank',  // Flat rank field from SubjectSerializer — preserve internal value for sorting
     'priority', // Preserve priority enum values (low, medium, high, urgent)
     'target_role', // Preserve target_role enum values (all, student, instructor, etc.)
+    'component_type', // Preserve component type choice values (cat, theory, practical, project, other)
+    'retake_evaluation', // Preserve retake evaluation choice values (latest, best)
   ]
 }
 
@@ -784,6 +787,26 @@ export async function getExams(params = '') {
   return data
 }
 
+
+export async function getAllExams(params = '') {
+  let allExams = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+  while (hasMore) {
+    try {
+      const data = await request(`/api/exams/?${baseParams}page_size=1000&page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
+      allExams = [...allExams, ...results]
+      hasMore = !!(data?.next)
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+  return allExams
+}
+
 export async function getMyExams() {
   // backend provides a `my_exams` action
   const data = await request('/api/exams/my_exams/')
@@ -808,6 +831,12 @@ export async function getStudentPerformanceSummary() {
 // Get student's class enrollments (all enrollments including past classes)
 export async function getStudentEnrollments() {
   return request('/api/student-dashboard/my_classes/')
+}
+
+// Get subjects for the student's enrolled classes (student-specific, includes grading_mode)
+export async function getStudentSubjects(classId) {
+  const qs = classId ? `?class_obj=${encodeURIComponent(classId)}` : ''
+  return request(`/api/student-dashboard/my_subjects/${qs}`)
 }
 
 export async function createExam(payload) {
@@ -1026,8 +1055,8 @@ export async function getClassTopPerformers(classId, limit = 10) {
   return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
 }
 
-export async function compareClasses(classIds = []) {
-  const qs = classIds.length > 0 ? `?class_ids=${classIds.map(encodeURIComponent).join(',')}` : ''
+export async function compareClasses(courseId) {
+  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
   return request(`/api/class-performance/compare_classes/${qs}`)
 }
 
@@ -1705,8 +1734,22 @@ export async function getCommandantDepartmentDetails(id) {
 }
 
 export async function getCommandantClasses(params = '') {
-  const q = params ? `?${params}` : ''
-  return request(`/api/commandant/classes/${q}`)
+  let allClasses = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+  while (hasMore) {
+    try {
+      const data = await request(`/api/commandant/classes/?${baseParams}page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
+      allClasses = [...allClasses, ...results]
+      hasMore = !!(data?.next)
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+  return allClasses
 }
 
 export async function getCommandantClassStudents(id) {
@@ -1965,6 +2008,72 @@ export async function getOICUsers(params = '') {
   return request(`/api/users/${q}`)
 }
 
+// Assessment Components (POLICY grading mode)
+export async function getComponentChoices(subjectId) {
+  return request(`/api/exams/component_choices/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
+export async function getAssessmentComponents(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/assessment-components/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return Array.isArray(data) ? data : []
+}
+
+export async function getComponentsBySubject(subjectId) {
+  if (!subjectId) throw new Error('subjectId is required')
+  const data = await request(`/api/assessment-components/by_subject/?subject_id=${encodeURIComponent(subjectId)}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return Array.isArray(data) ? data : []
+}
+
+export async function getComponentWeightSummary(subjectId) {
+  if (!subjectId) throw new Error('subjectId is required')
+  return request(`/api/assessment-components/weight_summary/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
+export async function createAssessmentComponent(payload) {
+  return request('/api/assessment-components/', { method: 'POST', body: payload })
+}
+
+export async function updateAssessmentComponent(id, payload) {
+  return request(`/api/assessment-components/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteAssessmentComponent(id) {
+  return request(`/api/assessment-components/${id}/`, { method: 'DELETE' })
+}
+
+// Student Component Results (POLICY grading mode)
+export async function getComponentResults(params = '') {
+  const qs = params ? `?${params}` : ''
+  const data = await request(`/api/component-results/${qs}`)
+  if (data && Array.isArray(data.results)) return data.results
+  return Array.isArray(data) ? data : []
+}
+
+export async function getComponentResultsByStudentSubject(studentId, subjectId) {
+  if (!studentId || !subjectId) throw new Error('studentId and subjectId are required')
+  return request(`/api/component-results/by_student_subject/?student_id=${encodeURIComponent(studentId)}&subject_id=${encodeURIComponent(subjectId)}`)
+}
+
+export async function bulkGradeComponentResults(payload) {
+  return request('/api/component-results/bulk_grade/', { method: 'POST', body: payload })
+}
+
+export async function createComponentResult(payload) {
+  return request('/api/component-results/', { method: 'POST', body: payload })
+}
+
+export async function updateComponentResult(id, payload) {
+  return request(`/api/component-results/${id}/`, { method: 'PATCH', body: payload })
+}
+
+export async function evaluateStudentSubject(subjectId, studentId) {
+  if (!subjectId || !studentId) throw new Error('subjectId and studentId are required')
+  return request(`/api/subjects/${encodeURIComponent(subjectId)}/evaluate_student/?student_id=${encodeURIComponent(studentId)}`)
+}
+
 export default {
   login,
   changePassword,
@@ -2014,6 +2123,7 @@ export default {
   deleteSubject,
   getMySubjects,
   getExams,
+  getAllExams,
   getMyExams,
   createExam,
   createExamReport,
@@ -2243,4 +2353,17 @@ export default {
   deleteOICAssignment,
   bulkAssignOIC,
   getOICUsers,
+  getComponentChoices,
+  getAssessmentComponents,
+  getComponentsBySubject,
+  getComponentWeightSummary,
+  createAssessmentComponent,
+  updateAssessmentComponent,
+  deleteAssessmentComponent,
+  getComponentResults,
+  getComponentResultsByStudentSubject,
+  bulkGradeComponentResults,
+  createComponentResult,
+  updateComponentResult,
+  evaluateStudentSubject,
 }

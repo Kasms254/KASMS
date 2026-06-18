@@ -1,0 +1,246 @@
+# =============================================================================
+# KASMS Nginx Server Configuration Template
+#
+# ${DOMAIN} is substituted at container startup by scripts/nginx-entrypoint.sh.
+# Only '${DOMAIN}' is passed to envsubst — all Nginx $variables are preserved.
+# =============================================================================
+
+# ── HTTP: redirect + Certbot ACME challenge ──────────────────────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN} www.${DOMAIN};
+
+    # Certbot ACME challenge (must be port 80).
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Nginx-only health stub on HTTP (used by load balancers / cert init checks).
+    location = /nginx-health {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ── HTTPS: main production server ────────────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN} www.${DOMAIN};
+
+    # ── SSL ──────────────────────────────────────────────────────────────────
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_ciphers               ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache         shared:SSL:10m;
+    ssl_session_timeout       1d;
+    ssl_session_tickets       off;
+    ssl_stapling              on;
+    ssl_stapling_verify       on;
+    resolver                  8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout          5s;
+
+    # ── Security Headers ──────────────────────────────────────────────────────
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options    "nosniff"                              always;
+    add_header X-Frame-Options           "SAMEORIGIN"                           always;
+    add_header X-XSS-Protection          "1; mode=block"                        always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin"      always;
+    add_header Permissions-Policy        "camera=(), microphone=(), geolocation=()" always;
+    # H5: Content-Security-Policy — restricts where scripts/styles/connections can load from.
+    # 'unsafe-inline' for style-src accommodates common React/CSS-in-JS patterns; tighten
+    # further (use nonces) once the frontend build pipeline supports it.
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
+
+    # ── Connection Limits ─────────────────────────────────────────────────────
+    limit_conn conn_limit 30;
+
+    # ── Block Known Bad User Agents ───────────────────────────────────────────
+    # $blocked_ua is set by the map block in nginx.conf.
+    if ($blocked_ua) {
+        return 444;   # drop connection immediately (no response body, saves bandwidth)
+    }
+
+    # ── Custom Error Pages ────────────────────────────────────────────────────
+    # 429: returned by limit_req / limit_conn for rate-limited requests.
+    # API routes return JSON; all others return the React app (SPA handles it).
+    error_page 429 @too_many_requests;
+    error_page 502 503 504 @upstream_error;
+
+    location @too_many_requests {
+        # Determine response type by URI prefix.
+        # API callers get JSON; everything else gets a plain response.
+        if ($request_uri ~* "^/api/") {
+            add_header Content-Type "application/json" always;
+            add_header Retry-After  "60"               always;
+            return 429 '{"error":"Too Many Requests","detail":"Rate limit exceeded. Please wait 60 seconds before retrying."}';
+        }
+        add_header Retry-After "60" always;
+        return 429 "Rate limit exceeded. Please wait before retrying.";
+    }
+
+    location @upstream_error {
+        # 502/503/504: backend is down. Return a minimal JSON error for API
+        # requests; fall back to the React SPA for browser navigation.
+        if ($request_uri ~* "^/api/") {
+            add_header Content-Type "application/json" always;
+            return 503 '{"error":"Service Unavailable","detail":"The server is temporarily unavailable. Please try again shortly."}';
+        }
+        root /var/www/frontend;
+        try_files /index.html =503;
+    }
+
+    # ── Nginx Health Stub (HTTPS) ─────────────────────────────────────────────
+    # Checked by: Docker healthcheck (nginx service).
+    # Does NOT proxy to Django — purely Nginx confirming it is alive.
+    location = /nginx-health {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok";
+    }
+
+    # ── Django Health Check Proxy ─────────────────────────────────────────────
+    # For external uptime monitors that need to verify the full stack
+    # (Nginx + Django + DB + Redis), point them at /health/.
+    location = /health/ {
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 5s;
+        access_log off;
+    }
+
+    # ── Django API ────────────────────────────────────────────────────────────
+    location /api/ {
+        limit_req zone=api burst=60 nodelay;
+
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # CRITICAL: required for CSRF_COOKIE_SECURE, SESSION_COOKIE_SECURE,
+        # SameSite=None cookies, and request.is_secure() to work correctly.
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout    90s;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    60s;
+    }
+
+    # ── Login / 2FA — strict brute-force protection ───────────────────────────
+    # Regex locations take priority over prefix locations in Nginx.
+    # These paths get 5 req/min instead of the 30 req/s api zone.
+    location ~ ^/api/auth/(login|2fa) {
+        limit_req zone=auth burst=10 nodelay;
+
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+
+    # ── Django Admin ──────────────────────────────────────────────────────────
+    location /admin/ {
+        # STRONGLY RECOMMENDED: restrict to your office public IP.
+        # Uncomment and set your IP:
+        # allow  41.90.X.X/32;
+        # deny   all;
+
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    # ── Biometric ADMS ────────────────────────────────────────────────────────
+    location /iclock/ {
+        limit_req zone=iclock burst=20 nodelay;
+
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # ── API Docs (rate-limited — bots hammer these) ───────────────────────────
+    location ~ ^/(swagger|redoc)/ {
+        limit_req zone=docs burst=10 nodelay;
+
+        proxy_pass         http://django_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    # ── Django Static Files ───────────────────────────────────────────────────
+    location /static/ {
+        alias   /var/www/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+        gzip_static on;
+    }
+
+    # ── Media Files ───────────────────────────────────────────────────────────
+    location /media/ {
+        limit_req zone=media burst=40 nodelay;
+
+        alias /var/www/media/;
+        expires 7d;
+        add_header Cache-Control "public";
+
+        # Prevent script execution inside /media/.
+        location ~* \.(php|py|pl|sh|cgi|exe)$ {
+            deny all;
+        }
+    }
+
+    # ── React SPA ─────────────────────────────────────────────────────────────
+    root  /var/www/frontend;
+    index index.html;
+
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate";
+        expires -1;
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        expires -1;
+        add_header Cache-Control "no-store";
+    }
+}

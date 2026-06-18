@@ -360,18 +360,10 @@ export default function StudentsDashboard() {
         >
           <div className="mt-2 text-xs text-black">
             {(() => {
-              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Score: …</span>
-              // Show total score for active class
-              const obtained = dashboardStats?.total_marks_obtained
-              const possible = dashboardStats?.total_possible_marks
-              if (obtained != null && possible != null && possible > 0) {
-                const obtainedStr = Number.isInteger(obtained) ? obtained : obtained.toFixed(1)
-                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Score: {obtainedStr}/{possible}</span>
-              }
-              // Fallback to showing percentage
+              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Avg: …</span>
               const avgNum = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
               if (avgNum != null && !Number.isNaN(avgNum)) {
-                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">{avgNum.toFixed(1)}%</span>
+                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Avg: {avgNum.toFixed(1)}%</span>
               }
               return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">No Results Yet</span>
             })()}

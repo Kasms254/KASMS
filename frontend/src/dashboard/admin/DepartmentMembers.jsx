@@ -5,11 +5,16 @@ import SearchableSelect from '../../components/SearchableSelect'
 
 // Rank keys in ascending seniority order (index 0 = lowest)
 const RANK_KEYS = [
+  'civilian', 'constable_iii', 'constable_ii', 'constable_i',
+  'head_constable_ii', 'head_constable_i',
   'private', 'lance_corporal', 'corporal', 'sergeant', 'senior_sergeant',
   'warrant_officer_ii', 'warrant_officer_i', 'lieutenant', 'captain', 'major',
   'lieutenant_colonel', 'colonel', 'brigadier', 'major_general', 'lieutenant_general', 'general',
 ]
 const RANK_DISPLAY_MAP = {
+  civilian: 'Civilian',
+  constable_iii: 'Constable III', constable_ii: 'Constable II', constable_i: 'Constable I',
+  head_constable_ii: 'Head Constable II', head_constable_i: 'Head Constable I',
   private: 'Private', lance_corporal: 'Lance Corporal', corporal: 'Corporal',
   sergeant: 'Sergeant', senior_sergeant: 'Senior Sergeant',
   warrant_officer_ii: 'Warrant Officer II', warrant_officer_i: 'Warrant Officer I',

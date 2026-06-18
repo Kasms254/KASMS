@@ -11,6 +11,7 @@ const STATUS_BADGE = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
+
 function formatDate(str) {
   if (!str) return '—'
   return new Date(str).toLocaleString('en-GB', {
@@ -270,6 +271,7 @@ export default function CommandantAttendance() {
           )
         )}
       </section>
+  
     </div>
   )
 }

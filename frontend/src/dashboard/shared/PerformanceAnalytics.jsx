@@ -502,7 +502,14 @@ function SubjectComparison({ subjects }) {
                   }`} />
                 </div>
                 <div className="min-w-0">
-                  <span className="font-semibold text-gray-800 text-sm md:text-base truncate block" title={subj.subject_name}>{subj.subject_name}</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-gray-800 text-sm md:text-base truncate" title={subj.subject_name}>{subj.subject_name}</span>
+                    {subj.grading_mode === 'POLICY' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 shrink-0">
+                        POLICY
+                      </span>
+                    )}
+                  </div>
                   {subj.instructor && (
                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                       <Icons.User className="w-3 h-3 shrink-0" />
@@ -612,19 +619,23 @@ export default function PerformanceAnalytics() {
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: subjectPerformance } = useQuery({
+  const { data: subjectPerformance, isPending: loadingSubjectPerf } = useQuery({
     queryKey: ['subject-performance', selectedSubject],
     queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
     enabled: viewMode === 'subject' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: trendData } = useQuery({
+  const { data: trendData, isPending: loadingTrends } = useQuery({
     queryKey: ['subject-trends', selectedSubject],
     queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
     enabled: viewMode === 'trends' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
   })
-  const analyticsLoading = loadingClassPerf
+  const analyticsLoading = viewMode === 'class'
+    ? (!!selectedClass && loadingClassPerf)
+    : viewMode === 'subject'
+    ? (!!selectedSubject && loadingSubjectPerf)
+    : (!!selectedSubject && loadingTrends)
 
   // Load classes and subjects (cached 10 min)
   const isInstructor = user?.role === 'instructor'
@@ -643,13 +654,32 @@ export default function PerformanceAnalytics() {
   const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
   const subjects = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results ?? [])
 
-  const classIds = classes.map(c => c.id)
+  const selectedClassObj = classes.find(c => c.id === Number(selectedClass))
+  const selectedCourseId = selectedClassObj?.course
   const { data: classComparison } = useQuery({
-    queryKey: ['class-comparison', classIds.join(',')],
-    queryFn: () => api.compareClasses(classIds).catch(() => null),
-    enabled: viewMode === 'class' && !!selectedClass && classIds.length > 0,
+    queryKey: ['class-comparison', selectedCourseId],
+    queryFn: () => api.compareClasses(selectedCourseId).catch(() => null),
+    enabled: viewMode === 'class' && !!selectedClass && !!selectedCourseId,
     staleTime: 5 * 60 * 1000,
   })
+
+  const isPolicySubject = useMemo(() =>
+    subjectPerformance?.subject?.grading_mode === 'POLICY',
+  [subjectPerformance])
+
+  const policyStats = useMemo(() => {
+    if (!isPolicySubject) return null
+    const breakdown = subjectPerformance?.component_breakdown || []
+    const totalWeight = breakdown.reduce((sum, c) => sum + (c.weight || 0), 0)
+    const weightedAvg = totalWeight > 0
+      ? breakdown.reduce((sum, c) => sum + ((c.average_percentage || 0) * (c.weight || 0)), 0) / totalWeight
+      : null
+    const gradedComponents = breakdown.filter(c => c.students_graded > 0)
+    const overallPassRate = gradedComponents.length > 0
+      ? gradedComponents.reduce((sum, c) => sum + (c.pass_rate || 0), 0) / gradedComponents.length
+      : null
+    return { breakdown, weightedAvg, overallPassRate, gradedCount: gradedComponents.length }
+  }, [isPolicySubject, subjectPerformance])
 
   // Filter subjects by selected class
   const filteredSubjects = useMemo(() => {
@@ -689,7 +719,8 @@ export default function PerformanceAnalytics() {
   // Don't reset when no class is selected yet (they should be allowed to stay in class view to pick a class).
   useEffect(() => {
     if (user?.role === 'instructor' && viewMode === 'class' && selectedClass && !isClassInstructor) {
-      setViewMode('subject')
+      const timer = setTimeout(() => setViewMode('subject'), 0)
+      return () => clearTimeout(timer)
     }
   }, [isClassInstructor, user, viewMode, selectedClass])
 
@@ -976,10 +1007,17 @@ export default function PerformanceAnalytics() {
               <div className="w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
                 <Icons.Book className="w-7 h-7 text-white" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {subjectPerformance.subject?.name}
-                </h2>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {subjectPerformance.subject?.name}
+                  </h2>
+                  {isPolicySubject && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+                      POLICY
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600 mt-1">
                   {subjectPerformance.subject?.instructor && `Instructor: ${subjectPerformance.subject.instructor}`}
                   {subjectPerformance.subject?.class && ` • Class: ${subjectPerformance.subject.class}`}
@@ -989,36 +1027,130 @@ export default function PerformanceAnalytics() {
           </div>
 
           {/* Summary Cards */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card
-              title="Students Enrolled"
-              value={subjectPerformance.overall_statistics?.total_students_enrolled || 0}
-              icon="Users"
-              accent="bg-indigo-500"
-              colored
-            />
-            <Card
-              title="Average Score"
-              value={`${subjectPerformance.overall_statistics?.exam_average_percentage?.toFixed(1) || 0}%`}
-              icon="TrendingUp"
-              accent="bg-emerald-500"
-              colored
-            />
-            <Card
-              title="Pass Rate"
-              value={`${subjectPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
-              icon="Award"
-              accent="bg-amber-500"
-              colored
-            />
-            <Card
-              title="Total Exams"
-              value={subjectPerformance.overall_statistics?.total_exams || 0}
-              icon="Clipboard"
-              accent="bg-sky-500"
-              colored
-            />
-          </section>
+          {isPolicySubject && policyStats ? (
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card
+                title="Students Enrolled"
+                value={subjectPerformance.overall_statistics?.total_students_enrolled || 0}
+                icon="Users"
+                accent="bg-indigo-500"
+                colored
+              />
+              <Card
+                title="Weighted Average"
+                value={policyStats.weightedAvg != null ? `${policyStats.weightedAvg.toFixed(1)}%` : '--'}
+                icon="TrendingUp"
+                accent="bg-emerald-500"
+                colored
+              />
+              <Card
+                title="Pass Rate"
+                value={policyStats.overallPassRate != null ? `${policyStats.overallPassRate.toFixed(1)}%` : '--'}
+                icon="Award"
+                accent="bg-amber-500"
+                colored
+              />
+              <Card
+                title="Components"
+                value={policyStats.breakdown.length}
+                icon="Clipboard"
+                accent="bg-violet-500"
+                colored
+              />
+            </section>
+          ) : (
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card
+                title="Students Enrolled"
+                value={subjectPerformance.overall_statistics?.total_students_enrolled || 0}
+                icon="Users"
+                accent="bg-indigo-500"
+                colored
+              />
+              <Card
+                title="Average Score"
+                value={`${subjectPerformance.overall_statistics?.exam_average_percentage?.toFixed(1) || 0}%`}
+                icon="TrendingUp"
+                accent="bg-emerald-500"
+                colored
+              />
+              <Card
+                title="Pass Rate"
+                value={`${subjectPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
+                icon="Award"
+                accent="bg-amber-500"
+                colored
+              />
+              <Card
+                title="Total Exams"
+                value={subjectPerformance.overall_statistics?.total_exams || 0}
+                icon="Clipboard"
+                accent="bg-sky-500"
+                colored
+              />
+            </section>
+          )}
+
+          {/* Policy Component Breakdown */}
+          {isPolicySubject && policyStats && policyStats.breakdown.length > 0 && (
+            <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Icons.Layers className="w-4 h-4 md:w-5 md:h-5 text-violet-500" />
+                Component Breakdown
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs md:text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Component</th>
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Type</th>
+                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Weight</th>
+                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Graded</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Average</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden md:table-cell">Pass Rate</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Highest</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Lowest</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {policyStats.breakdown.map((comp, idx) => (
+                      <tr key={comp.component_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-gray-800">{comp.component_name}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 hidden sm:table-cell">
+                          <span className="inline-flex px-1.5 md:px-2 py-0.5 text-xs font-medium rounded-full bg-violet-100 text-violet-700">
+                            {comp.component_type || 'component'}
+                          </span>
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600 hidden sm:table-cell">
+                          {comp.weight != null ? `${comp.weight}%` : '-'}
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600">
+                          {comp.students_graded ?? '-'}
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right font-semibold text-indigo-600">
+                          {comp.average_percentage != null ? `${comp.average_percentage.toFixed(1)}%` : '--'}
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right hidden md:table-cell">
+                          <span className={`font-medium ${
+                            (comp.pass_rate || 0) >= 76 ? 'text-emerald-600' :
+                            (comp.pass_rate || 0) >= 50 ? 'text-amber-600' : 'text-red-600'
+                          }`}>
+                            {comp.pass_rate != null ? `${comp.pass_rate.toFixed(1)}%` : '--'}
+                          </span>
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-emerald-600 hidden lg:table-cell">
+                          {comp.highest_score != null ? `${comp.highest_score.toFixed(1)}%` : '--'}
+                        </td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-red-600 hidden lg:table-cell">
+                          {comp.lowest_score != null ? `${comp.lowest_score.toFixed(1)}%` : '--'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {/* Grade Distribution & Top Performers */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1026,6 +1158,9 @@ export default function PerformanceAnalytics() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Icons.PieChart className="w-5 h-5 text-indigo-500" />
                 Grade Distribution
+                {isPolicySubject && (
+                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                )}
               </h3>
               <GradeDistribution distribution={subjectPerformance.grade_distribution} />
             </div>
@@ -1034,13 +1169,16 @@ export default function PerformanceAnalytics() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Icons.Trophy className="w-5 h-5 text-amber-500" />
                 Top Performers
+                {isPolicySubject && (
+                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                )}
               </h3>
               <TopPerformersList performers={subjectPerformance.top_performers} />
             </div>
           </section>
 
-          {/* Exam Breakdown */}
-          {subjectPerformance.exam_breakdown && subjectPerformance.exam_breakdown.length > 0 && (
+          {/* Exam Breakdown — legacy only */}
+          {!isPolicySubject && subjectPerformance.exam_breakdown && subjectPerformance.exam_breakdown.length > 0 && (
             <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
               <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Icons.FileText className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
