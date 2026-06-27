@@ -14,7 +14,16 @@ class CookieJWTAuthentication(JWTAuthentication):
         raw_token = request.COOKIES.get(cookie_name)
 
         if raw_token is None:
-            return super().authenticate(request)
+            # No cookie — fall back to the standard Authorization: Bearer
+            # header (same as simplejwt's default JWTAuthentication), but
+            # resolve the raw token ourselves so the denylist check below
+            # always runs regardless of which source the token came from.
+            header = self.get_header(request)
+            if header is None:
+                return None
+            raw_token = self.get_raw_token(header)
+            if raw_token is None:
+                return None
 
         try:
             validated_token = self.get_validated_token(raw_token)
