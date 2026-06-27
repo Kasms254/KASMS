@@ -205,8 +205,7 @@ class IsAnalyticsViewer(IsAuthenticated):
             return True
         if role in self.READONLY_ROLES:
             return request.method in ('GET', 'HEAD', 'OPTIONS')
-        # HOD is a DepartmentMembership role, not a User.role value, so it
-        # isn't covered by the role check above — verify separately.
+
         if request.method in ('GET', 'HEAD', 'OPTIONS'):
             return DepartmentMembership.objects.filter(
                 user=request.user,
@@ -244,10 +243,6 @@ class _ClassAccessMixin:
             if class_obj.subjects.filter(instructor=user, is_active=True).exists():
                 return True
 
-        # HOD is a DepartmentMembership role, not a User.role value — an
-        # instructor who is also HOD of this class's (or one of its
-        # subjects') department gets department-wide access beyond their
-        # own assigned classes/subjects.
         hod_dept_ids = set(DepartmentMembership.objects.filter(
             user=user, role=DepartmentMembership.Role.HOD, is_active=True,
         ).values_list('department_id', flat=True))

@@ -5980,10 +5980,6 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("You are not the HOD of this department.")
 
 class HODExamReportViewSet(viewsets.ReadOnlyModelViewSet):
-    """Exam reports scoped to the classes/subjects within the requesting HOD's
-    own department(s) — read-only, mirrors CommandantExamReportViewSet/
-    OICExamReportViewSet but scoped by DepartmentMembership instead of
-    school-wide or assigned-class access."""
 
     serializer_class = DashboardExamReportSerializer
     permission_classes = [IsAuthenticated, IsHOD]
