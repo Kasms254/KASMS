@@ -243,13 +243,7 @@ class _ClassAccessMixin:
             if class_obj.subjects.filter(instructor=user, is_active=True).exists():
                 return True
 
-        # HOD: whole-class views (ClassPerformanceViewSet, compare_subjects)
-        # aggregate every subject in the class with no per-department
-        # filtering, so access here requires the class ITSELF to belong to
-        # a department the user heads — having just one subject in their
-        # department inside an otherwise-foreign class is not enough, or
-        # they'd see every other department's student data in that class
-        # too. See _has_subject_access for the narrower, subject-scoped check.
+
         hod_dept_ids = DepartmentMembership.objects.filter(
             user=user, role=DepartmentMembership.Role.HOD, is_active=True,
         ).values_list('department_id', flat=True)
