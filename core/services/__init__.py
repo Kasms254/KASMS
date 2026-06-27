@@ -810,6 +810,33 @@ class CertificateImageResolver:
             '.webp': 'image/webp', '.svg': 'image/svg+xml',
         }.get(ext, 'image/png')
 
+# Abbreviated rank shown on generated certificates. Keyed by the full label
+
+CERTIFICATE_RANK_ABBREVIATIONS = {
+    'General': 'GEN',
+    'Lieutenant General': 'LT GEN',
+    'Major General': 'MAJ GEN',
+    'Brigadier': 'BRIG',
+    'Colonel': 'COL',
+    'Lieutenant Colonel': 'LT COL',
+    'Major': 'MAJ',
+    'Captain': 'CAPT',
+    'Lieutenant': 'LT',
+    'Warrant Officer I': 'WOI',
+    'Warrant Officer II': 'WOII',
+    'Senior Sergeant': 'SSGT',
+    'Sergeant': 'SGT',
+    'Corporal': 'CPL',
+    'Lance Corporal': 'LCPL',
+    'Private': 'PTE',
+    'Head Constable I': 'HC I',
+    'Head Constable II': 'HC II',
+    'Constable I': 'CONST I',
+    'Constable II': 'CONST II',
+    'Constable III': 'CONST III',
+}
+
+
 class CertificateGenerator:
 
     BACKEND_WEASYPRINT = 'weasyprint'
@@ -875,7 +902,9 @@ class CertificateGenerator:
         if cert.student_svc_number:
             rank_parts.append(cert.student_svc_number)
         if cert.student_rank:
-            rank_parts.append(cert.student_rank)
+            rank_parts.append(
+                CERTIFICATE_RANK_ABBREVIATIONS.get(cert.student_rank, cert.student_rank)
+            )
         rank_svc_display = ' '.join(rank_parts)
 
         # Grade display

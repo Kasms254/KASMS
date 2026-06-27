@@ -113,9 +113,7 @@ export default function ClassCertificates() {
   const totalStudents = completionData?.total_students || 0
   const academicallyComplete = completionData?.academically_complete || 0
 
-  // Grades are only required for the Course Completion template — other
-  // template types (Achievement, Participation, Excellence Award) can be
-  // issued to every enrolled student regardless of grade status.
+// for issuance of excellence and participation certificates
   const selectedTemplate = templates.find((t) => String(t.id) === String(selectedTemplateId))
     || templates.find((t) => t.is_default)
   const requiresGrades = !selectedTemplate || selectedTemplate.template_type === 'completion'
