@@ -14,6 +14,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.core.cache import cache
 from .models import Enrollment, SchoolMembership, TwoFactorCode
+from .cookie_utils import denylist_access_token
 from .serializers import UserListSerializer, SchoolMembershipSerializer
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -504,7 +505,12 @@ def logout_view(request):
             token = RefreshToken(raw_refresh)
             token.blacklist()
         except TokenError:
-            pass  
+            pass
+
+    access_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
+    raw_access = request.COOKIES.get(access_name)
+    if raw_access:
+        denylist_access_token(raw_access)
 
     response = Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
     return _clear_token_cookies(response)
@@ -637,6 +643,14 @@ def change_password_view(request):
     user.set_password(new_password)
     user.must_change_password = False
     user.save()
+
+    # Invalidate the access token that authenticated this request — otherwise
+    # it stays valid (stateless JWT) for up to its full lifetime even though
+    # the password it was issued under just changed.
+    access_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
+    raw_access = request.COOKIES.get(access_name)
+    if raw_access:
+        denylist_access_token(raw_access)
 
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)

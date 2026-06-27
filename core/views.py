@@ -48,6 +48,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
 from core.services.zkteco_service import ZKTecoSyncService
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime
 from django.db.models import Sum
 import logging
@@ -821,6 +822,12 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(new_password)
         user.must_change_password = True  # Force user to change on next login
         user.save()
+
+        # Blacklist every refresh token ever issued to this user so an
+        # attacker (or the old session) can't keep minting new access tokens
+        # for the remaining refresh-token lifetime after a forced reset.
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
 
         return Response({
             'status': 'success',
