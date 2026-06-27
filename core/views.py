@@ -5550,7 +5550,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 class EnrollmentCertificateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get(self, request, enrollment_id):
         try:
@@ -5562,6 +5562,8 @@ class EnrollmentCertificateView(APIView):
                 {'error': 'Enrollment not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        self.check_object_permissions(request, enrollment)
 
         user = request.user
         if user.active_role == 'student' and enrollment.student != user:
@@ -5615,13 +5617,15 @@ class EnrollmentCertificateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        self.check_object_permissions(request, enrollment)
+
         # Resolve optional template from request body
         template = None
         template_id = request.data.get('template_id')
         if template_id:
             try:
                 template = CertificateTemplate.all_objects.get(
-                    id=template_id, is_active=True,
+                    id=template_id, is_active=True, school=enrollment.school,
                 )
             except CertificateTemplate.DoesNotExist:
                 return Response(

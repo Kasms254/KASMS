@@ -394,17 +394,25 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
 
     class_obj = enrollment.class_obj
 
-    status = get_class_completion_status(class_obj, enrollment.student)
-    if not status['is_academically_complete']:
-        incomplete = [
-            s['subject_name'] for s in status['subjects'] if not s['is_complete']
-        ]
-        return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
-
     if not template:
         template = _resolve_default_template(enrollment.school)
 
-    grade_data = calculate_student_grade(class_obj, enrollment.student)
+    # Only the Course Completion template requires graded final exams.
+    # Achievement/Participation/Excellence certificates can be issued without grades.
+    requires_grades = not template or template.template_type == 'completion'
+
+    if requires_grades:
+        status = get_class_completion_status(class_obj, enrollment.student)
+        if not status['is_academically_complete']:
+            incomplete = [
+                s['subject_name'] for s in status['subjects'] if not s['is_complete']
+            ]
+            return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
+
+    grade_data = (
+        calculate_student_grade(class_obj, enrollment.student)
+        if requires_grades else {'grade': '', 'percentage': None}
+    )
     attendance_pct = calculate_attendance_percentage(class_obj, enrollment.student)
 
     certificate = Certificate.objects.create(
