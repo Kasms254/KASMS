@@ -428,12 +428,19 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
         attendance_percentage=attendance_pct,
     )
 
-    enrollment.completion_date = timezone.now().date()
-    # enrollment.is_active = False
-    enrollment.completed_via = 'certificate'
-    enrollment.save(update_fields=[
-        'completion_date', 'completed_via',
-    ])
+    # Only mark the enrollment as academically completed if this certificate
+    # actually required grades — a non-completion award (Excellence,
+    # Participation, Achievement) deliberately skipped that check, so it
+    # would be dishonest to flip completion_date/completed_via as if the
+    # student had been verified complete. Reporting (e.g. "completed
+    # enrollments" counts) relies on these fields meaning that.
+    if requires_grades:
+        enrollment.completion_date = timezone.now().date()
+        # enrollment.is_active = False
+        enrollment.completed_via = 'certificate'
+        enrollment.save(update_fields=[
+            'completion_date', 'completed_via',
+        ])
 
     # _try_complete_membership(enrollment)
 
