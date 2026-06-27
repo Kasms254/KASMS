@@ -2054,7 +2054,8 @@ class Certificate(models.Model):
 
     @property
     def verification_url(self):
-        return f"/api/certificates/verify/{self.verification_code}/"
+
+        return f"/verify/{self.verification_code}"
 
 class CertificateDownloadLog(models.Model):
 

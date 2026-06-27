@@ -1558,10 +1558,13 @@ export async function getCertificateDownloadLogs(params = '') {
   return request(`/api/certificates/download_logs/${qs}`)
 }
 
-// Verify a certificate by verification code
+// Verify a certificate by verification code — public, unauthenticated endpoint.
 export async function verifyCertificate(verificationCode) {
   if (!verificationCode) throw new Error('verificationCode is required')
-  return request(`/api/certificates/verify/${encodeURIComponent(verificationCode)}/`)
+  return request(`/api/certificates/public/verify/`, {
+    method: 'POST',
+    body: { verification_code: verificationCode },
+  })
 }
 
 // =====================
@@ -1698,6 +1701,11 @@ export async function updateStudentIndex(classId, indexId, indexNumber) {
     method: 'PATCH',
     body: { index_number: indexNumber },
   })
+}
+
+export async function renumberClassIndexes(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/renumber/`, { method: 'POST' })
 }
 
 // =====================
@@ -2298,6 +2306,7 @@ export default {
   getClassRoster,
   assignClassIndexes,
   updateStudentIndex,
+  renumberClassIndexes,
   // Marks Entry
   getMarksEntryResults,
   updateMarksEntry,

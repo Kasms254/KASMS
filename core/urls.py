@@ -10,6 +10,7 @@ from .views import (
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
     AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
+    HODExamReportViewSet,
 
     # Result
     AssessmentComponentViewSet, StudentComponentResultViewSet
@@ -119,6 +120,10 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+# HOD routers
+hod_router = DefaultRouter()
+hod_router.register(r'exam-reports', HODExamReportViewSet, basename='hod-exam-reports')
+
 router.register(r'oic-assignments', OICAssignmentViewSet, basename='oic-assignment')
 oic_router = DefaultRouter()
 oic_router.register(r'assignments',    OICAssignmentViewSet,   basename='oic-assignment')
@@ -141,6 +146,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('commandant/', include(commandant_router.urls)),
     path('oic/', include(oic_router.urls)),
+    path('hod/', include(hod_router.urls)),
     path("", home),
     path(
         'profile/me/',

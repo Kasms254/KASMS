@@ -209,6 +209,8 @@ REST_FRAMEWORK = {
         'certificate_verify_burst': '10/min',
         'certificate_verify_sustained': '50/hour',
     },
+
+    'NUM_PROXIES': 1,
 }
 
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([

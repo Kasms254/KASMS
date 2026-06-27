@@ -40,14 +40,16 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import (
-    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog,
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
-    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
+    renumber_class_indexes)
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
 from core.services.zkteco_service import ZKTecoSyncService
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime
 from django.db.models import Sum
 import logging
@@ -821,6 +823,12 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(new_password)
         user.must_change_password = True  # Force user to change on next login
         user.save()
+
+        # Blacklist every refresh token ever issued to this user so an
+        # attacker (or the old session) can't keep minting new access tokens
+        # for the remaining refresh-token lifetime after a forced reset.
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
 
         return Response({
             'status': 'success',
@@ -5550,7 +5558,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 class EnrollmentCertificateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get(self, request, enrollment_id):
         try:
@@ -5562,6 +5570,8 @@ class EnrollmentCertificateView(APIView):
                 {'error': 'Enrollment not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        self.check_object_permissions(request, enrollment)
 
         user = request.user
         if user.active_role == 'student' and enrollment.student != user:
@@ -5615,13 +5625,15 @@ class EnrollmentCertificateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        self.check_object_permissions(request, enrollment)
+
         # Resolve optional template from request body
         template = None
         template_id = request.data.get('template_id')
         if template_id:
             try:
                 template = CertificateTemplate.all_objects.get(
-                    id=template_id, is_active=True,
+                    id=template_id, is_active=True, school=enrollment.school,
                 )
             except CertificateTemplate.DoesNotExist:
                 return Response(
@@ -5860,6 +5872,18 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "index_number": student_index.index_number,
             "formatted_index": class_obj.format_index(int(new_number)),
         })
+
+    @action(detail=True, methods=["post"], url_path="renumber")
+    def renumber_indexes(self, request, pk=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        renumbered = renumber_class_indexes(class_obj)
+        return Response({
+            "message": f"Renumbered {len(renumbered)} student(s) in {class_obj.name}, starting from {class_obj.format_index(class_obj.index_start_from)}.",
+            "roster": [
+                {"id": str(idx.pk), "index_number": idx.index_number, "enrollment_id": str(idx.enrollment_id)}
+                for idx in renumbered
+            ],
+        })
 # Departments
 class DepartmentViewSet(viewsets.ModelViewSet):
 
@@ -5967,6 +5991,100 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if not is_hod:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You are not the HOD of this department.")
+
+class HODExamReportViewSet(viewsets.ReadOnlyModelViewSet):
+
+    serializer_class = DashboardExamReportSerializer
+    permission_classes = [IsAuthenticated, IsHOD]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'class_obj']
+    search_fields = ['title', 'description', 'subject__name', 'class_obj__name']
+    ordering_fields = ['report_date', 'created_at']
+    ordering = ['-report_date']
+
+    def _hod_department_ids(self):
+        return DepartmentMembership.objects.filter(
+            user=self.request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).values_list('department_id', flat=True)
+
+    def get_queryset(self):
+        user = self.request.user
+        school = get_current_school() or user.school
+        dept_ids = list(self._hod_department_ids())
+
+        if not school or not dept_ids:
+            return ExamReport.objects.none()
+
+        return ExamReport.all_objects.filter(
+            Q(class_obj__department_id__in=dept_ids) |
+            Q(subject__department_id__in=dept_ids),
+            school=school,
+        ).select_related(
+            'subject', 'class_obj', 'class_obj__course', 'created_by'
+        ).prefetch_related('exams', 'remarks').distinct()
+
+    @action(detail=True, methods=['get'])
+    def detailed_report(self, request, pk=None):
+        report = self.get_object()
+        exam_ids = report.exams.values_list('id', flat=True)
+
+        enrollments = Enrollment.all_objects.filter(
+            class_obj=report.class_obj, is_active=True
+        ).select_related('student')
+
+        student_data = []
+        for enrollment in enrollments:
+            results = ExamResult.all_objects.filter(
+                exam_id__in=exam_ids,
+                student=enrollment.student,
+                is_submitted=True,
+            )
+            total_marks = sum(
+                r.marks_obtained for r in results if r.marks_obtained
+            )
+            total_possible = sum(r.exam.total_marks for r in results)
+            percentage = (
+                round(total_marks / total_possible * 100, 2)
+                if total_possible > 0 else 0
+            )
+
+            student_data.append({
+                'student_id': enrollment.student.id,
+                'student_name': enrollment.student.get_full_name(),
+                'svc_number': enrollment.student.svc_number,
+                'rank': (
+                    enrollment.student.get_rank_display()
+                    if enrollment.student.rank else None
+                ),
+                'total_marks': float(total_marks),
+                'total_possible': total_possible,
+                'percentage': percentage,
+                'results': ExamResultSerializer(results, many=True).data,
+            })
+
+        student_data.sort(key=lambda x: x['percentage'], reverse=True)
+
+        for i, s in enumerate(student_data, 1):
+            s['position'] = i
+
+        report_data = self.get_serializer(report).data
+
+        return Response({
+            'report': report_data,
+            'students': student_data,
+            'summary': {
+                'total_students': len(student_data),
+                'average_percentage': round(
+                    sum(s['percentage'] for s in student_data) / len(student_data), 2
+                ) if student_data else 0,
+                'highest_percentage': student_data[0]['percentage'] if student_data else 0,
+                'lowest_percentage': student_data[-1]['percentage'] if student_data else 0,
+                'pass_count': sum(1 for s in student_data if s['percentage'] >= 50),
+                'fail_count': sum(1 for s in student_data if s['percentage'] < 50),
+            },
+        })
 
 class DepartmentMembershipViewSet(viewsets.ModelViewSet):
 

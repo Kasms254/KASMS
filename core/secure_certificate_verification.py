@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import logging
 import time
 import uuid
@@ -7,7 +5,10 @@ import uuid
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
+from rest_framework.exceptions import Throttled
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -28,9 +29,12 @@ class CertificateVerificationBurstThrottle(AnonRateThrottle):
 
 
 def get_client_ip(request):
+
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
+        addrs = [addr.strip() for addr in x_forwarded_for.split(",") if addr.strip()]
+        if addrs:
+            return addrs[-1]
     return request.META.get("REMOTE_ADDR", "unknown")
 
 
@@ -85,13 +89,27 @@ GENERIC_VERIFICATION_FAILURE = {
 }
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class SecureCertificatePublicVerificationView(APIView):
+
 
     permission_classes = [AllowAny]
     throttle_classes = [
         CertificateVerificationBurstThrottle,
         CertificateVerificationSustainedThrottle,
     ]
+
+    def handle_exception(self, exc):
+
+        if isinstance(exc, Throttled):
+            return Response(
+                {
+                    "is_valid": False,
+                    "message": "Too many requests. Please try again later.",
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        return super().handle_exception(exc)
 
     def post(self, request):
         start_time = time.monotonic()
