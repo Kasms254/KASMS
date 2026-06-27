@@ -29,13 +29,7 @@ class CertificateVerificationBurstThrottle(AnonRateThrottle):
 
 
 def get_client_ip(request):
-    """Returns the IP of the one trusted reverse proxy hop (nginx), not
-    whatever a client puts in X-Forwarded-For. Mirrors DRF's NUM_PROXIES=1
-    handling (settings.REST_FRAMEWORK) — nginx appends the real client IP
-    as the LAST entry in X-Forwarded-For, so that's the trustworthy one.
-    Taking the first entry (client-controlled) would let an attacker get a
-    fresh identity on every request, bypassing the lockout entirely.
-    """
+
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
         addrs = [addr.strip() for addr in x_forwarded_for.split(",") if addr.strip()]
@@ -97,10 +91,7 @@ GENERIC_VERIFICATION_FAILURE = {
 
 @method_decorator(csrf_exempt, name='dispatch')
 class SecureCertificatePublicVerificationView(APIView):
-    # Public, anonymous, first-touch endpoint — visitors have no prior
-    # session/CSRF cookie (same reasoning as login_view/verify_2fa_view
-    # in auth_views.py), so this must be CSRF-exempt or every request
-    # gets rejected with "CSRF cookie not set."
+
 
     permission_classes = [AllowAny]
     throttle_classes = [
@@ -109,10 +100,7 @@ class SecureCertificatePublicVerificationView(APIView):
     ]
 
     def handle_exception(self, exc):
-        # DRF's default Throttled response is {"detail": "..."}, which
-        # doesn't match the {"is_valid", "message"} shape every other
-        # response from this view uses (including the lockout 429 below).
-        # Normalize it so callers only ever handle one shape.
+
         if isinstance(exc, Throttled):
             return Response(
                 {

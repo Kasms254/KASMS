@@ -2054,9 +2054,7 @@ class Certificate(models.Model):
 
     @property
     def verification_url(self):
-        # Points at the public frontend verification page, not the API —
-        # this is meant for external parties (e.g. an employer) to visit
-        # directly, not for the app's own authenticated API calls.
+
         return f"/verify/{self.verification_code}"
 
 class CertificateDownloadLog(models.Model):

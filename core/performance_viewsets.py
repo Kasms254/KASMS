@@ -243,17 +243,36 @@ class _ClassAccessMixin:
             if class_obj.subjects.filter(instructor=user, is_active=True).exists():
                 return True
 
-        hod_dept_ids = set(DepartmentMembership.objects.filter(
+        # HOD: whole-class views (ClassPerformanceViewSet, compare_subjects)
+        # aggregate every subject in the class with no per-department
+        # filtering, so access here requires the class ITSELF to belong to
+        # a department the user heads — having just one subject in their
+        # department inside an otherwise-foreign class is not enough, or
+        # they'd see every other department's student data in that class
+        # too. See _has_subject_access for the narrower, subject-scoped check.
+        hod_dept_ids = DepartmentMembership.objects.filter(
             user=user, role=DepartmentMembership.Role.HOD, is_active=True,
-        ).values_list('department_id', flat=True))
+        ).values_list('department_id', flat=True)
 
-        if hod_dept_ids:
-            if class_obj.department_id in hod_dept_ids:
-                return True
-            if class_obj.subjects.filter(department_id__in=hod_dept_ids).exists():
-                return True
+        if class_obj.department_id in hod_dept_ids:
+            return True
 
         return False
+
+    def _has_subject_access(self, request, subject):
+        """Like _has_class_access, but also grants access if the HOD's
+        department owns this specific subject — even when the subject's
+        class belongs to a different department. Only safe for actions
+        whose returned data is scoped to this one subject; never use this
+        for whole-class aggregates."""
+        if self._has_class_access(request, subject.class_obj):
+            return True
+
+        user = request.user
+        hod_dept_ids = DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+        ).values_list('department_id', flat=True)
+        return subject.department_id in hod_dept_ids
 
 class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
     permission_classes = [IsAnalyticsViewer]
@@ -280,7 +299,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
 
         class_obj = subject.class_obj
 
-        if not self._has_class_access(request, class_obj):
+        if not self._has_subject_access(request, subject):
             return Response(
                 {'error': 'You do not have permission to view this subject.'},
                 status=403,
@@ -678,7 +697,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         except Subject.DoesNotExist:
             return Response({'error': 'Subject not found'}, status=404)
 
-        if not self._has_class_access(request, subject.class_obj):
+        if not self._has_subject_access(request, subject):
             return Response({'error': 'You do not have permission to view this subject.'}, status=403)
 
         cutoff = timezone.now().date() - timedelta(days=days)

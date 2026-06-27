@@ -206,13 +206,7 @@ REST_FRAMEWORK = {
         'certificate_verify_burst': '10/min',
         'certificate_verify_sustained': '50/hour',
     },
-    # We sit behind exactly one trusted reverse proxy (nginx), which appends
-    # the real client IP as the LAST entry in X-Forwarded-For (see
-    # nginx/templates/kasms.conf.template: proxy_set_header X-Forwarded-For
-    # $proxy_add_x_forwarded_for). NUM_PROXIES=1 tells AnonRateThrottle to key
-    # on that last hop instead of the client-controlled first entry — without
-    # this, a client can spoof X-Forwarded-For to get a fresh throttle bucket
-    # on every request.
+
     'NUM_PROXIES': 1,
 }
 
