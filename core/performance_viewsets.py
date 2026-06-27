@@ -20,7 +20,7 @@ from .serializers import (
     ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer,
 )
 from .permissions import IsAdminOrInstructor, IsAdminOrCommandant
-from .models import OICAssignment
+from .models import OICAssignment, DepartmentMembership
 
 def _calculate_grade(percentage):
     if percentage >= 91: return 'A'
@@ -205,6 +205,14 @@ class IsAnalyticsViewer(IsAuthenticated):
             return True
         if role in self.READONLY_ROLES:
             return request.method in ('GET', 'HEAD', 'OPTIONS')
+        # HOD is a DepartmentMembership role, not a User.role value, so it
+        # isn't covered by the role check above — verify separately.
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return DepartmentMembership.objects.filter(
+                user=request.user,
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
+            ).exists()
         return False
 
 
@@ -233,7 +241,22 @@ class _ClassAccessMixin:
         if user_role == 'instructor':
             if class_obj.instructor_id == user.id:
                 return True
-            return class_obj.subjects.filter(instructor=user, is_active=True).exists()
+            if class_obj.subjects.filter(instructor=user, is_active=True).exists():
+                return True
+
+        # HOD is a DepartmentMembership role, not a User.role value — an
+        # instructor who is also HOD of this class's (or one of its
+        # subjects') department gets department-wide access beyond their
+        # own assigned classes/subjects.
+        hod_dept_ids = set(DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+        ).values_list('department_id', flat=True))
+
+        if hod_dept_ids:
+            if class_obj.department_id in hod_dept_ids:
+                return True
+            if class_obj.subjects.filter(department_id__in=hod_dept_ids).exists():
+                return True
 
         return False
 

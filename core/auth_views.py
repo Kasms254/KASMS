@@ -644,9 +644,7 @@ def change_password_view(request):
     user.must_change_password = False
     user.save()
 
-    # Invalidate the access token that authenticated this request — otherwise
-    # it stays valid (stateless JWT) for up to its full lifetime even though
-    # the password it was issued under just changed.
+
     access_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
     raw_access = request.COOKIES.get(access_name)
     if raw_access:
