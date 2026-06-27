@@ -11,6 +11,7 @@ import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
 import IntroPage from './pages/IntroPage'
+import VerifyCertificate from './pages/VerifyCertificate'
 import useAuth from './hooks/useAuth'
 
 // Lazy load heavy dashboard components for better performance
@@ -126,6 +127,11 @@ const App = () => {
 				<Routes>
 			{/* Public landing page */}
 			<Route path="/" element={<IntroPage />} />
+
+			{/* Public certificate verification — no auth required, used by
+			    external parties (e.g. employers) who have a printed code */}
+			<Route path="/verify" element={<VerifyCertificate />} />
+			<Route path="/verify/:code" element={<VerifyCertificate />} />
 
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />

@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import logging
 import time
 import uuid
@@ -7,7 +5,10 @@ import uuid
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
+from rest_framework.exceptions import Throttled
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -28,9 +29,18 @@ class CertificateVerificationBurstThrottle(AnonRateThrottle):
 
 
 def get_client_ip(request):
+    """Returns the IP of the one trusted reverse proxy hop (nginx), not
+    whatever a client puts in X-Forwarded-For. Mirrors DRF's NUM_PROXIES=1
+    handling (settings.REST_FRAMEWORK) — nginx appends the real client IP
+    as the LAST entry in X-Forwarded-For, so that's the trustworthy one.
+    Taking the first entry (client-controlled) would let an attacker get a
+    fresh identity on every request, bypassing the lockout entirely.
+    """
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
+        addrs = [addr.strip() for addr in x_forwarded_for.split(",") if addr.strip()]
+        if addrs:
+            return addrs[-1]
     return request.META.get("REMOTE_ADDR", "unknown")
 
 
@@ -85,13 +95,33 @@ GENERIC_VERIFICATION_FAILURE = {
 }
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class SecureCertificatePublicVerificationView(APIView):
+    # Public, anonymous, first-touch endpoint — visitors have no prior
+    # session/CSRF cookie (same reasoning as login_view/verify_2fa_view
+    # in auth_views.py), so this must be CSRF-exempt or every request
+    # gets rejected with "CSRF cookie not set."
 
     permission_classes = [AllowAny]
     throttle_classes = [
         CertificateVerificationBurstThrottle,
         CertificateVerificationSustainedThrottle,
     ]
+
+    def handle_exception(self, exc):
+        # DRF's default Throttled response is {"detail": "..."}, which
+        # doesn't match the {"is_valid", "message"} shape every other
+        # response from this view uses (including the lockout 429 below).
+        # Normalize it so callers only ever handle one shape.
+        if isinstance(exc, Throttled):
+            return Response(
+                {
+                    "is_valid": False,
+                    "message": "Too many requests. Please try again later.",
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        return super().handle_exception(exc)
 
     def post(self, request):
         start_time = time.monotonic()

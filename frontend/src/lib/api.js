@@ -1558,10 +1558,13 @@ export async function getCertificateDownloadLogs(params = '') {
   return request(`/api/certificates/download_logs/${qs}`)
 }
 
-// Verify a certificate by verification code
+// Verify a certificate by verification code — public, unauthenticated endpoint.
 export async function verifyCertificate(verificationCode) {
   if (!verificationCode) throw new Error('verificationCode is required')
-  return request(`/api/certificates/verify/${encodeURIComponent(verificationCode)}/`)
+  return request(`/api/certificates/public/verify/`, {
+    method: 'POST',
+    body: { verification_code: verificationCode },
+  })
 }
 
 // =====================
