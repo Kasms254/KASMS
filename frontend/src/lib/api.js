@@ -1700,6 +1700,11 @@ export async function updateStudentIndex(classId, indexId, indexNumber) {
   })
 }
 
+export async function renumberClassIndexes(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/renumber/`, { method: 'POST' })
+}
+
 // =====================
 // Marks Entry
 // =====================
@@ -2298,6 +2303,7 @@ export default {
   getClassRoster,
   assignClassIndexes,
   updateStudentIndex,
+  renumberClassIndexes,
   // Marks Entry
   getMarksEntryResults,
   updateMarksEntry,

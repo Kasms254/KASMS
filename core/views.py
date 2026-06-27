@@ -40,10 +40,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import (
-    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog,
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
-    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
+    renumber_class_indexes)
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
@@ -5870,6 +5871,18 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "id": str(student_index.pk),
             "index_number": student_index.index_number,
             "formatted_index": class_obj.format_index(int(new_number)),
+        })
+
+    @action(detail=True, methods=["post"], url_path="renumber")
+    def renumber_indexes(self, request, pk=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        renumbered = renumber_class_indexes(class_obj)
+        return Response({
+            "message": f"Renumbered {len(renumbered)} student(s) in {class_obj.name}, starting from {class_obj.format_index(class_obj.index_start_from)}.",
+            "roster": [
+                {"id": str(idx.pk), "index_number": idx.index_number, "enrollment_id": str(idx.enrollment_id)}
+                for idx in renumbered
+            ],
         })
 # Departments
 class DepartmentViewSet(viewsets.ModelViewSet):

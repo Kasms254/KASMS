@@ -626,6 +626,26 @@ def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
 
     return created
 
+def renumber_class_indexes(class_obj) -> list[StudentIndex]:
+
+    with transaction.atomic():
+        indexes = list(
+            StudentIndex.all_objects.select_for_update()
+            .filter(class_obj=class_obj, enrollment__is_active=True)
+            .order_by("index_number")
+        )
+        for offset, idx in enumerate(indexes):
+            idx.index_number = str(1_000_000 + offset)
+            idx.save(update_fields=["index_number"])
+
+        next_num = class_obj.index_start_from
+        for idx in indexes:
+            idx.index_number = str(next_num).zfill(3)
+            idx.save(update_fields=["index_number"])
+            next_num += 1
+
+    return indexes
+
 CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
