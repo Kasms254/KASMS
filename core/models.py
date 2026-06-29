@@ -1533,12 +1533,11 @@ class AttendanceSession(models.Model):
         # Session still active = present
         if attendance_time <= self.scheduled_end:
             return 'present'
-
     # Grace period after session end
         late_cutoff = (
-         self.scheduled_end
-         + timedelta(
-            minutes=self.allow_late_minutes
+        self.scheduled_end
+        + timedelta(
+        minutes=self.allow_late_minutes
         )
     )
 

@@ -9,10 +9,7 @@ from core.models import (
     BiometricDevice,
     BiometricUserMapping,
     BiometricRecord,
-    AttendanceSessionLog,
-    SessionAttendance,
-    AttendanceSession,
-    User
+    User,
 )
 
 logger = logging.getLogger('biometric.sync')
