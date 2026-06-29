@@ -78,8 +78,8 @@ services:
       - media_files:/app/media
       - static_files:/app/staticfiles
       - app_logs:/app/logs
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     networks:
       - backend_net
       - frontend_net
