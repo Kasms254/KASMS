@@ -1530,12 +1530,22 @@ class AttendanceSession(models.Model):
         return self.status == 'active' and self.is_active and self.is_within_schedule()
 
     def get_attendance_status_for_time(self, attendance_time):
-        present_cutoff = self.scheduled_start + timedelta(minutes=5)
-        late_cutoff = self.scheduled_end + timedelta(minutes=self.allow_late_minutes)
-        if attendance_time <= present_cutoff:
+        # Session still active = present
+        if attendance_time <= self.scheduled_end:
             return 'present'
-        elif attendance_time <= late_cutoff:
+    # Grace period after session end
+        late_cutoff = (
+        self.scheduled_end
+        + timedelta(
+        minutes=self.allow_late_minutes
+        )
+    )
+
+    # Within grace period = late
+        if attendance_time <= late_cutoff:
             return 'late'
+
+    # Beyond grace period = absent
         return 'absent'
 
     @property
