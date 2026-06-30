@@ -20,6 +20,7 @@ export default function CommandantClasses() {
   const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [showOnlyActive, setShowOnlyActive] = useState(true)
   const pageSize = 12
 
   const reportError = useCallback((msg) => {
@@ -31,7 +32,7 @@ export default function CommandantClasses() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      let params = `page=${currentPage}&page_size=${pageSize}`
+      let params = `page=${currentPage}&page_size=${pageSize}&is_active=${showOnlyActive}`
       if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
       // allow filtering by course via query param: /commandant/classes?course=<id>
       const qs = new URLSearchParams(location.search)
@@ -77,7 +78,7 @@ export default function CommandantClasses() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, search, reportError, location.search])
+  }, [currentPage, search, showOnlyActive, reportError, location.search])
 
   useEffect(() => { load() }, [load])
 
@@ -89,13 +90,24 @@ export default function CommandantClasses() {
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">All classes in this school</p>
         </div>
-        <input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
-          className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-        />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
+            <input
+              type="checkbox"
+              checked={!showOnlyActive}
+              onChange={() => { setShowOnlyActive(s => !s); setCurrentPage(1) }}
+            />
+            <span className="hidden sm:inline">Show Closed / Inactive</span>
+            <span className="sm:hidden">Inactive</span>
+          </label>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
+            className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+        </div>
       </div>
 
       {totalCount > 0 && (
