@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { getDepartmentMemberships, addDepartmentMembership, updateDepartmentMembership, deleteDepartmentMembership, getDepartments, getAllInstructors } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import SearchableSelect from '../../components/SearchableSelect'
+import { shortRank } from '../../lib/rankUtils'
 
 // Rank keys in ascending seniority order (index 0 = lowest)
 const RANK_KEYS = [
@@ -190,7 +191,7 @@ export default function DepartmentMembers() {
       })
       .map(ins => {
         const name = ins.full_name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim() || ins.username
-        return { id: ins.id, label: `${ins.svc_number || '—'} ${getRankDisplay(ins.rank)} ${name}` }
+        return { id: ins.id, label: `${ins.svc_number || '—'} ${shortRank(getRankDisplay(ins.rank))} ${name}` }
       })
   }, [instructors])
 

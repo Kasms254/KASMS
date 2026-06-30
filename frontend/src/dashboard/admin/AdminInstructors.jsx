@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 
@@ -565,11 +566,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
           <p className="text-sm text-neutral-500">Manage instructors — quick table view</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
-            {exportLoading ? 'Exporting…' : 'Download CSV'}
-          </button>
-        </div>
+        {!hideActions && (
+          <div className="flex items-center gap-3">
+            <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+              {exportLoading ? 'Exporting…' : 'Download CSV'}
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Search and Filters */}
@@ -666,14 +669,14 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Phone</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Classes</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Subjects</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                  {!hideActions && <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank)) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -736,9 +739,11 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    {!hideActions && (
+                      <td className="px-4 py-3 text-right">
                         <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -754,7 +759,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Instructor</th>
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Contact</th>
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Teaching</th>
-                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                    {!hideActions && <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -764,7 +769,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         <div className="min-w-0">
                           <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                           <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                          {it.rank && <div className="text-xs text-neutral-600">{getRankDisplay(it.rank)}</div>}
+                          {it.rank && <div className="text-xs text-neutral-600">{shortRank(getRankDisplay(it.rank))}</div>}
                           {it.unit && <div className="text-xs text-neutral-400">{it.unit}</div>}
                         </div>
                       </td>
@@ -818,11 +823,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                           })()}
                         </div>
                       </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-col items-stretch gap-1.5">
-                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
-                        </div>
-                      </td>
+                      {!hideActions && (
+                        <td className="px-3 py-3">
+                          <div className="flex flex-col items-stretch gap-1.5">
+                            <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -845,7 +852,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   {it.rank ? (
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{getRankDisplay(it.rank)}</span>
+                      <span className="text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank))}</span>
                     </div>
                   ) : null}
 
@@ -922,10 +929,11 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   </div>
                 </div>
 
-                {/* Actions */}
+                {!hideActions && (
                   <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
                     <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
                   </div>
+                )}
               </div>
             ))}
           </div>

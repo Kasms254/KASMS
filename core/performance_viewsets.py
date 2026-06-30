@@ -904,6 +904,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'student_id': s.id,
                 'student_name': s.get_full_name(),
                 'svc_number': getattr(s, 'svc_number', None),
+                'student_rank': s.get_rank_display() if getattr(s, 'rank', None) else '',
                 'total_exams_taken': ed.get('exams_taken', 0),
                 'total_marks_obtained': total_marks_obtained,
                 'total_marks_possible': total_marks_possible,

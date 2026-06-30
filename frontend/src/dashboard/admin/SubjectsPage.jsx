@@ -6,6 +6,7 @@ import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import SearchableSelect from '../../components/SearchableSelect'
 import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
+import { shortRank } from '../../lib/rankUtils'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
 function sanitizeInput(value) {
@@ -523,7 +524,7 @@ export default function SubjectsPage() {
                       <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
                     </td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorSvcNumber}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorRank}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(s.instructorRank)}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -599,7 +600,7 @@ export default function SubjectsPage() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="text-sm text-neutral-700">{s.instructorSvcNumber}</div>
-                      <div className="text-xs text-neutral-500">{s.instructorRank}</div>
+                      <div className="text-xs text-neutral-500">{shortRank(s.instructorRank)}</div>
                     </td>
                     <td className="px-3 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-3 py-3">
@@ -651,7 +652,7 @@ export default function SubjectsPage() {
                     </div>
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{s.instructorRank}</span>
+                      <span className="text-sm text-neutral-700">{shortRank(s.instructorRank)}</span>
                     </div>
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Instructor:</span>
@@ -863,7 +864,7 @@ export default function SubjectsPage() {
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => setForm({ ...form, instructor: val })}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${shortRank(getRankLabel(ins.rank) || ins.rank_display || '—')} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                     />
@@ -924,7 +925,7 @@ export default function SubjectsPage() {
                   <SearchableSelect
                     value={editForm.instructor}
                     onChange={(val) => handleEditChange('instructor', val)}
-                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
+                    options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${shortRank(getRankLabel(ins.rank) || ins.rank_display || '—')} | ${ins.full_name || ins.name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim()}` }))}
                     placeholder="Unassigned"
                     searchPlaceholder="Search by service number, rank, or name..."
                   />

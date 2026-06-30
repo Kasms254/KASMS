@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import useAuth from '../../hooks/useAuth'
 import * as Icons from 'lucide-react'
 import * as api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''
 // Utility: Format date as relative time
@@ -638,8 +639,8 @@ export default function Notifications() {
                           const rank = selected.meta?.created_by_rank
                           const name = selected.meta?.created_by_name
                           const parts = isAdmin
-                            ? [svc, rank, name]
-                            : [rank, name, svc]
+                            ? [svc, rank ? shortRank(rank) : null, name]
+                            : [rank ? shortRank(rank) : null, name, svc]
                           const filtered = parts.filter(Boolean)
                           return filtered.length > 0 ? filtered.join(' ') : 'Unknown'
                         })()}</span>

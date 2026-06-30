@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
@@ -569,11 +570,13 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
           <p className="text-xs sm:text-sm text-neutral-500">Manage student records by class</p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
-            {exportLoading ? 'Exporting…' : 'Download CSV'}
-          </button>
-        </div>
+        {!hideActions && (
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+              {exportLoading ? 'Exporting…' : 'Download CSV'}
+            </button>
+          </div>
+        )}
       </header>
 
       <section className="grid gap-4 sm:gap-6">
@@ -714,14 +717,16 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                   </div>
 
                   <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm mb-3">
-                    {st.rank && <div className="flex justify-between gap-2"><span className="text-neutral-600">Rank:</span><span className="text-black truncate">{getRankDisplay(st.rank)}</span></div>}
+                    {st.rank && <div className="flex justify-between gap-2"><span className="text-neutral-600">Rank:</span><span className="text-black truncate">{shortRank(getRankDisplay(st.rank))}</span></div>}
                     <div className="flex justify-between gap-2"><span className="text-neutral-600 flex-shrink-0">Email:</span><span className="text-black truncate">{st.email || '-'}</span></div>
                     <div className="flex justify-between gap-2"><span className="text-neutral-600">Phone:</span><span className="text-black truncate">{st.phone_number || '-'}</span></div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
-                    <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                  </div>
+                  {!hideActions && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
+                      <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -739,14 +744,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Phone</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>
+                    {!hideActions && <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 bg-white">
                   {students.map((st) => (
                     <tr key={st.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(st.rank)) || '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">{initials(st.name || st.svc_number)}</div>
@@ -762,11 +767,13 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                           {st.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                        </div>
-                      </td>
+                      {!hideActions && (
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

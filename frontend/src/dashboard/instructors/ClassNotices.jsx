@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import { shortRank } from '../../lib/rankUtils'
 
 export default function ClassNotices() {
   const toast = useToast()
@@ -440,7 +441,7 @@ export default function ClassNotices() {
                       <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
                       {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
                         <p className="mt-2 text-xs text-neutral-400">
-                          By: {[n.created_by_rank, n.created_by_name, n.created_by_svc_number ? `(${n.created_by_svc_number})` : null].filter(Boolean).join(' ')}
+                          By: {[n.created_by_rank ? shortRank(n.created_by_rank) : null, n.created_by_name, n.created_by_svc_number ? `(${n.created_by_svc_number})` : null].filter(Boolean).join(' ')}
                         </p>
                       )}
                     </div>
