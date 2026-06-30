@@ -124,7 +124,7 @@ export default function CommandantClasses() {
           <div className="text-sm text-neutral-400">No Classes Found</div>
         ) : (
           classes.map((cls) => (
-            <div key={cls.id}>
+            <div key={cls.id} onClick={() => navigate(`/commandant/classes/${cls.id}`)} className="cursor-pointer">
               <Card
                 title={cls.class_code || cls.name}
                 value={cls.name}
@@ -151,13 +151,9 @@ export default function CommandantClasses() {
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls.is_closed ? 'bg-red-100 text-red-700' : cls.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>
                       {cls.is_closed ? 'Closed' : cls.is_active ? 'Active' : 'Inactive'}
                     </span>
-                    <button
-                      onClick={() => navigate(`/commandant/classes/${cls.id}`)}
-                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
-                    >
-                      <LucideIcons.Users className="w-3 h-3 inline mr-1" />
-                      View
-                    </button>
+                    <span className="text-[10px] text-indigo-400 flex items-center gap-0.5">
+                      Click to view <LucideIcons.ArrowRight className="w-3 h-3" />
+                    </span>
                   </div>
                 </div>
               </Card>

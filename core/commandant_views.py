@@ -239,6 +239,7 @@ class CommandantClassViewSet(viewsets.ReadOnlyModelViewSet):
                 'student_name': student.get_full_name(),
                 'svc_number': student.svc_number,
                 'rank': student.get_rank_display() if student.rank else None,
+                'unit': student.unit,
                 'index_number': index.index_number if index else None,
                 'enrollment_date': enrollment.enrollment_date,
             })
