@@ -864,7 +864,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').prefetch_related(
+        queryset = queryset.prefetch_related(
             'enrollments', 'enrollments__class_obj'
         ).order_by('first_name', 'last_name')[:MAX_EXPORT_ROWS]
 
@@ -929,7 +929,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').order_by(
+        queryset = queryset.order_by(
             'first_name', 'last_name'
         )[:MAX_EXPORT_ROWS]
 
