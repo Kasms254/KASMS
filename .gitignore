@@ -8,7 +8,7 @@ __pycache__/
 *.pyc
 core/management/
 core/migrations/
-
+.claude
 .venv/
 env/
 venv/
@@ -76,3 +76,4 @@ tests/
 pytest.ini
 settings_test.py
 
+certbot/
