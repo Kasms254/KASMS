@@ -45,10 +45,26 @@ export default function AttendanceReports() {
   // Active tab
   const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'trends' | 'alerts' | 'student'
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isHOD = !isAdmin && !!user?.is_hod
+
   // Load classes (cached 10 min)
   const { data: classesResp } = useQuery({
-    queryKey: ['classes', 'active', user?.role === 'admin'],
-    queryFn: () => user?.role === 'admin' ? api.getAllClasses('is_active=true') : api.getMyClasses(),
+    queryKey: ['classes', 'active', isAdmin, isHOD],
+    queryFn: async () => {
+      if (isAdmin) return api.getAllClasses('is_active=true')
+      if (isHOD) {
+        const [depts, myClasses] = await Promise.all([api.getDepartments(), api.getMyClasses()])
+        const deptList = Array.isArray(depts) ? depts : (depts?.results ?? [])
+        const deptClassArrays = await Promise.all(deptList.map(d => api.getDepartmentClasses(d.id)))
+        const myClassList = Array.isArray(myClasses) ? myClasses : (myClasses?.results ?? [])
+        const deptIds = new Set()
+        const deptClasses = deptClassArrays.flat().map(c => { deptIds.add(c.id); return { ...c, _isHodDeptClass: true } })
+        const personal = myClassList.filter(c => !deptIds.has(c.id))
+        return [...deptClasses, ...personal]
+      }
+      return api.getMyClasses()
+    },
     staleTime: 10 * 60 * 1000,
     enabled: !!user,
   })

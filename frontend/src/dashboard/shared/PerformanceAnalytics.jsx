@@ -594,11 +594,15 @@ export default function PerformanceAnalytics() {
 
   const [error, _setError] = useState(null)
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isHOD = !isAdmin && !!user?.is_hod
+  const isPlainInstructor = user?.role === 'instructor' && !isHOD
+
   // Selected filters
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '')
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
-  // Instructors default to 'subject' view since they don't have access to class-level analytics
-  const [viewMode, setViewMode] = useState(user?.role === 'instructor' ? 'subject' : 'class')
+  // Plain instructors default to subject view; HOD and admins default to class view
+  const [viewMode, setViewMode] = useState(isPlainInstructor ? 'subject' : 'class')
 
   // Analytics data (cached per class/subject selection)
   const { data: classPerformance, isPending: loadingClassPerf } = useQuery({
@@ -638,21 +642,46 @@ export default function PerformanceAnalytics() {
     : (!!selectedSubject && loadingTrends)
 
   // Load classes and subjects (cached 10 min)
-  const isInstructor = user?.role === 'instructor'
   const { data: classesResp, isPending: loading } = useQuery({
-    queryKey: ['classes', 'active', isInstructor],
-    queryFn: () => isInstructor ? api.getMyClasses() : api.getAllClasses('is_active=true'),
+    queryKey: ['classes', 'active', isAdmin, isHOD],
+    queryFn: async () => {
+      if (isAdmin) return api.getAllClasses('is_active=true')
+      if (isHOD) {
+        const [depts, myClasses] = await Promise.all([api.getDepartments(), api.getMyClasses()])
+        const deptList = Array.isArray(depts) ? depts : (depts?.results ?? [])
+        const deptClassArrays = await Promise.all(deptList.map(d => api.getDepartmentClasses(d.id)))
+        const myClassList = Array.isArray(myClasses) ? myClasses : (myClasses?.results ?? [])
+        const deptIds = new Set()
+        // Tag dept classes so we can restrict Class View to dept only
+        const deptClasses = deptClassArrays.flat().map(c => {
+          deptIds.add(c.id)
+          return { ...c, _isHodDeptClass: true }
+        })
+        // Personal classes not already in a dept
+        const personalClasses = myClassList.filter(c => !deptIds.has(c.id))
+        return [...deptClasses, ...personalClasses]
+      }
+      return api.getMyClasses()
+    },
     staleTime: 10 * 60 * 1000,
     enabled: !!user,
   })
   const { data: subjectsResp } = useQuery({
-    queryKey: ['subjects', 'active', isInstructor],
-    queryFn: () => isInstructor ? api.getMySubjects() : api.getAllSubjects('is_active=true'),
+    queryKey: ['subjects', 'active', isAdmin, isHOD],
+    queryFn: () => isAdmin ? api.getAllSubjects('is_active=true') : api.getMySubjects(),
     staleTime: 10 * 60 * 1000,
     enabled: !!user,
   })
+  // HOD subject view: fetch all subjects for the selected class (covers other instructors' subjects in dept)
+  const { data: hodClassSubjectsResp } = useQuery({
+    queryKey: ['class-subjects', selectedClass],
+    queryFn: () => api.getClassSubjects(selectedClass),
+    enabled: isHOD && !!selectedClass,
+    staleTime: 10 * 60 * 1000,
+  })
   const classes = Array.isArray(classesResp) ? classesResp : (classesResp?.results ?? [])
   const subjects = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.results ?? [])
+  const hodClassSubjects = hodClassSubjectsResp?.subjects ?? []
 
   const selectedClassObj = classes.find(c => c.id === Number(selectedClass))
   const selectedCourseId = selectedClassObj?.course
@@ -683,46 +712,51 @@ export default function PerformanceAnalytics() {
 
   // Filter subjects by selected class
   const filteredSubjects = useMemo(() => {
+    // HOD with a class selected: use the full class subjects list (all instructors in that class)
+    if (isHOD && selectedClass) return hodClassSubjects
     if (!selectedClass) return subjects
     return subjects.filter(s =>
       String(s.class_obj) === selectedClass ||
       String(s.class_obj?.id) === selectedClass ||
       String(s.class_id) === selectedClass
     )
-  }, [subjects, selectedClass])
+  }, [isHOD, subjects, hodClassSubjects, selectedClass])
 
-  // In Class View, instructors only see classes where they are the class instructor.
-  // In Subject/Trends view they see all their classes (so subject filtering still works).
+  // In Class View: HOD sees dept classes only; plain instructors see classes they lead; admins see all.
+  // In Subject/Trends: all classes are available for subject filtering.
   const selectableClasses = useMemo(() => {
-    if (user?.role === 'instructor' && viewMode === 'class') {
-      return classes.filter(c => c.instructor === user?.id)
+    if (viewMode === 'class') {
+      if (isHOD) return classes.filter(c => c._isHodDeptClass)
+      if (isPlainInstructor) return classes.filter(c => c.instructor === user?.id)
     }
     return classes
-  }, [user, viewMode, classes])
+  }, [isHOD, isPlainInstructor, viewMode, classes, user])
 
-  // True if the logged-in instructor is the class instructor of the currently selected class
+  // HOD always has class access (backend enforces dept scope).
+  // Plain instructor: only if they're the class instructor of the selected class.
   const isClassInstructor = useMemo(() => {
+    if (isHOD) return true
     if (user?.role !== 'instructor') return false
     if (!selectedClass) return false
     const cls = classes.find(c => String(c.id) === selectedClass)
     return cls?.instructor === user?.id
-  }, [user, selectedClass, classes])
+  }, [isHOD, user, selectedClass, classes])
 
-  // True if the instructor is a class instructor for at least one of their classes
-  // Used to decide whether to show the Class View button at all
+  // HOD always shows Class View button; plain instructor only if they lead at least one class.
   const hasAnyClassInstructorRole = useMemo(() => {
+    if (isHOD) return true
     if (user?.role !== 'instructor') return false
     return classes.some(c => c.instructor === user?.id)
-  }, [user, classes])
+  }, [isHOD, user, classes])
 
-  // If instructor has selected a class but is NOT its class instructor, fall back to subject view.
-  // Don't reset when no class is selected yet (they should be allowed to stay in class view to pick a class).
+  // Plain instructors who selected a class they don't lead fall back to subject view.
+  // HOD is exempt — backend already validates their dept access.
   useEffect(() => {
-    if (user?.role === 'instructor' && viewMode === 'class' && selectedClass && !isClassInstructor) {
+    if (isPlainInstructor && viewMode === 'class' && selectedClass && !isClassInstructor) {
       const timer = setTimeout(() => setViewMode('subject'), 0)
       return () => clearTimeout(timer)
     }
-  }, [isClassInstructor, user, viewMode, selectedClass])
+  }, [isClassInstructor, isPlainInstructor, viewMode, selectedClass])
 
 
   // Update URL params
@@ -758,8 +792,8 @@ export default function PerformanceAnalytics() {
 
       {/* View Mode Toggle */}
       <div className="bg-white rounded-xl border border-neutral-200 p-1.5 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
-        {/* Class View - visible to non-instructors, or instructors who are a class instructor for at least one class */}
-        {(user?.role !== 'instructor' || hasAnyClassInstructorRole) && (
+        {/* Class View - hidden only for plain instructors with no class-instructor role */}
+        {(!isPlainInstructor || hasAnyClassInstructorRole) && (
           <button
             onClick={() => setViewMode('class')}
             className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${

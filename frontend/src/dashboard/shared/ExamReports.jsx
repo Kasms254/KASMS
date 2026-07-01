@@ -37,6 +37,7 @@ export default function ExamReports() {
   const { user } = useAuth()
   const toast = useToast()
   const isAdmin = user?.role === 'admin'
+  const isHOD = !isAdmin && !!user?.is_hod
 
   // State
   
@@ -78,41 +79,64 @@ export default function ExamReports() {
 
 
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
-    queryKey: ['exams', isAdmin, selectedClass],
+    queryKey: isAdmin
+      ? ['exams', 'admin', selectedClass]
+      : isHOD
+        ? ['exams', 'hod']
+        : ['exams', 'mine'],
     queryFn: () => {
-      if (isAdmin) {
-        const params = `subject__class_obj=${selectedClass}`
-        return api.getAllExams(params)
-      }
+      if (isAdmin) return api.getAllExams(selectedClass ? `subject__class_obj=${selectedClass}` : '')
+      if (isHOD) return api.getAllExams() // no class filter — backend scopes to HOD depts + own exams
       return api.getMyExams()
     },
     enabled: isAdmin ? !!selectedClass : true,
     staleTime: 5 * 60 * 1000,
   })
   const { data: classesQueryData } = useQuery({
-    queryKey: ['classes', 'active', isAdmin],
-    queryFn: () => isAdmin ? api.getAllClasses() : api.getMyClasses(),
+    queryKey: ['classes', 'active', isAdmin, isHOD],
+    queryFn: async () => {
+      if (isAdmin) return api.getAllClasses()
+      if (isHOD) {
+        const [depts, myClasses] = await Promise.all([api.getDepartments(), api.getMyClasses()])
+        const deptList = Array.isArray(depts) ? depts : (depts?.results ?? [])
+        const deptClassArrays = await Promise.all(deptList.map(d => api.getDepartmentClasses(d.id)))
+        const myClassList = Array.isArray(myClasses) ? myClasses : (myClasses?.results ?? [])
+        const deptIds = new Set()
+        const deptClasses = deptClassArrays.flat().map(c => {
+          deptIds.add(c.id)
+          return { ...c, _isHodDeptClass: true }
+        })
+        const personalClasses = myClassList.filter(c => !deptIds.has(c.id))
+        return [...deptClasses, ...personalClasses]
+      }
+      return api.getMyClasses()
+    },
     staleTime: 10 * 60 * 1000,
   })
   const { data: subjectsQueryData } = useQuery({
-    queryKey: ['subjects', 'active', isAdmin],
+    queryKey: ['subjects', 'active', isAdmin, isHOD],
     queryFn: () => isAdmin ? api.getAllSubjects() : api.getMySubjects(),
     staleTime: 10 * 60 * 1000,
   })
 
  
-  const loading = loadingExams && (isAdmin ? !!selectedClass : true)
+  // Only block the full page with a spinner when admin hasn't picked a class yet
+  const loading = isAdmin && loadingExams && !!selectedClass
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
 
-  // Filter exams based on selections (class is already filtered server-side for admin)
   const filteredExams = useMemo(() => {
     if (!selectedClass) return []
 
     return exams.filter(exam => {
-      if (!isAdmin) {
-        // For non-admin, still filter by class client-side
+      if (isAdmin) {
+        // class already filtered server-side — no extra check needed
+      } else if (isHOD) {
+        // HOD fetches all accessible exams; filter client-side by class
+        if (exam.subject_class_id !== parseInt(selectedClass)) return false
+      } else {
+        // plain instructor: derive class from subjects list
         const subj = subjects.find(s => s.id === exam.subject)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
       }
@@ -122,7 +146,7 @@ export default function ExamReports() {
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
-  }, [exams, isAdmin, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
+  }, [exams, isAdmin, isHOD, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Reset exam list page when filters change (must be outside useMemo)
   useEffect(() => {
@@ -140,9 +164,24 @@ export default function ExamReports() {
 
   // Subjects filtered by selected class
   const filteredSubjects = useMemo(() => {
+    if (isHOD) {
+      if (!selectedClass) return []
+      // Derive subjects from the loaded exams for this class (covers all dept + personal subjects)
+      const seen = new Set()
+      const list = []
+      exams
+        .filter(e => e.subject_class_id === parseInt(selectedClass))
+        .forEach(e => {
+          if (e.subject && !seen.has(e.subject)) {
+            seen.add(e.subject)
+            list.push({ id: e.subject, name: e.subject_name || `Subject ${e.subject}` })
+          }
+        })
+      return list
+    }
     if (!selectedClass) return subjects
     return subjects.filter(s => s.class_obj === parseInt(selectedClass) || s.class_id === parseInt(selectedClass))
-  }, [subjects, selectedClass])
+  }, [subjects, selectedClass, isHOD, exams])
 
   // Load exam results when an exam is selected (cached per exam)
   const { data: examResultsData, isPending: loadingResults } = useQuery({
@@ -702,13 +741,15 @@ export default function ExamReports() {
           {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
           {selectedClass && !selectedExam && !showComprehensive && (() => {
             const cls = classes.find(c => String(c.id) === selectedClass)
-            // Primary class instructor: in charge of the whole class, always has access
             const isPrimaryInstructor = user?.role === 'instructor' && cls && cls.instructor === user?.id
+            const isHodDeptClass = isHOD && !!cls?._isHodDeptClass
             const canViewComprehensive = ['admin', 'superadmin', 'commandant'].includes(user?.role)
               || isPrimaryInstructor
+              || isHodDeptClass
             if (!canViewComprehensive) return null
-            // Primary instructor can view even with no submitted exams — they oversee the whole class
-            const isDisabled = loadingComprehensive || (filteredExams.length === 0 && !isPrimaryInstructor)
+            // Class owners (primary instructor or HOD for dept class) can view even with no submitted exams
+            const isClassOwner = isPrimaryInstructor || isHodDeptClass
+            const isDisabled = loadingComprehensive || (filteredExams.length === 0 && !isClassOwner)
             return (
               <button
                 onClick={handleViewComprehensive}
@@ -842,7 +883,7 @@ export default function ExamReports() {
               >
                 <option value="">{!selectedClass ? 'Select class first...' : 'All Subjects'}</option>
                 {filteredSubjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.subject_code || 'N/A'})</option>
+                  <option key={s.id} value={s.id}>{s.name}{s.subject_code ? ` (${s.subject_code})` : ''}</option>
                 ))}
               </select>
               {!selectedClass && (
