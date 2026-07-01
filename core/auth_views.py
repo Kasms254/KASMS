@@ -312,7 +312,7 @@ def login_view(request):
         user=user, status='active',
     ).select_related('school')
  
-    if user.role != 'superadmin' and not memberships.exists():
+    if user.role not in ('superadmin', 'chief_of_training') and not memberships.exists():
         history = SchoolMembership.all_objects.filter(
             user=user,
         ).select_related('school').order_by('-ended_at')

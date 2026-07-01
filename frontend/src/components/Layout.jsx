@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Outlet, Link } from 'react-router-dom'
 import Menu from './Menu'
 import NavBar from './NavBar'
@@ -12,10 +12,10 @@ export default function Layout() {
   const { theme } = useTheme()
   const role = user?.role || 'student'
 
-  // Dynamic sidebar gradient style using theme colors
-  const sidebarStyle = {
-    background: `linear-gradient(to bottom, ${theme.primary_color}cc, ${theme.secondary_color}cc)`,
-  }
+  // COT uses maroon; all other roles use their school theme
+  const sidebarStyle = role === 'chief_of_training'
+    ? { background: 'linear-gradient(to bottom, #7B1A1A, #4a0f0f)' }
+    : { background: `linear-gradient(to bottom, ${theme.primary_color}cc, ${theme.secondary_color}cc)` }
 
   return (
     <>

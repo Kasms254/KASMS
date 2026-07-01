@@ -638,8 +638,12 @@ class UserViewSet(viewsets.ModelViewSet):
         if role == 'superadmin' and user.role != 'superadmin':
             raise PermissionDenied("Only superadmins can create superadmin users")
 
-        if role == 'superadmin':
-            serializer.save()  # No school for superadmin
+        if role == 'chief_of_training' and user.role != 'superadmin':
+            raise PermissionDenied("Only superadmins can create Chief of Training users")
+
+        # Global roles — no school affiliation
+        if role in ('superadmin', 'chief_of_training'):
+            serializer.save()
         else:
             if not school:
                 raise ValidationError({"school": "School is required for non-superadmin users"})

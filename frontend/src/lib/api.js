@@ -2082,6 +2082,69 @@ export async function evaluateStudentSubject(subjectId, studentId) {
   return request(`/api/subjects/${encodeURIComponent(subjectId)}/evaluate_student/?student_id=${encodeURIComponent(studentId)}`)
 }
 
+
+export async function getCommandantReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/reports/${q}`)
+}
+
+export async function getCommandantReportDetail(id) {
+  return request(`/api/commandant/reports/${id}/`)
+}
+
+export async function createCommandantReport(data) {
+  return request('/api/commandant/reports/', { method: 'POST', body: data })
+}
+
+export async function updateCommandantReport(id, data) {
+  return request(`/api/commandant/reports/${id}/`, { method: 'PATCH', body: data })
+}
+
+export async function deleteCommandantReport(id) {
+  return request(`/api/commandant/reports/${id}/`, { method: 'DELETE' })
+}
+
+export async function submitCommandantReport(id) {
+  return request(`/api/commandant/reports/${id}/submit/`, { method: 'POST' })
+}
+
+export async function getCommandantReportStatistics(id) {
+  return request(`/api/commandant/reports/${id}/statistics/`)
+}
+
+export async function downloadCommandantReportPdf(id) {
+  const res = await fetch(`${API_BASE}/api/commandant/reports/${id}/pdf/`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('Failed to download report PDF')
+  return res.blob()
+}
+
+// --- Chief of Training ---
+
+export async function getCOTDashboard() {
+  return request('/api/cot/reports/dashboard/')
+}
+
+export async function getCOTReports(params = '') {
+  const q = params ? `?${params}` : ''
+  return request(`/api/cot/reports/${q}`)
+}
+
+export async function getCOTReportDetail(id) {
+  return request(`/api/cot/reports/${id}/`)
+}
+
+export async function downloadCOTReportPdf(id) {
+  const res = await fetch(`${API_BASE}/api/cot/reports/${id}/pdf/`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('Failed to download report PDF')
+  return res.blob()
+}
+
 export default {
   login,
   changePassword,
@@ -2375,4 +2438,18 @@ export default {
   createComponentResult,
   updateComponentResult,
   evaluateStudentSubject,
+  // Commandant reports
+  getCommandantReports,
+  getCommandantReportDetail,
+  createCommandantReport,
+  updateCommandantReport,
+  deleteCommandantReport,
+  submitCommandantReport,
+  getCommandantReportStatistics,
+  downloadCommandantReportPdf,
+  // Chief of Training
+  getCOTDashboard,
+  getCOTReports,
+  getCOTReportDetail,
+  downloadCOTReportPdf,
 }
