@@ -93,11 +93,6 @@ pytest.ini
 settings_test.py
 test_settings.py
 seed_system.py
-migrations/
-core/migrations
-core/migrations
-0002_biometricdevice_certificatetemplate_department_and_more.py
-0001_initial.py
 certificate_verification.log
 
 
