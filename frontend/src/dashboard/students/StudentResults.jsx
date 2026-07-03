@@ -347,6 +347,13 @@ export default function StudentResults() {
       const schoolName = theme.school_name || 'School Management System'
       const schoolShortName = theme.school_short_name || ''
       const schoolLogoUrl = theme.logo_url || null
+      const hexToRgbArray = (hex, fallback) => {
+        const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '')
+        if (!match) return fallback
+        return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)]
+      }
+      const schoolPrimaryRgb = hexToRgbArray(theme.primary_color, [30, 30, 30])
+      const schoolSecondaryRgb = hexToRgbArray(theme.secondary_color, [30, 30, 30])
 
       // Helper: load any image URL as base64
       const getImageBase64 = url => new Promise((resolve, reject) => {
@@ -402,7 +409,7 @@ export default function StudentResults() {
 
       // ── HEADER ──────────────────────────────────────────────────────────
       // Returns the Y position where content should start after the header
-      function drawHeader(classLabel) {
+      function drawHeader(classLabel, courseLabel) {
         // White page background strip
         doc.setFillColor(255, 255, 255)
         doc.rect(0, 0, pageWidth, pageHeight, 'F')
@@ -432,10 +439,11 @@ export default function StudentResults() {
           y += 14
         }
 
-        // Decorative double rule
-        doc.setDrawColor(30, 30, 30)
+        // Decorative double rule — primary color on top, secondary below
+        doc.setDrawColor(...schoolPrimaryRgb)
         doc.setLineWidth(1.5)
         doc.line(margin, y, pageWidth - margin, y)
+        doc.setDrawColor(...schoolSecondaryRgb)
         doc.setLineWidth(0.4)
         doc.line(margin, y + 3, pageWidth - margin, y + 3)
         y += 26
@@ -447,12 +455,21 @@ export default function StudentResults() {
         doc.text('ACADEMIC TRANSCRIPT', pageWidth / 2, y, { align: 'center' })
         y += 14
 
-        // Class / course label
+        // Class label
         if (classLabel) {
           doc.setFont(undefined, 'normal')
           doc.setFontSize(10)
           doc.setTextColor(70, 70, 70)
           doc.text(classLabel, pageWidth / 2, y, { align: 'center' })
+          y += 12
+        }
+
+        // Course label
+        if (courseLabel) {
+          doc.setFont(undefined, 'italic')
+          doc.setFontSize(9)
+          doc.setTextColor(100, 100, 100)
+          doc.text(courseLabel, pageWidth / 2, y, { align: 'center' })
           y += 10
         }
 
@@ -748,8 +765,8 @@ export default function StudentResults() {
         for (const cg of transcriptResultsByClass) {
           if (!isFirst) doc.addPage()
           const dedupedResults = groupBySubject(cg.results)
-          const classLabel = `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}`
-          let yPos = drawHeader(classLabel)
+          const classLabel = cg.className
+          let yPos = drawHeader(classLabel, cg.courseName)
           yPos = drawStudentInfo(yPos, classLabel, dedupedResults.length)
           yPos = drawResultsTable(yPos, dedupedResults)
           drawGradeKey(yPos)
@@ -806,9 +823,9 @@ export default function StudentResults() {
       } else {
         // Single class
         const cg = transcriptResultsByClass[0]
-        const classLabel = cg ? `${cg.className}${cg.courseName ? ` — ${cg.courseName}` : ''}` : null
+        const classLabel = cg ? cg.className : null
         const dedupedRows = groupBySubject(rows)
-        let yPos = drawHeader(classLabel)
+        let yPos = drawHeader(classLabel, cg ? cg.courseName : null)
         yPos = drawStudentInfo(yPos, classLabel, dedupedRows.length)
         yPos = drawResultsTable(yPos, dedupedRows)
         drawGradeKey(yPos)
