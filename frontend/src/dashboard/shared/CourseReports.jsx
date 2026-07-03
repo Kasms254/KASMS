@@ -117,13 +117,19 @@ export default function CourseReports() {
       toast.success(res.detail || 'Reports initiated successfully')
       setShowInitiateModal(false)
       setInitiateClassId('')
-      setPage(1)
-      loadReports()
+      navigate(getRosterPath(initiateClassId))
     } catch (err) {
       setInitiateError(err.message || 'Failed to initiate reports')
     } finally {
       setBulkLoading(false)
     }
+  }
+
+  function getRosterPath(classId) {
+    const role = user?.role
+    if (role === 'commandant' || role === 'chief_instructor') return `/commandant/course-reports/class/${classId}`
+    if (role === 'oic') return `/oic/course-reports/class/${classId}`
+    return `/list/course-reports/class/${classId}`
   }
 
   async function handleBulkSubmit() {
@@ -159,11 +165,8 @@ export default function CourseReports() {
     return new Date(dt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
-  function getDetailPath(id) {
-    const role = user?.role
-    if (role === 'commandant' || role === 'chief_instructor') return `/commandant/course-reports/${id}`
-    if (role === 'oic') return `/oic/course-reports/${id}`
-    return `/list/course-reports/${id}`
+  function getDetailPath(report) {
+    return `${getRosterPath(report.class_obj)}?report=${report.id}`
   }
 
   const pendingCount = reports.filter(r => r.status !== 'approved').length
@@ -296,7 +299,7 @@ export default function CourseReports() {
               return (
                 <div
                   key={report.id}
-                  onClick={() => navigate(getDetailPath(report.id))}
+                  onClick={() => navigate(getDetailPath(report))}
                   className="bg-neutral-50 p-3 sm:p-4 cursor-pointer hover:bg-neutral-100 transition"
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -354,7 +357,7 @@ export default function CourseReports() {
                   return (
                     <tr
                       key={report.id}
-                      onClick={() => navigate(getDetailPath(report.id))}
+                      onClick={() => navigate(getDetailPath(report))}
                       className="hover:bg-neutral-50 cursor-pointer transition"
                     >
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap font-mono">
@@ -371,8 +374,13 @@ export default function CourseReports() {
                           <div className="font-medium text-sm text-black whitespace-nowrap">{name || '—'}</div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
-                        {report.class_name || '—'}
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <button
+                          onClick={e => { e.stopPropagation(); navigate(getRosterPath(report.class_obj)) }}
+                          className="text-indigo-600 hover:underline font-medium"
+                        >
+                          {report.class_name || '—'}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
                         {report.course_name || '—'}

@@ -77,6 +77,7 @@ const OICAssignments = lazy(() => import('./dashboard/admin/OICAssignments'))
 // OIC components
 const CourseReports = lazy(() => import('./dashboard/shared/CourseReports'))
 const CourseReportDetail = lazy(() => import('./dashboard/shared/CourseReportDetail'))
+const CourseRoster = lazy(() => import('./dashboard/shared/CourseRoster'))
 
 const OICDashboard = lazy(() => import('./dashboard/oic/OICDashboard'))
 const OICClasses = lazy(() => import('./dashboard/oic/OICClasses'))
@@ -263,6 +264,7 @@ const App = () => {
 			{/* Course Reports (admins & instructors) */}
 			<Route path="/list/course-reports" element={<AdminOrInstructorLayout />}>
 				<Route index element={<CourseReports />} />
+				<Route path="class/:classId" element={<CourseRoster />} />
 				<Route path=":id" element={<CourseReportDetail />} />
 			</Route>
 
@@ -345,6 +347,7 @@ const App = () => {
 				<Route path="users" element={<CommandantUsers />} />
 				<Route path="exam-reports" element={<CommandantExamReports />} />
 				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
 				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
@@ -373,6 +376,7 @@ const App = () => {
 				<Route path="classes/:id" element={<OICClassDetail />} />
 				<Route path="exam-reports" element={<OICExamReports />} />
 				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
 				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="remarks" element={<OICRemarks />} />
 				<Route path="comparison" element={<OICComparison />} />
