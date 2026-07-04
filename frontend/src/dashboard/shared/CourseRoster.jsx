@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
+import useTheme from '../../hooks/useTheme'
 import useToast from '../../hooks/useToast'
 
 /* ── Constants ─────────────────────────────────────────── */
@@ -69,11 +70,13 @@ const PIPELINE = [
 
 function Avatar({ first = '', last = '', size = 'md' }) {
   const letters = `${first[0] || ''}${last[0] || ''}`.toUpperCase() || '?'
-  const cls = size === 'lg'
-    ? 'w-14 h-14 text-xl font-bold'
-    : size === 'sm'
-      ? 'w-8 h-8 text-xs font-semibold'
-      : 'w-10 h-10 text-sm font-semibold'
+  const cls = size === 'xl'
+    ? 'w-24 h-24 text-3xl font-bold'
+    : size === 'lg'
+      ? 'w-14 h-14 text-xl font-bold'
+      : size === 'sm'
+        ? 'w-8 h-8 text-xs font-semibold'
+        : 'w-10 h-10 text-sm font-semibold'
   return (
     <div className={`${cls} rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0`}>
       {letters}
@@ -287,6 +290,7 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
 
 function ReportPanel({ reportId, user, onReportChange }) {
   const toast = useToast()
+  const { theme } = useTheme()
   const isInstructor = user?.role === 'instructor'
   const myStageKey = { instructor: 'instructor', oic: 'oic', chief_instructor: 'chief_instructor', commandant: 'commandant' }[user?.role]
 
@@ -307,7 +311,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
       const data = await api.getCourseReportDetail(reportId)
       setReport(data)
       if (myStageKey && data.can_edit) {
-        const existing = (data.visible_remarks || []).find(r => r.stage === myStageKey && !r.is_submitted)
+        const existing = (data.visible_remarks || []).find(r => r.stage === myStageKey)
         if (existing) {
           if (myStageKey === 'instructor') {
             setIF({
@@ -457,6 +461,19 @@ function ReportPanel({ reportId, user, onReportChange }) {
     <div className="flex-1 overflow-y-auto bg-[#f5f5f0]">
       <div className="max-w-4xl mx-auto px-4 py-5 space-y-5">
 
+        {/* ── School header ── */}
+        <div className="flex items-center gap-3">
+          <img
+            src={theme.logo_url || '/ka.png'}
+            alt={`${theme.school_name || 'School'} logo`}
+            className="w-12 h-12 object-contain rounded-md border border-neutral-200 bg-white flex-shrink-0"
+          />
+          <div>
+            <h2 className="text-lg font-bold text-black leading-tight">{theme.school_name || 'KASMS'}</h2>
+            <p className="text-xs text-neutral-500 uppercase tracking-wide">Course Report</p>
+          </div>
+        </div>
+
         {/* ── Status pipeline ── */}
         <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
           <div className="grid grid-cols-5 divide-x divide-neutral-100">
@@ -509,10 +526,9 @@ function ReportPanel({ reportId, user, onReportChange }) {
           <SectionHeader num="1" title="Particulars of the Student" tag="From student record" />
           <div className="p-5">
             <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)] items-start">
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 min-h-[148px] flex items-center justify-center">
-                <div className="w-full min-h-[122px] rounded-lg border border-dashed border-neutral-300 bg-[repeating-linear-gradient(135deg,#faf7ef_0,#faf7ef_8px,#f2eee3_8px,#f2eee3_16px)] flex items-center justify-center px-4">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Student Passport</span>
-                </div>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 min-h-[148px] flex flex-col items-center justify-center gap-2">
+                <Avatar first={student?.first_name} last={student?.last_name} size="xl" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">No photo on file</span>
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
@@ -578,34 +594,16 @@ function ReportPanel({ reportId, user, onReportChange }) {
         {/* ── SECTION 3: INSTRUCTOR'S REMARKS ── */}
         <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
           <SectionHeader num="3" title="Instructor's Remarks" />
-          {instrRemark?.is_submitted ? (
-            <div className="p-5 space-y-4">
-              {[
-                ['a. Character and Personality',        instrRemark.character_and_personality],
-                ['b. Knowledge and Ability',            instrRemark.knowledge_and_ability],
-                ['c. Command and Leadership',           instrRemark.command_and_leadership],
-                ['d. Strengths',                        instrRemark.strengths],
-                ['e. Weaknesses',                       instrRemark.weaknesses],
-                ['f. Recommended for Deployment',       instrRemark.deployment_recommendation],
-              ].filter(([, v]) => v).map(([label, val]) => (
-                <div key={label}>
-                  <div className="bg-neutral-50 border border-neutral-200 text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-t-md text-neutral-500">{label}</div>
-                  <div className="border border-t-0 border-neutral-200 rounded-b-md px-3 py-2.5 text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{val}</div>
-                </div>
-              ))}
-              {instrRemark.author_name && (
-                <p className="text-[11px] text-neutral-400 flex items-center gap-1.5">
-                  <LucideIcons.CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                  Submitted by {instrRemark.author_rank ? `${instrRemark.author_rank} ` : ''}{instrRemark.author_name}
-                </p>
-              )}
-            </div>
-          ) : can_edit && isInstructor ? (
+          {can_edit && isInstructor ? (
             <div className="px-5 pt-4 pb-5 space-y-4">
               <div className="flex items-center gap-2 mb-1">
                 <LucideIcons.PenLine className="w-4 h-4 text-[#3d5a30]" />
                 <span className="text-sm font-semibold text-black">Your Remarks</span>
-                {draftRemark && (
+                {instrRemark?.is_submitted ? (
+                  <span className="ml-auto text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+                    Submitted — editing makes a correction
+                  </span>
+                ) : draftRemark && (
                   <span className="ml-auto text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
                 )}
               </div>
@@ -652,6 +650,28 @@ function ReportPanel({ reportId, user, onReportChange }) {
                   </button>
                 )}
               </div>
+            </div>
+          ) : instrRemark?.is_submitted ? (
+            <div className="p-5 space-y-4">
+              {[
+                ['a. Character and Personality',        instrRemark.character_and_personality],
+                ['b. Knowledge and Ability',            instrRemark.knowledge_and_ability],
+                ['c. Command and Leadership',           instrRemark.command_and_leadership],
+                ['d. Strengths',                        instrRemark.strengths],
+                ['e. Weaknesses',                       instrRemark.weaknesses],
+                ['f. Recommended for Deployment',       instrRemark.deployment_recommendation],
+              ].filter(([, v]) => v).map(([label, val]) => (
+                <div key={label}>
+                  <div className="bg-neutral-50 border border-neutral-200 text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-t-md text-neutral-500">{label}</div>
+                  <div className="border border-t-0 border-neutral-200 rounded-b-md px-3 py-2.5 text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{val}</div>
+                </div>
+              ))}
+              {instrRemark.author_name && (
+                <p className="text-[11px] text-neutral-400 flex items-center gap-1.5">
+                  <LucideIcons.CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                  Submitted by {instrRemark.author_rank ? `${instrRemark.author_rank} ` : ''}{instrRemark.author_name}
+                </p>
+              )}
             </div>
           ) : (
             <div className="px-5 py-6 flex items-center gap-2 text-neutral-400">
@@ -887,21 +907,17 @@ function RecommendationBlock({
             <LucideIcons.CheckCircle className="w-2.5 h-2.5" /> Submitted
           </span>
         )}
+        {isMyTurn && isSubmitted && (
+          <span className="ml-auto text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+            Editing makes a correction
+          </span>
+        )}
         {isMyTurn && draftRemark && !isSubmitted && (
           <span className="ml-auto text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
         )}
       </div>
 
-      {isSubmitted ? (
-        <div className="space-y-1">
-          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content || <em className="text-neutral-300">No content</em>}</p>
-          {remark.author_name && (
-            <p className="text-[11px] text-neutral-400 pt-1">
-              — {remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}
-            </p>
-          )}
-        </div>
-      ) : isMyTurn ? (
+      {isMyTurn ? (
         <div className="space-y-3">
           <textarea
             value={remarkContent}
@@ -925,6 +941,15 @@ function RecommendationBlock({
               </button>
             )}
           </div>
+        </div>
+      ) : isSubmitted ? (
+        <div className="space-y-1">
+          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content || <em className="text-neutral-300">No content</em>}</p>
+          {remark.author_name && (
+            <p className="text-[11px] text-neutral-400 pt-1">
+              — {remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}
+            </p>
+          )}
         </div>
       ) : canAdvance ? (
         <div className="flex items-center justify-between gap-4 py-2 px-3 bg-neutral-50 rounded-lg border border-neutral-200">

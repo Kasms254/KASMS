@@ -2322,6 +2322,9 @@ class CourseReport(models.Model):
         'commandant':       'ci_submitted',
     }
 
+   
+    CORRECTABLE_ROLES = {'instructor', 'oic', 'chief_instructor'}
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
@@ -2401,6 +2404,11 @@ class CourseReport(models.Model):
     def get_visible_stages_for_role(self, role):
 
             all_stages = ['instructor', 'oic', 'chief_instructor', 'commandant']
+
+         
+            if self.status == 'approved':
+                return all_stages
+
             visibility = {
                 'instructor':       ['instructor'],
                 'oic':              ['instructor', 'oic'],
@@ -2410,6 +2418,21 @@ class CourseReport(models.Model):
                 'superadmin':       all_stages,
             }
             return visibility.get(role, [])
+
+PAD_SUBJECTS = [
+    ('leadership_and_command_skills', 'Leadership and Command Skills'),
+    ('instructional_ability',         'Instructional Ability'),
+    ('attitude',                      'Attitude'),
+    ('initiative',                    'Initiative'),
+    ('power_of_expression',           'Power of Expression'),
+    ('ability_to_grasp_instructions', 'Ability to Grasp Instructions'),
+    ('industry',                      'Industry'),
+    ('motivation',                    'Motivation'),
+    ('co_operation',                  'Co-operation'),
+]
+PAD_SUBJECT_LABELS = dict(PAD_SUBJECTS)
+PAD_SUBJECT_KEYS = set(PAD_SUBJECT_LABELS)
+
 
 class CourseReportStageRemark(models.Model):
 
@@ -2447,10 +2470,21 @@ class CourseReportStageRemark(models.Model):
     strengths = models.TextField(null=True, blank=True)
     weaknesses = models.TextField(null=True, blank=True)
     deployment_recommendation = models.TextField(null=True, blank=True)
+    pad_scores = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'Personal Ability Dimension scores (1-5), keyed by subject code '
+            '(instructor stage only). e.g. {"attitude": 3}.'
+        ),
+    )
 
     is_submitted = models.BooleanField(
         default=False,
-        help_text='Once True, this remark is locked and cannot be edited.',
+        help_text=(
+            'Once True, this remark is locked for the commandant stage. '
+            'For instructor/oic/chief_instructor stages it can still be '
+            'corrected until the report is approved (see CORRECTABLE_ROLES).'
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2473,11 +2507,16 @@ class CourseReportStageRemark(models.Model):
     def save(self, *args, **kwargs):
         if self.pk:
             try:
-                existing = CourseReportStageRemark.objects.get(pk=self.pk)
+                existing = CourseReportStageRemark.objects.select_related('report').get(pk=self.pk)
                 if existing.is_submitted:
-                    raise ValidationError(
-                        f"Cannot edit a submitted {self.stage} remark."
+                    correctable = (
+                        existing.stage in CourseReport.CORRECTABLE_ROLES
+                        and existing.report.status != 'approved'
                     )
+                    if not correctable:
+                        raise ValidationError(
+                            f"Cannot edit a submitted {self.stage} remark."
+                        )
             except CourseReportStageRemark.DoesNotExist:
                 pass
         super().save(*args, **kwargs)

@@ -18,6 +18,7 @@ from .serializers import (
     CourseReportAuditLogSerializer,
 )
 from .permissions import IsCourseReportParticipant, CanWriteCourseReportRemark
+from .course_report_pdf import _build_academic_rows, _compute_totals, _compute_class_position
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             'enrollment__student',
             'class_obj__course',
             'created_by',
+            'school',
         )
 
 
@@ -107,12 +109,15 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         role = self._get_role()
 
         visible_stages = report.get_visible_stages_for_role(role)
-        visible_remarks = report.stage_remarks.filter(
+        visible_remarks = list(report.stage_remarks.filter(
             stage__in=visible_stages
-        ).select_related('author')
+        ).select_related('author'))
 
-        can_edit = report.status in CourseReport.ROLE_WRITE_STATUS.get(role, ())
-        can_submit = can_edit and report.stage_remarks.filter(
+        is_own_turn = report.status in CourseReport.ROLE_WRITE_STATUS.get(role, ())
+        can_edit = is_own_turn
+        if not can_edit and role in CourseReport.CORRECTABLE_ROLES and report.status != 'approved':
+            can_edit = any(r.stage == role and r.is_submitted for r in visible_remarks)
+        can_submit = is_own_turn and report.stage_remarks.filter(
             stage=CourseReport.SUBMIT_REQUIRES_STAGE.get(report.status, ''),
             is_submitted=False,
         ).exists()
@@ -133,6 +138,26 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         data['can_submit'] = can_submit
         data['can_advance'] = can_advance
         data['can_download'] = bool(can_download)
+
+        class_obj = report.class_obj
+        student = report.enrollment.student
+
+        academic_rows = _build_academic_rows(student, class_obj)
+        total_hps, total_score, mean_score, overall_grade, grade_descriptor = _compute_totals(academic_rows)
+        data['academic_data'] = {
+            'rows': academic_rows,
+            'total_hps': total_hps,
+            'total_score': total_score,
+            'mean_score': mean_score,
+            'overall_grade': overall_grade,
+            'grade_descriptor': grade_descriptor,
+            'class_position': _compute_class_position(student, class_obj),
+            'class_size': class_obj.enrollments.filter(is_active=True).count(),
+        }
+        data['school_short_name'] = report.school.short_name or report.school.code
+        data['class_code'] = class_obj.class_code or class_obj.course.code
+        data['start_date'] = class_obj.start_date.strftime('%d %b %Y') if class_obj.start_date else None
+        data['end_date'] = class_obj.end_date.strftime('%d %b %Y') if class_obj.end_date else None
 
         return Response(data)
 
@@ -241,7 +266,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                 for k in (
                     'character_and_personality', 'knowledge_and_ability',
                     'command_and_leadership', 'strengths', 'weaknesses',
-                    'deployment_recommendation',
+                    'deployment_recommendation', 'pad_scores',
                 )
             }
             defaults = {'author': request.user, **instructor_fields}
@@ -254,12 +279,19 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             defaults=defaults,
         )
 
+        is_correction = False
         if not created:
             if remark.is_submitted:
-                return Response(
-                    {'detail': 'This remark has already been submitted and cannot be edited.'},
-                    status=status.HTTP_409_CONFLICT,
+                locked = (
+                    stage not in CourseReport.CORRECTABLE_ROLES
+                    or report.status == 'approved'
                 )
+                if locked:
+                    return Response(
+                        {'detail': 'This remark has already been submitted and cannot be edited.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                is_correction = True
             if stage == 'instructor':
                 for field, value in instructor_fields.items():
                     setattr(remark, field, value)
@@ -271,7 +303,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             report=report,
             action='remark_saved',
             user=request.user,
-            metadata={'stage': stage, 'created': created},
+            metadata={'stage': stage, 'created': created, 'is_correction': is_correction},
         )
 
         return Response(

@@ -417,7 +417,13 @@ class CanWriteCourseReportRemark(BasePermission):
         role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
         if role:
             role = role.replace(' ', '_')
-        allowed_statuses = CourseReport.ROLE_WRITE_STATUS.get(role, ())
-        return obj.status in allowed_statuses
+
+        if obj.status in CourseReport.ROLE_WRITE_STATUS.get(role, ()):
+            return True
+
+        if role in CourseReport.CORRECTABLE_ROLES and obj.status != 'approved':
+            return obj.stage_remarks.filter(stage=role, is_submitted=True).exists()
+
+        return False
 
         

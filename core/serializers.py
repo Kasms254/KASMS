@@ -8,7 +8,8 @@ from .models import (
     ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
     Certificate, CertificateTemplate, CertificateDownloadLog,
     OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, 
-    StudentComponentResult, CourseReportStageRemark, CourseReportAuditLog, CourseReport, 
+    StudentComponentResult, CourseReportStageRemark, CourseReportAuditLog, CourseReport,
+    PAD_SUBJECT_KEYS,
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -2823,7 +2824,7 @@ class CourseReportStageRemarkSerializer(serializers.ModelSerializer):
             'id', 'stage', 'content', 'is_submitted',
             'character_and_personality', 'knowledge_and_ability',
             'command_and_leadership', 'strengths', 'weaknesses',
-            'deployment_recommendation',
+            'deployment_recommendation', 'pad_scores',
             'author', 'author_name', 'author_rank', 'author_svc_number',
             'created_at', 'updated_at',
         ]
@@ -2845,7 +2846,19 @@ class InstructorRemarkWriteSerializer(serializers.Serializer):
     strengths = serializers.CharField(min_length=5, max_length=5000)
     weaknesses = serializers.CharField(min_length=5, max_length=5000)
     deployment_recommendation = serializers.CharField(min_length=5, max_length=5000)
- 
+    pad_scores = serializers.DictField(
+        child=serializers.IntegerField(min_value=1, max_value=5),
+        required=False, default=dict,
+    )
+
+    def validate_pad_scores(self, value):
+        unknown = set(value.keys()) - PAD_SUBJECT_KEYS
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown PAD subject(s): {', '.join(sorted(unknown))}"
+            )
+        return value
+
 class CourseReportAuditLogSerializer(serializers.ModelSerializer):
     performed_by_name = serializers.SerializerMethodField()
  

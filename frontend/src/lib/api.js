@@ -786,6 +786,29 @@ export async function getExams(params = '') {
   return data
 }
 
+
+export async function getAllExams(params = '') {
+  let allExams = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+
+  while (hasMore) {
+    try {
+      const data = await request(`/api/exams/?${baseParams}page=${page}&page_size=100`)
+      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      allExams = [...allExams, ...results]
+
+      hasMore = data && data.next !== null && data.next !== undefined
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+
+  return allExams
+}
+
 export async function getMyExams() {
   // backend provides a `my_exams` action
   const data = await request('/api/exams/my_exams/')
@@ -2133,6 +2156,7 @@ export default {
   deleteSubject,
   getMySubjects,
   getExams,
+  getAllExams,
   getMyExams,
   createExam,
   createExamReport,

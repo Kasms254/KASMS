@@ -5,21 +5,22 @@ import os
 from decimal import Decimal
 
 from django.core.files.base import ContentFile
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
 from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
-PAD_SUBJECTS = [
-    "LEADERSHIP AND COMMAND SKILLS",
-    "INSTRUCTIONAL ABILITY",
-    "ATTITUDE",
-    "INITIATIVE",
-    "CO-OPERATION",
-    "INDUSTRY",
-    "MOTIVATION",
-    "POWER OF EXPRESSION",
-    "ABILITY TO GRASP INSTRUCTIONS",
+
+PAD_PDF_ORDER = [
+    'leadership_and_command_skills',
+    'instructional_ability',
+    'attitude',
+    'initiative',
+    'co_operation',
+    'industry',
+    'motivation',
+    'power_of_expression',
+    'ability_to_grasp_instructions',
 ]
 
 
@@ -54,32 +55,31 @@ def _build_academic_rows(student, class_obj):
 
     subjects = (
         Subject.objects.filter(class_obj=class_obj, is_active=True)
-        .prefetch_related('exams')
+        .annotate(active_exam_count=Count('exams', filter=Q(exams__is_active=True)))
         .order_by('name')
     )
 
+   
+    subject_totals = {
+        row['exam__subject_id']: row
+        for row in ExamResult.objects.filter(
+            exam__subject__class_obj=class_obj,
+            student=student,
+            is_submitted=True,
+            marks_obtained__isnull=False,
+        ).values('exam__subject_id').annotate(
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+        )
+    }
+
     rows = []
     for subject in subjects:
-        exams = list(
-            subject.exams.filter(is_active=True).order_by('-exam_type', '-total_marks')
-        )
-        if not exams:
+        if not subject.active_exam_count:
             continue
 
-        best_result = None
-        best_exam = None
-        for exam in exams:
-            try:
-                result = ExamResult.objects.get(
-                    exam=exam, student=student, is_submitted=True
-                )
-                best_result = result
-                best_exam = exam
-                break
-            except ExamResult.DoesNotExist:
-                continue
-
-        if best_result is None or best_exam is None:
+        totals = subject_totals.get(subject.id)
+        if not totals or not totals['total_possible']:
             rows.append({
                 'subject_name': subject.name.upper(),
                 'hps': 100,
@@ -89,8 +89,8 @@ def _build_academic_rows(student, class_obj):
             })
             continue
 
-        hps = int(best_exam.total_marks)
-        score = float(best_result.marks_obtained or 0)
+        hps = int(totals['total_possible'])
+        score = float(totals['total_marks'] or 0)
         grade = _pdf_grade(score, hps)
         rows.append({
             'subject_name': subject.name.upper(),
@@ -162,7 +162,13 @@ def generate_course_report_pdf(report):
     class_position = _compute_class_position(student, class_obj)
     class_size = class_obj.enrollments.filter(is_active=True).count()
 
-    pad_rows = [{'subject': s, 'score': ''} for s in PAD_SUBJECTS]
+    from .models import PAD_SUBJECT_LABELS
+
+    pad_scores = instructor_remark.pad_scores if instructor_remark else {}
+    pad_rows = [
+        {'subject': PAD_SUBJECT_LABELS[key].upper(), 'score': pad_scores.get(key, '')}
+        for key in PAD_PDF_ORDER
+    ]
 
     course_code = class_obj.class_code or class_obj.course.code
 
