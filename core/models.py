@@ -296,7 +296,12 @@ class ResultEditRequest(models.Model):
         'School', on_delete=models.CASCADE, related_name='result_edit_requests'
     )
     exam_result = models.ForeignKey(
-        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests'
+        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests',
+        null=True, blank=True,
+    )
+    component_result = models.ForeignKey(
+        'StudentComponentResult', on_delete=models.CASCADE,
+        related_name='edit_requests', null=True, blank=True,
     )
     requested_by = models.ForeignKey(
         'User', on_delete=models.CASCADE, related_name='result_edit_requests_made'
