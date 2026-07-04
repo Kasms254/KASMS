@@ -59,9 +59,7 @@ def _build_academic_rows(student, class_obj):
         .order_by('name')
     )
 
-    # Sum marks across every submitted exam (CAT + FINAL + PROJECT, etc.) per
-    # subject, matching the aggregation used by ClassPerformanceViewSet.summary
-    # so a student's course-report grade matches their official class report.
+   
     subject_totals = {
         row['exam__subject_id']: row
         for row in ExamResult.objects.filter(

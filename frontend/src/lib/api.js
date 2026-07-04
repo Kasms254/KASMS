@@ -785,7 +785,7 @@ export async function getExams(params = '') {
   if (data && Array.isArray(data.results)) return data.results
   return data
 }
-o
+
 
 export async function getAllExams(params = '') {
   let allExams = []

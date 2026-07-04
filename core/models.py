@@ -2322,10 +2322,7 @@ class CourseReport(models.Model):
         'commandant':       'ci_submitted',
     }
 
-    # Roles allowed to go back and correct their own already-submitted
-    # remark any time before the report reaches 'approved'. Commandant is
-    # excluded: submitting the commandant remark approves the report and
-    # generates the final PDF in the same step, so it stays locked.
+
     CORRECTABLE_ROLES = {'instructor', 'oic', 'chief_instructor'}
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
