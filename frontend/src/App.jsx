@@ -11,6 +11,7 @@ import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
 import IntroPage from './pages/IntroPage'
+import VerifyCertificate from './pages/VerifyCertificate'
 import useAuth from './hooks/useAuth'
 
 // Lazy load heavy dashboard components for better performance
@@ -19,7 +20,7 @@ const AdminDashboard = lazy(() => import('./dashboard/admin/AdminDashboard'))
 const InstructorsDashboard = lazy(() => import('./dashboard/instructors/InstructorsDashboard'))
 const StudentsDashboard = lazy(() => import('./dashboard/students/StudentsDashboard'))
 const InstructorsSubjectsPage = lazy(() => import('./dashboard/instructors/SubjectsPage'))
-const AssessmentComponents = lazy(() => import('./dashboard/instructors/AssessmentComponents'))
+const AssessmentComponents = lazy(() => import('./dashboard/admin/AssessmentComponents'))
 const Exams = lazy(() => import('./dashboard/instructors/Exams'))
 const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
 const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
@@ -131,6 +132,11 @@ const App = () => {
 			{/* Public landing page */}
 			<Route path="/" element={<IntroPage />} />
 
+			{/* Public certificate verification — no auth required, used by
+			    external parties (e.g. employers) who have a printed code */}
+			<Route path="/verify" element={<VerifyCertificate />} />
+			<Route path="/verify/:code" element={<VerifyCertificate />} />
+
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />
 
@@ -231,8 +237,8 @@ const App = () => {
 				<Route index element={<Exams />} />
 			</Route>
 
-			{/* Assessment components (admin + instructor) */}
-			<Route path="/list/assessment-components" element={<AdminOrInstructorLayout />}>
+			{/* Assessment components (admin only) */}
+			<Route path="/list/assessment-components" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AssessmentComponents />} />
 			</Route>
 

@@ -2,42 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add custom global styles below if desired. Tailwind's
-   utilities should cover most needs. */
-
 html, body, #root {
   height: 100%;
 }
 
 body {
   margin: 0;
-  /* Use Inter as the primary UI font, fall back to the system sans stack */
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 }
 
-/* Remove default link underlines globally so Tailwind/utility classes control presentation */
 a {
   text-decoration: none;
 }
 
-/* Make media (images, videos, iframes, svg, canvas) responsive by default */
 img, picture, video, canvas, svg, iframe, embed, object {
   max-width: 100%;
   height: auto;
   display: block;
 }
 
-/* Fluid base font size for better readability across devices */
+/* Design tokens */
 :root {
-  font-size: 16px;
+  font-size: 14px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
 }
 
 @media (max-width: 640px) {
-  :root { font-size: 14px; }
-}
-
-@media (min-width: 1400px) {
-  :root { font-size: 18px; }
+  :root { font-size: 13px; }
 }
 
 /* Respect reduced motion preference */
@@ -50,10 +45,34 @@ img, picture, video, canvas, svg, iframe, embed, object {
   }
 }
 
-/* Modern scrollbar: hidden by default, shown when hovering the sidebar */
+/* Global thin scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Sidebar scrollbar: hidden by default, shown on hover */
 .sidebar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -62,12 +81,12 @@ img, picture, video, canvas, svg, iframe, embed, object {
 }
 
 .sidebar:hover {
-  scrollbar-width: auto; /* use default (wider) in Firefox */
-  scrollbar-color: #ffffff transparent; /* solid white thumb in Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
 }
 
 .sidebar:hover::-webkit-scrollbar {
-  width: 20px; /* increased width for WebKit browsers */
+  width: 6px;
 }
 
 .sidebar:hover::-webkit-scrollbar-track {
@@ -75,11 +94,30 @@ img, picture, video, canvas, svg, iframe, embed, object {
 }
 
 .sidebar:hover::-webkit-scrollbar-thumb {
-  background: #ffffff; /* solid white thumb for WebKit browsers */
+  background: rgba(255, 255, 255, 0.35);
   border-radius: 9999px;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.08) inset; /* subtle inner contrast */
 }
 
 .sidebar:hover::-webkit-scrollbar-thumb:hover {
-  background: #e5e7eb; /* slightly off-white on hover */
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* Focus styles — keyboard visible, mouse suppressed */
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Cursor for interactive elements */
+button, [role="button"], label[for], select {
+  cursor: pointer;
+}
+
+/* Text selection */
+::selection {
+  background: rgba(59, 130, 246, 0.2);
 }

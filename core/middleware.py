@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from .models import School, User, Enrollment,SchoolMembership
 from .managers import set_current_school, get_current_school,clear_current_school
-from .cookie_utils import ACCESS_COOKIE_NAME
+from .cookie_utils import ACCESS_COOKIE_NAME, is_access_token_denylisted
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import logging
@@ -34,6 +34,11 @@ def get_user_from_jwt(request):
 
     try:
         access_token = AccessToken(raw_token)
+
+        if is_access_token_denylisted(access_token):
+            logger.debug("Access token is denylisted (logged out)")
+            return None
+
         user_id = access_token.get('user_id')
 
         if user_id:

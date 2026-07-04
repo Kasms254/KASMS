@@ -15,7 +15,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, Value, Subquery, OuterRef, Prefetch
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -40,14 +40,16 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import (
-    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog,
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
-    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
+    renumber_class_indexes)
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
 from core.services.zkteco_service import ZKTecoSyncService
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime
 from django.db.models import Sum
 import logging
@@ -97,13 +99,12 @@ class TenantFilterMixin:
     
     def perform_create(self, serializer):
         school = self.get_school_for_request()
-        
+
         model = serializer.Meta.model
         if hasattr(model, 'school'):
-            if 'school' not in serializer.validated_data or serializer.validated_data.get('school') is None:
-                serializer.save(school=school)
-                return
-        
+            serializer.save(school=school)
+            return
+
         serializer.save()
 
 class IsSuperAdmin(BasePermission):
@@ -371,6 +372,13 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         'user', 'school', 'transfer_to'
     )
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def perform_create(self, serializer):
+        school = self.get_school_for_request()
+        submitted_school = serializer.validated_data.get('school')
+        if submitted_school and submitted_school != school:
+            raise ValidationError({"school": "You can only create memberships for your own school."})
+        serializer.save(school=school)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['status', 'role']
     search_fields = [
@@ -553,6 +561,20 @@ class UserViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return queryset.none()
 
+        _user_prefetches = [
+            Prefetch(
+                'school_memberships',
+                queryset=SchoolMembership.all_objects.select_related('school'),
+            ),
+            Prefetch(
+                'department_memberships',
+                queryset=DepartmentMembership.objects.filter(is_active=True).select_related('department'),
+                to_attr='_hod_memberships',
+            ),
+            'enrollments',
+            'enrollments__class_obj',
+        ]
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -560,15 +582,13 @@ class UserViewSet(viewsets.ModelViewSet):
                     school_memberships__school=school,
                     school_memberships__status='active'
                 ).distinct()
-            return queryset.prefetch_related('enrollments', 'enrollments__class_obj')
+            return queryset.prefetch_related(*_user_prefetches)
 
         if user.school:
             return queryset.filter(
                 school_memberships__school=user.school,
                 school_memberships__status='active'
-            ).distinct().prefetch_related(
-                'enrollments', 'enrollments__class_obj'
-            )
+            ).distinct().prefetch_related(*_user_prefetches)
 
         return queryset.none()
     
@@ -578,21 +598,29 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({
             'error': 'Only instructors can access their students.'
             })
-        
+
+        school = request.user.school
+        if not school:
+            return Response({'count': 0, 'results': []})
+
         instructor_classes = Class.objects.filter(
             Q(instructor=request.user) | Q(subjects__instructor=request.user),
-            is_active=True).distinct().values_list('id', flat=True)
-        
+            school=school,
+            is_active=True,
+        ).distinct().values_list('id', flat=True)
+
         student_ids = Enrollment.objects.filter(
             class_obj_id__in=instructor_classes,
-            is_active=True
+            is_active=True,
         ).values_list('student_id', flat=True).distinct()
 
-        students = User.objects.filter(
+        students = User.all_objects.filter(
             id__in=student_ids,
             role='student',
-            is_active=True
-        ).order_by('first_name', 'last_name')
+            is_active=True,
+            school_memberships__school=school,
+            school_memberships__status='active',
+        ).distinct().order_by('first_name', 'last_name')
 
         serializer = UserListSerializer(students, many=True)
 
@@ -796,6 +824,12 @@ class UserViewSet(viewsets.ModelViewSet):
         user.must_change_password = True  # Force user to change on next login
         user.save()
 
+        # Blacklist every refresh token ever issued to this user so an
+        # attacker (or the old session) can't keep minting new access tokens
+        # for the remaining refresh-token lifetime after a forced reset.
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
+
         return Response({
             'status': 'success',
             'message': f'Password for user {user.username} has been reset'
@@ -830,7 +864,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').prefetch_related(
+        queryset = queryset.prefetch_related(
             'enrollments', 'enrollments__class_obj'
         ).order_by('first_name', 'last_name')[:MAX_EXPORT_ROWS]
 
@@ -895,7 +929,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').order_by(
+        queryset = queryset.order_by(
             'first_name', 'last_name'
         )[:MAX_EXPORT_ROWS]
 
@@ -972,6 +1006,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = []
     search_fields = ['name', 'description', 'code']
@@ -1146,7 +1181,6 @@ class ClassViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            # C6: scope by school to prevent assigning instructors from other schools
             instructor = User.all_objects.get(
                 id=instructor_id,
                 role='instructor',
@@ -1227,12 +1261,24 @@ class ClassViewSet(viewsets.ModelViewSet):
             is_active=True
         ).order_by ('first_name', 'last_name')
 
+        index_map = {}
+        for si in StudentIndex.all_objects.filter(
+            class_obj=class_obj,
+            enrollment__is_active=True,
+        ).select_related('enrollment'):
+            try:
+                index_map[si.enrollment.student_id] = class_obj.format_index(int(si.index_number))
+            except (ValueError, TypeError):
+                pass
 
         serializer = UserListSerializer(students, many=True)
-        
+        results = serializer.data
+        for student_data in results:
+            student_data['index_number'] = index_map.get(student_data['id'])
+
         return Response({
             'count': students.count(),
-            'results': serializer.data,
+            'results': results,
             'class':class_obj.name
         })
 
@@ -1469,9 +1515,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only instructors can access this.'}, status=403)
 
         subjects = self.get_queryset().filter(
-            instructor=request.user,
+            Q(instructor=request.user) | Q(class_obj__instructor=request.user),
             is_active=True
-        )
+        ).distinct()
 
         serializer = SubjectSerializer(subjects, many=True)
         return Response({
@@ -1756,6 +1802,15 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         school = get_current_school() or user.school
+
+        student = serializer.validated_data.get('student')
+        class_obj = serializer.validated_data.get('class_obj')
+
+        if student and not student.school_memberships.filter(school=school, status='active').exists():
+            raise ValidationError("Student has no active membership at this school.")
+        if class_obj and class_obj.school != school:
+            raise ValidationError("Class does not belong to your school.")
+
         serializer.save(school=school, enrolled_by=user)
     
     @action(detail=True, methods=['post'])
@@ -1881,12 +1936,12 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
-  
+        qs = self.get_queryset()
         stats = {
-            'total_enrollments': Enrollment.objects.count(),
-            'active_enrollments': Enrollment.objects.filter(is_active=True).count(),
-            'completed_enrollments': Enrollment.objects.filter(completion_date__isnull=False).count(),
-            'withdrawn_enrollments': Enrollment.objects.filter(is_active=False, completion_date__isnull=True).count(),
+            'total_enrollments': qs.count(),
+            'active_enrollments': qs.filter(is_active=True).count(),
+            'completed_enrollments': qs.filter(completion_date__isnull=False).count(),
+            'withdrawn_enrollments': qs.filter(is_active=False, completion_date__isnull=True).count(),
         }
         return Response(stats)
     
@@ -1923,18 +1978,52 @@ class ExamViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'subject__name', 'subject__code']
     ordering_fields = ['exam_date', 'created_at']
     ordering =['-created_at']
+    pagination_class = PageSizeAwarePagination
 
     def get_queryset(self):
         queryset = Exam.all_objects.select_related(
             'subject', 'subject__class_obj', 'created_by', 'component'
         ).annotate(
-            _avg_score=Avg(
-                'results__marks_obtained',
-                filter=Q(results__is_submitted=True),
+            _avg_score=Case(
+                When(
+                    component__isnull=False,
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            avg=Avg('percentage')
+                        ).values('avg')[:1],
+                        output_field=FloatField(),
+                    ),
+                ),
+                default=Avg(
+                    'results__marks_obtained',
+                    filter=Q(results__is_submitted=True),
+                    output_field=FloatField(),
+                ),
+                output_field=FloatField(),
             ),
-            _sub_count=Count(
-                'results',
-                filter=Q(results__is_submitted=True),
+            _sub_count=Case(
+                When(
+                    component__isnull=False,
+                    then=Subquery(
+                        StudentComponentResult.all_objects.filter(
+                            component_id=OuterRef('component_id'),
+                            is_submitted=True,
+                            marks_obtained__isnull=False,
+                        ).values('component_id').annotate(
+                            cnt=Count('student_id', distinct=True)
+                        ).values('cnt')[:1],
+                        output_field=IntegerField(),
+                    ),
+                ),
+                default=Count(
+                    'results',
+                    filter=Q(results__is_submitted=True),
+                ),
+                output_field=IntegerField(),
             ),
         )
  
@@ -1954,26 +2043,39 @@ class ExamViewSet(viewsets.ModelViewSet):
  
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
-            queryset = queryset.exclude(subject__class_obj__is_closed=True)
+ 
+        queryset = queryset.exclude(subject__class_obj__is_closed=True)
  
         if self.action == 'list':
             queryset = queryset.prefetch_related('attachments')
  
         return queryset
     
-    def check_final_exam_constraint(self, subject, instance=None):
+    def check_final_exam_constraint(self, subject, component=None, instance=None):
         qs = Exam.objects.filter(subject=subject, exam_type='final', is_active=True)
+        if subject.grading_mode == 'POLICY' and component:
+            qs = qs.filter(component=component)
+        else:
+            qs = qs.filter(component__isnull=True)
         if instance:
-            qs  = qs.exclude(pk=instance.pk)
+            qs = qs.exclude(pk=instance.pk)
         if qs.exists():
-            
-            raise ValidationError("Theres already an existing final exam for this subject")
+            if component:
+                raise ValidationError(
+                    "There is already an existing final exam for this component."
+                )
+            raise ValidationError(
+                "There is already an existing final exam for this subject."
+            )
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
-        
+
         subject = serializer.validated_data.get('subject')
         component = serializer.validated_data.get('component')
+
+        if subject and subject.school != school:
+            raise ValidationError("Subject does not belong to your school.")
 
         if self.request.user.role == 'instructor':
             if subject.instructor != self.request.user:
@@ -1997,10 +2099,12 @@ class ExamViewSet(viewsets.ModelViewSet):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
         exam_type = serializer.validated_data.get('exam_type', serializer.instance.exam_type)
         is_active = serializer.validated_data.get('is_active', serializer.instance.is_active)
-
+        component = serializer.validated_data.get('component', serializer.instance.component)
 
         if exam_type == 'final' and is_active:
-            self.check_final_exam_constraint(subject, instance = serializer.instance)
+            self.check_final_exam_constraint(
+                subject, component=component, instance=serializer.instance
+            )
 
         serializer.save()
         
@@ -2010,19 +2114,51 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         results = exam.results.select_related('student', 'graded_by').all()
 
-        stats = results.aggregate(
-            total=Count('id'),
-            submitted=Count('id', filter=Q(is_submitted=True)),
-            pending=Count('id', filter=Q(is_submitted=False))
-        )
-        
-        serializer = ExamResultSerializer(results, many=True)
+        serialized_results = ExamResultSerializer(results, many=True).data
+
+       
+        if exam.component_id:
+            comp_results = StudentComponentResult.all_objects.filter(
+                component_id=exam.component_id,
+                student_id__in=[r['student'] for r in serialized_results],
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective: dict = {}
+            for cr in comp_results:
+                sid = cr.student_id
+                existing = effective.get(sid)
+                if existing is None:
+                    effective[sid] = cr
+                elif cr.component.retake_evaluation == 'best':
+                    if float(cr.percentage or 0) > float(existing.percentage or 0):
+                        effective[sid] = cr
+                else:  
+                    if cr.attempt_number > existing.attempt_number:
+                        effective[sid] = cr
+
+            enriched = []
+            for r in serialized_results:
+                r = dict(r)
+                cr = effective.get(r['student'])
+                if cr is not None:
+                    r['marks_obtained'] = float(cr.marks_obtained)
+                    r['percentage'] = float(cr.percentage or 0)
+                    r['is_submitted'] = True
+                    r['grade'] = cr.status  # PASS/FAIL from component
+                enriched.append(r)
+            serialized_results = enriched
+
+        submitted_count = sum(1 for r in serialized_results if r.get('is_submitted') and r.get('marks_obtained') is not None)
+        pending_count = len(serialized_results) - submitted_count
+
         return Response({
             'exam': ExamSerializer(exam).data,
-            'count': stats['total'],
-            'submitted': stats['submitted'],
-            'pending': stats['pending'],
-            'results': serializer.data
+            'count': len(serialized_results),
+            'submitted': submitted_count,
+            'pending': pending_count,
+            'results': serialized_results,
         })
 
 
@@ -2156,7 +2292,10 @@ class ExamViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN
             )
         
-        exams = self.get_queryset().filter(is_active=True)
+        exams = self.get_queryset().filter(
+            subject__instructor=request.user,
+            is_active=True,
+        )
 
         serializer = self.get_serializer(exams, many=True)
 
@@ -2322,25 +2461,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
     def _create_grade_notification(self, exam_result):
         try:
             percentage = (exam_result.marks_obtained / exam_result.exam.total_marks * 100) if exam_result.exam.total_marks > 0 else 0
-
-            if percentage >= 91:
-                return 'A'
-            elif percentage >= 86:
-                return 'A-'
-            elif percentage >= 81:
-                return 'B+'
-            elif percentage >= 76:
-                return 'B'
-            elif percentage >= 71:
-                return 'B-'
-            elif percentage >= 65:
-                return 'C+'
-            elif percentage >= 60:
-                return 'C'
-            elif percentage >= 50:
-                return 'C-'
-            else:
-                return 'F'
+            grade_letter = self._calculate_overall_grade(percentage)
 
             title = f"Grade Posted: {exam_result.exam.title}"
 
@@ -2362,17 +2483,16 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             PersonalNotification.objects.create(
                 user=exam_result.student,
                 notification_type='exam_result',
-                priority = 'medium',
-                title = title,
-                content = content,
-                exam_result= exam_result,
-                created_by= exam_result.graded_by,
-                is_active=True
+                priority='medium',
+                title=title,
+                content=content,
+                exam_result=exam_result,
+                created_by=exam_result.graded_by,
+                is_active=True,
             )
 
             return True
-        except Exception as e:
-
+        except Exception:
             return False
 
     def perform_update(self, serializer):
@@ -2409,8 +2529,9 @@ class ExamResultViewSet(viewsets.ModelViewSet):
             for result_data in results_data:
                 try:
                     result = ExamResult.objects.get(
-                        id = result_data.get('id'),
-                        exam__subject__instructor = request.user
+                        id=result_data.get('id'),
+                        school=request.user.school,
+                        exam__subject__instructor=request.user,
                     )
 
                     # Prevent grading if the class is closed
@@ -2797,7 +2918,24 @@ class ExamReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = ExamReport.all_objects.select_related(
             'subject', 'class_obj', 'created_by'
-        ).all()
+        ).prefetch_related('exams').annotate(
+            total_students=Count(
+                'class_obj__enrollments',
+                filter=Q(class_obj__enrollments__is_active=True),
+                distinct=True,
+            ),
+            average_performance=Avg(
+                ExpressionWrapper(
+                    F('exams__results__marks_obtained') * 100.0 / F('exams__total_marks'),
+                    output_field=FloatField(),
+                ),
+                filter=Q(
+                    exams__results__is_submitted=True,
+                    exams__results__marks_obtained__isnull=False,
+                    exams__total_marks__gt=0,
+                ),
+            ),
+        )
         user = self.request.user
 
         if not user.is_authenticated:
@@ -2812,14 +2950,16 @@ class ExamReportViewSet(viewsets.ModelViewSet):
         if user.school:
             queryset = queryset.filter(school=user.school)
             if user.role == 'instructor':
-                queryset = queryset.filter(subject__instructor=user)
+                queryset = queryset.filter(
+                    Q(subject__instructor=user) | Q(class_obj__instructor=user)
+                )
             return queryset
 
         return queryset.none()
 
     def perform_create(self, serializer):
-        school = get_current_school()
-        serializer.save(school=school, created_by = self.request.user)
+        school = get_current_school() or self.request.user.school
+        serializer.save(school=school, created_by=self.request.user)
 
     
     @action(detail=False, methods=['get'], url_path='by_exam/(?P<exam_id>[^/.]+)')
@@ -2961,7 +3101,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -3048,7 +3190,9 @@ class InstructorDashboardViewset(viewsets.ViewSet):
         if hod_dept_ids:
             pending_edit_requests_count = ResultEditRequest.objects.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_dept_ids) |
-                Q(exam_result__exam__subject__department__in=hod_dept_ids),
+                Q(exam_result__exam__subject__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__class_obj__department__in=hod_dept_ids) |
+                Q(component_result__component__subject__department__in=hod_dept_ids),
                 status=ResultEditRequest.Status.PENDING,
             ).count()
 
@@ -3392,13 +3536,37 @@ class StudentDashboardViewset(viewsets.ViewSet):
             active_class_results = ExamResult.objects.filter(
                 student=user,
                 is_submitted=True,
-                marks_obtained__isnull = False,
-                exam__subject__class_obj_id = active_class_id
-            )
+                marks_obtained__isnull=False,
+                exam__subject__class_obj_id=active_class_id,
+            ).select_related('exam')
 
-            if active_class_results.exists():
-                total_marks = sum(r.marks_obtained for r in active_class_results)
-                total_possible = sum(r.exam.total_marks for r in active_class_results)
+            policy_comp_results = StudentComponentResult.objects.filter(
+                student=user,
+                component__subject__class_obj_id=active_class_id,
+                is_submitted=True,
+                marks_obtained__isnull=False,
+            ).select_related('component')
+
+            effective_policy = {}
+            for r in policy_comp_results:
+                cid = r.component_id
+                existing = effective_policy.get(cid)
+                if existing is None:
+                    effective_policy[cid] = r
+                elif r.component.retake_evaluation == 'best':
+                    if float(r.percentage or 0) > float(existing.percentage or 0):
+                        effective_policy[cid] = r
+                else:
+                    if r.attempt_number > existing.attempt_number:
+                        effective_policy[cid] = r
+
+            has_results = active_class_results.exists() or bool(effective_policy)
+            if has_results:
+                total_marks = sum(float(r.marks_obtained) for r in active_class_results)
+                total_possible = sum(float(r.exam.total_marks) for r in active_class_results)
+                for r in effective_policy.values():
+                    total_marks += float(r.marks_obtained)
+                    total_possible += float(r.component.total_marks)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
                 if average_percentage >=91:
@@ -3761,8 +3929,17 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         school = get_current_school() or self.request.user.school
+
+        class_obj = serializer.validated_data.get('class_obj')
+        subject = serializer.validated_data.get('subject')
+
+        if class_obj and class_obj.school != school:
+            raise ValidationError("Class does not belong to your school.")
+        if subject and subject.school != school:
+            raise ValidationError("Subject does not belong to your school.")
+
         session = serializer.save(school=school, created_by=self.request.user)
-        
+
         AttendanceSessionLog.objects.create(
             school=school,
             session=session,
@@ -4194,9 +4371,9 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        
-        school = get_current_school()
-        attendance = serializer.save(marked_by=self.request.user)
+        user = self.request.user
+        school = get_current_school() or user.school
+        attendance = serializer.save(marked_by=user, school=school)
 
         AttendanceSessionLog.objects.create(
             session=attendance.session,
@@ -4264,13 +4441,11 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
         serializer = BulkSessionAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # C3: scope session lookup to the current school to prevent cross-tenant manipulation
         session = AttendanceSession.objects.get(
             id=serializer.validated_data['session_id'],
             school=request.user.school,
         )
 
-        # Verify the user has permission to mark attendance for this session
         user = request.user
         if user.role == 'instructor':
             if not (
@@ -4289,7 +4464,6 @@ class SessionAttendanceViewset(viewsets.ModelViewSet):
 
         for record in records:
             try:
-                # C4: scope by school to prevent marking attendance for students from other schools
                 student = User.all_objects.get(
                     id=record['student_id'],
                     role='student',
@@ -5383,7 +5557,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 class EnrollmentCertificateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get(self, request, enrollment_id):
         try:
@@ -5395,6 +5569,8 @@ class EnrollmentCertificateView(APIView):
                 {'error': 'Enrollment not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        self.check_object_permissions(request, enrollment)
 
         user = request.user
         if user.active_role == 'student' and enrollment.student != user:
@@ -5448,13 +5624,15 @@ class EnrollmentCertificateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        self.check_object_permissions(request, enrollment)
+
         # Resolve optional template from request body
         template = None
         template_id = request.data.get('template_id')
         if template_id:
             try:
                 template = CertificateTemplate.all_objects.get(
-                    id=template_id, is_active=True,
+                    id=template_id, is_active=True, school=enrollment.school,
                 )
             except CertificateTemplate.DoesNotExist:
                 return Response(
@@ -5693,6 +5871,18 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "index_number": student_index.index_number,
             "formatted_index": class_obj.format_index(int(new_number)),
         })
+
+    @action(detail=True, methods=["post"], url_path="renumber")
+    def renumber_indexes(self, request, pk=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        renumbered = renumber_class_indexes(class_obj)
+        return Response({
+            "message": f"Renumbered {len(renumbered)} student(s) in {class_obj.name}, starting from {class_obj.format_index(class_obj.index_start_from)}.",
+            "roster": [
+                {"id": str(idx.pk), "index_number": idx.index_number, "enrollment_id": str(idx.enrollment_id)}
+                for idx in renumbered
+            ],
+        })
 # Departments
 class DepartmentViewSet(viewsets.ModelViewSet):
 
@@ -5704,11 +5894,25 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         qs = Department.objects.select_related('school').prefetch_related(
             'department_memberships__user'
         )
-        if user.role in ('instructor',):
+
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                qs = qs.filter(school=school)
+            return qs
+
+        school = user.school
+        if not school:
+            return qs.none()
+
+        qs = qs.filter(school=school)
+
+        if user.role == 'instructor':
             qs = qs.filter(
                 department_memberships__user=user,
                 department_memberships__is_active=True,
             ).distinct()
+
         return qs
 
     def get_permissions(self):
@@ -5787,18 +5991,137 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You are not the HOD of this department.")
 
+class HODExamReportViewSet(viewsets.ReadOnlyModelViewSet):
+
+    serializer_class = DashboardExamReportSerializer
+    permission_classes = [IsAuthenticated, IsHOD]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'class_obj']
+    search_fields = ['title', 'description', 'subject__name', 'class_obj__name']
+    ordering_fields = ['report_date', 'created_at']
+    ordering = ['-report_date']
+
+    def _hod_department_ids(self):
+        return DepartmentMembership.objects.filter(
+            user=self.request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).values_list('department_id', flat=True)
+
+    def get_queryset(self):
+        user = self.request.user
+        school = get_current_school() or user.school
+        dept_ids = list(self._hod_department_ids())
+
+        if not school or not dept_ids:
+            return ExamReport.objects.none()
+
+        return ExamReport.all_objects.filter(
+            Q(class_obj__department_id__in=dept_ids) |
+            Q(subject__department_id__in=dept_ids),
+            school=school,
+        ).select_related(
+            'subject', 'class_obj', 'class_obj__course', 'created_by'
+        ).prefetch_related('exams', 'remarks').distinct()
+
+    @action(detail=True, methods=['get'])
+    def detailed_report(self, request, pk=None):
+        report = self.get_object()
+        exam_ids = report.exams.values_list('id', flat=True)
+
+        enrollments = Enrollment.all_objects.filter(
+            class_obj=report.class_obj, is_active=True
+        ).select_related('student')
+
+        student_data = []
+        for enrollment in enrollments:
+            results = ExamResult.all_objects.filter(
+                exam_id__in=exam_ids,
+                student=enrollment.student,
+                is_submitted=True,
+            )
+            total_marks = sum(
+                r.marks_obtained for r in results if r.marks_obtained
+            )
+            total_possible = sum(r.exam.total_marks for r in results)
+            percentage = (
+                round(total_marks / total_possible * 100, 2)
+                if total_possible > 0 else 0
+            )
+
+            student_data.append({
+                'student_id': enrollment.student.id,
+                'student_name': enrollment.student.get_full_name(),
+                'svc_number': enrollment.student.svc_number,
+                'rank': (
+                    enrollment.student.get_rank_display()
+                    if enrollment.student.rank else None
+                ),
+                'total_marks': float(total_marks),
+                'total_possible': total_possible,
+                'percentage': percentage,
+                'results': ExamResultSerializer(results, many=True).data,
+            })
+
+        student_data.sort(key=lambda x: x['percentage'], reverse=True)
+
+        for i, s in enumerate(student_data, 1):
+            s['position'] = i
+
+        report_data = self.get_serializer(report).data
+
+        return Response({
+            'report': report_data,
+            'students': student_data,
+            'summary': {
+                'total_students': len(student_data),
+                'average_percentage': round(
+                    sum(s['percentage'] for s in student_data) / len(student_data), 2
+                ) if student_data else 0,
+                'highest_percentage': student_data[0]['percentage'] if student_data else 0,
+                'lowest_percentage': student_data[-1]['percentage'] if student_data else 0,
+                'pass_count': sum(1 for s in student_data if s['percentage'] >= 50),
+                'fail_count': sum(1 for s in student_data if s['percentage'] < 50),
+            },
+        })
+
 class DepartmentMembershipViewSet(viewsets.ModelViewSet):
 
     serializer_class = DepartmentMembershipSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def get_queryset(self):
-        return DepartmentMembership.objects.select_related(
+        user = self.request.user
+        qs = DepartmentMembership.objects.select_related(
             'department', 'user', 'assigned_by'
         ).filter(is_active=True)
 
+        if user.role == 'superadmin':
+            school = get_current_school()
+            if school:
+                return qs.filter(department__school=school)
+            return qs
+
+        school = user.school
+        if not school:
+            return qs.none()
+
+        return qs.filter(department__school=school)
+
     def perform_create(self, serializer):
-        serializer.save(assigned_by=self.request.user)
+        user = self.request.user
+        school = get_current_school() or user.school
+
+        department = serializer.validated_data.get('department')
+        member = serializer.validated_data.get('user')
+
+        if department and department.school != school:
+            raise ValidationError("Department does not belong to your school.")
+
+        if member and not member.school_memberships.filter(school=school, status='active').exists():
+            raise ValidationError("User has no active membership at this school.")
+
+        serializer.save(assigned_by=user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -5816,17 +6139,26 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
             'exam_result__exam__subject',
             'exam_result__exam__subject__class_obj__department',
             'exam_result__student',
+            'component_result__component__subject',
+            'component_result__component__subject__class_obj__department',
+            'component_result__student',
             'requested_by', 'reviewed_by',
         )
-        if user.role in ('admin', 'superadmin'):
-            return base
+        if user.role == 'superadmin':
+            school = get_current_school()
+            return base.filter(school=school) if school else base
+        if user.role == 'admin':
+            school = user.school
+            return base.filter(school=school) if school else base.none()
         hod_depts = DepartmentMembership.objects.filter(
             user=user, role=DepartmentMembership.Role.HOD, is_active=True
         ).values_list('department_id', flat=True)
         if hod_depts.exists():
             return base.filter(
                 Q(exam_result__exam__subject__class_obj__department__in=hod_depts) |
-                Q(exam_result__exam__subject__department__in=hod_depts)
+                Q(exam_result__exam__subject__department__in=hod_depts) |
+                Q(component_result__component__subject__class_obj__department__in=hod_depts) |
+                Q(component_result__component__subject__department__in=hod_depts)
             )
         return base.filter(requested_by=user)
 
@@ -5865,7 +6197,10 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
         action_choice = serializer.validated_data['action']
         note = serializer.validated_data.get('note', '')
 
-        dept = edit_request.exam_result.exam.subject.class_obj.department
+        if edit_request.exam_result_id:
+            dept = edit_request.exam_result.exam.subject.class_obj.department
+        else:
+            dept = edit_request.component_result.component.subject.class_obj.department
         if request.user.role not in ('admin', 'superadmin') and dept:
             is_hod = DepartmentMembership.objects.filter(
                 department=dept,
@@ -6201,13 +6536,14 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
  
     def get_queryset(self):
         queryset = StudentComponentResult.all_objects.select_related(
-            'component', 'component__subject', 'student', 'graded_by'
+            'component', 'component__subject', 'component__subject__class_obj',
+            'student', 'graded_by'
         ).all()
- 
+
         user = self.request.user
         if not user.is_authenticated:
             return queryset.none()
- 
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
@@ -6216,12 +6552,12 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(school=user.school)
         else:
             return queryset.none()
- 
+
         if user.role == 'instructor':
             queryset = queryset.filter(component__subject__instructor=user)
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
- 
+
         return queryset
  
     def perform_create(self, serializer):
@@ -6241,9 +6577,9 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 'component': 'Component does not belong to your school.'
             })
  
-        if student.school != school:
+        if not student.school_memberships.filter(school=school, status='active').exists():
             raise ValidationError({
-                'student': 'Student does not belong to your school.'
+                'student': 'Student has no active membership at this school.'
             })
  
         # Instructor permission check
@@ -6287,18 +6623,21 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             submitted_at=timezone.now() if has_marks else None,
         )
  
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def by_student_subject(self, request):
 
         student_id = request.query_params.get('student_id')
         subject_id = request.query_params.get('subject_id')
- 
+
         if not student_id or not subject_id:
             return Response(
                 {'error': 'student_id and subject_id parameters are required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
+
+        if request.user.role == 'student' and str(request.user.id) != str(student_id):
+            return Response({'error': 'You may only view your own results.'}, status=status.HTTP_403_FORBIDDEN)
+
         results = self.get_queryset().filter(
             student_id=student_id,
             component__subject_id=subject_id,
@@ -6413,10 +6752,15 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 existing = StudentComponentResult.all_objects.filter(
                     student=student_obj, component=comp,
                 ).order_by('-attempt_number')
- 
+
+                pct = (float(marks) / comp.total_marks * 100) if comp.total_marks else 0
+                computed_status = 'PASS' if pct >= float(comp.pass_mark) else 'FAIL'
+
                 latest = existing.first()
                 if latest and not latest.is_submitted:
                     latest.marks_obtained = marks
+                    latest.percentage = pct
+                    latest.status = computed_status
                     latest.remarks = item.get('remarks', '')
                     latest.graded_by = request.user
                     latest.graded_at = timezone.now()
@@ -6427,14 +6771,14 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                 else:
                     attempt_number = (latest.attempt_number + 1) if latest else 1
                     is_retake = attempt_number > 1
- 
+
                     if is_retake and not comp.retake_allowed:
                         errors.append({
                             'student_id': student_id,
                             'error': 'Retakes not allowed; student already has a graded attempt.',
                         })
                         continue
- 
+
                     if (
                         is_retake
                         and comp.max_retake_attempts > 0
@@ -6448,7 +6792,7 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                             ),
                         })
                         continue
- 
+
                     StudentComponentResult.all_objects.create(
                         school=request.user.school,
                         component=comp,
@@ -6456,6 +6800,8 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                         attempt_number=attempt_number,
                         is_retake=is_retake,
                         marks_obtained=marks,
+                        percentage=pct,
+                        status=computed_status,
                         remarks=item.get('remarks', ''),
                         graded_by=request.user,
                         graded_at=timezone.now(),

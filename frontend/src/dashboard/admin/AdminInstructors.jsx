@@ -38,7 +38,6 @@ const RANK_OPTIONS = [
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'civ', label: 'Civilian' },
 ]
 
 const EDITABLE_ROLE_OPTIONS = [

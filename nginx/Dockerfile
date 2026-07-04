@@ -39,7 +39,7 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
 # Server block template. The DOMAIN variable inside this file is substituted
 # at container startup by the custom entrypoint (scripts/nginx-entrypoint.sh).
-COPY nginx/templates/kasms.conf.template /etc/nginx/templates/kasms.conf.template
+COPY nginx/templates/ /etc/nginx/templates/
 
 # Copy the built React SPA.
 COPY --from=frontend-builder /frontend/dist /var/www/frontend

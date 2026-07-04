@@ -23,22 +23,10 @@ schema_view = get_schema_view(
 
 @require_GET
 def health_check(request):
-    """
-    Public, unauthenticated endpoint used by:
-      - Docker healthcheck (backend container)
-      - External uptime monitors (UptimeRobot, Freshping, etc.)
-      - Nginx upstream probing (optional)
 
-    Returns 200 when DB and cache are reachable, 503 otherwise.
-    Deliberately does NOT require authentication — checked by middleware
-    analysis: CookieJWT passes through (no token), TenantMiddleware sets
-    school=None (no X-School-Code header), SchoolAccessMiddleware returns
-    immediately for anonymous users.  Zero risk of cross-tenant leakage.
-    """
     checks = {}
     ok = True
 
-    # ── Database ─────────────────────────────────────────────────────────────
     try:
         from django.db import connection
         with connection.cursor() as cur:
@@ -48,7 +36,6 @@ def health_check(request):
         checks["database"] = f"error: {str(exc)[:80]}"
         ok = False
 
-    # ── Cache / Redis ─────────────────────────────────────────────────────────
     try:
         from django.core.cache import cache
         cache.set("_health_ping", "pong", timeout=10)
@@ -67,7 +54,7 @@ def health_check(request):
 
 
 urlpatterns = [
-    # Health check MUST be first — no authentication, no tenant middleware impact.
+    path("", include("django_prometheus.urls")),
     path("health/", health_check, name="health"),
     path("admin/", admin.site.urls),
     path("api/", include("core.urls")),

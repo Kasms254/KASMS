@@ -113,6 +113,12 @@ export default function ClassCertificates() {
   const totalStudents = completionData?.total_students || 0
   const academicallyComplete = completionData?.academically_complete || 0
 
+// for issuance of excellence and participation certificates
+  const selectedTemplate = templates.find((t) => String(t.id) === String(selectedTemplateId))
+    || templates.find((t) => t.is_default)
+  const requiresGrades = !selectedTemplate || selectedTemplate.template_type === 'completion'
+  const eligibleCount = requiresGrades ? academicallyComplete : totalStudents
+
   // Search & pagination
   const filtered = students.filter((st) => {
     if (!searchTerm.trim()) return true
@@ -158,7 +164,7 @@ export default function ClassCertificates() {
             </select>
             <button
               onClick={handleBulkIssue}
-              disabled={issuingAll || academicallyComplete === 0}
+              disabled={issuingAll || eligibleCount === 0}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap"
             >
               {issuingAll ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Award className="w-4 h-4" />}
@@ -326,7 +332,7 @@ export default function ClassCertificates() {
                     {st.is_academically_complete ? 'Complete' : 'Pending'}
                   </span>
 
-                  {st.is_academically_complete && (
+                  {(requiresGrades ? st.is_academically_complete : true) && (
                     <button
                       onClick={() => handleSingleIssue(st.enrollment_id, st.student_name)}
                       disabled={issuingSingle === st.enrollment_id}

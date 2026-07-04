@@ -159,6 +159,11 @@ class SchoolMembership(models.Model):
                 condition=models.Q(status='active'),
                 name='unique_active_membership_per_school'
             ),
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status='active'),
+                name='unique_active_membership_per_user'
+            ),
         ]
         indexes = [
             models.Index(fields=['user', 'status']),
@@ -291,8 +296,7 @@ class ResultEditRequest(models.Model):
         'School', on_delete=models.CASCADE, related_name='result_edit_requests'
     )
     exam_result = models.ForeignKey(
-        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests',
-        null=True, blank=True
+        'ExamResult', on_delete=models.CASCADE, related_name='edit_requests'
     )
     requested_by = models.ForeignKey(
         'User', on_delete=models.CASCADE, related_name='result_edit_requests_made'
@@ -329,35 +333,72 @@ class ResultEditRequest(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['exam_result', 'status']),
+            models.Index(fields=['component_result', 'status']),
             models.Index(fields=['requested_by', 'status']),
             models.Index(fields=['school', 'status']),
         ]
         constraints = [
-
             models.UniqueConstraint(
                 fields=['exam_result'],
-                condition=models.Q(status='pending'),
-                name='unique_pending_edit_request_per_result'
-            )
+                condition=models.Q(status='pending', exam_result__isnull=False),
+                name='unique_pending_edit_request_per_exam_result'
+            ),
+            models.UniqueConstraint(
+                fields=['component_result'],
+                condition=models.Q(status='pending', component_result__isnull=False),
+                name='unique_pending_edit_request_per_component_result'
+            ),
         ]
 
+    def clean(self):
+        has_exam = self.exam_result_id is not None
+        has_comp = self.component_result_id is not None
+        if has_exam == has_comp:
+            raise ValidationError(
+                'Exactly one of exam_result or component_result must be set.'
+            )
+
     def __str__(self):
+        if self.exam_result_id:
+            return (
+                f"EditRequest({self.status}) by {self.requested_by.svc_number} "
+                f"for ExamResult#{self.exam_result_id}"
+            )
         return (
             f"EditRequest({self.status}) by {self.requested_by.svc_number} "
-            f"for Result#{self.exam_result_id}"
+            f"for ComponentResult#{self.component_result_id}"
         )
 
     def approve(self, hod_user, note=''):
-
         self.status = self.Status.APPROVED
         self.reviewed_by = hod_user
         self.reviewed_at = timezone.now()
         self.review_note = note
         self.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'review_note', 'updated_at'])
 
-        # Unlock the result
-        self.exam_result.is_locked = False
-        self.exam_result.save(update_fields=['is_locked', 'updated_at'])
+        if self.exam_result_id:
+            # Unlock the exam result for re-entry by instructor
+            self.exam_result.is_locked = False
+            self.exam_result.save(update_fields=['is_locked', 'updated_at'])
+        elif self.component_result_id and self.proposed_marks is not None:
+            # Directly apply proposed marks to the component result
+            comp_result = self.component_result
+            comp_result.marks_obtained = self.proposed_marks
+            if self.proposed_remarks:
+                comp_result.remarks = self.proposed_remarks
+            comp_result.graded_by = hod_user
+            comp_result.graded_at = timezone.now()
+            # Recompute percentage and status
+            total = comp_result.component.total_marks
+            if total:
+                comp_result.percentage = (self.proposed_marks / total) * 100
+            pass_mark = comp_result.component.pass_mark
+            if pass_mark is not None and comp_result.percentage is not None:
+                comp_result.status = 'PASS' if comp_result.percentage >= pass_mark else 'FAIL'
+            comp_result.save(update_fields=[
+                'marks_obtained', 'remarks', 'graded_by', 'graded_at',
+                'percentage', 'status', 'updated_at',
+            ])
 
     def reject(self, hod_user, note=''):
         self.status = self.Status.REJECTED
@@ -470,12 +511,20 @@ class User(AbstractUser):
     @property
     def active_membership(self):
         if not hasattr(self, '_active_membership_cache'):
-            self._active_membership_cache = (
-                self.school_memberships
-                .filter(status=SchoolMembership.Status.ACTIVE)
-                .select_related('school')
-                .first()
-            )
+            prefetch_cache = getattr(self, '_prefetched_objects_cache', {})
+            if 'school_memberships' in prefetch_cache:
+                self._active_membership_cache = next(
+                    (m for m in prefetch_cache['school_memberships']
+                     if m.status == SchoolMembership.Status.ACTIVE),
+                    None
+                )
+            else:
+                self._active_membership_cache = (
+                    self.school_memberships
+                    .filter(status=SchoolMembership.Status.ACTIVE)
+                    .select_related('school')
+                    .first()
+                )
         return self._active_membership_cache
 
     def clear_membership_cache(self):
@@ -1016,7 +1065,7 @@ class Enrollment(models.Model):
         super().save(*args, **kwargs)
 # instructor
 class Exam(models.Model):
-    EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project')]
+    EXAM_TYPE_CHOICES = [('cat', 'CAT'), ('final', 'Final'), ('project', 'Project'), ('practical', 'Practical'), ('theory', 'Theory')]
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='exams', null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exams')
     component = models.ForeignKey(
@@ -1225,15 +1274,28 @@ class ExamReport(models.Model):
 
     @property
     def total_students(self):
+        if 'total_students' in self.__dict__:
+            return self.__dict__['total_students']
         return self.class_obj.enrollments.filter(is_active=True).count()
+
+    @total_students.setter
+    def total_students(self, value):
+        self.__dict__['total_students'] = value
 
     @property
     def average_performance(self):
+        if 'average_performance' in self.__dict__:
+            val = self.__dict__['average_performance']
+            return round(float(val), 2) if val is not None else 0
         exam_ids = self.exams.values_list('id', flat=True)
         results = ExamResult.objects.filter(exam_id__in=exam_ids, is_submitted=True)
         if not results.exists():
             return 0
         return sum(r.percentage for r in results) / results.count()
+
+    @average_performance.setter
+    def average_performance(self, value):
+        self.__dict__['average_performance'] = value
     
 class NoticeReadStatus(models.Model):
 
@@ -1464,12 +1526,22 @@ class AttendanceSession(models.Model):
         return self.status == 'active' and self.is_active and self.is_within_schedule()
 
     def get_attendance_status_for_time(self, attendance_time):
-        present_cutoff = self.scheduled_start + timedelta(minutes=5)
-        late_cutoff = self.scheduled_end + timedelta(minutes=self.allow_late_minutes)
-        if attendance_time <= present_cutoff:
+        # Session still active = present
+        if attendance_time <= self.scheduled_end:
             return 'present'
-        elif attendance_time <= late_cutoff:
+    # Grace period after session end
+        late_cutoff = (
+        self.scheduled_end
+        + timedelta(
+        minutes=self.allow_late_minutes
+        )
+    )
+
+    # Within grace period = late
+        if attendance_time <= late_cutoff:
             return 'late'
+
+    # Beyond grace period = absent
         return 'absent'
 
     @property
@@ -1988,7 +2060,8 @@ class Certificate(models.Model):
 
     @property
     def verification_url(self):
-        return f"/api/certificates/verify/{self.verification_code}/"
+
+        return f"/verify/{self.verification_code}"
 
 class CertificateDownloadLog(models.Model):
 

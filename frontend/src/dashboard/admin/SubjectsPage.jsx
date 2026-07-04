@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
@@ -18,6 +19,7 @@ function sanitizeInput(value) {
 }
 
 export default function SubjectsPage() {
+  const navigate = useNavigate()
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
@@ -525,6 +527,13 @@ export default function SubjectsPage() {
                     <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {s.grading_mode === 'POLICY' && (
+                          <button
+                            onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                            className="px-3 py-1.5 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition"
+                            aria-label={`Manage components for ${s.name || s.title || 'subject'}`}
+                          >Components</button>
+                        )}
                         <button
                           onClick={() => openEdit(s)}
                           className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
@@ -595,6 +604,12 @@ export default function SubjectsPage() {
                     <td className="px-3 py-3 text-sm text-neutral-700">{s.instructorName}</td>
                     <td className="px-3 py-3">
                       <div className="flex flex-col items-stretch gap-1.5">
+                        {s.grading_mode === 'POLICY' && (
+                          <button
+                            onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                            className="px-3 py-1.5 rounded-md bg-amber-600 text-xs text-white hover:bg-amber-700 transition whitespace-nowrap text-center"
+                          >Components</button>
+                        )}
                         <button
                           onClick={() => openEdit(s)}
                           className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center"
@@ -644,7 +659,13 @@ export default function SubjectsPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-neutral-100">
+                  <div className="flex gap-2 pt-3 border-t border-neutral-100 flex-wrap">
+                    {s.grading_mode === 'POLICY' && (
+                      <button
+                        onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
+                        className="flex-1 px-3 py-2 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition whitespace-nowrap"
+                      >Components</button>
+                    )}
                     <button
                       onClick={() => openEdit(s)}
                       className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"

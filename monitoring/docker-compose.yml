@@ -1,0 +1,210 @@
+name: kasms-monitoring
+
+# =============================================================================
+# KASMS Monitoring Stack
+# Run from: /var/www/KASMS/monitoring/
+# Command:  docker compose up -d
+#
+# Ports exposed on LAN (192.168.2.254):
+#   Grafana      → :3000
+#   Prometheus   → :9090
+#   Uptime Kuma  → :3001
+#   Dozzle       → :9999
+#   Loki         → internal only
+#   Promtail     → internal only
+#   Node Exp     → internal only (host network)
+#   cAdvisor     → internal only
+# =============================================================================
+
+x-log-rotation: &log-rotation
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - monitoring_net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Node Exporter (host metrics: CPU, RAM, disk, network) ──────────────────
+  # Uses host network so it can see all host interfaces accurately.
+  # Prometheus reaches it via host.docker.internal:9100.
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── cAdvisor (per-container resource usage) ─────────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring_net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Loki (log storage) ─────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    user: root
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks:
+      - monitoring_net
+
+  # ── Promtail (log collector → Loki) ────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    user: root
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - monitoring_net
+    depends_on:
+      loki:
+        condition: service_started
+
+  # ── Grafana (dashboards + alerts) ──────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-kasms@monitoring}
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_SERVER_ROOT_URL: http://192.168.2.254:3000
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring_net
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── Dozzle (live container log viewer) ─────────────────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    environment:
+      DOZZLE_LEVEL: info
+      DOZZLE_TAILSIZE: 300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "9999:8080"
+    networks:
+      - monitoring_net
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Uptime Kuma (endpoint uptime monitoring) ────────────────────────────────
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    restart: unless-stopped
+    logging: *log-rotation
+    volumes:
+      - uptime_kuma_data:/app/data
+    ports:
+      - "3001:3001"
+    networks:
+      - monitoring_net
+    healthcheck:
+      test: ["CMD", "extra/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  prometheus_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local
+  uptime_kuma_data:
+    driver: local
+
+networks:
+  monitoring_net:
+    external: true

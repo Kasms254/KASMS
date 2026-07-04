@@ -80,6 +80,32 @@ const VALUE_TO_LABEL = {
   civ: 'Civilian',
 }
 
+const RANK_ABBREVIATIONS = {
+  general:            'GEN',
+  lieutenant_general: 'LT GEN',
+  major_general:      'MAJ GEN',
+  brigadier:          'BRIG',
+  colonel:            'COL',
+  lieutenant_colonel: 'LT COL',
+  major:              'MAJ',
+  captain:            'CAPT',
+  lieutenant:         'LT',
+  '2nd_lieutenant':   '2LT',
+  warrant_officer_i:  'WO I',
+  warrant_officer_ii: 'WO II',
+  senior_sergeant:    'SSGT',
+  sergeant:           'SGT',
+  corporal:           'CPL',
+  lance_corporal:     'LCPL',
+  private:            'PTE',
+  HCI:                'HC I',
+  HCII:               'HC II',
+  CI:                 'CST I',
+  CII:                'CST II',
+  CIII:               'CST III',
+  civ:                'CIV',
+}
+
 // Shared RANK_OPTIONS array (senior → junior) — import this instead of duplicating per-file
 export const RANK_OPTIONS = Object.entries(VALUE_TO_LABEL).map(([value, label]) => ({ value, label }))
 
@@ -106,6 +132,15 @@ export function getRankLabel(rankValue) {
   const internal = LABEL_TO_VALUE[key]
   if (internal) return VALUE_TO_LABEL[internal] || rankValue
   return rankValue
+}
+
+// Accepts either an internal value ("sergeant") or a display label ("Sergeant") and returns the abbreviation.
+export function getRankAbbreviation(rank) {
+  if (!rank) return ''
+  const key = String(rank).toLowerCase().trim()
+  const internalKey = VALUE_TO_LABEL[key] ? key : (LABEL_TO_VALUE[key] || null)
+  if (internalKey && RANK_ABBREVIATIONS[internalKey]) return RANK_ABBREVIATIONS[internalKey]
+  return rank
 }
 
 export function getRankSortIndex(rank) {

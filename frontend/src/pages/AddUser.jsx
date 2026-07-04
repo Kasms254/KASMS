@@ -36,7 +36,6 @@ const ranks = [
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'civ', label: 'Civilian' },
 ]
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
@@ -135,13 +134,13 @@ export default function AddUser({ onSuccess } = {}) {
       case 'first_name':
         if (!value) return 'First name is required'
         if (value.length < 2) return 'First name must be at least 2 characters'
-        if (value.length > 10) return 'First name cannot exceed 10 characters'
+        if (value.length > 50) return 'First name cannot exceed 50 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'First name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'last_name':
         if (!value) return 'Last name is required'
         if (value.length < 2) return 'Last name must be at least 2 characters'
-        if (value.length > 10) return 'Last name cannot exceed 10 characters'
+        if (value.length > 50) return 'Last name cannot exceed 50 characters'
         if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Last name can only contain letters, spaces, hyphens, and apostrophes'
         return ''
       case 'email':
@@ -203,9 +202,9 @@ export default function AddUser({ onSuccess } = {}) {
       newValue = value.replace(/\D/g, '')
     }
 
-    // Sanitize and limit first_name and last_name to 10 characters
+    // Sanitize and limit first_name and last_name to 50 characters
     if (name === 'first_name' || name === 'last_name') {
-      newValue = sanitizeInput(value).slice(0, 10)
+      newValue = sanitizeInput(value).slice(0, 50)
     }
 
     // Sanitize unit field
@@ -424,22 +423,35 @@ export default function AddUser({ onSuccess } = {}) {
                   }`}
                 >
                   <option value="" disabled>-- Select a rank --</option>
-                  {ranks.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
+                  <option value="general">General</option>
+                  <option value="lieutenant_general">Lieutenant General</option>
+                  <option value="major_general">Major General</option>
+                  <option value="brigadier">Brigadier</option>
+                  <option value="colonel">Colonel</option>
+                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
+                  <option value="major">Major</option>
+                  <option value="captain">Captain</option>
+                  <option value="lieutenant">Lieutenant</option>
+                  <option value="warrant_officer_i">Warrant Officer I</option>
+                  <option value="warrant_officer_ii">Warrant Officer II</option>
+                  <option value="senior_sergeant">Senior Sergeant</option>
+                  <option value="sergeant">Sergeant</option>
+                  <option value="corporal">Corporal</option>
+                  <option value="lance_corporal">Lance Corporal</option>
+                  <option value="private">Private</option>
                 </select>
                 {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.first_name}</div>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={10} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.last_name}</div>}
               </div>
 

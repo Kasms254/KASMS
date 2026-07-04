@@ -1,0 +1,60 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+
+  # ── Docker container logs (all containers on this host) ─────────────────────
+  # Uses Docker service discovery — picks up containers from both prod and
+  # staging stacks automatically. Filters to kasms-related projects only.
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: ["running"]
+    relabel_configs:
+      # Strip leading slash from container name: /kasms-backend-1 → kasms-backend-1
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: container
+
+      # Compose service name (e.g. backend, nginx, db)
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+
+      # Compose project name (e.g. kasms, kasms-staging, kasms-monitoring)
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: compose_project
+
+      # ── environment label: staging (must come BEFORE the production rule) ──
+      # Restores the clean production/staging split so Grafana queries that
+      # filter on environment="production" keep working.
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        regex: '^kasms-staging$'
+        target_label: environment
+        replacement: staging
+
+      # ── environment label: production ──
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        regex: '^kasms$'
+        target_label: environment
+        replacement: production
+
+      # ── environment label: monitoring stack ──
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        regex: '^kasms-monitoring$'
+        target_label: environment
+        replacement: monitoring
+
+      # Keep only containers belonging to kasms projects
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        regex: 'kasms.*'
+        action: keep

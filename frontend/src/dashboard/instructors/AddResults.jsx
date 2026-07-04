@@ -60,24 +60,25 @@ export default function AddResults() {
     return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`
   }
 
+  const [subjectsMap, setSubjectsMap] = useState({})
+  const [activeComponentId, setActiveComponentId] = useState(null)
+  const [examGradingMode, setExamGradingMode] = useState('LEGACY')
+
   useEffect(() => {
     let mounted = true
     async function load() {
       try {
         const [examsRes, subjectsRes] = await Promise.all([
           api.getMyExams?.() ?? api.getExams(),
-          api.getMySubjects?.().catch(() => []),
+          (api.getMySubjects?.() ?? Promise.resolve([])).catch(() => []),
         ])
         const arr = Array.isArray(examsRes.results) ? examsRes.results : (Array.isArray(examsRes) ? examsRes : (examsRes?.results ?? []))
         const subjArr = Array.isArray(subjectsRes) ? subjectsRes : (subjectsRes?.results ?? [])
-        const policySubjectIds = new Set(subjArr.filter(s => s.grading_mode === 'POLICY').map(s => String(s.id)))
-        // Exclude exams that belong to POLICY-mode subjects
-        const legacyExams = arr.filter(ex => {
-          const subjectId = String(ex.subject || ex.subject_id || '')
-          return !policySubjectIds.has(subjectId)
-        })
+        const map = {}
+        subjArr.forEach(s => { map[String(s.id)] = s })
         if (!mounted) return
-        setExams(legacyExams)
+        setExams(arr)
+        setSubjectsMap(map)
       } catch (err) {
         toast.error(err?.message || 'Failed to load exams')
       }
@@ -136,31 +137,65 @@ export default function AddResults() {
   useEffect(() => {
     let mounted = true
 
-    async function generateAndLoad(id) {
+    async function dispatchExam(id) {
       if (!id) return
-      setLoading(true)
-      try {
-        await api.generateExamResults(id)
-      } catch (err) {
-        toast.error(err?.message || 'Failed to create result entries')
-      }
-      try {
-        if (mounted) await loadResults(id, { skipSpinner: true })
-      } finally {
-        if (mounted) setLoading(false)
+      const exam = exams.find(e => String(e.id) === String(id))
+      const mode = exam?.grading_mode || 'LEGACY'
+      setExamGradingMode(mode)
+      setComponentStudents([])
+      setComponentInfo(null)
+      setActiveComponentId(null)
+      setComponentPage(1)
+      setComponentSortConfig({ key: null, direction: 'asc' })
+      setResults([])
+      setExamInfo(null)
+      setRetakeActive(new Set())
+
+      if (mode === 'POLICY') {
+        const compId = exam?.component || exam?.component_id
+        if (!compId) return
+        setActiveComponentId(String(compId))
+        const compInfo = {
+          name: exam.component_name,
+          total_marks: exam.total_marks,
+          weight: exam.component_weight,
+          pass_mark: exam.component_pass_mark,
+          is_critical: exam.component_is_critical,
+          retake_allowed: exam.component_retake_allowed,
+        }
+        const subjectId = exam?.subject?.id ?? exam?.subject
+        const subject = subjectsMap[String(subjectId)]
+        const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+        if (mounted) await loadComponentStudents(String(compId), compInfo, classId)
+      } else {
+        setLoading(true)
+        try {
+          await api.generateExamResults(id)
+        } catch (err) {
+          toast.error(err?.message || 'Failed to create result entries')
+        }
+        try {
+          if (mounted) await loadResults(id, { skipSpinner: true })
+        } finally {
+          if (mounted) setLoading(false)
+        }
       }
     }
 
     if (selectedExam) {
-      generateAndLoad(selectedExam)
+      dispatchExam(selectedExam)
     } else {
+      setExamGradingMode('LEGACY')
       setExamInfo(null)
       setResults([])
+      setActiveComponentId(null)
+      setComponentStudents([])
+      setComponentInfo(null)
     }
 
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExam])
+  }, [selectedExam, exams, subjectsMap])
 
   function updateRow(idx, key, value) {
     // mark the row dirty and run inline validation for marks
@@ -286,7 +321,9 @@ export default function AddResults() {
     if (!editRequestForm.reason.trim()) errs.reason = 'Reason is required'
     if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
       const n = Number(editRequestForm.proposed_marks)
-      const max = examInfo?.total_marks != null ? Number(examInfo.total_marks) : null
+      const max = editRequestRow?._isComponent
+        ? (editRequestRow.total_marks != null ? Number(editRequestRow.total_marks) : null)
+        : (examInfo?.total_marks != null ? Number(examInfo.total_marks) : null)
       if (!Number.isFinite(n) || n < 0) errs.proposed_marks = 'Invalid number'
       else if (max != null && n > max) errs.proposed_marks = `Cannot exceed ${max}`
     }
@@ -295,8 +332,12 @@ export default function AddResults() {
     setEditRequestSaving(true)
     try {
       const payload = {
-        exam_result: editRequestRow.id,
         reason: editRequestForm.reason.trim(),
+      }
+      if (editRequestRow._isComponent) {
+        payload.component_result = editRequestRow.id
+      } else {
+        payload.exam_result = editRequestRow.id
       }
       if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
         payload.proposed_marks = Number(editRequestForm.proposed_marks)
@@ -330,6 +371,11 @@ export default function AddResults() {
   function handleSort(key) {
     const direction = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
     setSortConfig({ key, direction })
+  }
+
+  function handleComponentSort(key) {
+    const direction = componentSortConfig.key === key && componentSortConfig.direction === 'asc' ? 'desc' : 'asc'
+    setComponentSortConfig({ key, direction })
   }
 
   // Filter and sort results
@@ -415,52 +461,26 @@ export default function AddResults() {
   const [examStats, setExamStats] = useState({ count: 0, submitted: 0, pending: 0 })
 
   // ── Component-based grading (POLICY mode) ──
-  const [gradingTab, setGradingTab] = useState('exam') // 'exam' | 'component'
-  const [policySubjects, setPolicySubjects] = useState([])
-  const [selectedPolicySubject, setSelectedPolicySubject] = useState('')
-  const [policyComponents, setPolicyComponents] = useState([])
-  const [selectedComponent, setSelectedComponent] = useState('')
   const [componentInfo, setComponentInfo] = useState(null)
   const [componentStudents, setComponentStudents] = useState([])
   const [componentLoading, setComponentLoading] = useState(false)
   const [componentSearchTerm, setComponentSearchTerm] = useState('')
   const [componentSaving, setComponentSaving] = useState(false)
+  const [componentPage, setComponentPage] = useState(1)
+  const [componentItemsPerPage, setComponentItemsPerPage] = useState(10)
+  // Tracks which student IDs have had their retake input explicitly activated
+  const [retakeActive, setRetakeActive] = useState(new Set())
+  const [componentSortConfig, setComponentSortConfig] = useState({ key: null, direction: 'asc' })
 
-  useEffect(() => {
-    let mounted = true
-    async function loadPolicySubjects() {
-      try {
-        const res = await api.getMySubjects?.() ?? api.getAllSubjects?.() ?? []
-        const arr = Array.isArray(res) ? res : (res?.results ?? [])
-        if (mounted) setPolicySubjects(arr.filter(s => s.grading_mode === 'POLICY'))
-      } catch { /* non-critical */ }
-    }
-    loadPolicySubjects()
-    return () => { mounted = false }
-  }, [])
+  React.useEffect(() => {
+    setComponentPage(1)
+  }, [componentSearchTerm, componentSortConfig])
 
-  const loadPolicyComponents = useCallback(async (subjectId) => {
-    if (!subjectId) { setPolicyComponents([]); setSelectedComponent(''); setComponentInfo(null); setComponentStudents([]); return }
-    try {
-      const comps = await api.getComponentsBySubject(subjectId)
-      setPolicyComponents(Array.isArray(comps) ? comps : [])
-    } catch { setPolicyComponents([]) }
-  }, [])
-
-  useEffect(() => {
-    loadPolicyComponents(selectedPolicySubject)
-  }, [selectedPolicySubject, loadPolicyComponents])
-
-  const loadComponentStudents = useCallback(async (componentId) => {
+  const loadComponentStudents = useCallback(async (componentId, compInfo, classId) => {
     if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
     setComponentLoading(true)
     try {
-      const comp = policyComponents.find(c => String(c.id) === String(componentId))
-      setComponentInfo(comp || null)
-
-      // Get existing results and enrolled students in parallel
-      const subject = policySubjects.find(s => String(s.id) === String(selectedPolicySubject))
-      const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+      setComponentInfo(compInfo || null)
 
       const [existingResults, classStudentsData] = await Promise.all([
         api.getComponentResults(`component=${encodeURIComponent(componentId)}`).catch(() => []),
@@ -479,33 +499,47 @@ export default function AddResults() {
         }
       })
 
+      // Derive effective pass/fail from status, falling back to percentage when status is PENDING
+      // (legacy results saved before status computation was added)
+      function effectivelyFailed(r) {
+        if (['FAIL', 'RETAKE_REQUIRED'].includes(r.status)) return true
+        if (r.status === 'PASS') return false
+        // PENDING — infer from percentage vs pass_mark
+        const pct = r.percentage != null ? parseFloat(r.percentage) : null
+        const passMark = compInfo?.pass_mark != null ? parseFloat(compInfo.pass_mark) : null
+        if (pct != null && passMark != null) return pct < passMark
+        return false
+      }
+
       // Merge: all enrolled students, with existing result data if available
       const merged = studentsArr.map(st => {
         const r = resultByStudent[st.id] || {}
-        const hasResult = !!r.id
+        // Only treat as graded if a result record exists WITH marks entered
+        const hasResult = !!r.id && r.marks_obtained != null
         const nextAttempt = (r.attempt_number || 0) + 1
         const isRetake = hasResult
-        // Allow entry only: first time (no result), OR retake allowed AND status is FAIL/RETAKE_REQUIRED
+        // Allow entry: first time (no result/marks), OR retake allowed AND student failed
         const canEnter = !hasResult || (
-          comp?.retake_allowed &&
-          ['FAIL', 'RETAKE_REQUIRED'].includes(r.status)
+          compInfo?.retake_allowed &&
+          effectivelyFailed(r)
         )
         return {
           id: r.id || null,
           student_id: st.id,
           student_name: st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim() || r.student_name || '',
           student_svc_number: st.svc_number || r.student_svc_number || '',
-          // Current (existing) result — shown read-only
+          class_index: st.index_number || r.index_number || '',
+          // Current (existing) result — shown read-only (only when marks are actually entered)
           current_marks: hasResult ? r.marks_obtained : null,
-          current_percentage: r.percentage ?? null,
-          current_status: r.status || (hasResult ? 'PENDING' : null),
+          current_percentage: hasResult ? (r.percentage ?? null) : null,
+          current_status: hasResult ? (r.status || 'PENDING') : null,
           current_attempt: r.attempt_number || 0,
-          // New entry fields
+          // Entry fields — pre-fill with saved values so the input shows existing marks
           next_attempt: nextAttempt,
           is_retake: isRetake,
           can_enter: canEnter,
-          marks_obtained: '',
-          remarks: '',
+          marks_obtained: hasResult ? normalizeNumberForInput(r.marks_obtained) : '',
+          remarks: r.remarks || '',
           dirty: false,
           errors: {},
         }
@@ -513,14 +547,15 @@ export default function AddResults() {
 
       // If no enrolled students found, fall back to existing results only
       const rows = merged.length > 0 ? merged : resultsArr.map(r => {
-        const hasResult = !!r.id
+        const hasResult = !!r.id && r.marks_obtained != null
         const nextAttempt = (r.attempt_number || 0) + 1
-        const canEnter = !hasResult || (comp?.retake_allowed && ['FAIL', 'RETAKE_REQUIRED'].includes(r.status))
+        const canEnter = !hasResult || (compInfo?.retake_allowed && effectivelyFailed(r))
         return {
           id: r.id || null,
           student_id: r.student,
           student_name: r.student_name || '',
           student_svc_number: r.student_svc_number || '',
+          class_index: r.index_number || '',
           current_marks: hasResult ? r.marks_obtained : null,
           current_percentage: r.percentage ?? null,
           current_status: r.status || null,
@@ -528,8 +563,8 @@ export default function AddResults() {
           next_attempt: nextAttempt,
           is_retake: hasResult,
           can_enter: canEnter,
-          marks_obtained: '',
-          remarks: '',
+          marks_obtained: hasResult ? normalizeNumberForInput(r.marks_obtained) : '',
+          remarks: r.remarks || '',
           dirty: false,
           errors: {},
         }
@@ -541,11 +576,7 @@ export default function AddResults() {
     } finally {
       setComponentLoading(false)
     }
-  }, [policyComponents, policySubjects, selectedPolicySubject, toast])
-
-  useEffect(() => {
-    loadComponentStudents(selectedComponent)
-  }, [selectedComponent, loadComponentStudents])
+  }, [toast])
 
   function updateComponentRow(idx, key, value) {
     setComponentStudents(prev => prev.map((r, i) => {
@@ -569,7 +600,7 @@ export default function AddResults() {
   }
 
   async function handleSaveComponentResults() {
-    if (!selectedComponent) return toast.error('Select a component')
+    if (!activeComponentId) return toast.error('No component loaded')
     const dirtyRows = componentStudents.filter(r => r.dirty && r.marks_obtained !== '' && r.can_enter)
     if (dirtyRows.length === 0) return toast.error('No changes to save')
 
@@ -581,14 +612,14 @@ export default function AddResults() {
     if (hasErrors) return toast.error('Fix validation errors before saving')
 
     const payload = {
-      component_id: selectedComponent,
+      component_id: activeComponentId,
       results: dirtyRows.map(r => ({ student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks || '' })),
     }
     setComponentSaving(true)
     try {
       await api.bulkGradeComponentResults(payload)
       toast.success(`${dirtyRows.length} result(s) saved`)
-      await loadComponentStudents(selectedComponent)
+      await loadComponentStudents(activeComponentId, componentInfo, null)
     } catch (err) {
       const d = err?.data
       if (d && typeof d === 'object') {
@@ -622,296 +653,477 @@ export default function AddResults() {
         <p className="text-xs sm:text-sm md:text-base text-gray-600">Enter marks for your students.</p>
       </header>
 
-      {/* Grading Mode Tabs */}
-      <div className="mb-4 sm:mb-6 flex border-b border-neutral-200">
-        <button
-          onClick={() => setGradingTab('exam')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'exam' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+      {/* Exam Selection — single selector for all exams */}
+      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
+        <select
+          value={selectedExam}
+          onChange={e => {
+            setSelectedExam(e.target.value)
+            setSearchTerm('')
+            setSortConfig({ key: null, direction: 'asc' })
+          }}
+          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
-          Exam Grading
-        </button>
-        {policySubjects.length > 0 && (
-          <button
-            onClick={() => setGradingTab('component')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition -mb-px ${gradingTab === 'component' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
-          >
-            Component Grading
-            <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700">Policy</span>
-          </button>
-        )}
+          <option value="">-- Select an exam --</option>
+          {exams.map(ex => (
+            <option key={ex.id} value={ex.id}>
+              {ex.title} — {ex.subject_name || ex.subject?.name}
+              {ex.grading_mode === 'POLICY' ? ` (${ex.component_name || 'Policy'})` : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* ── Component Grading Section ── */}
-      {gradingTab === 'component' && (
+      {/* ── Component Grading Section (POLICY exams) ── */}
+      {examGradingMode === 'POLICY' && (
         <div>
-          {/* Subject + Component Selection */}
-          <div className="mb-4 bg-white rounded-lg shadow p-3 sm:p-4 space-y-3">
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Subject (Policy Mode)</label>
-              <select
-                value={selectedPolicySubject}
-                onChange={e => { setSelectedPolicySubject(e.target.value); setSelectedComponent('') }}
-                className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- Select a subject --</option>
-                {policySubjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} — {s.class_name || s.class_obj?.name || ''}</option>
-                ))}
-              </select>
-            </div>
-
-            {selectedPolicySubject && (
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Select Component</label>
-                <select
-                  value={selectedComponent}
-                  onChange={e => setSelectedComponent(e.target.value)}
-                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Select a component --</option>
-                  {policyComponents.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.total_marks} marks, {parseFloat(c.weight).toFixed(1)}% weight{c.is_critical ? ', CRITICAL' : ''})
-                    </option>
-                  ))}
-                </select>
-                {policyComponents.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">No components defined for this subject. Add components first via Subjects → Components.</p>
-                )}
-              </div>
-            )}
-          </div>
-
           {componentLoading && (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <p className="mt-2 text-gray-600">Loading…</p>
+              <p className="mt-2 text-gray-600">Loading...</p>
             </div>
           )}
 
-          {!componentLoading && selectedComponent && componentStudents.length === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-              No student results found for this component. Students must be enrolled in the subject's class.
+          {!componentLoading && activeComponentId && componentStudents.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <svg className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900">No students found</h3>
+                  <p className="mt-1 text-xs sm:text-sm text-gray-700">No students are enrolled in this subject's class.</p>
+                </div>
+              </div>
             </div>
           )}
 
-          {!componentLoading && componentStudents.length > 0 && componentInfo && (
+          {!componentLoading && componentStudents.length > 0 && componentInfo && (() => {
+            const compGraded = componentStudents.filter(r => r.current_marks != null).length
+            const compPending = componentStudents.filter(r => r.current_marks == null).length
+            const filteredComp = componentStudents
+              .map((r, i) => ({ r, i }))
+              .filter(({ r }) => {
+                if (!componentSearchTerm) return true
+                const q = componentSearchTerm.toLowerCase()
+                return r.student_name?.toLowerCase().includes(q) || (r.class_index || '').toLowerCase().includes(q)
+              })
+              .sort(({ r: a }, { r: b }) => {
+                if (!componentSortConfig.key) return 0
+                let aVal, bVal
+                if (componentSortConfig.key === 'marks_obtained') {
+                  aVal = Number(a.marks_obtained) || 0
+                  bVal = Number(b.marks_obtained) || 0
+                } else if (componentSortConfig.key === 'percentage') {
+                  aVal = a.marks_obtained !== '' && a.marks_obtained != null && componentInfo.total_marks
+                    ? (parseFloat(a.marks_obtained) / componentInfo.total_marks) * 100
+                    : (a.current_percentage != null ? parseFloat(a.current_percentage) : 0)
+                  bVal = b.marks_obtained !== '' && b.marks_obtained != null && componentInfo.total_marks
+                    ? (parseFloat(b.marks_obtained) / componentInfo.total_marks) * 100
+                    : (b.current_percentage != null ? parseFloat(b.current_percentage) : 0)
+                } else if (componentSortConfig.key === 'status') {
+                  const order = { PASS: 1, FAIL: 2, RETAKE_REQUIRED: 3, PENDING: 4 }
+                  aVal = order[a.current_status] || 5
+                  bVal = order[b.current_status] || 5
+                } else {
+                  aVal = String(a[componentSortConfig.key] || '').toLowerCase()
+                  bVal = String(b[componentSortConfig.key] || '').toLowerCase()
+                }
+                if (aVal < bVal) return componentSortConfig.direction === 'asc' ? -1 : 1
+                if (aVal > bVal) return componentSortConfig.direction === 'asc' ? 1 : -1
+                return 0
+              })
+            const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
+            const paginatedComp = filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage)
+            return (
             <div className="bg-white rounded-lg shadow-lg">
-              {/* Component Info Cards */}
+              {/* Info Cards — same layout as legacy */}
               <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                     <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Component</div>
-                    <div className="text-sm font-semibold text-gray-900 truncate">{componentInfo.name}</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate" title={componentInfo.name}>{componentInfo.name}</div>
                   </div>
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                     <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
-                    <div className="text-sm font-semibold text-indigo-600">{componentInfo.total_marks}</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-indigo-600">{componentInfo.total_marks ?? '—'}</div>
                   </div>
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Weight</div>
-                    <div className="text-sm font-semibold text-gray-900">{parseFloat(componentInfo.weight).toFixed(1)}%</div>
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Students</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">{componentStudents.length}</div>
                   </div>
                   <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Pass Mark</div>
-                    <div className="text-sm font-semibold text-gray-900">{parseFloat(componentInfo.pass_mark).toFixed(1)}%</div>
+                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Progress</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold">
+                      <span className="text-green-600">{compGraded}</span>
+                      <span className="text-gray-400 mx-1">/</span>
+                      <span className="text-orange-600">{compPending}</span>
+                    </div>
                   </div>
                 </div>
-                {componentInfo.is_critical && (
-                  <div className="mt-2 text-xs text-red-700 bg-red-50 rounded px-2 py-1 inline-block">
-                    Critical — failing this component fails the entire subject
+              </div>
+
+              {/* Search + Controls — same layout as legacy */}
+              <div className="p-3 sm:p-4 border-b bg-gray-50">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Search by name or index..."
+                        value={componentSearchTerm}
+                        onChange={e => { setComponentSearchTerm(e.target.value); setComponentPage(1) }}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</label>
+                      <select
+                        value={componentItemsPerPage}
+                        onChange={e => { setComponentItemsPerPage(Number(e.target.value)); setComponentPage(1) }}
+                        className="px-2 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Search + Actions */}
-              <div className="p-3 sm:p-4 border-b bg-gray-50 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-neutral-600">
-                    {componentStudents.filter(r => r.is_submitted).length} / {componentStudents.length} submitted
-                  </span>
-                  <button
-                    onClick={() => loadComponentStudents(selectedComponent)}
-                    className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
-                  >Refresh</button>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => loadComponentStudents(activeComponentId, componentInfo, null)}
+                      className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
+                    >
+                      Refresh
+                    </button>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Search by student name or SVC number..."
-                  value={componentSearchTerm}
-                  onChange={e => setComponentSearchTerm(e.target.value)}
-                  className="w-full p-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
               </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left border-b border-gray-200">
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Student</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">SVC No</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Current</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Status</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Marks (/{componentInfo.total_marks})</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Percentage</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Grade</th>
-                      <th className="px-3 py-2.5 font-medium text-gray-600 text-xs uppercase tracking-wider">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {componentStudents
-                      .map((r, originalIdx) => ({ r, originalIdx }))
-                      .filter(({ r }) => {
-                        if (!componentSearchTerm) return true
-                        const q = componentSearchTerm.toLowerCase()
-                        return r.student_name?.toLowerCase().includes(q) || r.student_svc_number?.toLowerCase().includes(q)
-                      })
-                      .map(({ r, originalIdx: idx }) => {
-                        const rawMarks = r.can_enter && r.marks_obtained !== '' ? parseFloat(r.marks_obtained) : null
-                        const displayPct = rawMarks != null && componentInfo.total_marks
-                          ? ((rawMarks / componentInfo.total_marks) * 100).toFixed(1)
-                          : r.current_percentage != null ? parseFloat(r.current_percentage).toFixed(1) : null
-                        const grade = displayPct != null ? gradeFromPct(parseFloat(displayPct)) : '—'
-                        const gradeColor = grade === 'A' ? 'bg-green-100 text-green-700' : grade === 'A-' || grade === 'B+' || grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'B-' || grade === 'C+' || grade === 'C' || grade === 'C-' ? 'bg-yellow-100 text-yellow-700' : grade === 'F' ? 'bg-red-100 text-red-700' : 'bg-neutral-100 text-neutral-500'
+              {/* Desktop Table — same structure as legacy */}
+              <div className="hidden md:block overflow-x-auto">
+                <div className="inline-block min-w-full align-middle">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th
+                          onClick={() => handleComponentSort('class_index')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Index
+                            <span className={componentSortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'class_index' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th
+                          onClick={() => handleComponentSort('marks_obtained')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Marks (/{componentInfo.total_marks})
+                            <span className={componentSortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'marks_obtained' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th
+                          onClick={() => handleComponentSort('percentage')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Percentage
+                            <span className={componentSortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'percentage' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Grade</th>
+                        <th
+                          onClick={() => handleComponentSort('status')}
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                        >
+                          <div className="flex items-center gap-1">
+                            Status
+                            <span className={componentSortConfig.key === 'status' ? 'text-indigo-600' : 'text-gray-300'}>
+                              {componentSortConfig.key === 'status' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </div>
+                        </th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {paginatedComp.map(({ r, i: idx }) => {
+                        const inputPct = r.marks_obtained !== '' && r.marks_obtained != null && componentInfo.total_marks
+                          ? (parseFloat(r.marks_obtained) / componentInfo.total_marks) * 100
+                          : null
+                        const displayPct = inputPct ?? (r.current_percentage != null ? parseFloat(r.current_percentage) : null)
+                        const g = displayPct != null ? gradeFromPct(displayPct) : '—'
                         return (
-                          <tr key={r.student_id} className={`hover:bg-gray-50 ${r.dirty ? 'bg-indigo-50/40' : ''}`}>
-                            <td className="px-3 py-2.5 font-medium text-gray-900">{r.student_name || '—'}</td>
-                            <td className="px-3 py-2.5 text-gray-500 text-xs">{r.student_svc_number || '—'}</td>
-
-                            <td className="px-3 py-2.5 text-sm">
-                              {r.current_marks != null ? (
-                                <span className="font-medium text-gray-800">
-                                  {r.current_marks}/{componentInfo.total_marks}
-                                  {r.current_percentage != null && (
-                                    <span className="ml-1 text-gray-500 text-xs">({parseFloat(r.current_percentage).toFixed(1)}%)</span>
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400 text-xs italic">Not graded</span>
-                              )}
+                          <tr key={r.student_id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
+                              {r.class_index || '—'}
                             </td>
-
-                            <td className="px-3 py-2.5">
-                              {r.current_status ? (
-                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  r.current_status === 'PASS' ? 'bg-green-50 text-green-700' :
-                                  r.current_status === 'FAIL' ? 'bg-red-50 text-red-700' :
-                                  r.current_status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
-                                  'bg-neutral-100 text-neutral-500'
-                                }`}>
-                                  {r.is_retake && r.current_status !== 'PASS'
-                                    ? `FAIL · Attempt ${r.current_attempt}`
-                                    : r.current_status}
-                                </span>
+                            <td className="px-3 lg:px-4 py-3">
+                              {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-500">{r.current_marks ?? '—'}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
+                                    className="px-2 py-1 text-xs font-medium rounded bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition whitespace-nowrap"
+                                  >
+                                    Retake (Attempt {r.next_attempt})
+                                  </button>
+                                </div>
                               ) : (
-                                <span className="text-xs text-neutral-400">—</span>
-                              )}
-                            </td>
-
-                            <td className="px-3 py-2.5">
-                              {r.can_enter ? (
-                                <div>
-                                  {r.is_retake && (
-                                    <div className="text-xs text-amber-600 mb-0.5">Retake {r.next_attempt}</div>
+                                <>
+                                  {r.is_retake && r.can_enter && (
+                                    <div className="text-xs text-amber-600 font-medium mb-0.5">Retake — Attempt {r.next_attempt}</div>
                                   )}
                                   <input
                                     type="number"
                                     min="0"
                                     max={componentInfo.total_marks}
-                                    step="0.5"
+                                    step="any"
                                     value={r.marks_obtained}
                                     onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
-                                    className={`w-28 px-2 py-1.5 rounded border text-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none ${r.errors?.marks_obtained ? 'border-red-400 bg-red-50' : r.dirty ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300'}`}
                                     placeholder="Marks"
+                                    disabled={!r.can_enter}
+                                    className={`w-full px-2 py-1.5 text-sm rounded-md border ${
+                                      !r.can_enter
+                                        ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                        : r.errors?.marks_obtained
+                                        ? 'border-red-500 focus:ring-red-500'
+                                        : 'border-amber-400 focus:ring-amber-500'
+                                    } focus:ring-2 focus:border-transparent`}
                                   />
-                                  {r.errors?.marks_obtained && (
-                                    <div className="text-xs text-red-600 mt-0.5">{r.errors.marks_obtained}</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-neutral-400 italic">
-                                  {r.current_status === 'PASS' ? 'Passed' : 'No retake'}
-                                </span>
+                                  {r.errors?.marks_obtained && <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>}
+                                </>
                               )}
                             </td>
-
-                            <td className="px-3 py-2.5 text-sm font-medium">
-                              {displayPct != null ? (
-                                <span className={parseFloat(displayPct) >= parseFloat(componentInfo.pass_mark) ? 'text-green-600' : 'text-red-500'}>
-                                  {displayPct}%
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
+                              <span className={`font-medium ${
+                                displayPct == null ? 'text-gray-400' :
+                                displayPct >= 76 ? 'text-green-600' :
+                                displayPct >= 50 ? 'text-yellow-600' :
+                                'text-red-600'
+                              }`}>
+                                {displayPct != null ? formatPercentage(displayPct) : '-'}
+                              </span>
+                            </td>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                                g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                                g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                                g === 'F' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {g}
+                              </span>
+                            </td>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                              {r.current_status ? (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
+                                  r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
                                 </span>
-                              ) : <span className="text-gray-400">0%</span>}
+                              ) : <span className="text-gray-300 text-xs">—</span>}
                             </td>
-
-                            <td className="px-3 py-2.5">
-                              {grade !== '—' ? (
-                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${gradeColor}`}>{grade}</span>
-                              ) : <span className="text-gray-400">—</span>}
+                            <td className="px-3 lg:px-4 py-3">
+                              <input
+                                type="text"
+                                value={r.remarks}
+                                onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
+                                placeholder="Remarks"
+                                disabled={!r.can_enter}
+                                className={`w-full px-2 py-1.5 text-sm rounded-md border ${
+                                  !r.can_enter ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300'
+                                } focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
+                              />
                             </td>
-
-                            <td className="px-3 py-2.5">
-                              {r.can_enter ? (
-                                <input
-                                  type="text"
-                                  value={r.remarks}
-                                  onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
-                                  className="w-32 px-2 py-1.5 rounded border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-                                  placeholder="Remarks"
-                                  maxLength={200}
-                                />
-                              ) : (
-                                <span className="text-xs text-neutral-400">—</span>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
+                              {r.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
+                                  className="px-2 py-1 rounded-md bg-orange-600 text-white text-xs hover:bg-orange-700 transition whitespace-nowrap"
+                                >
+                                  Request Edit
+                                </button>
                               )}
                             </td>
                           </tr>
                         )
                       })}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {/* Save at bottom */}
+              {/* Mobile Card View — same as legacy */}
+              <div className="md:hidden p-3 space-y-3">
+                {paginatedComp.map(({ r, i: idx }) => {
+                  const inputPct = r.marks_obtained !== '' && r.marks_obtained != null && componentInfo.total_marks
+                    ? (parseFloat(r.marks_obtained) / componentInfo.total_marks) * 100
+                    : null
+                  const displayPct = inputPct ?? (r.current_percentage != null ? parseFloat(r.current_percentage) : null)
+                  const g = displayPct != null ? gradeFromPct(displayPct) : '—'
+                  return (
+                    <div key={r.student_id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-indigo-700">{r.class_index || '—'}</div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
+                            g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
+                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
+                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                            g === 'F' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>{g}</span>
+                          <span className={`text-sm font-semibold ${
+                            displayPct == null ? 'text-gray-400' :
+                            displayPct >= 76 ? 'text-green-600' :
+                            displayPct >= 50 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>{displayPct != null ? formatPercentage(displayPct) : '-'}</span>
+                          {r.current_status && (
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
+                              r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-xs text-gray-500 mb-0.5">Previous marks</div>
+                                <div className="text-sm font-medium text-gray-700">{r.current_marks ?? '—'} / {componentInfo.total_marks}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
+                                className="px-3 py-2 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition"
+                              >
+                                Retake (Attempt {r.next_attempt})
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                {r.is_retake && r.can_enter
+                                  ? <>Retake Marks — Attempt {r.next_attempt} <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
+                                  : <>Marks <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
+                                }
+                              </label>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                max={componentInfo.total_marks}
+                                step="any"
+                                value={r.marks_obtained}
+                                onChange={e => updateComponentRow(idx, 'marks_obtained', e.target.value)}
+                                placeholder="Enter marks"
+                                disabled={!r.can_enter}
+                                className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
+                                  !r.can_enter
+                                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                    : r.errors?.marks_obtained
+                                    ? 'border-red-500 bg-red-50'
+                                    : r.is_retake
+                                    ? 'border-amber-400 focus:border-amber-500'
+                                    : 'border-gray-300 focus:border-indigo-500'
+                                } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
+                              />
+                              {r.errors?.marks_obtained && <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>}
+                            </>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+                          <input
+                            type="text"
+                            value={r.remarks}
+                            onChange={e => updateComponentRow(idx, 'remarks', e.target.value)}
+                            placeholder="Optional remarks"
+                            disabled={!r.can_enter}
+                            className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
+                              !r.can_enter ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300 focus:border-indigo-500'
+                            } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
+                          />
+                        </div>
+                        {r.id && (
+                          <button
+                            type="button"
+                            onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
+                            className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                          >
+                            Request Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination — same as legacy */}
+              {compTotalPages > 1 && (
+                <div className="p-3 sm:p-4 border-t bg-white">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs sm:text-sm text-gray-600">
+                      Showing <span className="font-medium">{(componentPage - 1) * componentItemsPerPage + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(componentPage * componentItemsPerPage, filteredComp.length)}</span> of{' '}
+                      <span className="font-medium">{filteredComp.length}</span> results
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button onClick={() => setComponentPage(1)} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">«</button>
+                      <button onClick={() => setComponentPage(p => Math.max(1, p - 1))} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">‹</button>
+                      <span className="px-3 py-1.5 text-xs sm:text-sm text-gray-700">{componentPage} / {compTotalPages}</span>
+                      <button onClick={() => setComponentPage(p => Math.min(compTotalPages, p + 1))} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">›</button>
+                      <button onClick={() => setComponentPage(compTotalPages)} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">»</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Save button — same position as legacy */}
               <div className="p-3 sm:p-4 border-t bg-gray-50 flex justify-end">
                 <button
                   onClick={handleSaveComponentResults}
                   disabled={componentSaving || !componentStudents.some(r => r.dirty)}
-                  className="px-5 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                >{componentSaving ? 'Saving…' : 'Save All Grades'}</button>
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {componentSaving ? 'Saving...' : 'Save All Grades'}
+                </button>
               </div>
             </div>
-          )}
+            )
+          })()}
         </div>
       )}
 
-      {/* ── Exam Grading Section ── */}
-      {gradingTab === 'exam' && (
+      {/* ── Exam Grading Section (LEGACY exams) ── */}
+      {examGradingMode === 'LEGACY' && (
         <div>
-
-      {/* Exam Selection */}
-      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
-        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
-        <div className="flex gap-3 items-center flex-wrap">
-          <select
-            value={selectedExam}
-            onChange={e => {
-              setSelectedExam(e.target.value);
-              setExamInfo(null);
-              setResults([]);
-              setSearchTerm('');
-              setSortConfig({ key: null, direction: 'asc' });
-            }}
-            className="flex-1 min-w-full sm:min-w-[250px] p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value="">-- Select an exam --</option>
-            {exams.map(ex => (
-              <option key={ex.id} value={ex.id}>
-                {ex.title} — {ex.subject_name || ex.subject?.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       {loading && (
         <div className="text-center py-8">
@@ -1028,6 +1240,10 @@ export default function AddResults() {
           <div className="md:hidden p-3 space-y-3">
             {paginatedResults.map((r) => {
               const actualIdx = results.findIndex(row => row.id === r.id);
+              const livePct = r.marks_obtained !== '' && r.marks_obtained != null && examInfo?.total_marks
+                ? (parseFloat(r.marks_obtained) / examInfo.total_marks) * 100
+                : r.percentage != null ? parseFloat(r.percentage) : null
+              const liveGrade = gradeFromPct(livePct)
               return (
                 <div key={r.id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.is_locked ? 'border-orange-300 bg-orange-50/30' : r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
                   {/* Student Info Header */}
@@ -1043,23 +1259,22 @@ export default function AddResults() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {(() => { const g = gradeFromPct(r.percentage); return (
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                        g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
-                        g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
-                        g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                        g === 'F' ? 'bg-red-100 text-red-800' :
+                        liveGrade === 'A' || liveGrade === 'A-' ? 'bg-green-100 text-green-800' :
+                        liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-blue-100 text-blue-800' :
+                        liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                        liveGrade === 'F' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {g}
+                        {liveGrade}
                       </span>
-                      ); })()}
                       <span className={`text-sm font-semibold ${
-                        Number(r.percentage) >= 76 ? 'text-green-600' :
-                        Number(r.percentage) >= 50 ? 'text-yellow-600' :
+                        livePct == null ? 'text-gray-400' :
+                        livePct >= 76 ? 'text-green-600' :
+                        livePct >= 50 ? 'text-yellow-600' :
                         'text-red-600'
                       }`}>
-                        {formatPercentage(r.percentage)}
+                        {livePct != null ? formatPercentage(livePct) : '-'}
                       </span>
                     </div>
                   </div>
@@ -1136,9 +1351,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Index
-                        {sortConfig.key === 'class_index' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'class_index' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1147,9 +1362,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Marks (/{examInfo?.total_marks || '?'})
-                        {sortConfig.key === 'marks_obtained' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'marks_obtained' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1158,9 +1373,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Percentage
-                        {sortConfig.key === 'percentage' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'percentage' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th
@@ -1169,9 +1384,9 @@ export default function AddResults() {
                     >
                       <div className="flex items-center gap-1">
                         Grade
-                        {sortConfig.key === 'grade' && (
-                          <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        <span className={sortConfig.key === 'grade' ? 'text-indigo-600' : 'text-gray-300'}>
+                          {sortConfig.key === 'grade' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </div>
                     </th>
                     <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
@@ -1184,6 +1399,10 @@ export default function AddResults() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
+                    const livePct = r.marks_obtained !== '' && r.marks_obtained != null && examInfo?.total_marks
+                      ? (parseFloat(r.marks_obtained) / examInfo.total_marks) * 100
+                      : r.percentage != null ? parseFloat(r.percentage) : null
+                    const liveGrade = gradeFromPct(livePct)
                     return (
                       <tr key={r.id} className={`hover:bg-gray-50 transition ${r.is_locked ? 'bg-orange-50/40' : r.dirty ? 'bg-yellow-50' : ''}`}>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
@@ -1218,25 +1437,24 @@ export default function AddResults() {
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                           <span className={`font-medium ${
-                            Number(r.percentage) >= 76 ? 'text-green-600' :
-                            Number(r.percentage) >= 50 ? 'text-yellow-600' :
+                            livePct == null ? 'text-gray-400' :
+                            livePct >= 76 ? 'text-green-600' :
+                            livePct >= 50 ? 'text-yellow-600' :
                             'text-red-600'
                           }`}>
-                            {formatPercentage(r.percentage)}
+                            {livePct != null ? formatPercentage(livePct) : '-'}
                           </span>
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
-                          {(() => { const g = gradeFromPct(r.percentage); return (
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
-                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
-                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                            g === 'F' ? 'bg-red-100 text-red-800' :
+                            liveGrade === 'A' || liveGrade === 'A-' ? 'bg-green-100 text-green-800' :
+                            liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-blue-100 text-blue-800' :
+                            liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
+                            liveGrade === 'F' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {g}
+                            {liveGrade}
                           </span>
-                          ); })()}
                         </td>
                         <td className="px-3 lg:px-4 py-3">
                           <input
@@ -1394,7 +1612,10 @@ export default function AddResults() {
         </div>
       )}
 
-      {/* Modal: Request Edit for Locked Result */}
+      </div>
+      )}
+
+      {/* Modal: Request Edit — shared by both LEGACY and POLICY modes */}
       {editRequestModal && editRequestRow && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 ring-1 ring-black/5">
@@ -1402,13 +1623,19 @@ export default function AddResults() {
               <div>
                 <h4 className="text-lg text-black font-medium">Request Result Edit</h4>
                 <p className="text-sm text-neutral-500">
-                  {editRequestRow.student_name} — Current marks: {editRequestRow.marks_obtained}/{examInfo?.total_marks || '?'}
+                  Index: {editRequestRow.class_index || editRequestRow.student_svc_number || '—'} — Current marks: {
+                    editRequestRow._isComponent
+                      ? `${editRequestRow.current_marks ?? '—'}/${editRequestRow.total_marks || '?'}`
+                      : `${editRequestRow.marks_obtained}/${examInfo?.total_marks || '?'}`
+                  }
                 </p>
               </div>
               <button type="button" aria-label="Close" onClick={() => setEditRequestModal(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-800">
-              This result is locked after grading. Submit an edit request for HOD approval.
+              {editRequestRow._isComponent
+                ? 'Submit an edit request for HOD approval. If approved, the proposed marks will be applied directly.'
+                : 'This result is locked after grading. Submit an edit request for HOD approval.'}
             </div>
             <form onSubmit={handleSubmitEditRequest}>
               <div className="space-y-3">
@@ -1425,15 +1652,17 @@ export default function AddResults() {
                   {editRequestErrors.reason && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.reason}</div>}
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Proposed Marks (optional)</label>
+                  <label className="text-sm text-neutral-600 mb-1 block">
+                    Proposed Marks {editRequestRow._isComponent ? '*' : '(optional)'}
+                  </label>
                   <input
                     type="number"
                     min="0"
-                    max={examInfo?.total_marks || undefined}
+                    max={editRequestRow._isComponent ? (editRequestRow.total_marks || undefined) : (examInfo?.total_marks || undefined)}
                     step="any"
                     value={editRequestForm.proposed_marks}
                     onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_marks: e.target.value })}
-                    placeholder={`New marks (max ${examInfo?.total_marks || '?'})`}
+                    placeholder={`New marks (max ${editRequestRow._isComponent ? (editRequestRow.total_marks || '?') : (examInfo?.total_marks || '?')})`}
                     className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.proposed_marks ? 'border-rose-500' : 'border-neutral-200'}`}
                   />
                   {editRequestErrors.proposed_marks && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.proposed_marks}</div>}
@@ -1458,9 +1687,6 @@ export default function AddResults() {
               </div>
             </form>
           </div>
-        </div>
-      )}
-
         </div>
       )}
     </div>

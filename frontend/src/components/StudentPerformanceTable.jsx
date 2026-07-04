@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as Icons from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getRankAbbreviation } from '../lib/rankOrder'
 
 function SortIcon({ columnKey, sortConfig }) {
   if (sortConfig.key !== columnKey) return <Icons.ChevronsUpDown className="w-3 h-3 text-gray-400" />
@@ -23,6 +24,8 @@ function gradeBg(grade) {
   if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-amber-50'
   return 'bg-red-50'
 }
+
+const fmtPct = n => `${parseFloat(Number(n).toFixed(1))}%`
 
 
 export default function StudentPerformanceTable({ students, title = "All Students Performance" }) {
@@ -74,7 +77,11 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
   // ── PDF Download ──────────────────────────────────────────────────────────
   const handleDownload = () => {
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const subjectCount = subjectList.length
+
+    // Use A3 landscape when there are many subjects, A4 otherwise
+    const pageFormat = subjectCount > 6 ? 'a3' : 'a4'
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: pageFormat })
     const pageW = doc.internal.pageSize.getWidth()
     const pageH = doc.internal.pageSize.getHeight()
     const margin = 14
@@ -86,19 +93,20 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     // Summary stats
     const total       = sortedStudents.length
-    const gradeCounts = { A: 0, B: 0, C: 0, F: 0 }
+    const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 }
     let   totalPct    = 0
     sortedStudents.forEach(s => {
       const g = s.total_grade || 'F'
       if (g === 'A' || g === 'A-') gradeCounts.A++
       else if (g.startsWith('B')) gradeCounts.B++
       else if (g.startsWith('C')) gradeCounts.C++
+      else if (g.startsWith('D')) gradeCounts.D++
       else gradeCounts.F++
       totalPct += s.total_percentage ?? 0
     })
-    const classAvg = total > 0 ? (totalPct / total).toFixed(1) : '0.0'
+    const classAvg = total > 0 ? fmtPct(totalPct / total) : '0%'
     const passCount = gradeCounts.A + gradeCounts.B + gradeCounts.C
-    const passRate  = total > 0 ? ((passCount / total) * 100).toFixed(1) : '0.0'
+    const passRate  = total > 0 ? fmtPct((passCount / total) * 100) : '0%'
 
     const BLACK = [0, 0, 0]
     const DGRAY = [60, 60, 60]
@@ -146,13 +154,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     // ── SUMMARY ROW ─────────────────────────────────────────────────────────
     const summaryItems = [
-      { label: 'Total Students', value: String(total) },
-      { label: 'Class Average',  value: `${classAvg}%` },
-      { label: 'Pass Rate',      value: `${passRate}%` },
-      { label: 'Grade A (A/A-)', value: String(gradeCounts.A) },
+      { label: 'Total Students',  value: String(total) },
+      { label: 'Class Average',   value: classAvg },
+      { label: 'Pass Rate',       value: passRate },
+      { label: 'Grade A (A/A-)',  value: String(gradeCounts.A) },
       { label: 'Grade B (B+–B-)', value: String(gradeCounts.B) },
       { label: 'Grade C (C+–C-)', value: String(gradeCounts.C) },
-      { label: 'Grade F',        value: String(gradeCounts.F) },
+      { label: 'Grade D (D+–D-)', value: String(gradeCounts.D) },
+      { label: 'Grade F',         value: String(gradeCounts.F) },
     ]
     const colW = (pageW - margin * 2) / summaryItems.length
     summaryItems.forEach((item, i) => {
@@ -179,26 +188,43 @@ export default function StudentPerformanceTable({ students, title = "All Student
     y += 5
 
     // ── TABLE ───────────────────────────────────────────────────────────────
+    // Adaptive font and padding based on subject count
+    const tableFontSize = subjectCount > 10 ? 6.0 : subjectCount > 6 ? 6.5 : 7.5
+    const bodyPad = subjectCount > 6
+      ? { top: 1.5, bottom: 1.5, left: 2, right: 2 }
+      : { top: 2.5, bottom: 2.5, left: 3, right: 3 }
+    const headPad = subjectCount > 6
+      ? { top: 2, bottom: 2, left: 2, right: 2 }
+      : { top: 3, bottom: 3, left: 3, right: 3 }
+
+    // Fixed column widths (mm): rank + svc + rankCol + name + score + grade
+    const fixedW = 10 + 20 + 22 + 38 + 18 + 12
+    // Subject column width: fill remaining space evenly, clamped to a readable range
+    const subjectColW = subjectCount > 0
+      ? Math.max(12, Math.min(28, (pageW - margin * 2 - fixedW) / subjectCount))
+      : 25
+
     const head = [[
       { content: 'S/No',         styles: { halign: 'center' } },
       { content: 'SVC No.',      styles: { halign: 'left'   } },
+      { content: 'Rank',         styles: { halign: 'left'   } },
       { content: 'Student Name', styles: { halign: 'left'   } },
-      ...subjectList.map(s => ({ content: `${s.name}\n(Obtained / Total)`, styles: { halign: 'center' } })),
-      { content: 'Total Marks\n(Obtained / Possible)', styles: { halign: 'center' } },
-      { content: 'Grade',      styles: { halign: 'center' } },
+      ...subjectList.map(s => ({ content: s.name, styles: { halign: 'center' } })),
+      { content: 'Score',        styles: { halign: 'center' } },
+      { content: 'Grade',        styles: { halign: 'center' } },
     ]]
 
     const body = sortedStudents.map((student, idx) => [
       { content: String(student.rank ?? idx + 1), styles: { halign: 'center', fontStyle: 'bold' } },
       { content: student.svc_number ?? '-' },
+      { content: student.student_rank ?? '-' },
       { content: student.student_name ?? '', styles: { fontStyle: 'bold' } },
       ...subjectList.map(subj => {
         const b = student.subject_breakdown?.find(s => s.subject_name === subj.name)
-        return { content: b ? `${b.marks_obtained ?? '-'} / ${b.total_possible ?? '-'}` : '—', styles: { halign: 'center' } }
+        return { content: b && b.marks_obtained != null ? `${fmtPct(b.marks_obtained)}` : '—', styles: { halign: 'center' } }
       }),
       {
-        content: student.total_marks_possible > 0
-          ? `${student.total_marks_obtained ?? 0} / ${student.total_marks_possible ?? 0}` : '—',
+        content: student.total_percentage != null ? `${fmtPct(student.total_percentage)}` : '—',
         styles: { halign: 'center', fontStyle: 'bold' },
       },
       { content: student.total_grade ?? '—', styles: { halign: 'center', fontStyle: 'bold' } },
@@ -210,26 +236,32 @@ export default function StudentPerformanceTable({ students, title = "All Student
       startY: y,
       margin: { left: margin, right: margin },
       styles: {
-        fontSize: 7.5,
-        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+        fontSize: tableFontSize,
+        cellPadding: bodyPad,
         lineColor: LGRAY,
         lineWidth: 0.2,
         textColor: DGRAY,
+        overflow: 'linebreak',
       },
       headStyles: {
         fillColor: THEAD,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7.5,
-        cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
+        fontSize: tableFontSize,
+        cellPadding: headPad,
       },
       alternateRowStyles: { fillColor: [248, 248, 248] },
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 20 },
-        2: { cellWidth: 42 },
-        [3 + subjectList.length]:     { cellWidth: 30 },
-        [3 + subjectList.length + 1]: { cellWidth: 14 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 38 },
+        // Subject columns: fixed adaptive width
+        ...Object.fromEntries(
+          subjectList.map((_, i) => [4 + i, { cellWidth: subjectColW, halign: 'center' }])
+        ),
+        [4 + subjectCount]:     { cellWidth: 18, halign: 'center' },
+        [4 + subjectCount + 1]: { cellWidth: 12, halign: 'center' },
       },
       didDrawPage: () => {
         const pg  = doc.internal.getCurrentPageInfo().pageNumber
@@ -269,21 +301,21 @@ export default function StudentPerformanceTable({ students, title = "All Student
     // Title row
     const titleCell = ws.addRow([`${className}${courseName ? ' — ' + courseName : ''}`])
     titleCell.font = { bold: true, size: 16 }
-    ws.mergeCells(1, 1, 1, 3 + subjectList.length + 2)
+    ws.mergeCells(1, 1, 1, 4 + subjectList.length + 2)
 
     // Date row
     const dateRow = ws.addRow([`Generated: ${new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}`])
     dateRow.font = { italic: true, size: 10, color: { argb: '666666' } }
-    ws.mergeCells(2, 1, 2, 3 + subjectList.length + 2)
+    ws.mergeCells(2, 1, 2, 4 + subjectList.length + 2)
 
     // Blank row
     ws.addRow([])
 
     // Header row
     const headerLabels = [
-      'S/No', 'SVC No.', 'Student Name',
+      'S/No', 'SVC No.', 'Rank', 'Student Name',
       ...subjectList.map(s => s.name),
-      'Total Marks', 'Grade',
+      'Score', 'Grade',
     ]
     const headerRow = ws.addRow(headerLabels)
     headerRow.eachCell((cell) => {
@@ -297,19 +329,20 @@ export default function StudentPerformanceTable({ students, title = "All Student
     // Left-align name columns
     headerRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' }
     headerRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' }
+    headerRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' }
 
     // Data rows
     sortedStudents.forEach((student, idx) => {
       const row = ws.addRow([
         student.rank ?? idx + 1,
         student.svc_number || '-',
+        getRankAbbreviation(student.student_rank) || '-',
         student.student_name || '',
         ...subjectList.map(subj => {
           const b = student.subject_breakdown?.find(s => s.subject_name === subj.name)
-          return b ? `${b.marks_obtained ?? '-'} / ${b.total_possible ?? '-'}` : '—'
+          return b && b.marks_obtained != null ? `${fmtPct(b.marks_obtained)}` : '—'
         }),
-        student.total_marks_possible > 0
-          ? `${student.total_marks_obtained ?? 0} / ${student.total_marks_possible ?? 0}` : '—',
+        student.total_percentage != null ? `${fmtPct(student.total_percentage)}` : '—',
         student.total_grade ?? '—',
       ])
 
@@ -323,7 +356,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
       // Center subject + summary cells
       for (let c = 1; c <= headerLabels.length; c++) {
         const cell = row.getCell(c)
-        cell.alignment = { horizontal: c <= 3 ? (c === 1 ? 'center' : 'left') : 'center', vertical: 'middle' }
+        cell.alignment = { horizontal: c <= 4 ? (c === 1 ? 'center' : 'left') : 'center', vertical: 'middle' }
       }
     })
 
@@ -331,14 +364,15 @@ export default function StudentPerformanceTable({ students, title = "All Student
     ws.columns.forEach((col, i) => {
       if (i === 0) col.width = 6          // S/No
       else if (i === 1) col.width = 14    // SVC No
-      else if (i === 2) col.width = 28    // Name
-      else if (i >= 3 && i < 3 + subjectList.length) col.width = 16 // Subjects
-      else if (i === 3 + subjectList.length) col.width = 18 // Total
-      else if (i === 3 + subjectList.length + 1) col.width = 8 // Grade
+      else if (i === 2) col.width = 16    // Rank
+      else if (i === 3) col.width = 28    // Name
+      else if (i >= 4 && i < 4 + subjectList.length) col.width = 16 // Subjects
+      else if (i === 4 + subjectList.length) col.width = 18 // Total
+      else if (i === 4 + subjectList.length + 1) col.width = 8 // Grade
     })
 
-    // Freeze header + left columns (S/No, SVC, Name)
-    ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 4 }]
+    // Freeze header + left columns (S/No, SVC, Rank, Name)
+    ws.views = [{ state: 'frozen', xSplit: 4, ySplit: 4 }]
 
     // Generate and download
     const buffer = await wb.xlsx.writeBuffer()
@@ -353,8 +387,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
   }
 
   // Sticky column widths (px) for left freeze
-  const stickyLeftW = { rank: 52, svc: 90, name: 160 }
-  const stickyLeftTotal = stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.name
+  const stickyLeftW = { rank: 52, svc: 90, studentRank: 90, name: 160 }
+  const stickyLeftTotal = stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank + stickyLeftW.name
 
   return (
     <div className="space-y-4">
@@ -443,9 +477,16 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 SVC No.
               </th>
               <th
+                onClick={() => handleSort('student_rank')}
+                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20"
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.studentRank, minWidth: stickyLeftW.studentRank } : {}}
+              >
+                <div className="flex items-center gap-1">Rank <SortIcon columnKey="student_rank" sortConfig={sortConfig} /></div>
+              </th>
+              <th
                 onClick={() => handleSort('student_name')}
                 className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20 border-r-2 border-gray-300"
-                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
               >
                 <div className="flex items-center gap-1">Student Name <SortIcon columnKey="student_name" sortConfig={sortConfig} /></div>
               </th>
@@ -454,13 +495,13 @@ export default function StudentPerformanceTable({ students, title = "All Student
               {subjectList.map((subj, i) => (
                 <th key={i} className="text-center py-3 px-3 font-medium text-indigo-700 whitespace-nowrap border-l border-gray-200">
                   <div>{subj.name}</div>
-                  <div className="text-xs font-normal text-gray-500">(Marks)</div>
+                  <div className="text-xs font-normal text-gray-500">(Score %)</div>
                 </th>
               ))}
 
               {/* ── Right summary columns ── */}
-              <th onClick={() => handleSort('total_marks_obtained')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l-2 border-gray-300">
-                <div className="flex items-center justify-center gap-1">Total Marks <SortIcon columnKey="total_marks_obtained" sortConfig={sortConfig} /></div>
+              <th onClick={() => handleSort('total_percentage')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l-2 border-gray-300">
+                <div className="flex items-center justify-center gap-1">Score <SortIcon columnKey="total_percentage" sortConfig={sortConfig} /></div>
               </th>
               <th onClick={() => handleSort('total_grade')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
                 <div className="flex items-center justify-center gap-1">Grade <SortIcon columnKey="total_grade" sortConfig={sortConfig} /></div>
@@ -489,8 +530,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   {student.svc_number || '-'}
                 </td>
                 <td
+                  className="py-2 px-3 text-gray-600 whitespace-nowrap bg-white z-10"
+                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc } : {}}
+                >
+                  {getRankAbbreviation(student.student_rank) || '-'}
+                </td>
+                <td
                   className="py-2 px-3 font-medium text-gray-800 whitespace-nowrap bg-white z-10 border-r-2 border-gray-300"
-                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
                 >
                   {student.student_name}
                 </td>
@@ -500,15 +547,10 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   const breakdown = student.subject_breakdown?.find(s => s.subject_name === subj.name)
                   return (
                     <td key={i} className="py-2 px-3 text-center border-l border-gray-200">
-                      {breakdown ? (
-                        <div>
-                          <span className="font-semibold text-gray-800">
-                            {breakdown.marks_obtained ?? '-'}
-                          </span>
-                          <span className="text-gray-400 text-xs">
-                            /{breakdown.total_possible ?? '-'}
-                          </span>
-                        </div>
+                      {breakdown && breakdown.marks_obtained != null ? (
+                        <span className="font-semibold text-gray-800">
+                          {fmtPct(breakdown.marks_obtained)}
+                        </span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -516,13 +558,10 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   )
                 })}
 
-                {/* Total marks */}
+                {/* Total score */}
                 <td className="py-2 px-3 text-center border-l-2 border-gray-300">
-                  {student.total_marks_possible > 0 ? (
-                    <div>
-                      <span className="font-semibold text-gray-800">{student.total_marks_obtained ?? 0}</span>
-                      <span className="text-gray-400 text-xs">/{student.total_marks_possible ?? 0}</span>
-                    </div>
+                  {student.total_percentage != null ? (
+                    <span className="font-semibold text-gray-800">{fmtPct(student.total_percentage)}</span>
                   ) : <span className="text-gray-400">—</span>}
                 </td>
 
@@ -538,7 +577,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
               </tr>
             )) : (
               <tr>
-                <td colSpan={3 + subjectList.length + 2} className="py-8 text-center text-gray-500">
+                <td colSpan={4 + subjectList.length + 2} className="py-8 text-center text-gray-500">
                   <Icons.Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No students match your search criteria</p>
                 </td>
@@ -563,7 +602,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 }`}>{student.rank}</span>
                 <div>
                   <div className="font-medium text-gray-800">{student.student_name}</div>
-                  <div className="text-xs text-gray-500">{student.svc_number || '-'}</div>
+                  <div className="text-xs text-gray-500">{student.svc_number || '-'}{student.student_rank ? ` · ${getRankAbbreviation(student.student_rank)}` : ''}</div>
                 </div>
               </div>
               <div className="text-right">
@@ -571,7 +610,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   {student.total_grade || '—'}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {student.total_marks_obtained ?? 0}/{student.total_marks_possible ?? 0}
+                  {student.total_percentage != null ? `${fmtPct(student.total_percentage)}` : '—'}
                 </div>
               </div>
             </div>
@@ -583,7 +622,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   <div key={i} className="flex items-center justify-between text-sm">
                     <span className="text-gray-600 truncate flex-1">{subj.subject_name}</span>
                     <span className="text-gray-800 font-medium ml-2">
-                      {subj.marks_obtained ?? '-'}/{subj.total_possible ?? '-'}
+                      {subj.marks_obtained != null ? `${fmtPct(subj.marks_obtained)}` : '—'}
                     </span>
                   </div>
                 ))}

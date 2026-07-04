@@ -9,18 +9,12 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ['SECRET_KEY']  # Fail loudly at boot if missing — never silently insecure
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False") == "True"  # Default False — never expose debug in production
+SECRET_KEY = os.environ['SECRET_KEY']  
 
-# When Django runs behind Nginx (production), Nginx terminates TLS and
-# forwards requests via HTTP internally. Without this setting:
-#   - request.is_secure() returns False
-#   - CSRF / session cookies are NOT marked Secure
-#   - Cookie SameSite=None breaks (requires Secure flag)
-# X-Forwarded-Proto is set by Nginx in nginx/templates/kasms.conf.template.
+DEBUG = os.getenv("DEBUG", "False") == "True" 
+
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
@@ -34,6 +28,7 @@ ALLOWED_HOSTS = os.getenv(
 # Application definition
 
 INSTALLED_APPS = [
+    "django_prometheus",
     "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -43,14 +38,16 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
-    "core",
+    "core.apps.CoreConfig",
     # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
     "drf_yasg",
+    "django_celery_beat",
 ]
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -63,6 +60,7 @@ MIDDLEWARE = [
     "core.middleware.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "kasms.urls"
@@ -85,10 +83,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "kasms.wsgi.application"
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# AUTH_USER_MODEL = "users.User"
 
 DATABASES = {
     "default": {
@@ -116,10 +111,7 @@ CACHES = {
             else "django.core.cache.backends.locmem.LocMemCache",
         ),
         "LOCATION": os.getenv("REDIS_URL", "unique-snowflake"),
-        "TIMEOUT": 300,  
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,
-        },
+        "TIMEOUT": 300,
     }
 }
 
@@ -217,6 +209,8 @@ REST_FRAMEWORK = {
         'certificate_verify_burst': '10/min',
         'certificate_verify_sustained': '50/hour',
     },
+
+    'NUM_PROXIES': 1,
 }
 
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", ",".join([
@@ -347,7 +341,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Africa/Nairobi'
 CELERY_BEAT_SCHEDULE = {
     'sync-biometric-devices': {
-        'task': 'core.tasks.sync_all_devices', 
+        'task': 'core.tasks.sync_all_devices',
         'schedule': 300.0,
     },
     'process-pending-biometric-records':{
@@ -359,4 +353,22 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 3600.0
     },
 }
+
+# =============================================================================
+# Sentry — error tracking and performance monitoring
+# Set SENTRY_DSN in .env to enable. Leave unset to disable (e.g. in dev).
+# =============================================================================
+_SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[DjangoIntegration(), CeleryIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        environment=os.getenv('SENTRY_ENVIRONMENT', 'production'),
+    )
 

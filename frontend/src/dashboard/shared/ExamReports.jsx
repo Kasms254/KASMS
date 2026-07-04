@@ -7,6 +7,7 @@ import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
+import AdminPagination from '../../components/AdminPagination'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -21,138 +22,6 @@ function _gradeFromPct(pct) {
   if (p >= 60) return 'C'
   if (p >= 50) return 'C-'
   return 'F'
-}
-
-/**
- * Pagination Component
- */
-function Pagination({ currentPage, totalPages, onPageChange }) {
-  if (totalPages <= 1) return null
-
-  const getPageNumbers = () => {
-    const pages = []
-    const showPages = 5 // Number of page buttons to show
-
-    if (totalPages <= showPages) {
-      // Show all pages if total is less than showPages
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i)
-      }
-    } else {
-      // Always show first page
-      pages.push(1)
-
-      let startPage = Math.max(2, currentPage - 1)
-      let endPage = Math.min(totalPages - 1, currentPage + 1)
-
-      // Adjust if at the start
-      if (currentPage <= 3) {
-        startPage = 2
-        endPage = showPages - 1
-      }
-
-      // Adjust if at the end
-      if (currentPage >= totalPages - 2) {
-        startPage = totalPages - (showPages - 2)
-        endPage = totalPages - 1
-      }
-
-      // Add ellipsis after first page if needed
-      if (startPage > 2) {
-        pages.push('...')
-      }
-
-      // Add middle pages
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i)
-      }
-
-      // Add ellipsis before last page if needed
-      if (endPage < totalPages - 1) {
-        pages.push('...')
-      }
-
-      // Always show last page
-      pages.push(totalPages)
-    }
-
-    return pages
-  }
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-neutral-200 sm:px-6">
-      <div className="flex justify-between items-center w-full sm:hidden">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-        <span className="text-sm text-neutral-700">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
-      </div>
-
-      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-neutral-700">
-            Page <span className="font-medium">{currentPage}</span> of{' '}
-            <span className="font-medium">{totalPages}</span>
-          </p>
-        </div>
-        <div>
-          <nav className="inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center px-2 py-2 text-neutral-400 rounded-l-md border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <LucideIcons.ChevronLeft className="w-5 h-5" />
-            </button>
-
-            {getPageNumbers().map((page, idx) => (
-              page === '...' ? (
-                <span
-                  key={`ellipsis-${idx}`}
-                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300"
-                >
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={page}
-                  onClick={() => onPageChange(page)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
-                    currentPage === page
-                      ? 'z-10 bg-indigo-600 border-indigo-600 text-white'
-                      : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              )
-            ))}
-
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="relative inline-flex items-center px-2 py-2 text-neutral-400 rounded-r-md border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <LucideIcons.ChevronRight className="w-5 h-5" />
-            </button>
-          </nav>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 /**
@@ -189,20 +58,14 @@ export default function ExamReports() {
   const [examListPage, setExamListPage] = useState(1)
   const [resultsPage, setResultsPage] = useState(1)
   const [resultsSearchTerm, setResultsSearchTerm] = useState('')
-  const [policySearchTerm, setPolicySearchTerm] = useState('')
-  const [policyPage, setPolicyPage] = useState(1)
-  const examsPerPage = 10
-  const resultsPerPage = 10
+  const [examsPerPage, setExamsPerPage] = useState(10)
+  const [resultsPerPage, setResultsPerPage] = useState(10)
 
   // Exam report (for remarks in the detail view)
   const [examReport, setExamReport] = useState(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [newRemark, setNewRemark] = useState('')
   const [remarkSubmitting, setRemarkSubmitting] = useState(false)
-
-  // Component-based results (for POLICY subject exam detail view)
-  const [componentReport, setComponentReport] = useState(null)
-  const [loadingComponentReport, setLoadingComponentReport] = useState(false)
 
   // Create exam report modal state
   const [showCreateReportModal, setShowCreateReportModal] = useState(false)
@@ -222,10 +85,14 @@ export default function ExamReports() {
   // a cached list that's missing it. This is affordable now that each fetch
   // is scoped to one class instead of the whole school.
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
-    queryKey: ['exams', isAdmin, isAdmin ? selectedClass : null],
-    queryFn: () => isAdmin
-      ? api.getExams(`subject__class_obj=${selectedClass}&page_size=100`)
-      : api.getMyExams(),
+    queryKey: ['exams', isAdmin, selectedClass],
+    queryFn: () => {
+      if (isAdmin) {
+        const params = `subject__class_obj=${selectedClass}`
+        return api.getAllExams(params)
+      }
+      return api.getMyExams()
+    },
     enabled: isAdmin ? !!selectedClass : true,
     staleTime: 0,
   })
@@ -247,17 +114,20 @@ export default function ExamReports() {
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
 
-  // Filter exams based on selections
+  // Filter exams based on selections (class is already filtered server-side for admin)
   const filteredExams = useMemo(() => {
     if (!selectedClass) return []
 
     // Regular exams (LEGACY with results, or POLICY that happen to have exams too)
     // Note: for admin, `exams` is already server-side scoped to selectedClass
-    // (subject__class_obj filter); this subject lookup still applies the
-    // class match for the instructor path, whose exams span all their classes.
-    const legacyExams = exams.filter(exam => {
+    // (subject__class_obj filter), so the class match below only applies to
+    // the instructor path, whose exams span all their classes. `subj` is
+    // still needed unconditionally for the POLICY grading-mode bypass.
+    return exams.filter(exam => {
       const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
-      if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
+      if (!isAdmin) {
+        if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
+      }
       if (selectedSubject && exam.subject !== parseInt(selectedSubject) && exam.subject_id !== parseInt(selectedSubject)) return false
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
@@ -266,34 +136,7 @@ export default function ExamReports() {
       if (subj?.grading_mode === 'POLICY') return true
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
-
-    // Virtual entries for POLICY subjects that have no exams at all
-    // (exam type filter does not apply — POLICY subjects are component-based, not exam-type-based)
-    const examSubjectIds = new Set(legacyExams.map(e => e.subject || e.subject_id))
-    const virtualEntries = subjects
-      .filter(s => {
-        if (s.grading_mode !== 'POLICY') return false
-        if (s.class_obj !== parseInt(selectedClass) && s.class_id !== parseInt(selectedClass)) return false
-        if (selectedSubject && s.id !== parseInt(selectedSubject)) return false
-        return !examSubjectIds.has(s.id)
-      })
-      .map(s => ({
-        _isPolicyVirtual: true,
-        id: `policy_${s.id}`,
-        _subjectId: s.id,
-        title: s.name,
-        subject: s.id,
-        subject_name: s.name,
-        subject_code: s.subject_code,
-        exam_type: 'policy',
-        exam_date: null,
-        total_marks: null,
-        average_score: null,
-        submission_count: 0,
-      }))
-
-    return [...legacyExams, ...virtualEntries]
-  }, [exams, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
+  }, [exams, isAdmin, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
 
   // Reset exam list page when filters change (must be outside useMemo)
   useEffect(() => {
@@ -314,17 +157,6 @@ export default function ExamReports() {
     if (!selectedClass) return subjects
     return subjects.filter(s => s.class_obj === parseInt(selectedClass) || s.class_id === parseInt(selectedClass))
   }, [subjects, selectedClass])
-
-  // POLICY subjects in selected class
-  const policySubjects = useMemo(() =>
-    filteredSubjects.filter(s => s.grading_mode === 'POLICY'),
-    [filteredSubjects]
-  )
-
-  const isPolicyExam = useMemo(() => {
-    if (!selectedExam) return false
-    return policySubjects.some(s => s.id === (selectedExam.subject || selectedExam.subject_id))
-  }, [selectedExam, policySubjects])
 
   // Load exam results when an exam is selected (cached per exam)
   const { data: examResultsData, isPending: loadingResults } = useQuery({
@@ -347,8 +179,6 @@ export default function ExamReports() {
     const marks = submittedResults.map(r => parseFloat(r.marks_obtained))
     const totalMarks = selectedExam?.total_marks || 100
     const percentages = marks.map(m => (m / totalMarks) * 100)
-    const subjectObj = filteredSubjects.find(s => s.id === (selectedExam?.subject || selectedExam?.subject_id))
-    const passMark = subjectObj?.pass_mark ? parseFloat(subjectObj.pass_mark) : 50
     
     const avg = percentages.reduce((a, b) => a + b, 0) / percentages.length
     const highest = Math.max(...percentages)
@@ -375,10 +205,10 @@ export default function ExamReports() {
       average: avg.toFixed(1),
       highest: highest.toFixed(1),
       lowest: lowest.toFixed(1),
-      passRate: ((percentages.filter(p => p >= passMark).length / submittedResults.length) * 100).toFixed(1),
+      passRate: ((percentages.filter(p => p >= 50).length / submittedResults.length) * 100).toFixed(1),
       grades
     }
-  }, [examResults, selectedExam, filteredSubjects])
+  }, [examResults, selectedExam])
 
   // Sorted results by marks with search filter
   const sortedResults = useMemo(() => {
@@ -442,19 +272,15 @@ export default function ExamReports() {
     const colors = {
       cat: 'bg-blue-100 text-blue-700',
       final: 'bg-purple-100 text-purple-700',
-      project: 'bg-green-100 text-green-700',
-      component: 'bg-amber-100 text-amber-700',
-      policy: 'bg-amber-100 text-amber-700',
+      project: 'bg-green-100 text-green-700'
     }
     return colors[type] || 'bg-gray-100 text-gray-700'
   }
 
-  // Check if exam has any results (POLICY exams always qualify — results come from components)
+  // Check if exam has any results
   const hasExamResults = useCallback((exam) => {
-    const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
-    if (subj?.grading_mode === 'POLICY') return true
     return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
-  }, [subjects])
+  }, [])
 
   // Handle viewing an exam report - with validation
   const handleViewReport = useCallback((exam) => {
@@ -465,8 +291,6 @@ export default function ExamReports() {
     setSelectedExam(exam)
     setExamReport(null)
     setNewRemark('')
-    // Virtual policy entries have no real exam ID — skip the report fetch
-    if (exam._isPolicyVirtual) return
     setLoadingReport(true)
     api.getExamReportByExam(exam.id)
       .then(d => setExamReport(d))
@@ -519,47 +343,7 @@ export default function ExamReports() {
   useEffect(() => {
     setShowComprehensive(false)
     setComprehensiveData(null)
-    setComponentReport(null)
   }, [selectedClass])
-
-  // Load component results when a POLICY-subject exam is selected
-  useEffect(() => {
-    if (!selectedExam) { setComponentReport(null); return }
-    const examSubject = subjects.find(s =>
-      s.id === (selectedExam.subject || selectedExam.subject_id)
-    )
-    if (examSubject?.grading_mode !== 'POLICY') { setComponentReport(null); return }
-    setLoadingComponentReport(true)
-    api.getComponentsBySubject(String(examSubject.id))
-      .then(async (components) => {
-        if (!components.length) { setComponentReport({ components: [], studentMap: {} }); return }
-        const resultArrays = await Promise.all(
-          components.map(comp => api.getComponentResults(`component=${comp.id}`))
-        )
-        const studentMap = {}
-        components.forEach((comp, idx) => {
-          ;(resultArrays[idx] || []).forEach(r => {
-            const sid = String(r.student || r.student_id)
-            if (!studentMap[sid]) {
-              studentMap[sid] = {
-                id: sid,
-                name: r.student_name || `Student ${sid}`,
-                svc_number: r.student_svc_number || '',
-                rank: r.student_rank || '',
-                results: {}
-              }
-            }
-            const existing = studentMap[sid].results[comp.id]
-            if (!existing || (r.attempt_number || 1) >= (existing.attempt_number || 1)) {
-              studentMap[sid].results[comp.id] = r
-            }
-          })
-        })
-        setComponentReport({ components, studentMap })
-      })
-      .catch(() => toast?.error?.('Failed to load component results'))
-      .finally(() => setLoadingComponentReport(false))
-  }, [selectedExam, subjects, toast])
 
   // Load comprehensive results for selected class
   const handleViewComprehensive = useCallback(async () => {
@@ -931,25 +715,29 @@ export default function ExamReports() {
         <div className="flex items-center gap-3 flex-wrap">
           {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
           {selectedClass && !selectedExam && !showComprehensive && (() => {
-            // Only show for admins/superadmins/commandants, or if instructor is the class instructor
             const cls = classes.find(c => String(c.id) === selectedClass)
+            // Primary class instructor: in charge of the whole class, always has access
+            const isPrimaryInstructor = user?.role === 'instructor' && cls && cls.instructor === user?.id
             const canViewComprehensive = ['admin', 'superadmin', 'commandant'].includes(user?.role)
-              || (cls && cls.instructor === user?.id)
-            return canViewComprehensive
-          })() && (
-            <button
-              onClick={handleViewComprehensive}
-              disabled={loadingComprehensive || filteredExams.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {loadingComprehensive ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                <LucideIcons.ClipboardList className="w-4 h-4" />
-              )}
-              {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
-            </button>
-          )}
+              || isPrimaryInstructor
+            if (!canViewComprehensive) return null
+            // Primary instructor can view even with no submitted exams — they oversee the whole class
+            const isDisabled = loadingComprehensive || (filteredExams.length === 0 && !isPrimaryInstructor)
+            return (
+              <button
+                onClick={handleViewComprehensive}
+                disabled={isDisabled}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {loadingComprehensive ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <LucideIcons.ClipboardList className="w-4 h-4" />
+                )}
+                {loadingComprehensive ? 'Loading...' : 'Comprehensive Results'}
+              </button>
+            )
+          })()}
 
           {/* Back from comprehensive view */}
           {showComprehensive && (
@@ -1196,13 +984,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-4 h-4" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-4 h-4" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1257,13 +1047,15 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleOpenCreateReportModal(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
-                        >
-                          <LucideIcons.Plus className="w-5 h-5" />
-                          Create Report
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={() => handleOpenCreateReportModal(exam)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                          >
+                            <LucideIcons.Plus className="w-5 h-5" />
+                            Create Report
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewReport(exam)}
                           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
@@ -1323,14 +1115,16 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center gap-2 justify-end flex-wrap">
-                            <button
-                              onClick={() => handleOpenCreateReportModal(exam)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-                              title="Create exam report for this exam"
-                            >
-                              <LucideIcons.Plus className="w-4 h-4" />
-                              Create Report
-                            </button>
+                            {!isAdmin && (
+                              <button
+                                onClick={() => handleOpenCreateReportModal(exam)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                                title="Create exam report for this exam"
+                              >
+                                <LucideIcons.Plus className="w-4 h-4" />
+                                Create Report
+                              </button>
+                            )}
                             <button
                               onClick={() => handleViewReport(exam)}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
@@ -1347,10 +1141,14 @@ export default function ExamReports() {
               </div>
 
               {/* Pagination for Exam List */}
-              <Pagination
+              <AdminPagination
                 currentPage={examListPage}
                 totalPages={totalExamPages}
+                totalCount={filteredExams.length}
+                pageSize={examsPerPage}
                 onPageChange={setExamListPage}
+                onPageSizeChange={setExamsPerPage}
+                label="exams"
               />
             </div>
           )}
@@ -1391,532 +1189,8 @@ export default function ExamReports() {
             </div>
           </div>
 
-          {/* Results section — component-based for POLICY, exam-based for LEGACY */}
-          {isPolicyExam ? (
-            <>
-              {loadingComponentReport ? (
-                <div className="flex items-center justify-center py-12 bg-white rounded-xl border border-neutral-200 shadow-sm">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
-                </div>
-              ) : !componentReport || componentReport.components.length === 0 ? (
-                <div className="bg-white rounded-xl border border-amber-200 p-8 text-center">
-                  <LucideIcons.Layers className="w-10 h-10 mx-auto mb-3 text-amber-400" />
-                  <p className="text-amber-700">No assessment components have been configured for this subject.</p>
-                </div>
-              ) : Object.keys(componentReport.studentMap).length === 0 ? (
-                <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center text-neutral-500">
-                  <LucideIcons.FileX className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
-                  <p>No component results have been recorded yet.</p>
-                </div>
-              ) : (() => {
-                const { components, studentMap } = componentReport
-                const examSubjectObj = policySubjects.find(s => s.id === (selectedExam?.subject || selectedExam?.subject_id))
-                const passMark = examSubjectObj?.pass_mark ? parseFloat(examSubjectObj.pass_mark) : 50
-
-                // Compute per-student overall scores for summary
-                const studentScores = Object.values(studentMap).map(student => {
-                  let tw = 0, wt = 0, allGraded = true
-                  components.forEach(c => {
-                    const r = student.results[c.id]
-                    if (r?.marks_obtained != null && c.total_marks) {
-                      tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
-                      wt += parseFloat(c.weight)
-                    } else allGraded = false
-                  })
-                  const overallPct = wt > 0 ? (tw / wt * 100) : null
-                  const failedCritical = components.some(c => {
-                    if (!c.is_critical) return false
-                    const r = student.results[c.id]
-                    return r?.status === 'FAIL' || r?.status === 'RETAKE_REQUIRED'
-                  })
-                  return { ...student, overallPct, allGraded, failedCritical, passed: overallPct != null && overallPct >= passMark && !failedCritical }
-                })
-                const gradedStudents = studentScores.filter(s => s.allGraded && s.overallPct != null)
-                const passCount = gradedStudents.filter(s => s.passed).length
-                const failCount = gradedStudents.length - passCount
-                const avgPct = gradedStudents.length > 0
-                  ? (gradedStudents.reduce((sum, s) => sum + s.overallPct, 0) / gradedStudents.length).toFixed(1)
-                  : null
-                const highestPct = gradedStudents.length > 0 ? Math.max(...gradedStudents.map(s => s.overallPct)).toFixed(1) : null
-                const passRate = gradedStudents.length > 0 ? (passCount / gradedStudents.length * 100).toFixed(1) : null
-
-                // Per-component stats
-                const compStats = components.map(c => {
-                  const compResults = Object.values(studentMap).map(s => s.results[c.id]).filter(r => r?.marks_obtained != null)
-                  const passedComp = compResults.filter(r => r.status === 'PASS').length
-                  const avgComp = compResults.length > 0
-                    ? (compResults.reduce((sum, r) => sum + parseFloat(r.marks_obtained), 0) / compResults.length).toFixed(1)
-                    : null
-                  return { ...c, gradedCount: compResults.length, passedCount: passedComp, avgScore: avgComp }
-                })
-
-                const students = studentScores.sort((a, b) => {
-                  if (b.overallPct != null && a.overallPct != null) return b.overallPct - a.overallPct
-                  return a.name.localeCompare(b.name)
-                })
-
-                const sbadge = (s) => {
-                  if (!s || s === 'PENDING') return <span className="text-xs text-neutral-400">—</span>
-                  if (s === 'PASS') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">Pass</span>
-                  if (s === 'FAIL') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700">Fail</span>
-                  if (s === 'RETAKE_REQUIRED') return <span className="inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Retake</span>
-                  return null
-                }
-
-                const filteredStudents = policySearchTerm
-                  ? students.filter(s =>
-                      s.name?.toLowerCase().includes(policySearchTerm.toLowerCase()) ||
-                      s.svc_number?.toLowerCase().includes(policySearchTerm.toLowerCase())
-                    )
-                  : students
-                const policyPerPage = 10
-                const totalPolicyPages = Math.ceil(filteredStudents.length / policyPerPage)
-                const paginatedStudents = filteredStudents.slice((policyPage - 1) * policyPerPage, policyPage * policyPerPage)
-
-                return (
-                  <>
-                    {/* Summary Stats Cards */}
-                    <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
-                      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
-                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
-                              <div className="text-xl md:text-2xl font-bold text-black">{studentScores.length}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Fully Graded</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{gradedStudents.length}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Passed</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{passCount}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Failed</div>
-                              <div className="text-xl md:text-2xl font-bold text-red-600">{failCount}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Average</div>
-                              <div className="text-xl md:text-2xl font-bold text-indigo-600">{avgPct != null ? `${avgPct}%` : '—'}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Highest</div>
-                              <div className="text-xl md:text-2xl font-bold text-green-600">{highestPct != null ? `${highestPct}%` : '—'}</div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px] md:min-w-0">
-                          <div className="flex items-center gap-2 md:block">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
-                              <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
-                              <div className="text-xl md:text-2xl font-bold text-blue-600">{passRate != null ? `${passRate}%` : '—'}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Grade Distribution */}
-                    {gradedStudents.length > 0 && (() => {
-                      const GRADE_THRESHOLDS = [['A',91],['A-',86],['B+',81],['B',76],['B-',71],['C+',65],['C',60],['C-',50],['F',0]]
-                      const dist = {'A':0,'A-':0,'B+':0,'B':0,'B-':0,'C+':0,'C':0,'C-':0,'F':0}
-                      gradedStudents.forEach(s => {
-                        const g = GRADE_THRESHOLDS.find(([,t]) => s.overallPct >= t)?.[0] ?? 'F'
-                        dist[g] = (dist[g] || 0) + 1
-                      })
-                      const total = gradedStudents.length
-                      return (
-                        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 md:p-6">
-                          <h3 className="text-base md:text-lg font-semibold text-black mb-4">Grade Distribution</h3>
-                          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 md:gap-3">
-                            {Object.entries(dist).map(([grade, count]) => {
-                              const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0
-                              return (
-                                <div key={grade} className="text-center">
-                                  <div className={`w-full h-16 md:h-24 rounded-lg flex items-end justify-center ${getGradeColor(grade)}`} style={{ opacity: 0.3 + (count / total) * 0.7 }}>
-                                    <div className={`w-full rounded-lg ${getGradeColor(grade)}`} style={{ height: `${Math.max(20, pct)}%` }} />
-                                  </div>
-                                  <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full font-bold text-sm md:text-base ${getGradeColor(grade)}`}>{grade}</div>
-                                  <div className="text-xs md:text-sm text-neutral-600 mt-1">{count} <span className="hidden sm:inline">({pct}%)</span></div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })()}
-
-                    {/* Per-component summary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {compStats.map(c => (
-                        <div key={c.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <div className="font-semibold text-black text-sm">{c.name}</div>
-                              <div className="text-xs text-neutral-500">{parseFloat(c.weight)}% weight · {c.total_marks} marks</div>
-                            </div>
-                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-                              Pass mark: {parseFloat(c.pass_mark ?? 50)}%
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm mt-3">
-                            <div>
-                              <div className="text-xs text-neutral-500">Graded</div>
-                              <div className="font-bold text-black">{c.gradedCount}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-neutral-500">Passed</div>
-                              <div className="font-bold text-green-600">{c.passedCount}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-neutral-500">Avg Score</div>
-                              <div className="font-bold text-indigo-600">{c.avgScore != null ? `${c.avgScore}/${c.total_marks}` : '—'}</div>
-                            </div>
-                          </div>
-                          {c.gradedCount > 0 && (
-                            <div className="mt-3">
-                              <div className="flex justify-between text-xs text-neutral-500 mb-1">
-                                <span>Pass rate</span>
-                                <span>{((c.passedCount / c.gradedCount) * 100).toFixed(0)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500 rounded-full" style={{ width: `${(c.passedCount / c.gradedCount) * 100}%` }} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Student Results */}
-                    <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-                      <div className="p-4 border-b border-neutral-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                          <div>
-                            <h3 className="text-base md:text-lg font-semibold text-black">Student Results</h3>
-                            <p className="text-xs md:text-sm text-neutral-500">Ranked by overall score</p>
-                          </div>
-                        </div>
-                        <div className="relative">
-                          <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="text"
-                            placeholder="Search by student name or service number..."
-                            value={policySearchTerm}
-                            onChange={(e) => { setPolicySearchTerm(e.target.value); setPolicyPage(1) }}
-                            className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                          />
-                          {policySearchTerm && (
-                            <button onClick={() => { setPolicySearchTerm(''); setPolicyPage(1) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                              <LucideIcons.X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                        {policySearchTerm && (
-                          <div className="text-sm text-gray-600 mt-2">
-                            Found <span className="font-semibold text-gray-900">{filteredStudents.length}</span> of{' '}
-                            <span className="font-semibold text-gray-900">{students.length}</span> results
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Mobile & Tablet Card View */}
-                      <div className="lg:hidden">
-                        <div className="hidden sm:grid sm:grid-cols-2 gap-4 p-4">
-                          {paginatedStudents.map((student, idx) => {
-                            const overallRank = students.findIndex(s => s.id === student.id) + 1
-                            const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
-                            let tw = 0, wt = 0, ag = true
-                            components.forEach(c => {
-                              const r = student.results[c.id]
-                              if (r?.marks_obtained != null && c.total_marks) {
-                                tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
-                                wt += parseFloat(c.weight)
-                              } else ag = false
-                            })
-                            const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
-                            const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
-                            const ok = op != null && parseFloat(op) >= passMark && !fc
-                            return (
-                              <div key={student.id} className="bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-md transition-shadow">
-                                <div className="flex items-start justify-between gap-2 mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
-                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
-                                      overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
-                                      overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
-                                      'bg-neutral-100 text-neutral-600'
-                                    }`}>{serialNumber}</div>
-                                    <div className="min-w-0">
-                                      <div className="font-semibold text-gray-900 text-sm truncate">{student.name}</div>
-                                      <div className="text-xs text-neutral-500">SVC: {student.svc_number || 'N/A'}</div>
-                                    </div>
-                                  </div>
-                                  {ag && op != null ? (
-                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                      {ok ? 'Pass' : fc ? 'Crit. Fail' : 'Fail'}
-                                    </span>
-                                  ) : <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">Incomplete</span>}
-                                </div>
-                                {ag && op != null && (
-                                  <div className="bg-neutral-50 rounded-lg p-2.5 mb-2">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                      <span className="text-xs text-neutral-600">Overall</span>
-                                      <span className="text-sm font-bold text-gray-900">{op}%</span>
-                                    </div>
-                                    <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  {components.map(c => {
-                                    const r = student.results[c.id]
-                                    return (
-                                      <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
-                                        <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
-                                        <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
-                                        {r?.marks_obtained != null ? (
-                                          <div className="mt-1 flex items-center justify-between">
-                                            <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
-                                            {sbadge(r.status)}
-                                          </div>
-                                        ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <div className="sm:hidden divide-y divide-neutral-200">
-                          {paginatedStudents.map((student, idx) => {
-                            const overallRank = students.findIndex(s => s.id === student.id) + 1
-                            const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
-                            let tw = 0, wt = 0, ag = true
-                            components.forEach(c => {
-                              const r = student.results[c.id]
-                              if (r?.marks_obtained != null && c.total_marks) {
-                                tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
-                                wt += parseFloat(c.weight)
-                              } else ag = false
-                            })
-                            const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
-                            const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
-                            const ok = op != null && parseFloat(op) >= passMark && !fc
-                            return (
-                              <div key={student.id} className="p-4 hover:bg-neutral-50 transition">
-                                <div className="flex items-start justify-between gap-3 mb-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${
-                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
-                                      overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
-                                      overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
-                                      'bg-neutral-100 text-neutral-600'
-                                    }`}>{serialNumber}</div>
-                                    <div>
-                                      <div className="font-semibold text-gray-900 text-base">{student.name}</div>
-                                      <div className="text-sm text-neutral-500">SVC: {student.svc_number || 'N/A'}</div>
-                                    </div>
-                                  </div>
-                                  {ag && op != null ? (
-                                    <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                      {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
-                                    </span>
-                                  ) : <span className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-100 text-amber-700">Incomplete</span>}
-                                </div>
-                                {ag && op != null && (
-                                  <div className="bg-neutral-50 rounded-lg p-3 mb-2">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-sm text-neutral-600">Overall</span>
-                                      <span className="text-base font-bold text-gray-900">{op}%</span>
-                                    </div>
-                                    <div className="flex-1 h-2.5 bg-neutral-200 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full transition-all ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-2">
-                                  {components.map(c => {
-                                    const r = student.results[c.id]
-                                    return (
-                                      <div key={c.id} className="bg-neutral-50 rounded-lg p-2 border border-neutral-100">
-                                        <div className="text-xs font-medium text-neutral-700 truncate">{c.name}</div>
-                                        <div className="text-xs text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
-                                        {r?.marks_obtained != null ? (
-                                          <div className="mt-1 flex items-center justify-between">
-                                            <span className="font-semibold text-black text-sm">{r.marks_obtained}/{c.total_marks}</span>
-                                            {sbadge(r.status)}
-                                          </div>
-                                        ) : <div className="mt-1 text-xs text-neutral-400">—</div>}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Desktop Table */}
-                      <div className="hidden lg:block overflow-x-auto">
-                        <table className="min-w-full divide-y divide-neutral-200">
-                          <thead className="bg-neutral-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
-                              {components.map(c => (
-                                <th key={c.id} className="px-3 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider min-w-[130px]">
-                                  <div>{c.name}</div>
-                                  <div className="normal-case font-normal text-neutral-400">{parseFloat(c.weight)}% · {c.total_marks}m</div>
-                                </th>
-                              ))}
-                              <th className="px-4 py-3 text-center text-xs font-medium text-neutral-500 uppercase tracking-wider">Overall</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-200">
-                            {paginatedStudents.map((student, idx) => {
-                              const overallRank = students.findIndex(s => s.id === student.id) + 1
-                              const serialNumber = (policyPage - 1) * policyPerPage + idx + 1
-                              let tw = 0, wt = 0, ag = true
-                              components.forEach(c => {
-                                const r = student.results[c.id]
-                                if (r?.marks_obtained != null && c.total_marks) {
-                                  tw += (parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * parseFloat(c.weight)
-                                  wt += parseFloat(c.weight)
-                                } else ag = false
-                              })
-                              const op = wt > 0 ? (tw / wt * 100).toFixed(1) : null
-                              const fc = components.some(c => c.is_critical && (student.results[c.id]?.status === 'FAIL' || student.results[c.id]?.status === 'RETAKE_REQUIRED'))
-                              const ok = op != null && parseFloat(op) >= passMark && !fc
-                              return (
-                                <tr key={student.id} className="hover:bg-neutral-50 transition">
-                                  <td className="px-4 py-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                      overallRank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                      overallRank === 2 ? 'bg-gray-100 text-gray-700' :
-                                      overallRank === 3 ? 'bg-orange-100 text-orange-700' :
-                                      'bg-neutral-100 text-neutral-600'
-                                    }`}>{serialNumber}</div>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-neutral-600">{student.svc_number || 'N/A'}</td>
-                                  <td className="px-4 py-3 text-sm text-neutral-600">{student.rank || 'N/A'}</td>
-                                  <td className="px-4 py-3">
-                                    <div className="font-medium text-black text-base">{student.name}</div>
-                                  </td>
-                                  {components.map(c => {
-                                    const r = student.results[c.id]
-                                    return (
-                                      <td key={c.id} className="px-3 py-3 text-center">
-                                        {r?.marks_obtained != null ? (
-                                          <div className="flex flex-col items-center gap-0.5">
-                                            <span className="font-semibold text-black">{r.marks_obtained}/{c.total_marks}</span>
-                                            <span className="text-xs text-neutral-500">{((parseFloat(r.marks_obtained) / parseFloat(c.total_marks)) * 100).toFixed(1)}%</span>
-                                            {sbadge(r.status)}
-                                          </div>
-                                        ) : <span className="text-xs text-neutral-400">—</span>}
-                                      </td>
-                                    )
-                                  })}
-                                  <td className="px-4 py-3 text-center">
-                                    {ag && op != null ? (
-                                      <div className="flex flex-col items-center gap-1">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                                            <div className={`h-full rounded-full ${parseFloat(op) >= 76 ? 'bg-green-500' : parseFloat(op) >= 60 ? 'bg-blue-500' : parseFloat(op) >= passMark ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${op}%` }} />
-                                          </div>
-                                          <span className="text-sm font-medium text-black">{op}%</span>
-                                        </div>
-                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                          {ok ? 'Pass' : fc ? 'Critical Fail' : 'Fail'}
-                                        </span>
-                                      </div>
-                                    ) : <span className="text-xs text-amber-600">Incomplete</span>}
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination */}
-                      {totalPolicyPages > 1 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
-                          <div className="text-sm text-gray-600">
-                            Showing <span className="font-semibold text-gray-900">{(policyPage - 1) * policyPerPage + 1}</span> to{' '}
-                            <span className="font-semibold text-gray-900">{Math.min(policyPage * policyPerPage, filteredStudents.length)}</span> of{' '}
-                            <span className="font-semibold text-gray-900">{filteredStudents.length}</span> students
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setPolicyPage(1)} disabled={policyPage === 1} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                              <LucideIcons.ChevronsLeft className="w-4 h-4 text-gray-600" />
-                            </button>
-                            <button onClick={() => setPolicyPage(p => Math.max(1, p - 1))} disabled={policyPage === 1} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                              <LucideIcons.ChevronLeft className="w-4 h-4 text-gray-600" />
-                            </button>
-                            <span className="text-sm text-gray-700 px-2">Page {policyPage} of {totalPolicyPages}</span>
-                            <button onClick={() => setPolicyPage(p => Math.min(totalPolicyPages, p + 1))} disabled={policyPage === totalPolicyPages} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                              <LucideIcons.ChevronRight className="w-4 h-4 text-gray-600" />
-                            </button>
-                            <button onClick={() => setPolicyPage(totalPolicyPages)} disabled={policyPage === totalPolicyPages} className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                              <LucideIcons.ChevronsRight className="w-4 h-4 text-gray-600" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )
-              })()}
-            </>
-          ) : loadingResults ? (
+          {/* Stats Cards */}
+          {loadingResults ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
@@ -2348,85 +1622,15 @@ export default function ExamReports() {
                 </div>
 
                 {/* Pagination for Student Results */}
-                {totalResultsPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 border-t border-neutral-200 rounded-b-lg p-3">
-                    <div className="text-sm text-gray-600">
-                      Showing <span className="font-semibold text-gray-900">{(resultsPage - 1) * resultsPerPage + 1}</span> to{' '}
-                      <span className="font-semibold text-gray-900">{Math.min(resultsPage * resultsPerPage, allResults.length)}</span> of{' '}
-                      <span className="font-semibold text-gray-900">{allResults.length}</span> students
-                      {pendingResults.length > 0 && (
-                        <span className="text-amber-600 ml-1">({pendingResults.length} pending)</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setResultsPage(1)}
-                        disabled={resultsPage === 1}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="First page"
-                      >
-                        <LucideIcons.ChevronsLeft className="w-4 h-4 text-black" />
-                      </button>
-
-                      <button
-                        onClick={() => setResultsPage(p => Math.max(1, p - 1))}
-                        disabled={resultsPage === 1}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Previous page"
-                      >
-                        <LucideIcons.ChevronLeft className="w-4 h-4 text-black" />
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalResultsPages) }, (_, i) => {
-                          let pageNum
-                          if (totalResultsPages <= 5) {
-                            pageNum = i + 1
-                          } else if (resultsPage <= 3) {
-                            pageNum = i + 1
-                          } else if (resultsPage >= totalResultsPages - 2) {
-                            pageNum = totalResultsPages - 4 + i
-                          } else {
-                            pageNum = resultsPage - 2 + i
-                          }
-
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => setResultsPage(pageNum)}
-                              className={`min-w-[2rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                                resultsPage === pageNum
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      <button
-                        onClick={() => setResultsPage(p => Math.min(totalResultsPages, p + 1))}
-                        disabled={resultsPage === totalResultsPages}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Next page"
-                      >
-                        <LucideIcons.ChevronRight className="w-4 h-4 text-black" />
-                      </button>
-
-                      <button
-                        onClick={() => setResultsPage(totalResultsPages)}
-                        disabled={resultsPage === totalResultsPages}
-                        className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Last page"
-                      >
-                        <LucideIcons.ChevronsRight className="w-4 h-4 text-black" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <AdminPagination
+                  currentPage={resultsPage}
+                  totalPages={totalResultsPages}
+                  totalCount={allResults.length}
+                  pageSize={resultsPerPage}
+                  onPageChange={setResultsPage}
+                  onPageSizeChange={setResultsPerPage}
+                  label="students"
+                />
 
                 {examResults.length === 0 && (
                   <div className="p-8 text-center text-neutral-500">
@@ -2464,7 +1668,10 @@ export default function ExamReports() {
                     </div>
                   ) : !loadingReport ? (
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-sm text-amber-700">
-                      No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.
+                      {isAdmin
+                        ? 'No report exists for this exam yet. The instructor must create a report to enable remarks.'
+                        : <>No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.</>
+                      }
                     </div>
                   ) : null}
 
@@ -2500,36 +1707,38 @@ export default function ExamReports() {
                         )}
                       </div>
 
-                      {/* Add Remark Form */}
-                      <div className="border-t border-neutral-200 pt-4">
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                        <textarea
-                          value={newRemark}
-                          onChange={(e) => setNewRemark(e.target.value)}
-                          placeholder="Enter your remark (minimum 10 characters)..."
-                          rows={4}
-                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                        />
-                        <div className="flex gap-3 justify-end mt-3">
-                          <button
-                            onClick={handleAddRemark}
-                            disabled={remarkSubmitting || !newRemark.trim()}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            {remarkSubmitting ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Submitting...
-                              </>
-                            ) : (
-                              <>
-                                <LucideIcons.Send className="w-4 h-4" />
-                                Submit Remark
-                              </>
-                            )}
-                          </button>
+                      {/* Add Remark Form — hidden for admin */}
+                      {!isAdmin && (
+                        <div className="border-t border-neutral-200 pt-4">
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                          <textarea
+                            value={newRemark}
+                            onChange={(e) => setNewRemark(e.target.value)}
+                            placeholder="Enter your remark (minimum 10 characters)..."
+                            rows={4}
+                            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                          />
+                          <div className="flex gap-3 justify-end mt-3">
+                            <button
+                              onClick={handleAddRemark}
+                              disabled={remarkSubmitting || !newRemark.trim()}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {remarkSubmitting ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <LucideIcons.Send className="w-4 h-4" />
+                                  Submit Remark
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </>
                   )}
                 </div>

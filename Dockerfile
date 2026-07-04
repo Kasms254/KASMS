@@ -1,5 +1,5 @@
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,7 +25,7 @@ RUN python -m venv /venv && \
 # Stage 2: Production Runtime
 # Lean image with only what Django needs to run. No compilers, no dev headers.
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 # Runtime-only system packages:
 #   libcairo2 / libpango-* / libgdk-pixbuf2.0-0 – WeasyPrint / pycairo at runtime
@@ -63,6 +63,15 @@ WORKDIR /app
 
 # Copy project source. .dockerignore excludes venv, __pycache__, node_modules, etc.
 COPY . .
+
+# Install custom fonts system-wide and give django user a writable fontconfig cache.
+RUN mkdir -p /usr/local/share/fonts/kasms \
+    && cp -r /app/fonts/. /usr/local/share/fonts/kasms/ \
+    && fc-cache -fv \
+    && mkdir -p /var/cache/fontconfig \
+    && chmod 777 /var/cache/fontconfig
+
+ENV FONTCONFIG_CACHE=/var/cache/fontconfig
 
 # Create directories that must exist at runtime. Doing this here (as root)
 # before the chown ensures we own them. These are bind-mounted in prod anyway.

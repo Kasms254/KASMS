@@ -71,6 +71,8 @@ const SENTENCE_CASE_CONFIG = {
     'instructor_rank',  // Flat rank field from SubjectSerializer — preserve internal value for sorting
     'priority', // Preserve priority enum values (low, medium, high, urgent)
     'target_role', // Preserve target_role enum values (all, student, instructor, etc.)
+    'component_type', // Preserve component type choice values (cat, theory, practical, project, other)
+    'retake_evaluation', // Preserve retake evaluation choice values (latest, best)
   ]
 }
 
@@ -792,20 +794,17 @@ export async function getAllExams(params = '') {
   let page = 1
   let hasMore = true
   const baseParams = params ? `${params}&` : ''
-
   while (hasMore) {
     try {
-      const data = await request(`/api/exams/?${baseParams}page=${page}&page_size=100`)
-      const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
+      const data = await request(`/api/exams/?${baseParams}page_size=1000&page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
       allExams = [...allExams, ...results]
-
-      hasMore = data && data.next !== null && data.next !== undefined
+      hasMore = !!(data?.next)
       page++
     } catch {
       hasMore = false
     }
   }
-
   return allExams
 }
 
@@ -833,6 +832,12 @@ export async function getStudentPerformanceSummary() {
 // Get student's class enrollments (all enrollments including past classes)
 export async function getStudentEnrollments() {
   return request('/api/student-dashboard/my_classes/')
+}
+
+// Get subjects for the student's enrolled classes (student-specific, includes grading_mode)
+export async function getStudentSubjects(classId) {
+  const qs = classId ? `?class_obj=${encodeURIComponent(classId)}` : ''
+  return request(`/api/student-dashboard/my_subjects/${qs}`)
 }
 
 export async function createExam(payload) {
@@ -1051,8 +1056,8 @@ export async function getClassTopPerformers(classId, limit = 10) {
   return request(`/api/class-performance/top_performers/?class_id=${encodeURIComponent(classId)}&limit=${encodeURIComponent(limit)}`)
 }
 
-export async function compareClasses(classIds = []) {
-  const qs = classIds.length > 0 ? `?class_ids=${classIds.map(encodeURIComponent).join(',')}` : ''
+export async function compareClasses(courseId) {
+  const qs = courseId ? `?course_id=${encodeURIComponent(courseId)}` : ''
   return request(`/api/class-performance/compare_classes/${qs}`)
 }
 
@@ -1554,10 +1559,13 @@ export async function getCertificateDownloadLogs(params = '') {
   return request(`/api/certificates/download_logs/${qs}`)
 }
 
-// Verify a certificate by verification code
+// Verify a certificate by verification code — public, unauthenticated endpoint.
 export async function verifyCertificate(verificationCode) {
   if (!verificationCode) throw new Error('verificationCode is required')
-  return request(`/api/certificates/verify/${encodeURIComponent(verificationCode)}/`)
+  return request(`/api/certificates/public/verify/`, {
+    method: 'POST',
+    body: { verification_code: verificationCode },
+  })
 }
 
 // =====================
@@ -1696,6 +1704,11 @@ export async function updateStudentIndex(classId, indexId, indexNumber) {
   })
 }
 
+export async function renumberClassIndexes(classId) {
+  if (!classId) throw new Error('classId is required')
+  return request(`/api/admin/roster/${classId}/renumber/`, { method: 'POST' })
+}
+
 // =====================
 // Marks Entry
 // =====================
@@ -1730,8 +1743,22 @@ export async function getCommandantDepartmentDetails(id) {
 }
 
 export async function getCommandantClasses(params = '') {
-  const q = params ? `?${params}` : ''
-  return request(`/api/commandant/classes/${q}`)
+  let allClasses = []
+  let page = 1
+  let hasMore = true
+  const baseParams = params ? `${params}&` : ''
+  while (hasMore) {
+    try {
+      const data = await request(`/api/commandant/classes/?${baseParams}page=${page}`)
+      const results = Array.isArray(data) ? data : (data?.results ?? [])
+      allClasses = [...allClasses, ...results]
+      hasMore = !!(data?.next)
+      page++
+    } catch {
+      hasMore = false
+    }
+  }
+  return allClasses
 }
 
 export async function getCommandantClassStudents(id) {
@@ -1991,6 +2018,10 @@ export async function getOICUsers(params = '') {
 }
 
 // Assessment Components (POLICY grading mode)
+export async function getComponentChoices(subjectId) {
+  return request(`/api/exams/component_choices/?subject_id=${encodeURIComponent(subjectId)}`)
+}
+
 export async function getAssessmentComponents(params = '') {
   const qs = params ? `?${params}` : ''
   const data = await request(`/api/assessment-components/${qs}`)
@@ -2331,6 +2362,7 @@ export default {
   getClassRoster,
   assignClassIndexes,
   updateStudentIndex,
+  renumberClassIndexes,
   // Marks Entry
   getMarksEntryResults,
   updateMarksEntry,
@@ -2397,6 +2429,7 @@ export default {
   bulkAdvanceCourseReports,
   downloadCourseReport,
   getCourseReportAuditLog,
+  getComponentChoices,
   getAssessmentComponents,
   getComponentsBySubject,
   getComponentWeightSummary,

@@ -228,6 +228,26 @@ else:
     fi
 }
 
+# ── Check 6: Last backup age ──────────────────────────────────────────────────
+check_last_backup() {
+    local backup_dir="/var/backups/kasms"
+    local max_age_hours=25  # cron runs at 1 AM daily; 25h covers a missed run
+
+    if [ ! -d "${backup_dir}" ]; then
+        WARNINGS+=("Backup directory ${backup_dir} not found. Has local_backup.sh ever run?")
+        return
+    fi
+
+    local newest
+    newest=$(find "${backup_dir}" -name "db_*.dump" -mmin -$((max_age_hours * 60)) 2>/dev/null | sort | tail -1)
+
+    if [ -z "${newest}" ]; then
+        FAILURES+=("No DB backup found in the last ${max_age_hours}h in ${backup_dir}. Check cron and scripts/local_backup.sh.")
+    else
+        echo "[monitor][OK] Last backup: $(basename "${newest}") ($(stat -c '%y' "${newest}" | cut -d. -f1))"
+    fi
+}
+
 # ── Run all checks ────────────────────────────────────────────────────────────
 echo "========================================"
 echo "  KASMS Monitor — ${TIMESTAMP}"
@@ -238,6 +258,7 @@ check_docker_containers
 check_disk_usage
 check_ssl_expiry
 check_redis_memory
+check_last_backup
 
 # ── Report results ────────────────────────────────────────────────────────────
 echo ""
