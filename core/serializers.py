@@ -7,7 +7,9 @@ from .models import (
     ResultEditRequest, SessionAttendance, AttendanceSessionLog,
     ExamResultNotificationReadStatus, SchoolAdmin, School, SchoolMembership,
     Certificate, CertificateTemplate, CertificateDownloadLog,
-    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, StudentComponentResult
+    OICAssignment, OICRemark, BiometricDevice, BiometricUserMapping, AssessmentComponent, 
+    StudentComponentResult, CourseReportStageRemark, CourseReportAuditLog, CourseReport,
+    PAD_SUBJECT_KEYS,
 )
 from django.contrib.auth.password_validation import validate_password
 import uuid
@@ -2912,3 +2914,138 @@ class BiometricUserMappingSerializer(serializers.ModelSerializer):
         model = BiometricUserMapping
         fields = '__all__'
         read_only_fields = ('mapped_at',)
+
+# course_report
+class CourseReportStageRemarkSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    author_rank = serializers.CharField(source='author.rank', read_only=True, default='')
+    author_svc_number = serializers.CharField(source='author.svc_number', read_only=True, default='')
+
+    class Meta:
+        model = CourseReportStageRemark
+        fields = [
+            'id', 'stage', 'content', 'is_submitted',
+            'character_and_personality', 'knowledge_and_ability',
+            'command_and_leadership', 'strengths', 'weaknesses',
+            'deployment_recommendation', 'pad_scores',
+            'author', 'author_name', 'author_rank', 'author_svc_number',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_author_name(self, obj):
+        if obj.author:
+            return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
+        return ''
+
+class CourseReportRemarkWriteSerializer(serializers.Serializer):
+    content = serializers.CharField(min_length=10, max_length=10000)
+
+
+class InstructorRemarkWriteSerializer(serializers.Serializer):
+    character_and_personality = serializers.CharField(min_length=5, max_length=5000)
+    knowledge_and_ability = serializers.CharField(min_length=5, max_length=5000)
+    command_and_leadership = serializers.CharField(min_length=5, max_length=5000)
+    strengths = serializers.CharField(min_length=5, max_length=5000)
+    weaknesses = serializers.CharField(min_length=5, max_length=5000)
+    deployment_recommendation = serializers.CharField(min_length=5, max_length=5000)
+    pad_scores = serializers.DictField(
+        child=serializers.IntegerField(min_value=1, max_value=5),
+        required=False, default=dict,
+    )
+
+    def validate_pad_scores(self, value):
+        unknown = set(value.keys()) - PAD_SUBJECT_KEYS
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown PAD subject(s): {', '.join(sorted(unknown))}"
+            )
+        return value
+
+class CourseReportAuditLogSerializer(serializers.ModelSerializer):
+    performed_by_name = serializers.SerializerMethodField()
+ 
+    class Meta:
+        model = CourseReportAuditLog
+        fields = [
+            'id', 'action', 'performed_by', 'performed_by_name',
+            'metadata', 'created_at',
+        ]
+        read_only_fields = fields
+ 
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            return f"{obj.performed_by.first_name} {obj.performed_by.last_name}".strip() or obj.performed_by.username
+        return ''
+ 
+class CourseReportStudentInfoSerializer(serializers.Serializer):
+    id = serializers.UUIDField(source='enrollment.student.id')
+    username = serializers.CharField(source='enrollment.student.username')
+    first_name = serializers.CharField(source='enrollment.student.first_name')
+    last_name = serializers.CharField(source='enrollment.student.last_name')
+    svc_number = serializers.CharField(source='enrollment.student.svc_number', default='')
+    rank = serializers.CharField(source='enrollment.student.rank', default='')
+ 
+class CourseReportListSerializer(serializers.ModelSerializer):
+
+    student = CourseReportStudentInfoSerializer(source='*', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+ 
+    class Meta:
+        model = CourseReport
+        fields = [
+            'id', 'status', 'is_active',
+            'student', 'class_name', 'course_name',
+            'class_obj', 'enrollment',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+class CourseReportDetailSerializer(serializers.ModelSerializer):
+
+    student = CourseReportStudentInfoSerializer(source='*', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
+    visible_remarks = CourseReportStageRemarkSerializer(many=True, read_only=True)
+    can_edit = serializers.BooleanField(read_only=True, default=False)
+    can_submit = serializers.BooleanField(read_only=True, default=False)
+    can_advance = serializers.BooleanField(read_only=True, default=False)
+    can_download = serializers.BooleanField(read_only=True, default=False)
+ 
+    class Meta:
+        model = CourseReport
+        fields = [
+            'id', 'status', 'is_active',
+            'student', 'class_name', 'course_name',
+            'class_obj', 'enrollment',
+            'visible_remarks',
+            'can_edit', 'can_submit', 'can_advance', 'can_download',
+            'report_file',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+ 
+class CourseReportBulkCreateSerializer(serializers.Serializer):
+
+    class_obj = serializers.IntegerField()
+
+    def validate_class_obj(self, value):
+        request = self.context['request']
+        user = request.user
+ 
+        try:
+            cls = Class.objects.get(pk=value, school=user.school)
+        except Class.DoesNotExist:
+            raise serializers.ValidationError("Class not found.")
+ 
+        if cls.instructor_id != user.id:
+            raise serializers.ValidationError(
+                "Only the assigned instructor can initiate course reports for this class."
+            )
+ 
+        if cls.is_closed:
+            raise serializers.ValidationError("Cannot create reports for a closed class.")
+ 
+        return cls
+ 

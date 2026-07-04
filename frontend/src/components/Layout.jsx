@@ -58,7 +58,7 @@ export default function Layout() {
         </aside>
 
         {/* Main area */}
-        <div className={`flex-1 min-h-screen flex flex-col w-full lg:w-auto min-w-0 transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+        <div className={`flex-1 h-screen flex flex-col w-full lg:w-auto min-w-0 transition-all duration-300 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
           <header className="sticky top-0 z-40 shadow-sm bg-white/5 text-white backdrop-blur-sm border-b border-white/5">
             <NavBar
               collapsed={collapsed}
@@ -72,9 +72,9 @@ export default function Layout() {
               }}
             />
           </header>
-          <main className="p-4 sm:p-6 flex-1 overflow-auto">
+          <main className="p-4 sm:p-6 flex-1 overflow-auto flex flex-col min-h-0">
             {/* Clean content area — no rounded panel or shadow */}
-            <div className="w-full">
+            <div className="w-full flex-1 min-h-0 flex flex-col">
               <Outlet />
             </div>
           </main>

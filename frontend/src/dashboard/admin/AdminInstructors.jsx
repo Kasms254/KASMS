@@ -25,19 +25,19 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
 ]
 
 const EDITABLE_ROLE_OPTIONS = [
@@ -54,6 +54,7 @@ const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value // identity mapping for stored values
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 // Normalize a rank value from the backend to the internal value used by dropdowns.

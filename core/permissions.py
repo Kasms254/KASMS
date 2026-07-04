@@ -1,7 +1,7 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
 from .managers import get_current_school
-from .models import DepartmentMembership, OICAssignment
+from .models import DepartmentMembership, OICAssignment, CourseReport
 
 
 class IsSuperAdmin(BasePermission):
@@ -74,7 +74,6 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         if request.user.role == 'superadmin':
             return True
 
-        # Enforce school isolation on all operations, including reads
         if hasattr(obj, 'school') and obj.school:
             if obj.school != request.user.school:
                 return False
@@ -286,7 +285,6 @@ class IsChiefInstructor(BasePermission):
             and request.user.role == 'chief_instructor'
         )
 
-
 class IsCommandantOrChiefInstructor(BasePermission):
 
     message = "Only Commandant, Chief Instructor, or Admin can access this."
@@ -318,7 +316,6 @@ class ReadOnlyForCommandantOrChiefInstructor(BasePermission):
         return False
 
 # oic
-
 class IsOIC(BasePermission):
 
     message = 'Only an Officer in Charge (OIC) can perform this action.'
@@ -396,3 +393,37 @@ class ReadOnlyForOIC(BasePermission):
             return request.method in SAFE_METHODS
 
         return False
+
+
+class IsCourseReportParticipant(BasePermission):
+
+    ALLOWED_ROLES={
+        'instructor', 'oic', 'chief_instructor', 'commandant', 'admin', 'superadmin',
+    }
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        if role:
+            role = role.replace(' ', '_')
+        return role in self.ALLOWED_ROLES
+
+
+class CanWriteCourseReportRemark(BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        if role:
+            role = role.replace(' ', '_')
+
+        if obj.status in CourseReport.ROLE_WRITE_STATUS.get(role, ()):
+            return True
+
+        if role in CourseReport.CORRECTABLE_ROLES and obj.status != 'approved':
+            return obj.stage_remarks.filter(stage=role, is_submitted=True).exists()
+
+        return False
+
+        

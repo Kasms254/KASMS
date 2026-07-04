@@ -76,7 +76,14 @@ export default function ExamReports() {
     description: '',
   })
 
-
+  // Fetch initial data with React Query.
+  // Admins: only fetch exams for the selected class (server-side filtered),
+  // instead of downloading every exam in the school.
+  // staleTime is overridden to 0 here (instead of inheriting the app-wide
+  // 5 min default in main.jsx) so that returning to this screen after an
+  // exam is created/edited elsewhere always refetches rather than serving
+  // a cached list that's missing it. This is affordable now that each fetch
+  // is scoped to one class instead of the whole school.
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
     queryKey: ['exams', isAdmin, selectedClass],
     queryFn: () => {
@@ -87,7 +94,7 @@ export default function ExamReports() {
       return api.getMyExams()
     },
     enabled: isAdmin ? !!selectedClass : true,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   })
   const { data: classesQueryData } = useQuery({
     queryKey: ['classes', 'active', isAdmin],
@@ -100,8 +107,9 @@ export default function ExamReports() {
     staleTime: 10 * 60 * 1000,
   })
 
- 
-  const loading = loadingExams && (isAdmin ? !!selectedClass : true)
+  // For admin, the exams query is disabled until a class is selected, so it
+  // must not block the initial page (class picker) from rendering.
+  const loading = isAdmin ? (!!selectedClass && loadingExams) : loadingExams
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
@@ -110,16 +118,22 @@ export default function ExamReports() {
   const filteredExams = useMemo(() => {
     if (!selectedClass) return []
 
+    // Regular exams (LEGACY with results, or POLICY that happen to have exams too)
+    // Note: for admin, `exams` is already server-side scoped to selectedClass
+    // (subject__class_obj filter), so the class match below only applies to
+    // the instructor path, whose exams span all their classes. `subj` is
+    // still needed unconditionally for the POLICY grading-mode bypass.
     return exams.filter(exam => {
+      const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
       if (!isAdmin) {
-        // For non-admin, still filter by class client-side
-        const subj = subjects.find(s => s.id === exam.subject)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
       }
-      if (selectedSubject && exam.subject !== parseInt(selectedSubject)) return false
+      if (selectedSubject && exam.subject !== parseInt(selectedSubject) && exam.subject_id !== parseInt(selectedSubject)) return false
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
+
+      if (subj?.grading_mode === 'POLICY') return true
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
   }, [exams, isAdmin, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])

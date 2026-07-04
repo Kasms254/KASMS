@@ -32,6 +32,7 @@ const SENTENCE_CASE_CONFIG = {
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
     'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
+    'stage', // Preserve stage values for comparisons (instructor, oic, chief_instructor, commandant)
     'type', // Preserve type values
     'id', // Preserve ID fields
     'logo', // Preserve file paths (e.g., school_logos/...)
@@ -2082,6 +2083,61 @@ export async function evaluateStudentSubject(subjectId, studentId) {
   return request(`/api/subjects/${encodeURIComponent(subjectId)}/evaluate_student/?student_id=${encodeURIComponent(studentId)}`)
 }
 
+// ── Course Reports ─────────────────────────────────────────────────────────────
+
+export async function getCourseReports(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/course-reports/${qs}`)
+}
+
+export async function getCourseReportDetail(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/`)
+}
+
+export async function bulkCreateCourseReports(classId) {
+  return request('/api/course-reports/bulk-create/', { method: 'POST', body: { class_obj: classId } })
+}
+
+export async function saveCourseReportRemark(id, payload) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/save-remark/`, { method: 'POST', body: payload })
+}
+
+export async function submitCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/submit/`, { method: 'POST', body: {} })
+}
+
+export async function advanceCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/advance/`, { method: 'POST', body: {} })
+}
+
+export async function bulkSubmitCourseReports(classId) {
+  return request('/api/course-reports/bulk-submit/', { method: 'POST', body: { class_id: classId } })
+}
+
+export async function bulkAdvanceCourseReports(classId) {
+  return request('/api/course-reports/bulk-advance/', { method: 'POST', body: { class_id: classId } })
+}
+
+export async function downloadCourseReport(id) {
+  const url = `${API_BASE}/api/course-reports/${encodeURIComponent(id)}/download/`
+  const csrf = getCsrfToken()
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRFToken': csrf } : {},
+  })
+  if (!res.ok) {
+    let msg = 'Failed to download report'
+    try { const e = await res.json(); msg = e.detail || msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
+  return res.blob()
+}
+
+export async function getCourseReportAuditLog(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/audit-log/`)
+}
+
 export default {
   login,
   changePassword,
@@ -2362,6 +2418,17 @@ export default {
   deleteOICAssignment,
   bulkAssignOIC,
   getOICUsers,
+  // Course Reports
+  getCourseReports,
+  getCourseReportDetail,
+  bulkCreateCourseReports,
+  saveCourseReportRemark,
+  submitCourseReport,
+  advanceCourseReport,
+  bulkSubmitCourseReports,
+  bulkAdvanceCourseReports,
+  downloadCourseReport,
+  getCourseReportAuditLog,
   getComponentChoices,
   getAssessmentComponents,
   getComponentsBySubject,

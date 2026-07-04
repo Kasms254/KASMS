@@ -76,6 +76,10 @@ const CommandantCourses = lazy(() => import('./dashboard/commandants/CommandantC
 const OICAssignments = lazy(() => import('./dashboard/admin/OICAssignments'))
 
 // OIC components
+const CourseReports = lazy(() => import('./dashboard/shared/CourseReports'))
+const CourseReportDetail = lazy(() => import('./dashboard/shared/CourseReportDetail'))
+const CourseRoster = lazy(() => import('./dashboard/shared/CourseRoster'))
+
 const OICDashboard = lazy(() => import('./dashboard/oic/OICDashboard'))
 const OICClasses = lazy(() => import('./dashboard/oic/OICClasses'))
 const OICClassDetail = lazy(() => import('./dashboard/oic/OICClassDetail'))
@@ -263,6 +267,13 @@ const App = () => {
 				<Route index element={<ExamReports />} />
 			</Route>
 
+			{/* Course Reports (admins & instructors) */}
+			<Route path="/list/course-reports" element={<AdminOrInstructorLayout />}>
+				<Route index element={<CourseReports />} />
+				<Route path="class/:classId" element={<CourseRoster />} />
+				<Route path=":id" element={<CourseReportDetail />} />
+			</Route>
+
 			{/* Certificates list (admin) */}
 			<Route path="/list/certificates" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<Certificates />} />
@@ -341,6 +352,9 @@ const App = () => {
 				<Route path="classes/:id" element={<CommandantClassDetail />} />
 				<Route path="users" element={<CommandantUsers />} />
 				<Route path="exam-reports" element={<CommandantExamReports />} />
+				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
+				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
 				<Route path="notices" element={<CommandantNotices />} />
@@ -367,6 +381,9 @@ const App = () => {
 				<Route path="classes" element={<OICClasses />} />
 				<Route path="classes/:id" element={<OICClassDetail />} />
 				<Route path="exam-reports" element={<OICExamReports />} />
+				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
+				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="remarks" element={<OICRemarks />} />
 				<Route path="comparison" element={<OICComparison />} />
 				<Route path="attendance" element={<OICAttendance />} />

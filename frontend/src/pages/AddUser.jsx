@@ -15,23 +15,27 @@ const roles = [
 
 const ranks = [
   { value: 'general', label: 'General' },
+  { value: 'lieutenant_general', label: 'Lieutenant General' },
+  { value: 'major_general', label: 'Major General' },
+  { value: 'brigadier', label: 'Brigadier' },
+  { value: 'colonel', label: 'Colonel' },
   { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
 ]
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
@@ -435,12 +439,6 @@ export default function AddUser({ onSuccess } = {}) {
                   <option value="corporal">Corporal</option>
                   <option value="lance_corporal">Lance Corporal</option>
                   <option value="private">Private</option>
-                  <option value="head_constable_i">Head Constable I</option>
-                  <option value="head_constable_ii">Head Constable II</option>
-                  <option value="constable_i">Constable I</option>
-                  <option value="constable_ii">Constable II</option>
-                  <option value="constable_iii">Constable III</option>
-                  <option value="civilian">Civilian</option>
                 </select>
                 {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>

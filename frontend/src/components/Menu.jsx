@@ -197,9 +197,15 @@ const menuItems = [
       
       
       {
-        icon: 'FileBarChart',
+        icon: 'ClipboardList',
         label: 'Exam Reports',
         href: '/commandant/exam-reports',
+        visible: ['commandant', 'chief_instructor'],
+      },
+      {
+        icon: 'BookOpen',
+        label: 'Course Reports',
+        href: '/commandant/course-reports',
         visible: ['commandant', 'chief_instructor'],
       },
       {
@@ -251,9 +257,15 @@ const menuItems = [
         visible: ['instructor', 'student',],
       },
       {
-        icon: 'FileBarChart',
+        icon: 'ClipboardList',
         label: 'Exam Reports',
         href: '/list/exam-reports',
+        visible: ['admin', 'instructor'],
+      },
+      {
+        icon: 'BookOpen',
+        label: 'Course Reports',
+        href: '/list/course-reports',
         visible: ['admin', 'instructor'],
       },
       
@@ -340,9 +352,15 @@ const menuItems = [
         visible: ['oic'],
       },
       {
-        icon: 'FileBarChart',
+        icon: 'ClipboardList',
         label: 'Exam Reports',
         href: '/oic/exam-reports',
+        visible: ['oic'],
+      },
+      {
+        icon: 'BookOpen',
+        label: 'Course Reports',
+        href: '/oic/course-reports',
         visible: ['oic'],
       },
       {
