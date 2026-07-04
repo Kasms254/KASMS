@@ -1917,6 +1917,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.select_related('subject', 'created_by').prefetch_related('attachments').all()
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['subject', 'exam_type', 'is_active', 'subject__class_obj']
     search_fields = ['title', 'subject__name', 'subject__code']
