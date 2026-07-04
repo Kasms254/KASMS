@@ -2322,7 +2322,10 @@ class CourseReport(models.Model):
         'commandant':       'ci_submitted',
     }
 
-   
+    # Roles allowed to go back and correct their own already-submitted
+    # remark any time before the report reaches 'approved'. Commandant is
+    # excluded: submitting the commandant remark approves the report and
+    # generates the final PDF in the same step, so it stays locked.
     CORRECTABLE_ROLES = {'instructor', 'oic', 'chief_instructor'}
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -2405,7 +2408,11 @@ class CourseReport(models.Model):
 
             all_stages = ['instructor', 'oic', 'chief_instructor', 'commandant']
 
-         
+            # Once fully approved, every stage's remark is already baked into
+            # the final signed PDF (which the instructor can download), so
+            # keeping the in-app view restricted at that point only produces
+            # a misleading "not yet submitted" for stages that are in fact
+            # long done. Reveal everything to everyone with report access.
             if self.status == 'approved':
                 return all_stages
 
