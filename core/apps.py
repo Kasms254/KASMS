@@ -9,9 +9,17 @@ class CoreConfig(AppConfig):
     started = False
 
     def ready(self):
+        import sys
 
-        # Prevent Django's autoreloader from starting two threads
-        if os.environ.get("RUN_MAIN") != "true":
+        argv0 = sys.argv[0] if sys.argv else ""
+        is_gunicorn = "gunicorn" in argv0
+        is_runserver = "manage.py" in argv0 and sys.argv[1:2] == ["runserver"]
+
+        should_start = is_gunicorn or (
+            is_runserver and os.environ.get("RUN_MAIN") == "true"
+        )
+
+        if not should_start:
             return
 
         if CoreConfig.started:
