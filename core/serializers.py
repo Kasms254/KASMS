@@ -2979,10 +2979,10 @@ class CourseReportAuditLogSerializer(serializers.ModelSerializer):
         return ''
  
 class CourseReportStudentInfoSerializer(serializers.Serializer):
-    id = serializers.UUIDField(source='enrollment.student.id')
-    username = serializers.CharField(source='enrollment.student.username')
-    first_name = serializers.CharField(source='enrollment.student.first_name')
-    last_name = serializers.CharField(source='enrollment.student.last_name')
+    id = serializers.UUIDField(source='enrollment.student.id', default=None)
+    username = serializers.CharField(source='enrollment.student.username', default='')
+    first_name = serializers.CharField(source='enrollment.student.first_name', default='')
+    last_name = serializers.CharField(source='enrollment.student.last_name', default='')
     svc_number = serializers.CharField(source='enrollment.student.svc_number', default='')
     rank = serializers.CharField(source='enrollment.student.rank', default='')
  
