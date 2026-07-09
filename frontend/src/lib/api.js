@@ -1334,6 +1334,11 @@ export async function getSchoolAdmins(params = '') {
   return request(`/api/school-admins/${qs}`)
 }
 
+// Get aggregate superadmin dashboard counts (schools, admins, students, instructors)
+export async function getSuperadminDashboardSummary() {
+  return request('/api/superadmin-dashboard/summary/')
+}
+
 // Get a single school admin by ID
 export async function getSchoolAdmin(id) {
   if (!id) throw new Error('id is required')
@@ -1743,22 +1748,8 @@ export async function getCommandantDepartmentDetails(id) {
 }
 
 export async function getCommandantClasses(params = '') {
-  let allClasses = []
-  let page = 1
-  let hasMore = true
-  const baseParams = params ? `${params}&` : ''
-  while (hasMore) {
-    try {
-      const data = await request(`/api/commandant/classes/?${baseParams}page=${page}`)
-      const results = Array.isArray(data) ? data : (data?.results ?? [])
-      allClasses = [...allClasses, ...results]
-      hasMore = !!(data?.next)
-      page++
-    } catch {
-      hasMore = false
-    }
-  }
-  return allClasses
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/classes/${q}`)
 }
 
 export async function getCommandantClassStudents(id) {

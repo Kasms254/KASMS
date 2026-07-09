@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import Card from '../../components/Card'
-import { getCommandantClasses, getCommandantClassStudents } from '../../lib/api'
+import { getCommandantClasses } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
 function formatDate(str) {
@@ -41,36 +41,11 @@ export default function CommandantClasses() {
       const list = Array.isArray(data) ? data : data?.results ?? []
 
       // Normalize student count fields from various possible API keys
-      const initialMapped = list.map((cl) => ({ ...cl, student_count: cl.student_count ?? cl.students_count ?? cl.current_enrollment ?? cl.enrollment_count ?? null }))
-      setClasses(initialMapped)
+      const mapped = list.map((cl) => ({ ...cl, student_count: cl.student_count ?? cl.students_count ?? cl.current_enrollment ?? cl.enrollment_count ?? null }))
+      setClasses(mapped)
       if (data?.count !== undefined) {
         setTotalCount(data.count)
         setTotalPages(Math.ceil(data.count / pageSize))
-      }
-
-      // For any classes missing a student_count, fetch per-class student list
-      const toFetch = initialMapped.reduce((acc, cl, idx) => {
-        if (cl.student_count == null) acc.push({ id: cl.id, idx })
-        return acc
-      }, [])
-
-      if (toFetch.length > 0) {
-        try {
-          const counts = await Promise.allSettled(toFetch.map((t) => getCommandantClassStudents(t.id).catch(() => null)))
-          const mapped = [...initialMapped]
-          toFetch.forEach((t, i) => {
-            const res = counts[i]
-            let studentsCount = null
-            if (res && res.status === 'fulfilled' && res.value) {
-              const v = res.value
-              studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
-            }
-            mapped[t.idx] = { ...mapped[t.idx], student_count: studentsCount }
-          })
-          setClasses(mapped)
-        } catch {
-          // ignore per-class failures
-        }
       }
     } catch (err) {
       reportError(err?.message || 'Failed to load classes')

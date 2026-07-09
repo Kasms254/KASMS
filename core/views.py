@@ -1127,22 +1127,25 @@ class ClassViewSet(viewsets.ModelViewSet):
         return ClassSerializer
     
     def get_queryset(self):
-        
-        queryset = Class.all_objects.select_related('course', 'instructor').all()
+
+        queryset = Class.all_objects.select_related('course', 'instructor').annotate(
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+        ).all()
         user = self.request.user
 
         if not user.is_authenticated:
             return queryset.none()
-        
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
                 return queryset.filter(school=school)
             return queryset
-        
+
         if user.school:
             return queryset.filter(school=user.school)
-        
+
         return queryset.none()
 
     @action(detail=True, methods=['get'])
@@ -1678,6 +1681,23 @@ class NoticeActionMixin:
         return Response({
             'count': qs.count(),
             'results': serializer.data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Combined active+urgent notices in a single queryset evaluation.
+
+        `urgent` is always a subset of `active` (priority='urgent' AND is_active=True),
+        so this filters urgent from the already-serialized active list instead of
+        issuing a second query, replacing what were previously two separate
+        unpaginated full-table calls (each doing its own COUNT + SELECT).
+        """
+        active_qs = self.get_queryset().filter(is_active=True)
+        active_results = self.get_serializer(active_qs, many=True).data
+        urgent_results = [n for n in active_results if n.get('priority') == 'urgent']
+        return Response({
+            'active': {'count': len(active_results), 'results': active_results},
+            'urgent': {'count': len(urgent_results), 'results': urgent_results},
         })
 
 class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
@@ -3878,7 +3898,92 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'end_date': end_date,
             'exam_count': upcoming_exams.count(),
             'exams':ExamSerializer(upcoming_exams, many=True).data
-        })   
+        })
+
+class AdminDashboardViewSet(viewsets.ViewSet):
+
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def list(self, request):
+        return self._build_summary(request)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        return self._build_summary(request)
+
+    def _build_summary(self, request):
+        user = request.user
+        school = get_current_school() if user.role == 'superadmin' else user.school
+
+        if not school:
+            return Response(
+                {'error': 'No school context found.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        membership_counts = SchoolMembership.all_objects.filter(
+            school=school, status='active',
+        ).aggregate(
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+            admins=Count('id', filter=Q(role='admin')),
+        )
+
+        subjects_count = Subject.all_objects.filter(school=school, is_active=True).count()
+        active_classes_count = Class.all_objects.filter(school=school, is_active=True).count()
+
+        return Response({
+            'school': {
+                'id': str(school.id),
+                'name': school.name,
+                'code': school.code,
+            },
+            'counts': {
+                'students': membership_counts['students'],
+                'instructors': membership_counts['instructors'],
+                'admins': membership_counts['admins'],
+                'subjects': subjects_count,
+                'active_classes': active_classes_count,
+            },
+        })
+
+class SuperadminDashboardViewSet(viewsets.ViewSet):
+
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def list(self, request):
+        return self._build_summary(request)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        return self._build_summary(request)
+
+    def _build_summary(self, request):
+        school_counts = School.objects.aggregate(
+            total_schools=Count('id'),
+            active_schools=Count('id', filter=Q(is_active=True)),
+        )
+
+        membership_counts = SchoolMembership.all_objects.filter(
+            status='active',
+        ).aggregate(
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+        )
+
+        total_admins = SchoolAdmin.objects.count()
+
+        return Response({
+            'counts': {
+                'total_schools': school_counts['total_schools'],
+                'active_schools': school_counts['active_schools'],
+                'total_admins': total_admins,
+                'total_students': membership_counts['students'],
+                'total_instructors': membership_counts['instructors'],
+            },
+        })
+
 # attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 

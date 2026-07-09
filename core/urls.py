@@ -3,7 +3,7 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet, AdminRosterViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet, AdminRosterViewSet, AdminDashboardViewSet, SuperadminDashboardViewSet,
     # for the instructor
     ExamViewSet, ClassNoticeViewSet, ProfileViewSet, CertificateViewSet, CertificateTemplateViewSet, EnrollmentCertificateView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet, SchoolViewSet, SchoolAdminViewSet,
@@ -57,6 +57,8 @@ router.register(r'classes', ClassViewSet, basename='class')
 router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 router.register(r'subjects', SubjectViewSet, basename='subject')
 router.register(r'notices', NoticeViewSet, basename='notice')
+router.register(r'admin-dashboard', AdminDashboardViewSet, basename='admin-dashboard')
+router.register(r'superadmin-dashboard', SuperadminDashboardViewSet, basename='superadmin-dashboard')
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')

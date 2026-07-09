@@ -728,9 +728,9 @@ class ClassSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name', read_only=True)
     course_code = serializers.CharField(source='course.code', read_only=True)
     instructor_name = serializers.SerializerMethodField(read_only=True)
-    current_enrollment = serializers.IntegerField(read_only=True)
-    enrollment_status = serializers.CharField(read_only=True)
-    subjects_count = serializers.IntegerField(source='subjects.count', read_only=True)
+    current_enrollment = serializers.SerializerMethodField(read_only=True)
+    enrollment_status = serializers.SerializerMethodField(read_only=True)
+    subjects_count = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Class
@@ -739,7 +739,7 @@ class ClassSerializer(serializers.ModelSerializer):
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
-    
+
     def get_subjects_count(self, obj):
         if hasattr(obj, '_subjects_count'):
             return obj._subjects_count
@@ -749,6 +749,9 @@ class ClassSerializer(serializers.ModelSerializer):
         if hasattr(obj, '_current_enrollment'):
             return obj._current_enrollment
         return obj.enrollments.filter(is_active=True).count()
+
+    def get_enrollment_status(self, obj):
+        return f"{self.get_current_enrollment(obj)} / {obj.capacity}"
 
     def validate_class_code(self, value):
         if not value:

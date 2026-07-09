@@ -19,25 +19,21 @@ export default function SuperadminDashboard() {
     async function fetchData() {
       setLoading(true)
       try {
-        // Fetch schools list
-        const schoolsData = await api.getSchools('page_size=5')
+        const [schoolsData, summary] = await Promise.all([
+          api.getSchools('page_size=5'),
+          api.getSuperadminDashboardSummary().catch(() => null),
+        ])
         const schools = schoolsData?.results || []
         setRecentSchools(schools)
 
-        // Fetch school admins count
-        const adminsData = await api.getSchoolAdmins('page_size=1')
-        const totalAdmins = adminsData?.count || 0
-
-        // Calculate stats from schools data
-        const totalSchools = schoolsData?.count || schools.length
-        const activeSchools = schools.filter(s => s.is_active).length
+        const counts = summary?.counts || {}
 
         setStats({
-          total_schools: totalSchools,
-          active_schools: activeSchools,
-          total_users: totalAdmins,
-          total_students: 0,
-          total_instructors: 0,
+          total_schools: counts.total_schools ?? (schoolsData?.count || schools.length),
+          active_schools: counts.active_schools ?? schools.filter(s => s.is_active).length,
+          total_users: counts.total_admins ?? 0,
+          total_students: counts.total_students ?? 0,
+          total_instructors: counts.total_instructors ?? 0,
         })
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err)
