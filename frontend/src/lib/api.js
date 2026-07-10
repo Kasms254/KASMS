@@ -1,4 +1,4 @@
-// API client for the frontend.
+  // API client for the frontend.
 // Authentication is handled via HTTP-only cookies set by the server.
 // All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
@@ -81,6 +81,18 @@ const SENTENCE_CASE_CONFIG = {
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
   return match ? match[1] : null
+}
+
+// Seed the csrftoken cookie if it isn't set yet. Called lazily before
+// unauthenticated state-changing requests (login, 2FA) instead of on every
+// page load, so public pages make no requests at all.
+export async function ensureCsrfCookie() {
+  if (getCsrfToken()) return
+  try {
+    await fetch(`${API_BASE}/api/auth/csrf/`, { credentials: 'include' })
+  } catch {
+    // Non-fatal — proceed without CSRF cookie
+  }
 }
 
 // Sanitize string input to prevent injection attacks
@@ -244,6 +256,7 @@ async function requestMultipart(path, { method = 'POST', formData, headers = {} 
 }
 
 export async function login(svc_number, password) {
+  await ensureCsrfCookie()
   // Sanitize inputs before sending to API
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
@@ -257,6 +270,7 @@ export async function login(svc_number, password) {
 }
 
 export async function verify2FA(svc_number, password, code) {
+  await ensureCsrfCookie()
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
   const sanitizedCode = sanitizeInput(code)
@@ -267,6 +281,7 @@ export async function verify2FA(svc_number, password, code) {
 }
 
 export async function resend2FA(svc_number, password) {
+  await ensureCsrfCookie()
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
   return request('/api/auth/resend-2fa/', {
@@ -318,7 +333,8 @@ export async function getAllStudents(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getStudentsPaginated(`${baseParams}page=${page}&page_size=100`)
+      // Backend caps this endpoint's page_size at 200
+      const data = await getStudentsPaginated(`${baseParams}page=${page}&page_size=200`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
@@ -344,7 +360,7 @@ export async function getAllCourses() {
 
   while (hasMore) {
     try {
-      const data = await getCoursesPaginated(`page=${page}&page_size=100`)
+      const data = await getCoursesPaginated(`page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allCourses = [...allCourses, ...results]
 
@@ -395,7 +411,7 @@ export async function getAllClasses(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getClassesPaginated(`${baseParams}page=${page}&page_size=100`)
+      const data = await getClassesPaginated(`${baseParams}page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allClasses = [...allClasses, ...results]
 
@@ -753,7 +769,7 @@ export async function getAllSubjects(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getSubjectsPaginated(`${baseParams}page=${page}&page_size=100`)
+      const data = await getSubjectsPaginated(`${baseParams}page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allSubjects = [...allSubjects, ...results]
 
@@ -774,9 +790,11 @@ export async function getMySubjects() {
     const data = await request('/api/subjects/my_subjects/')
     if (data && Array.isArray(data.results)) return data.results
     return data
-  } catch {
-    // Fall back to general subjects list
-    return getSubjects()
+  } catch (err) {
+    // Fall back to the general subjects list only if the endpoint doesn't
+    // exist (older backend). Other errors shouldn't trigger a second request.
+    if (err?.status === 404) return getSubjects()
+    throw err
   }
 }
 
@@ -1144,7 +1162,8 @@ export async function getAllInstructors() {
 
   while (hasMore) {
     try {
-      const data = await getInstructorsPaginated(`page=${page}&page_size=100`)
+      // Backend caps this endpoint's page_size at 200
+      const data = await getInstructorsPaginated(`page=${page}&page_size=200`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allInstructors = [...allInstructors, ...results]
 
@@ -2140,6 +2159,7 @@ export async function getCourseReportAuditLog(id) {
 
 export default {
   login,
+  ensureCsrfCookie,
   changePassword,
   getCurrentUser,
   getStudents,
