@@ -34,7 +34,9 @@ from .serializers import (
     DashboardCertificateSerializer,
     DashboardExamReportSerializer,
 )
-from .permissions import IsCommandantOrChiefInstructor
+from .permissions import (
+    IsCommandantOrChiefInstructor, CertificateCapability, RequiresCertificateCapability,
+)
 from .managers import get_current_school
 
 def _get_school(user):
@@ -465,7 +467,9 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = DashboardCertificateSerializer
-    permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
+    permission_classes = [
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.VIEW),
+    ]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'class_obj']
     search_fields = ['certificate_number', 'student_name', 'student_svc_number', 'course_name']
@@ -482,9 +486,13 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         qs = self.get_queryset()
-        total = qs.count()
-        issued = qs.filter(status='issued').count()
-        revoked = qs.filter(status='revoked').count()
+
+      
+        counts = qs.aggregate(
+            total=Count('id'),
+            issued=Count('id', filter=Q(status='issued')),
+            revoked=Count('id', filter=Q(status='revoked')),
+        )
 
         by_class = (
             qs.filter(status='issued')
@@ -494,9 +502,9 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         return Response({
-            'total': total,
-            'issued': issued,
-            'revoked': revoked,
+            'total': counts['total'] or 0,
+            'issued': counts['issued'] or 0,
+            'revoked': counts['revoked'] or 0,
             'by_class': list(by_class),
         })
 

@@ -2046,7 +2046,7 @@ class Certificate(models.Model):
         self.revocation_reason = reason
         self.revoked_at = timezone.now()
         self.save(update_fields=[
-            'status', 'revoked_by', 'revocation_reason', 'revoked_at', 'updated_at',
+            'status', 'revoked_by', 'revocation_reason', 'revoked_at',
         ])
 
     def record_download(self):
@@ -2104,39 +2104,80 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
-    DOWNLOAD_TYPE_CHOICES = [
-        ('pdf', 'PDF Download'),
-        ('html', 'HTML Preview'),
-        ('view', 'View Only'),
+class CertificateAuditLog(models.Model):
+    """Immutable audit trail for privileged certificate-module actions."""
+
+    ACTION_CHOICES = [
+        ('issued', 'Certificate Issued'),
+        ('bulk_issued', 'Certificates Bulk Issued'),
+        ('revoked', 'Certificate Revoked'),
+        ('class_closed', 'Class Closed'),
+        ('template_created', 'Template Created'),
+        ('template_updated', 'Template Updated'),
+        ('template_deleted', 'Template Deleted'),
+        ('template_set_default', 'Template Set Default'),
     ]
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
-        related_name='certificate_downloads',
+        related_name='certificate_audit_logs',
         null=True, blank=True,
     )
-    certificate = models.ForeignKey(
-        Certificate, on_delete=models.CASCADE,
-        related_name='download_logs',
-    )
-    downloaded_by = models.ForeignKey(
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, blank=True,
-        related_name='certificate_downloads',
+        related_name='certificate_audit_actions',
     )
-    download_type = models.CharField(
-        max_length=20, choices=DOWNLOAD_TYPE_CHOICES, default='pdf',
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificate_audit_logs',
     )
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
-    downloaded_at = models.DateTimeField(auto_now_add=True)
+    certificate = models.ForeignKey(
+        Certificate, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='audit_logs',
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificate_audit_subject_logs',
+    )
+    previous_state = models.JSONField(default=dict, blank=True)
+    new_state = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text='Request metadata: ip_address, user_agent, counts, etc.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    objects = TenantAwareManager()
-    all_objects = models.Manager()
+    objects = models.Manager()
 
     class Meta:
-        db_table = 'certificate_download_logs'
-        ordering = ['-downloaded_at']
+        db_table = 'certificate_audit_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['school', 'created_at']),
+            models.Index(fields=['certificate', 'action']),
+            models.Index(fields=['class_obj', 'action']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} by {self.performed_by} at {self.created_at}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                CertificateAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except CertificateAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
 
 class BiometricDevice(models.Model):
 
@@ -2647,7 +2688,7 @@ class CourseReportAuditLog(models.Model):
  
     def __str__(self):
         return f"{self.action} on {self.report_id} by {self.performed_by}"
- 
+
     def save(self, *args, **kwargs):
         if self.pk:
             try:
@@ -2656,7 +2697,61 @@ class CourseReportAuditLog(models.Model):
             except CourseReportAuditLog.DoesNotExist:
                 pass
         super().save(*args, **kwargs)
- 
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
+
+
+class UserImportAuditLog(models.Model):
+
+    ACTION_CHOICES = [
+        ('completed', 'Import Completed'),
+        ('failed', 'Import Failed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='user_import_audit_logs',
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='user_import_audit_actions',
+    )
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'filename, ip_address, total_rows, created_count, failed_count, '
+            'skipped_count, created_svc_numbers, error_summary, etc.'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'user_import_audit_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['school', 'created_at']),
+            models.Index(fields=['performed_by', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} import by {self.performed_by} at {self.created_at}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                UserImportAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except UserImportAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
     def delete(self, *args, **kwargs):
         raise ValueError("Audit logs cannot be deleted.")
  

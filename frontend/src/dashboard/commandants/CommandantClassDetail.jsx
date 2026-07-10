@@ -195,6 +195,13 @@ export default function CommandantClassDetail() {
             )}
           </p>
         </div>
+        <button
+          onClick={() => navigate(`/commandant/classes/${id}/certificates`)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition shadow-sm whitespace-nowrap"
+        >
+          <LucideIcons.Award className="w-4 h-4" />
+          Certificates
+        </button>
       </header>
 
       {/* Search */}

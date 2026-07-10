@@ -1237,6 +1237,24 @@ export async function resetUserPassword(id, newPassword) {
   return request(`/api/users/${id}/reset_password/`, { method: 'POST', body: { new_password: newPassword } })
 }
 
+export async function previewStudentImport(file) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return requestMultipart('/api/users/import/preview/', { method: 'POST', formData: fd })
+}
+
+export async function confirmStudentImport(importId) {
+  return request('/api/users/import/confirm/', { method: 'POST', body: { import_id: importId } })
+}
+
+export async function downloadStudentImportTemplate() {
+  const response = await fetch(`${API_BASE}/api/users/import/template/`, { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error(`Failed to download template (${response.status})`)
+  }
+  return response.text()
+}
+
 // =====================
 // Schools API (Superadmin)
 // =====================
@@ -1551,11 +1569,6 @@ export async function previewCertificateTemplate(id) {
 // Certificate stats (dashboard)
 export async function getCertificateStats() {
   return request('/api/certificates/stats/')
-}
-
-// Bulk create certificates (server-side helper)
-export async function bulkCreateCertificates(payload) {
-  return request('/api/certificates/bulk_create/', { method: 'POST', body: payload })
 }
 
 // Certificate download logs
@@ -2346,7 +2359,6 @@ export default {
   deleteCertificateTemplate,
   setCertificateTemplateDefault,
   previewCertificateTemplate,
-  bulkCreateCertificates,
   getCertificateDownloadLogs,
   verifyCertificate,
   // Student Index / Roster

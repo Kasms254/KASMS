@@ -114,13 +114,23 @@ export default function CommandantClasses() {
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls.is_closed ? 'bg-red-100 text-red-700' : cls.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>
                       {cls.is_closed ? 'Closed' : cls.is_active ? 'Active' : 'Inactive'}
                     </span>
-                    <button
-                      onClick={() => navigate(`/commandant/classes/${cls.id}`)}
-                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
-                    >
-                      <LucideIcons.Users className="w-3 h-3 inline mr-1" />
-                      View
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/commandant/classes/${cls.id}`)}
+                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
+                      >
+                        <LucideIcons.Users className="w-3 h-3 inline mr-1" />
+                        View
+                      </button>
+                      <button
+                        onClick={() => navigate(`/commandant/classes/${cls.id}/certificates`)}
+                        className="px-2 py-1 rounded-md bg-emerald-600 text-white text-xs hover:bg-emerald-700 transition"
+                        aria-label={`Certificates for ${cls.name || 'class'}`}
+                      >
+                        <LucideIcons.Award className="w-3 h-3 inline mr-1" />
+                        Certificates
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Card>

@@ -3,7 +3,8 @@ from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
     ExamResultNotificationReadStatus, AttendanceSessionLog, BiometricRecord, AttendanceSession, SessionAttendance, ExamAttachment, SchoolMembership, Certificate, TwoFactorCode,
-    Department,CourseReportStageRemark,CourseReportAuditLog, CourseReport, DepartmentMembership, ResultEditRequest, AssessmentComponent, StudentComponentResult
+    Department,CourseReportStageRemark,CourseReportAuditLog, CourseReport, DepartmentMembership, ResultEditRequest, AssessmentComponent, StudentComponentResult,
+    UserImportAuditLog,
     )
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -505,9 +506,21 @@ class CourseReportAuditLogAdmin(admin.ModelAdmin):
     list_display = ('id', 'report', 'action', 'performed_by', 'created_at')
     list_filter = ('action',)
     readonly_fields = ('id', 'report', 'action', 'performed_by', 'metadata', 'created_at')
- 
+
     def has_change_permission(self, request, obj=None):
         return False
- 
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+@admin.register(UserImportAuditLog)
+class UserImportAuditLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'school', 'action', 'performed_by', 'created_at')
+    list_filter = ('action', 'school')
+    readonly_fields = ('id', 'school', 'action', 'performed_by', 'metadata', 'created_at')
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def has_delete_permission(self, request, obj=None):
         return False

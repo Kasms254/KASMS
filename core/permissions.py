@@ -1,3 +1,5 @@
+from enum import Enum
+
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
 from .managers import get_current_school
@@ -425,5 +427,63 @@ class CanWriteCourseReportRemark(BasePermission):
             return obj.stage_remarks.filter(stage=role, is_submitted=True).exists()
 
         return False
+
+
+class CertificateCapability(str, Enum):
+    VIEW = 'view'
+    ISSUE = 'issue'
+    BULK_ISSUE = 'bulk_issue'
+    CLOSE_CLASS = 'close_class'
+    MANAGE_TEMPLATES = 'manage_templates'
+    REVOKE = 'revoke'
+
+
+CERTIFICATE_ROLE_CAPABILITIES = {
+    'superadmin': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+        CertificateCapability.MANAGE_TEMPLATES,
+        CertificateCapability.REVOKE,
+    },
+    'admin': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+        CertificateCapability.MANAGE_TEMPLATES,
+        CertificateCapability.REVOKE,
+    },
+    'commandant': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+    },
+    'chief_instructor': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+    },
+}
+
+
+def has_certificate_capability(user, capability: CertificateCapability) -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    return capability in CERTIFICATE_ROLE_CAPABILITIES.get(user.role, set())
+
+
+def RequiresCertificateCapability(capability: CertificateCapability):
+
+    class _RequiresCertificateCapability(BasePermission):
+        message = "You do not have permission to perform this certificate action."
+
+        def has_permission(self, request, view):
+            return has_certificate_capability(request.user, capability)
+
+    return _RequiresCertificateCapability
 
         

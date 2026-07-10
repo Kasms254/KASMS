@@ -26,6 +26,7 @@ const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
 const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
 const StudentsRoute = lazy(() => import('./components/StudentsRoute'))
 const AddUser = lazy(() => import('./pages/AddUser'))
+const StudentBulkImport = lazy(() => import('./pages/StudentBulkImport'))
 const Courses = lazy(() => import('./dashboard/admin/Courses'))
 const CourseDetail = lazy(() => import('./dashboard/admin/CourseDetail'))
 const Classes = lazy(() => import('./dashboard/admin/Classes'))
@@ -167,6 +168,10 @@ const App = () => {
 			{/* Admin user management */}
 			<Route path="/dashboard/add/user" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AddUser />} />
+			</Route>
+
+			<Route path="/dashboard/import/students" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<StudentBulkImport />} />
 			</Route>
 
 			{/* General dashboard routes - MUST come AFTER specific routes */}
@@ -350,6 +355,7 @@ const App = () => {
 				<Route path="analytics" element={<PerformanceAnalytics />} />
 				<Route path="classes" element={<CommandantClasses />} />
 				<Route path="classes/:id" element={<CommandantClassDetail />} />
+				<Route path="classes/:id/certificates" element={<ClassCertificates />} />
 				<Route path="users" element={<CommandantUsers />} />
 				<Route path="exam-reports" element={<CommandantExamReports />} />
 				<Route path="course-reports" element={<CourseReports />} />

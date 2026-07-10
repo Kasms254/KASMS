@@ -42,6 +42,12 @@ const menuItems = [
         visible: ['admin'],
       },
       {
+        icon: 'UploadCloud',
+        label: 'Bulk Import Students',
+        href: '/dashboard/import/students',
+        visible: ['admin'],
+      },
+      {
         icon: 'Users',
         label: 'Students',
         href: '/dashboard/students',

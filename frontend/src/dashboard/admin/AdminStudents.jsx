@@ -572,6 +572,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {!hideActions && source !== 'commandant' && (
+            <button
+              onClick={() => navigate('/dashboard/import/students')}
+              className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+            >
+              Bulk Import
+            </button>
+          )}
           <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
             {exportLoading ? 'Exporting…' : 'Download CSV'}
           </button>
