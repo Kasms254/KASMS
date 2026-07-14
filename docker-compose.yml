@@ -181,6 +181,7 @@ services:
         condition: service_healthy # only start after Django is healthy
     networks:
       - frontend_net
+      - monitoring_net # reaches the `grafana` service for the /grafana/ proxy
     healthcheck:
       test:
         [
