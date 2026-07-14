@@ -4,6 +4,13 @@ import * as LucideIcons from "lucide-react"
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import api from '../lib/api'
+import {
+  fetchMyClassNotices,
+  fetchUrgentNotices,
+  fetchActiveNotices,
+  fetchUnreadPersonalNotifications,
+  invalidateNotices,
+} from '../lib/noticesCache'
 
 export default function NavBar({
   collapsed = false,
@@ -70,14 +77,16 @@ export default function NavBar({
     setNotifsLoading(true)
     try {
       // Combine user-scoped class notices with urgent/global notices so bell shows everything
+      // Fetched through the shared notices cache so concurrent consumers
+      // (e.g. StudentsDashboard's calendar) reuse the same requests.
       const promises = [
         // Admins don't have class notices — skip to avoid errors
-        userRole === 'admin' || userRole === 'superadmin' ? Promise.resolve([]) : api.getMyClassNotices(),
-        api.getUrgentNotices(),
+        userRole === 'admin' || userRole === 'superadmin' ? Promise.resolve([]) : fetchMyClassNotices(),
+        fetchUrgentNotices(),
         // Also include active/global notices so admin-posted notices appear
-        api.getActiveNotices(),
+        fetchActiveNotices(),
         // Include personal notifications (grade results) for students only
-        userRole === 'student' ? api.getUnreadPersonalNotifications() : Promise.resolve({ count: 0, results: [] }),
+        userRole === 'student' ? fetchUnreadPersonalNotifications() : Promise.resolve({ count: 0, results: [] }),
       ]
 
       const settled = await Promise.allSettled(promises)
@@ -215,6 +224,8 @@ export default function NavBar({
     // When notices change (created/updated/deleted) elsewhere in the app,
     // re-fetch the notifications so the bell reflects the latest state.
     function onNoticesChanged() {
+      // Bypass the shared cache so the change is visible immediately
+      invalidateNotices()
       try { fetchNotifications().catch(() => {}) } catch { /* ignore */ }
     }
     window.addEventListener('notices:changed', onNoticesChanged)
