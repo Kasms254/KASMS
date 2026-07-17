@@ -99,7 +99,7 @@ export default function CommandantClasses() {
           <div className="text-sm text-neutral-400">No Classes Found</div>
         ) : (
           classes.map((cls) => (
-            <div key={cls.id} onClick={() => navigate(`/commandant/classes/${cls.id}`)} className="cursor-pointer">
+            <div key={cls.id}>
               <Card
                 title={cls.class_code || cls.name}
                 value={cls.name}

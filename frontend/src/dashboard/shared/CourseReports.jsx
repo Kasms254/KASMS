@@ -9,6 +9,7 @@ import {
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -319,7 +320,7 @@ export default function CourseReports() {
                     {report.student?.rank && (
                       <div className="flex justify-between gap-2">
                         <span className="text-neutral-600">Rank:</span>
-                        <span className="text-black">{report.student.rank}</span>
+                        <span className="text-black">{shortRank(report.student.rank)}</span>
                       </div>
                     )}
                     <div className="flex justify-between gap-2">
@@ -364,7 +365,7 @@ export default function CourseReports() {
                         {report.student?.svc_number || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
-                        {report.student?.rank || '—'}
+                        {report.student?.rank ? shortRank(report.student.rank) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
