@@ -2,9 +2,29 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from 'rea
 import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
-import { queryClient } from '../main'
+import { queryClient } from '../lib/queryClient'
 
-const INACTIVITY_TIMEOUT_MS = 90 * 60 * 1000 // 30 minutes
+// Mirrors the backend's ACCESS_TOKEN_LIFETIME (SIMPLE_JWT in kasms/settings.py).
+// Keep the two in sync if either changes.
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
+
+// Session hint: the auth tokens are HTTP-only cookies, so JS cannot check
+// whether a session exists without a network round-trip. This localStorage
+// flag is set on login and cleared on logout/expiry, letting restoreSession()
+// skip the verify-token + token-refresh requests entirely for anonymous
+// visitors (e.g. on the public landing page). It is only a hint — the server
+// still validates the actual cookies on every request.
+const SESSION_HINT_KEY = 'kasms_has_session'
+
+function hasSessionHint() {
+  try { return window.localStorage.getItem(SESSION_HINT_KEY) === '1' } catch { return false }
+}
+function setSessionHint() {
+  try { window.localStorage.setItem(SESSION_HINT_KEY, '1') } catch { /* ignore */ }
+}
+function clearSessionHint() {
+  try { window.localStorage.removeItem(SESSION_HINT_KEY) } catch { /* ignore */ }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -20,13 +40,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
     async function restoreSession() {
+      // No session hint means the user never logged in (or explicitly logged
+      // out) — skip the network entirely so public pages make zero requests.
+      if (!hasSessionHint()) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
       setLoading(true)
       // Ensure the csrftoken cookie is set before any state-changing requests
-      try {
-        await fetch(`${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL}/api/auth/csrf/`, { credentials: 'include' })
-      } catch {
-        // Non-fatal — proceed without CSRF cookie
-      }
+      await api.ensureCsrfCookie()
       try {
         // verifyToken validates the session AND re-checks student enrollment.
         // Response shape: { valid: true, user: {...} }
@@ -50,7 +73,7 @@ export function AuthProvider({ children }) {
                 secondary_color: themeData.secondary_color,
                 accent_color: themeData.accent_color,
                 logo_url: themeData.logo_url
-                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
                   : null,
                 school_name: themeData.school_name || me.school_name,
                 school_short_name: themeData.school_short_name || '',
@@ -90,6 +113,7 @@ export function AuthProvider({ children }) {
       // Tokens are set as HTTP-only cookies by the server; no client-side storage needed.
       const userInfo = resp?.user || resp?.data || null
       if (!userInfo) throw new Error('Login failed: no user data returned')
+      setSessionHint()
       setUser(userInfo)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
@@ -104,7 +128,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || userInfo.school_name,
             school_short_name: themeData.school_short_name || '',
@@ -143,6 +167,7 @@ export function AuthProvider({ children }) {
   // state here so ProtectedRoute automatically redirects to the login page.
   useEffect(() => {
     const handleSessionExpired = () => {
+      clearSessionHint()
       setUser(null)
       setMustChangePassword(false)
       resetTheme()
@@ -155,6 +180,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     // Clear React state immediately so ProtectedRoute blocks any forward navigation
     // before the network request completes.
+    clearSessionHint()
     setUser(null)
     setMustChangePassword(false)
     resetTheme()
@@ -173,6 +199,7 @@ export function AuthProvider({ children }) {
       const resp = await api.verify2FA(twoFA.svc_number, twoFA.password, code)
       const me = resp?.user || null
       setTwoFA(null) // Clear credentials from memory immediately after use
+      setSessionHint()
       setUser(me)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
@@ -184,7 +211,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || me?.school_name,
             school_short_name: themeData.school_short_name || '',
@@ -219,7 +246,7 @@ export function AuthProvider({ children }) {
     setTwoFA(null)
   }, [])
 
-  // Inactivity timer — log out after 30 minutes of no user interaction.
+  // Inactivity timer — log out after INACTIVITY_TIMEOUT_MS of no user interaction.
   // Only active while a user is logged in.
   const inactivityTimer = useRef(null)
 

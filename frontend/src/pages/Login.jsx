@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
+import CertificateVerificationForm from '../components/CertificateVerificationForm'
 
 export default function Login() {
   const [svc_number, setSvc_number] = useState('')
@@ -10,6 +11,7 @@ export default function Login() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState('signin') // 'signin' | 'verify'
   const navigate = useNavigate()
   const { login } = useAuth()
 
@@ -128,7 +130,7 @@ export default function Login() {
               <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
-              <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army School Management System</h1>
+              <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army Schools Management System</h1>
               <p className="mt-3 text-sm text-red-100 text-center">Manage Classes, Students, Exams And Results</p>
               <div className="mt-6 flex gap-3 flex-wrap justify-center">
                 <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
@@ -157,11 +159,20 @@ export default function Login() {
               </div>
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">Welcome back</h2>
-              <p className="text-sm text-gray-500 mt-1">Sign In With Your School Credentials</p>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                {mode === 'signin' ? 'Welcome back' : 'Verify a Certificate'}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {mode === 'signin'
+                  ? 'Sign In With Your School Credentials'
+                  : 'Enter the verification code printed on the certificate.'}
+              </p>
             </div>
           </div>
 
+          {mode === 'verify' ? (
+            <CertificateVerificationForm />
+          ) : (
           <form
             onSubmit={onSubmit}
             className="space-y-4"
@@ -264,8 +275,19 @@ export default function Login() {
               </div>
             ) : null}
           </form>
+          )}
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          <p className="mt-6 text-center text-sm">
+            <button
+              type="button"
+              onClick={() => setMode((m) => (m === 'signin' ? 'verify' : 'signin'))}
+              className="text-red-800 hover:text-red-900 font-medium transition-colors"
+            >
+              {mode === 'signin' ? 'Verify a Certificate instead' : '← Back to Sign In'}
+            </button>
+          </p>
+
+          <p className="mt-4 text-center text-sm text-gray-500">
                          © {new Date().getFullYear()} KASMS All Rights Reserved.
           </p>
 

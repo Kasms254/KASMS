@@ -34,7 +34,9 @@ from .serializers import (
     DashboardCertificateSerializer,
     DashboardExamReportSerializer,
 )
-from .permissions import IsCommandantOrChiefInstructor
+from .permissions import (
+    IsCommandantOrChiefInstructor, CertificateCapability, RequiresCertificateCapability,
+)
 from .managers import get_current_school
 
 def _get_school(user):
@@ -113,12 +115,23 @@ class CommandantDashboardViewSet(viewsets.ViewSet):
         submitted_results = ExamResult.all_objects.filter(
             school=school, is_submitted=True, marks_obtained__isnull=False,
         )
-        result_count = submitted_results.count()
+        result_agg = submitted_results.aggregate(
+            result_count=Count('id'),
+            total_marks=Sum('marks_obtained'),
+            total_possible=Sum('exam__total_marks'),
+            pass_count=Count(
+                Case(
+                    When(marks_obtained__gte=F('exam__total_marks') * 0.5, then=1),
+                    output_field=IntegerField(),
+                )
+            ),
+        )
+        result_count = result_agg['result_count'] or 0
         if result_count > 0:
-            total_marks = sum(r.marks_obtained for r in submitted_results.select_related('exam'))
-            total_possible = sum(r.exam.total_marks for r in submitted_results.select_related('exam'))
+            total_marks = result_agg['total_marks'] or 0
+            total_possible = result_agg['total_possible'] or 0
             avg_performance = round(total_marks / total_possible * 100, 2) if total_possible > 0 else 0
-            pass_count = sum(1 for r in submitted_results if r.percentage >= 50)
+            pass_count = result_agg['pass_count'] or 0
             pass_rate = round(pass_count / result_count * 100, 2)
         else:
             avg_performance = 0
@@ -455,7 +468,9 @@ class CommandantAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = DashboardCertificateSerializer
-    permission_classes = [IsAuthenticated, IsCommandantOrChiefInstructor]
+    permission_classes = [
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.VIEW),
+    ]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'class_obj']
     search_fields = ['certificate_number', 'student_name', 'student_svc_number', 'course_name']
@@ -472,9 +487,13 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         qs = self.get_queryset()
-        total = qs.count()
-        issued = qs.filter(status='issued').count()
-        revoked = qs.filter(status='revoked').count()
+
+      
+        counts = qs.aggregate(
+            total=Count('id'),
+            issued=Count('id', filter=Q(status='issued')),
+            revoked=Count('id', filter=Q(status='revoked')),
+        )
 
         by_class = (
             qs.filter(status='issued')
@@ -484,9 +503,9 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         return Response({
-            'total': total,
-            'issued': issued,
-            'revoked': revoked,
+            'total': counts['total'] or 0,
+            'issued': counts['issued'] or 0,
+            'revoked': counts['revoked'] or 0,
             'by_class': list(by_class),
         })
 

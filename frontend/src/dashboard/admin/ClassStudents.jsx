@@ -16,25 +16,27 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 function normalizeRank(raw) {
@@ -66,6 +68,7 @@ export default function ClassStudents() {
   const [students, setStudents] = useState([])
   const [className, setClassName] = useState('')
   const [indexPrefix, setIndexPrefix] = useState('')
+  const [indexStartFrom, setIndexStartFrom] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -75,6 +78,8 @@ export default function ClassStudents() {
   const [editIndexValue, setEditIndexValue] = useState('')
   const [editIndexSaving, setEditIndexSaving] = useState(false)
   const [editIndexError, setEditIndexError] = useState('')
+  const [confirmRenumber, setConfirmRenumber] = useState(false)
+  const [renumbering, setRenumbering] = useState(false)
 
   function buildFormattedIndex(rawNumber, prefix, serverFormatted) {
     if (serverFormatted) return serverFormatted
@@ -88,6 +93,7 @@ export default function ClassStudents() {
     if (data.class_name) setClassName(data.class_name)
     const prefix = data.index_prefix || ''
     setIndexPrefix(prefix)
+    setIndexStartFrom(data.index_start_from ?? null)
     const list = Array.isArray(data.roster) ? data.roster : []
     const mapped = list.map((u) => ({
       id: u.id,
@@ -178,6 +184,22 @@ export default function ClassStudents() {
     }
   }
 
+  async function handleRenumber() {
+    setRenumbering(true)
+    try {
+      await api.renumberClassIndexes(id)
+      const data = await api.getClassRoster(id)
+      setStudents(mapRoster(data))
+      toast?.success?.('Student indexes renumbered')
+      setConfirmRenumber(false)
+    } catch (err) {
+      const msg = err?.data?.error || err?.message || 'Failed to renumber indexes'
+      toast?.error?.(msg)
+    } finally {
+      setRenumbering(false)
+    }
+  }
+
   const downloadCSV = useCallback(() => {
     const rows = [['Index No', 'Service No', 'Rank', 'Name']]
     filtered.forEach((st) => rows.push([
@@ -208,10 +230,16 @@ export default function ClassStudents() {
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {students.length > 0 && (
-            <button onClick={downloadCSV} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">
-              <LucideIcons.Download className="w-4 h-4" />
-              Download CSV
-            </button>
+            <>
+              <button onClick={() => setConfirmRenumber(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm whitespace-nowrap">
+                <LucideIcons.ListOrdered className="w-4 h-4" />
+                Renumber Students
+              </button>
+              <button onClick={downloadCSV} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">
+                <LucideIcons.Download className="w-4 h-4" />
+                Download CSV
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -445,6 +473,40 @@ export default function ClassStudents() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Renumber Modal */}
+      {confirmRenumber && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !renumbering && setConfirmRenumber(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.ListOrdered className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-black">Renumber Students</h4>
+                  <p className="text-sm text-neutral-500">This will change index numbers.</p>
+                </div>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4">
+                This re-assigns every enrolled student's index number in this class, keeping their current order, starting from{' '}
+                <strong className="text-black">
+                  {indexPrefix ? `${indexPrefix}/` : ''}{String(indexStartFrom ?? 1).padStart(3, '0')}
+                </strong>
+                {' '}(the class's "Index starts from" setting). Any index numbers already shared elsewhere (printed rosters, certificates) will no longer match.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmRenumber(false)} disabled={renumbering} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition disabled:opacity-50">Cancel</button>
+                <button onClick={handleRenumber} disabled={renumbering} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  {renumbering ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.ListOrdered className="w-4 h-4" />}
+                  {renumbering ? 'Renumbering...' : 'Renumber'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

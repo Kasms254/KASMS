@@ -3,6 +3,7 @@ import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import useAuth from '../../hooks/useAuth'
 import * as api from '../../lib/api'
+import { fetchMyClassNotices, fetchActiveNotices, invalidateNotices } from '../../lib/noticesCache'
 
 // Mirrors backend ExamResult.grade / _calculate_grade exactly
 function gradeFromPct(pct) {
@@ -164,9 +165,10 @@ export default function StudentsDashboard() {
               })
             })
             // also include notices from the general/my_notices endpoint and global active notices
+            // (via the shared cache, deduped with NavBar's bell fetches)
             const [noticesResp, activeNoticesResp] = await Promise.all([
-              api.getMyClassNotices().catch(() => null),
-              api.getActiveNotices().catch(() => null),
+              fetchMyClassNotices().catch(() => null),
+              fetchActiveNotices().catch(() => null),
             ])
             const classNotices = Array.isArray(noticesResp) ? noticesResp : (noticesResp && Array.isArray(noticesResp.results) ? noticesResp.results : [])
             const activeNotices = Array.isArray(activeNoticesResp) ? activeNoticesResp : (activeNoticesResp && Array.isArray(activeNoticesResp.results) ? activeNoticesResp.results : [])
@@ -252,9 +254,10 @@ export default function StudentsDashboard() {
         }
 
         // fetch class-scoped notices and active/global notices so admin posts are included
+        // (via the shared cache, deduped with NavBar's bell fetches)
         const [noticesResp, activeNoticesResp] = await Promise.all([
-          api.getMyClassNotices().catch(() => null),
-          api.getActiveNotices().catch(() => null),
+          fetchMyClassNotices().catch(() => null),
+          fetchActiveNotices().catch(() => null),
         ])
 
         const classNotices = Array.isArray(noticesResp) ? noticesResp : (noticesResp && Array.isArray(noticesResp.results) ? noticesResp.results : [])
@@ -297,13 +300,17 @@ export default function StudentsDashboard() {
       }
     }
 
-    // Initial load and poll every 60s for updates (so instructor posts appear quickly)
+    // Initial load and poll every 60s for updates (so instructor posts appear
+    // quickly). Skip polls while the tab is hidden to avoid wasted requests.
     loadEvents()
-    timer = setInterval(() => loadEvents(), 60 * 1000)
+    timer = setInterval(() => { if (!document.hidden) loadEvents() }, 60 * 1000)
 
     // When notices change (created/updated/deleted) elsewhere (admin UI),
     // re-run loadEvents so calendar immediately shows new notices.
-    function onNoticesChanged() { try { loadEvents().catch(() => {}) } catch { /* ignore */ } }
+    function onNoticesChanged() {
+      invalidateNotices()
+      try { loadEvents().catch(() => {}) } catch { /* ignore */ }
+    }
     window.addEventListener('notices:changed', onNoticesChanged)
 
     return () => { mounted = false; if (timer) clearInterval(timer); window.removeEventListener('notices:changed', onNoticesChanged); clearInterval(tickTimer) }

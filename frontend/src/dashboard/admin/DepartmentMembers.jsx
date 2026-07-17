@@ -178,13 +178,14 @@ export default function DepartmentMembers() {
     }
   }
 
-  // Sort by rank descending (most senior first), then service number ascending within same rank
+  // Sort by rank (most senior first, per getRankSortIndex's 0=most-senior convention),
+  // then service number ascending within same rank
   const sortedInstructorOptions = useMemo(() => {
     return [...instructors]
       .sort((a, b) => {
-        const aRank = getRankOrder(a.rank)
-        const bRank = getRankOrder(b.rank)
-        if (bRank !== aRank) return bRank - aRank
+        const aRank = getRankSortIndex(a.rank)
+        const bRank = getRankSortIndex(b.rank)
+        if (aRank !== bRank) return aRank - bRank
         const aNum = a.svc_number ? parseInt(a.svc_number.replace(/\D/g, ''), 10) : Infinity
         const bNum = b.svc_number ? parseInt(b.svc_number.replace(/\D/g, ''), 10) : Infinity
         return aNum - bNum

@@ -79,12 +79,10 @@ jobs:
       - name: Run Django tests
         run: |
           python manage.py test
-        continue-on-error: true
 
       - name: Check Django migrations
         run: |
           python manage.py makemigrations --check --dry-run
-        continue-on-error: true
 
   test-frontend:
     runs-on: ubuntu-latest

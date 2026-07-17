@@ -1,0 +1,61 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: kasms-production
+    server: '192.168.2.254'
+
+scrape_configs:
+
+  # ── Prometheus self-monitoring ──────────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── Host system metrics (Node Exporter on host network) ────────────────────
+  # node-exporter runs with network_mode: host so it's on the host's loopback.
+  # Prometheus reaches it via host.docker.internal (mapped to host gateway).
+  - job_name: node-exporter
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+        labels:
+          instance: '192.168.2.254'
+
+  # ── Per-container resource metrics (cAdvisor) ──────────────────────────────
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance: '192.168.2.254'
+
+  # ── Production PostgreSQL ───────────────────────────────────────────────────
+  # postgres-exporter runs inside the kasms prod docker-compose stack,
+  # connected to backend_net (to reach the db) + monitoring_net (for scraping).
+  - job_name: postgres-prod
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          env: production
+          instance: '192.168.2.254'
+
+  # ── Production Redis ────────────────────────────────────────────────────────
+  # redis-exporter runs inside the kasms prod docker-compose stack.
+  - job_name: redis-prod
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          env: production
+          instance: '192.168.2.254'
+
+  # ── Production Django app metrics (django-prometheus /metrics) ──────────────
+  # Requires:
+  #   - django-prometheus installed + /metrics route in kasms/urls.py
+  #   - the backend container joined to monitoring_net (so this name resolves)
+  #   - "kasms-backend-1" added to ALLOWED_HOSTS in prod .env (else HTTP 400)
+  - job_name: django-prod
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['kasms-backend-1:8000']
+        labels:
+          env: production
+          instance: '192.168.2.254'

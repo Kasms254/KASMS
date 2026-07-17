@@ -302,6 +302,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     const titleCell = ws.addRow([`${className}${courseName ? ' — ' + courseName : ''}`])
     titleCell.font = { bold: true, size: 16 }
     ws.mergeCells(1, 1, 1, 4 + subjectList.length + 2)
+    ws.mergeCells(1, 1, 1, 4 + subjectList.length + 2)
 
     // Date row
     const dateRow = ws.addRow([`Generated: ${new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}`])
@@ -329,6 +330,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     // Left-align svc/rank/name columns
     headerRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' }
     headerRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' }
+    headerRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' }
     headerRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' }
 
     // Data rows

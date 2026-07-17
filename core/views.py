@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult, CertificateAuditLog)
 from .serializers import (
 
     CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
@@ -20,7 +20,8 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsCommandantOrChiefInstructor,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor)
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor,
+                            CertificateCapability, RequiresCertificateCapability)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -40,14 +41,17 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
 from rest_framework.viewsets import GenericViewSet 
 from .services import (
-    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog, 
+    close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog,
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
-    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2)
+    determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
+    renumber_class_indexes)
+from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, permissions
 from core.services.zkteco_service import ZKTecoSyncService
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime
 from django.db.models import Sum
 import logging
@@ -207,10 +211,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
         )
 
         academic_stats = School.objects.filter(id=school.id).aggregate(
-            courses=Count('courses', filter=Q(courses__is_active=True)),
-            classes=Count('classes', filter=Q(classes__is_active=True)),
-            subjects=Count('subjects', filter=Q(subjects__is_active=True)),
-            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            courses=Count('courses', filter=Q(courses__is_active=True), distinct=True),
+            classes=Count('classes', filter=Q(classes__is_active=True), distinct=True),
+            subjects=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
         )
 
         current_students = membership_stats['students'] or 0
@@ -731,6 +735,58 @@ class UserViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
+    @action(
+        detail=False, methods=['post'], url_path='import/preview',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def import_preview(self, request):
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'detail': 'No file uploaded. Attach a CSV under the "file" field.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not uploaded_file.name.lower().endswith('.csv'):
+            return Response(
+                {'detail': 'Only .csv files are accepted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = build_preview(uploaded_file, request)
+        except UserImportError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='import/confirm')
+    def import_confirm(self, request):
+        import_id = request.data.get('import_id')
+        if not import_id:
+            return Response(
+                {'detail': 'import_id is required.'}, status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = commit_import(import_id, request)
+        except UserImportError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='import/template')
+    def import_template(self, request):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="student_import_template.csv"'
+        writer = csv.writer(response)
+        writer.writerow(REQUIRED_COLUMNS)
+        writer.writerow([
+            '1234567', 'jdoe', 'John', 'Doe', 'jdoe@example.com',
+            '0700000000', 'private', '21KR', 'Recruit Class A',
+        ])
+        return response
+
     @action(detail=False, methods=['get'])
     def commandants(self, request):
         queryset = self.get_queryset().filter(role='commandant', is_active=True)
@@ -822,6 +878,12 @@ class UserViewSet(viewsets.ModelViewSet):
         user.must_change_password = True  # Force user to change on next login
         user.save()
 
+        # Blacklist every refresh token ever issued to this user so an
+        # attacker (or the old session) can't keep minting new access tokens
+        # for the remaining refresh-token lifetime after a forced reset.
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
+
         return Response({
             'status': 'success',
             'message': f'Password for user {user.username} has been reset'
@@ -856,7 +918,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').prefetch_related(
+        queryset = queryset.prefetch_related(
             'enrollments', 'enrollments__class_obj'
         ).order_by('first_name', 'last_name')[:MAX_EXPORT_ROWS]
 
@@ -921,7 +983,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(svc_number__icontains=search_query)
             )
 
-        queryset = queryset.select_related('school').order_by(
+        queryset = queryset.order_by(
             'first_name', 'last_name'
         )[:MAX_EXPORT_ROWS]
 
@@ -1064,7 +1126,33 @@ class CourseViewSet(viewsets.ModelViewSet):
             'active_classes': Class.objects.filter(is_active=True).count()
         }
         return Response(stats)
-    
+
+
+def _log_certificate_audit(
+    action, request, *, school=None, class_obj=None, certificate=None,
+    student=None, previous_state=None, new_state=None, metadata=None,
+):
+    try:
+        resolved_school = school or getattr(class_obj, 'school', None) or getattr(certificate, 'school', None)
+        request_metadata = {
+            'ip_address': request.META.get('REMOTE_ADDR'),
+            'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+            **(metadata or {}),
+        }
+        CertificateAuditLog.objects.create(
+            school=resolved_school,
+            action=action,
+            performed_by=request.user if request.user.is_authenticated else None,
+            class_obj=class_obj,
+            certificate=certificate,
+            student=student,
+            previous_state=previous_state or {},
+            new_state=new_state or {},
+            metadata=request_metadata,
+        )
+    except Exception:
+        logger.exception(f"Failed to write certificate audit log: {action}")
+
 class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.select_related('course', 'instructor').all()
@@ -1078,10 +1166,11 @@ class ClassViewSet(viewsets.ModelViewSet):
     serializer_class = ClassSerializer
 
     def get_permissions(self):
-        
+
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsAuthenticated(), IsAdmin(), BelongsToSameSchool()]
-        return [IsAuthenticated()]
+      
+        return [permission() for permission in self.permission_classes]
 
     def perform_create(self, serializer):
         from django.db import IntegrityError
@@ -1119,22 +1208,25 @@ class ClassViewSet(viewsets.ModelViewSet):
         return ClassSerializer
     
     def get_queryset(self):
-        
-        queryset = Class.all_objects.select_related('course', 'instructor').all()
+
+        queryset = Class.all_objects.select_related('course', 'instructor').annotate(
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
+        ).all()
         user = self.request.user
 
         if not user.is_authenticated:
             return queryset.none()
-        
+
         if user.role == 'superadmin':
             school = get_current_school()
             if school:
                 return queryset.filter(school=school)
             return queryset
-        
+
         if user.school:
             return queryset.filter(school=user.school)
-        
+
         return queryset.none()
 
     @action(detail=True, methods=['get'])
@@ -1274,7 +1366,9 @@ class ClassViewSet(viewsets.ModelViewSet):
             'class':class_obj.name
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.CLOSE_CLASS),
+    ])
     def close(self, request, pk=None):
         
         class_obj = self.get_object()
@@ -1286,13 +1380,20 @@ class ClassViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        _log_certificate_audit(
+            'class_closed', request, class_obj=class_obj,
+            new_state={'is_closed': True, 'closed_at': class_obj.closed_at.isoformat() if class_obj.closed_at else None},
+        )
+
         return Response({
             'status': 'success',
             'message': f'Class {class_obj.name} has been closed.',
             'class': ClassSerializer(class_obj).data
         })
 
-    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdmin])
+    @action(detail=True, methods=['get'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.VIEW),
+    ])
     def completion_status(self, request, pk=None):
 
         class_obj = self.get_object()
@@ -1312,7 +1413,9 @@ class ClassViewSet(viewsets.ModelViewSet):
             'students': results
         })
         
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.BULK_ISSUE),
+    ])
     def issue_certificates(self, request, pk=None):
         class_obj = self.get_object()
 
@@ -1331,17 +1434,29 @@ class ClassViewSet(viewsets.ModelViewSet):
 
         result = bulk_issue_certificates(class_obj, request.user, template=template)
 
-        if 'error' in result:                         
+        if 'error' in result:
             return Response(
                 {'error': result['error']},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        return Response({                              
+
+        _log_certificate_audit(
+            'bulk_issued', request, class_obj=class_obj,
+            new_state={
+                'issued_count': result.get('issued_count', 0),
+                'skipped_count': result.get('skipped_count', 0),
+                'failed_count': result.get('failed_count', 0),
+            },
+        )
+
+        return Response({
             'status': 'success',
             **result
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.ISSUE),
+    ])
     def issue_certificate_single(self, request, pk=None):
         class_obj = self.get_object()
         enrollment_id = request.data.get('enrollment_id')
@@ -1382,6 +1497,12 @@ class ClassViewSet(viewsets.ModelViewSet):
                 {'error': error},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        _log_certificate_audit(
+            'issued', request, class_obj=class_obj, certificate=certificate,
+            student=enrollment.student,
+            new_state={'certificate_number': certificate.certificate_number, 'status': certificate.status},
+        )
 
         return Response({
             'status': 'success',
@@ -1670,6 +1791,23 @@ class NoticeActionMixin:
         return Response({
             'count': qs.count(),
             'results': serializer.data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Combined active+urgent notices in a single queryset evaluation.
+
+        `urgent` is always a subset of `active` (priority='urgent' AND is_active=True),
+        so this filters urgent from the already-serialized active list instead of
+        issuing a second query, replacing what were previously two separate
+        unpaginated full-table calls (each doing its own COUNT + SELECT).
+        """
+        active_qs = self.get_queryset().filter(is_active=True)
+        active_results = self.get_serializer(active_qs, many=True).data
+        urgent_results = [n for n in active_results if n.get('priority') == 'urgent']
+        return Response({
+            'active': {'count': len(active_results), 'results': active_results},
+            'urgent': {'count': len(urgent_results), 'results': urgent_results},
         })
 
 class NoticeViewSet(NoticeActionMixin, viewsets.ModelViewSet):
@@ -1964,6 +2102,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.select_related('subject', 'created_by').prefetch_related('attachments').all()
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['subject', 'exam_type', 'is_active', 'subject__class_obj']
     search_fields = ['title', 'subject__name', 'subject__code']
@@ -2033,10 +2172,8 @@ class ExamViewSet(viewsets.ModelViewSet):
             return queryset.none()
  
         if user.role == 'instructor':
-            queryset = queryset.filter(
-                Q(subject__instructor=user) | Q(subject__class_obj__instructor=user)
-            )
-
+            queryset = queryset.filter(subject__instructor=user)
+ 
         queryset = queryset.exclude(subject__class_obj__is_closed=True)
  
         if self.action == 'list':
@@ -3056,8 +3193,8 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             school=school,
             is_active=True
         ).distinct().select_related('course', 'instructor').annotate(
-            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
-            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
         )
 
         my_subjects = Subject.all_objects.filter(
@@ -3871,7 +4008,92 @@ class StudentDashboardViewset(viewsets.ViewSet):
             'end_date': end_date,
             'exam_count': upcoming_exams.count(),
             'exams':ExamSerializer(upcoming_exams, many=True).data
-        })   
+        })
+
+class AdminDashboardViewSet(viewsets.ViewSet):
+
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def list(self, request):
+        return self._build_summary(request)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        return self._build_summary(request)
+
+    def _build_summary(self, request):
+        user = request.user
+        school = get_current_school() if user.role == 'superadmin' else user.school
+
+        if not school:
+            return Response(
+                {'error': 'No school context found.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        membership_counts = SchoolMembership.all_objects.filter(
+            school=school, status='active',
+        ).aggregate(
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+            admins=Count('id', filter=Q(role='admin')),
+        )
+
+        subjects_count = Subject.all_objects.filter(school=school, is_active=True).count()
+        active_classes_count = Class.all_objects.filter(school=school, is_active=True).count()
+
+        return Response({
+            'school': {
+                'id': str(school.id),
+                'name': school.name,
+                'code': school.code,
+            },
+            'counts': {
+                'students': membership_counts['students'],
+                'instructors': membership_counts['instructors'],
+                'admins': membership_counts['admins'],
+                'subjects': subjects_count,
+                'active_classes': active_classes_count,
+            },
+        })
+
+class SuperadminDashboardViewSet(viewsets.ViewSet):
+
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def list(self, request):
+        return self._build_summary(request)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        return self._build_summary(request)
+
+    def _build_summary(self, request):
+        school_counts = School.objects.aggregate(
+            total_schools=Count('id'),
+            active_schools=Count('id', filter=Q(is_active=True)),
+        )
+
+        membership_counts = SchoolMembership.all_objects.filter(
+            status='active',
+        ).aggregate(
+            students=Count('id', filter=Q(role='student')),
+            instructors=Count('id', filter=Q(role='instructor')),
+        )
+
+        total_admins = SchoolAdmin.objects.count()
+
+        return Response({
+            'counts': {
+                'total_schools': school_counts['total_schools'],
+                'active_schools': school_counts['active_schools'],
+                'total_admins': total_admins,
+                'total_students': membership_counts['students'],
+                'total_instructors': membership_counts['instructors'],
+            },
+        })
+
 # attendance
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
@@ -5300,16 +5522,54 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
             CertificateTemplate.objects.filter(
                 school=school, is_default=True,
             ).update(is_default=False)
-        serializer.save(school=school)
+        template = serializer.save(school=school)
+        _log_certificate_audit(
+            'template_created', self.request, school=school,
+            new_state={'name': template.name, 'template_type': template.template_type},
+        )
+
+    def perform_update(self, serializer):
+        previous_state = {
+            'name': serializer.instance.name,
+            'is_active': serializer.instance.is_active,
+            'is_default': serializer.instance.is_default,
+        }
+        template = serializer.save()
+        _log_certificate_audit(
+            'template_updated', self.request, school=template.school,
+            previous_state=previous_state,
+            new_state={
+                'name': template.name,
+                'is_active': template.is_active,
+                'is_default': template.is_default,
+            },
+        )
+
+    def perform_destroy(self, instance):
+        _log_certificate_audit(
+            'template_deleted', self.request, school=instance.school,
+            previous_state={'name': instance.name, 'template_type': instance.template_type},
+        )
+        instance.delete()
 
     @action(detail=True, methods=['post'])
     def set_default(self, request, pk=None):
         template = self.get_object()
+        previous_default = CertificateTemplate.objects.filter(
+            school=template.school, is_default=True,
+        ).exclude(pk=template.pk).first()
         CertificateTemplate.objects.filter(
             school=template.school, is_default=True,
         ).update(is_default=False)
         template.is_default = True
         template.save(update_fields=['is_default', 'updated_at'])
+
+        _log_certificate_audit(
+            'template_set_default', request, school=template.school,
+            previous_state={'name': previous_default.name if previous_default else None},
+            new_state={'name': template.name},
+        )
+
         return Response({
             'status': 'success',
             'message': f'Template "{template.name}" set as default',
@@ -5450,7 +5710,15 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         reason = request.data.get('reason', '')
+        previous_state = {'status': certificate.status}
         certificate.revoke(request.user, reason)
+
+        _log_certificate_audit(
+            'revoked', request, class_obj=certificate.class_obj, certificate=certificate,
+            student=certificate.student, previous_state=previous_state,
+            new_state={'status': certificate.status, 'reason': reason},
+        )
+
         return Response({
             'status': 'success',
             'message': 'Certificate revoked',
@@ -5515,15 +5783,18 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        data = {
-            'total_certificates': qs.count(),
-            'issued_count': qs.filter(status='issued').count(),
-            'revoked_count': qs.filter(status='revoked').count(),
-            'total_downloads': qs.aggregate(t=Sum('download_count'))['t'] or 0,
-            'total_views': qs.aggregate(t=Sum('view_count'))['t'] or 0,
-            'certificates_this_month': qs.filter(created_at__gte=month_start).count(),
-            'certificates_this_year': qs.filter(created_at__gte=year_start).count(),
-        }
+        # Single round trip via conditional aggregation instead of 7 sequential
+        # .count()/.aggregate() calls over the same queryset.
+        aggregates = qs.aggregate(
+            total_certificates=Count('id'),
+            issued_count=Count('id', filter=Q(status='issued')),
+            revoked_count=Count('id', filter=Q(status='revoked')),
+            total_downloads=Sum('download_count'),
+            total_views=Sum('view_count'),
+            certificates_this_month=Count('id', filter=Q(created_at__gte=month_start)),
+            certificates_this_year=Count('id', filter=Q(created_at__gte=year_start)),
+        )
+        data = {key: value or 0 for key, value in aggregates.items()}
         return Response(data)
 
     @action(detail=False, methods=['get'])
@@ -5550,7 +5821,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 class EnrollmentCertificateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, BelongsToSameSchool]
 
     def get(self, request, enrollment_id):
         try:
@@ -5562,6 +5833,8 @@ class EnrollmentCertificateView(APIView):
                 {'error': 'Enrollment not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        self.check_object_permissions(request, enrollment)
 
         user = request.user
         if user.active_role == 'student' and enrollment.student != user:
@@ -5615,13 +5888,15 @@ class EnrollmentCertificateView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        self.check_object_permissions(request, enrollment)
+
         # Resolve optional template from request body
         template = None
         template_id = request.data.get('template_id')
         if template_id:
             try:
                 template = CertificateTemplate.all_objects.get(
-                    id=template_id, is_active=True,
+                    id=template_id, is_active=True, school=enrollment.school,
                 )
             except CertificateTemplate.DoesNotExist:
                 return Response(
@@ -5635,6 +5910,12 @@ class EnrollmentCertificateView(APIView):
 
         if error:
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        _log_certificate_audit(
+            'issued', request, class_obj=enrollment.class_obj, certificate=certificate,
+            student=enrollment.student,
+            new_state={'certificate_number': certificate.certificate_number, 'status': certificate.status},
+        )
 
         return Response({
             'status': 'success',
@@ -5860,6 +6141,18 @@ class AdminRosterViewSet(viewsets.ViewSet):
             "index_number": student_index.index_number,
             "formatted_index": class_obj.format_index(int(new_number)),
         })
+
+    @action(detail=True, methods=["post"], url_path="renumber")
+    def renumber_indexes(self, request, pk=None):
+        class_obj = get_object_or_404(Class, pk=pk, school=request.user.school)
+        renumbered = renumber_class_indexes(class_obj)
+        return Response({
+            "message": f"Renumbered {len(renumbered)} student(s) in {class_obj.name}, starting from {class_obj.format_index(class_obj.index_start_from)}.",
+            "roster": [
+                {"id": str(idx.pk), "index_number": idx.index_number, "enrollment_id": str(idx.enrollment_id)}
+                for idx in renumbered
+            ],
+        })
 # Departments
 class DepartmentViewSet(viewsets.ModelViewSet):
 
@@ -5967,6 +6260,100 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if not is_hod:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You are not the HOD of this department.")
+
+class HODExamReportViewSet(viewsets.ReadOnlyModelViewSet):
+
+    serializer_class = DashboardExamReportSerializer
+    permission_classes = [IsAuthenticated, IsHOD]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['subject', 'class_obj']
+    search_fields = ['title', 'description', 'subject__name', 'class_obj__name']
+    ordering_fields = ['report_date', 'created_at']
+    ordering = ['-report_date']
+
+    def _hod_department_ids(self):
+        return DepartmentMembership.objects.filter(
+            user=self.request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+        ).values_list('department_id', flat=True)
+
+    def get_queryset(self):
+        user = self.request.user
+        school = get_current_school() or user.school
+        dept_ids = list(self._hod_department_ids())
+
+        if not school or not dept_ids:
+            return ExamReport.objects.none()
+
+        return ExamReport.all_objects.filter(
+            Q(class_obj__department_id__in=dept_ids) |
+            Q(subject__department_id__in=dept_ids),
+            school=school,
+        ).select_related(
+            'subject', 'class_obj', 'class_obj__course', 'created_by'
+        ).prefetch_related('exams', 'remarks').distinct()
+
+    @action(detail=True, methods=['get'])
+    def detailed_report(self, request, pk=None):
+        report = self.get_object()
+        exam_ids = report.exams.values_list('id', flat=True)
+
+        enrollments = Enrollment.all_objects.filter(
+            class_obj=report.class_obj, is_active=True
+        ).select_related('student')
+
+        student_data = []
+        for enrollment in enrollments:
+            results = ExamResult.all_objects.filter(
+                exam_id__in=exam_ids,
+                student=enrollment.student,
+                is_submitted=True,
+            )
+            total_marks = sum(
+                r.marks_obtained for r in results if r.marks_obtained
+            )
+            total_possible = sum(r.exam.total_marks for r in results)
+            percentage = (
+                round(total_marks / total_possible * 100, 2)
+                if total_possible > 0 else 0
+            )
+
+            student_data.append({
+                'student_id': enrollment.student.id,
+                'student_name': enrollment.student.get_full_name(),
+                'svc_number': enrollment.student.svc_number,
+                'rank': (
+                    enrollment.student.get_rank_display()
+                    if enrollment.student.rank else None
+                ),
+                'total_marks': float(total_marks),
+                'total_possible': total_possible,
+                'percentage': percentage,
+                'results': ExamResultSerializer(results, many=True).data,
+            })
+
+        student_data.sort(key=lambda x: x['percentage'], reverse=True)
+
+        for i, s in enumerate(student_data, 1):
+            s['position'] = i
+
+        report_data = self.get_serializer(report).data
+
+        return Response({
+            'report': report_data,
+            'students': student_data,
+            'summary': {
+                'total_students': len(student_data),
+                'average_percentage': round(
+                    sum(s['percentage'] for s in student_data) / len(student_data), 2
+                ) if student_data else 0,
+                'highest_percentage': student_data[0]['percentage'] if student_data else 0,
+                'lowest_percentage': student_data[-1]['percentage'] if student_data else 0,
+                'pass_count': sum(1 for s in student_data if s['percentage'] >= 50),
+                'fail_count': sum(1 for s in student_data if s['percentage'] < 50),
+            },
+        })
 
 class DepartmentMembershipViewSet(viewsets.ModelViewSet):
 

@@ -394,17 +394,25 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
 
     class_obj = enrollment.class_obj
 
-    status = get_class_completion_status(class_obj, enrollment.student)
-    if not status['is_academically_complete']:
-        incomplete = [
-            s['subject_name'] for s in status['subjects'] if not s['is_complete']
-        ]
-        return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
-
     if not template:
         template = _resolve_default_template(enrollment.school)
 
-    grade_data = calculate_student_grade(class_obj, enrollment.student)
+    # Only the Course Completion template requires graded final exams.
+    # Achievement/Participation/Excellence certificates can be issued without grades.
+    requires_grades = not template or template.template_type == 'completion'
+
+    if requires_grades:
+        status = get_class_completion_status(class_obj, enrollment.student)
+        if not status['is_academically_complete']:
+            incomplete = [
+                s['subject_name'] for s in status['subjects'] if not s['is_complete']
+            ]
+            return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
+
+    grade_data = (
+        calculate_student_grade(class_obj, enrollment.student)
+        if requires_grades else {'grade': '', 'percentage': None}
+    )
     attendance_pct = calculate_attendance_percentage(class_obj, enrollment.student)
 
     certificate = Certificate.objects.create(
@@ -420,12 +428,14 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
         attendance_percentage=attendance_pct,
     )
 
-    enrollment.completion_date = timezone.now().date()
-    # enrollment.is_active = False
-    enrollment.completed_via = 'certificate'
-    enrollment.save(update_fields=[
-        'completion_date', 'completed_via',
-    ])
+
+    if requires_grades:
+        enrollment.completion_date = timezone.now().date()
+        # enrollment.is_active = False
+        enrollment.completed_via = 'certificate'
+        enrollment.save(update_fields=[
+            'completion_date', 'completed_via',
+        ])
 
     # _try_complete_membership(enrollment)
 
@@ -618,6 +628,26 @@ def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
 
     return created
 
+def renumber_class_indexes(class_obj) -> list[StudentIndex]:
+
+    with transaction.atomic():
+        indexes = list(
+            StudentIndex.all_objects.select_for_update()
+            .filter(class_obj=class_obj, enrollment__is_active=True)
+            .order_by("index_number")
+        )
+        for offset, idx in enumerate(indexes):
+            idx.index_number = str(1_000_000 + offset)
+            idx.save(update_fields=["index_number"])
+
+        next_num = class_obj.index_start_from
+        for idx in indexes:
+            idx.index_number = str(next_num).zfill(3)
+            idx.save(update_fields=["index_number"])
+            next_num += 1
+
+    return indexes
+
 CERTIFICATE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
@@ -802,6 +832,33 @@ class CertificateImageResolver:
             '.webp': 'image/webp', '.svg': 'image/svg+xml',
         }.get(ext, 'image/png')
 
+# Abbreviated rank shown on generated certificates. Keyed by the full label
+
+CERTIFICATE_RANK_ABBREVIATIONS = {
+    'General': 'GEN',
+    'Lieutenant General': 'LT GEN',
+    'Major General': 'MAJ GEN',
+    'Brigadier': 'BRIG',
+    'Colonel': 'COL',
+    'Lieutenant Colonel': 'LT COL',
+    'Major': 'MAJ',
+    'Captain': 'CAPT',
+    'Lieutenant': 'LT',
+    'Warrant Officer I': 'WOI',
+    'Warrant Officer II': 'WOII',
+    'Senior Sergeant': 'SSGT',
+    'Sergeant': 'SGT',
+    'Corporal': 'CPL',
+    'Lance Corporal': 'LCPL',
+    'Private': 'PTE',
+    'Head Constable I': 'HC I',
+    'Head Constable II': 'HC II',
+    'Constable I': 'CONST I',
+    'Constable II': 'CONST II',
+    'Constable III': 'CONST III',
+}
+
+
 class CertificateGenerator:
 
     BACKEND_WEASYPRINT = 'weasyprint'
@@ -867,7 +924,9 @@ class CertificateGenerator:
         if cert.student_svc_number:
             rank_parts.append(cert.student_svc_number)
         if cert.student_rank:
-            rank_parts.append(cert.student_rank)
+            rank_parts.append(
+                CERTIFICATE_RANK_ABBREVIATIONS.get(cert.student_rank, cert.student_rank)
+            )
         rank_svc_display = ' '.join(rank_parts)
 
         # Grade display
@@ -905,8 +964,8 @@ class CertificateGenerator:
             </div>'''
 
         completion_date_formatted = ''
-        if cert.completion_date:
-            completion_date_formatted = cert.completion_date.strftime('%d %b %Y').upper()
+        if cert.class_obj and cert.class_obj.end_date:
+            completion_date_formatted = cert.class_obj.end_date.strftime('%d %b %Y').upper()
 
         course_start_date = ''
         if cert.class_obj and cert.class_obj.start_date:

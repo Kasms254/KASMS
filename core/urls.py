@@ -3,13 +3,14 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from .views import (
     # for the admin
-    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet, AdminRosterViewSet,
+    UserViewSet, CourseViewSet, ClassViewSet, EnrollmentViewSet, SubjectViewSet, NoticeViewSet, SchoolMembershipViewSet, MarksEntryViewSet, AdminRosterViewSet, AdminDashboardViewSet, SuperadminDashboardViewSet,
     # for the instructor
     ExamViewSet, ClassNoticeViewSet, ProfileViewSet, CertificateViewSet, CertificateTemplateViewSet, EnrollmentCertificateView,
     ExamReportViewSet, ExamResultViewSet, InstructorDashboardViewset, ExamAttachmentViewSet, StudentDashboardViewset, PersonalNotificationViewSet, SchoolViewSet, SchoolAdminViewSet,
     # departments
     DepartmentViewSet, DepartmentMembershipViewSet, ResultEditRequestViewSet, BiometricDeviceViewSet, BiometricUserMappingViewSet,
     AttendanceSessionViewSet, SessionAttendanceViewset, BiometricRecordViewset, AttendanceReportViewSet,
+    HODExamReportViewSet,
 
     # Result
     AssessmentComponentViewSet, StudentComponentResultViewSet
@@ -45,6 +46,7 @@ from .commandant_views import (
 )
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
+from .course_report_views import CourseReportViewSet
 
 router = DefaultRouter()
 
@@ -55,6 +57,8 @@ router.register(r'classes', ClassViewSet, basename='class')
 router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 router.register(r'subjects', SubjectViewSet, basename='subject')
 router.register(r'notices', NoticeViewSet, basename='notice')
+router.register(r'admin-dashboard', AdminDashboardViewSet, basename='admin-dashboard')
+router.register(r'superadmin-dashboard', SuperadminDashboardViewSet, basename='superadmin-dashboard')
 
 # instructor routes
 router.register(r'exams', ExamViewSet, basename='exam')
@@ -119,6 +123,10 @@ commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   bas
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
 
+# HOD routers
+hod_router = DefaultRouter()
+hod_router.register(r'exam-reports', HODExamReportViewSet, basename='hod-exam-reports')
+
 router.register(r'oic-assignments', OICAssignmentViewSet, basename='oic-assignment')
 oic_router = DefaultRouter()
 oic_router.register(r'assignments',    OICAssignmentViewSet,   basename='oic-assignment')
@@ -134,6 +142,9 @@ oic_router.register(r'remarks',        OICRemarkViewSet,       basename='oic-rem
 router.register(r'biometric-devices', BiometricDeviceViewSet, basename='biometric_device')
 router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basename='biometric-user-mapping')
 
+# course-report
+router.register(r'course-reports', CourseReportViewSet, basename='course-report')
+
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
 
@@ -141,6 +152,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('commandant/', include(commandant_router.urls)),
     path('oic/', include(oic_router.urls)),
+    path('hod/', include(hod_router.urls)),
     path("", home),
     path(
         'profile/me/',

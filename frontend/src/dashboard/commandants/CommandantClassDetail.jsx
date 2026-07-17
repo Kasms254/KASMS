@@ -16,25 +16,27 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 const RANK_MAP = {}
 for (const r of RANK_OPTIONS) {
   RANK_MAP[r.value] = r.label
   RANK_MAP[r.label.toLowerCase()] = r.label
+  RANK_MAP[r.value.toLowerCase()] = r.label // handles uppercase values like CIII
 }
 
 function getRankDisplay(raw) {
@@ -194,6 +196,13 @@ export default function CommandantClassDetail() {
             )}
           </p>
         </div>
+        <button
+          onClick={() => navigate(`/commandant/classes/${id}/certificates`)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition shadow-sm whitespace-nowrap"
+        >
+          <LucideIcons.Award className="w-4 h-4" />
+          Certificates
+        </button>
       </header>
 
       {/* Search */}
