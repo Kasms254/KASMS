@@ -41,7 +41,7 @@ class Command(BaseCommand):
             self.sync_device(
                 options['device_id'],
                 options['ip_address'],
-                option['port']
+                options['port']
             )
 
         if options['process_pending']:
@@ -55,12 +55,21 @@ class Command(BaseCommand):
     def sync_device(self, device_id, ip_address, port):
         self.stdout.write(f'Connecting to device {device_id} at {ip_address}:{port}')
 
+        from core.models import BiometricDevice
+        from core.services.zkteco_service import ZKTecoSyncService
+
         try:
-            from core.utils.zkteco_intergration import sync_zkteco_device
+            device = BiometricDevice.objects.get(id=device_id, is_active=True)
+        except BiometricDevice.DoesNotExist:
+            self.stdout.write(self.style.ERROR(
+                f" Device {device_id} not found or inactive"
+            ))
+            return
 
-            result =sync_zkteco_device(device_id, ip_address, port)
+        try:
+            result = ZKTecoSyncService(device).fetch_and_store_logs()
 
-            if result['success']:
+            if result['status'] == 'success':
                 self.stdout.write(self.style.SUCCESS(
                     f" Created {result['created']} new records"
                 ))
@@ -69,16 +78,16 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f" {len(result['errors'])} errors occurred:"
                     ))
-                    for error in result ['errors'][:5]:
-                        self.stdout.write(f" -{error}")
+                    for error in result['errors'][:5]:
+                        self.stdout.write(f" - {error}")
 
             else:
                 self.stdout.write(self.style.ERROR(
-                    f" Sync failed: {result['error']}"
+                    f" Sync failed: {result['message']}"
                 ))
         except ImportError:
             self.stdout.write(self.style.ERROR(
-                " ZKTeco intergration not available. Install required packages"
+                " ZKTeco integration not available. Install required packages"
             ))
         except Exception as e:
             self.stdout.write(self.style.ERROR(
@@ -173,8 +182,8 @@ class Command(BaseCommand):
                 total_marked +=len(absent_records)
 
 
-                self_stdout.write(
-                    f' Session{session.id}: Marked{len(absent_records)} students as absent'
+                self.stdout.write(
+                    f' Session {session.id}: Marked {len(absent_records)} students as absent'
                 )
 
         if total_marked == 0:

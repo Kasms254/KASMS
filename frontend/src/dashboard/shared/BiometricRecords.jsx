@@ -52,8 +52,8 @@ export default function BiometricRecords() {
   const [processingPending, setProcessingPending] = useState(false)
   const [detailRecord, setDetailRecord] = useState(null)
 
-  const loadRecords = useCallback(async () => {
-    setRecordsLoading(true)
+  const loadRecords = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setRecordsLoading(true)
     try {
       const parts = [`page=${currentPage}`, `page_size=${pageSize}`]
       if (search.trim()) parts.push(`search=${encodeURIComponent(search.trim())}`)
@@ -69,13 +69,31 @@ export default function BiometricRecords() {
       }
       setRecords(list)
     } catch (err) {
-      reportError(err?.message || 'Failed to load biometric records')
+      if (!silent) reportError(err?.message || 'Failed to load biometric records')
     } finally {
-      setRecordsLoading(false)
+      if (!silent) setRecordsLoading(false)
     }
   }, [currentPage, search, filterProcessed, filterDeviceType, filterDeviceId, sessionId, reportError])
 
   useEffect(() => { loadRecords() }, [loadRecords])
+
+  
+  useEffect(() => {
+    const POLL_MS = 30000
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadRecords({ silent: true })
+    }, POLL_MS)
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') loadRecords({ silent: true })
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadRecords])
 
   async function handleProcessPending() {
     setProcessingPending(true)

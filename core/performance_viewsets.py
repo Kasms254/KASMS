@@ -20,7 +20,7 @@ from .serializers import (
     ExamSerializer, ExamResultSerializer, SubjectSerializer, EnrollmentSerializer,
 )
 from .permissions import IsAdminOrInstructor, IsAdminOrCommandant
-from .models import OICAssignment
+from .models import OICAssignment, DepartmentMembership
 
 def _calculate_grade(percentage):
     if percentage >= 91: return 'A'
@@ -205,6 +205,13 @@ class IsAnalyticsViewer(IsAuthenticated):
             return True
         if role in self.READONLY_ROLES:
             return request.method in ('GET', 'HEAD', 'OPTIONS')
+
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return DepartmentMembership.objects.filter(
+                user=request.user,
+                role=DepartmentMembership.Role.HOD,
+                is_active=True,
+            ).exists()
         return False
 
 
@@ -233,9 +240,33 @@ class _ClassAccessMixin:
         if user_role == 'instructor':
             if class_obj.instructor_id == user.id:
                 return True
-            return class_obj.subjects.filter(instructor=user, is_active=True).exists()
+            if class_obj.subjects.filter(instructor=user, is_active=True).exists():
+                return True
+
+
+        hod_dept_ids = DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+        ).values_list('department_id', flat=True)
+
+        if class_obj.department_id in hod_dept_ids:
+            return True
 
         return False
+
+    def _has_subject_access(self, request, subject):
+        """Like _has_class_access, but also grants access if the HOD's
+        department owns this specific subject — even when the subject's
+        class belongs to a different department. Only safe for actions
+        whose returned data is scoped to this one subject; never use this
+        for whole-class aggregates."""
+        if self._has_class_access(request, subject.class_obj):
+            return True
+
+        user = request.user
+        hod_dept_ids = DepartmentMembership.objects.filter(
+            user=user, role=DepartmentMembership.Role.HOD, is_active=True,
+        ).values_list('department_id', flat=True)
+        return subject.department_id in hod_dept_ids
 
 class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
     permission_classes = [IsAnalyticsViewer]
@@ -262,7 +293,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
 
         class_obj = subject.class_obj
 
-        if not self._has_class_access(request, class_obj):
+        if not self._has_subject_access(request, subject):
             return Response(
                 {'error': 'You do not have permission to view this subject.'},
                 status=403,
@@ -660,7 +691,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
         except Subject.DoesNotExist:
             return Response({'error': 'Subject not found'}, status=404)
 
-        if not self._has_class_access(request, subject.class_obj):
+        if not self._has_subject_access(request, subject):
             return Response({'error': 'You do not have permission to view this subject.'}, status=403)
 
         cutoff = timezone.now().date() - timedelta(days=days)
@@ -904,6 +935,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'student_id': s.id,
                 'student_name': s.get_full_name(),
                 'svc_number': getattr(s, 'svc_number', None),
+                'student_rank': s.get_rank_display() if s.rank else '',
                 'total_exams_taken': ed.get('exams_taken', 0),
                 'total_marks_obtained': total_marks_obtained,
                 'total_marks_possible': total_marks_possible,

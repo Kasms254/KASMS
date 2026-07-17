@@ -55,8 +55,8 @@ export default function SessionAttendance() {
   const [excusedModal, setExcusedModal] = useState({ open: false, studentId: null, reason: '' })
 
   // Load session and attendance data
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const [sessionData, records, unmarked] = await Promise.all([
         api.getAttendanceSession(sessionId),
@@ -72,15 +72,35 @@ export default function SessionAttendance() {
       setAttendanceRecords(recordsList)
       setUnmarkedStudents(unmarkedList)
     } catch (err) {
-      toast.error(err.message || 'Failed to load session data')
+      if (!silent) toast.error(err.message || 'Failed to load session data')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [sessionId, toast])
 
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  
+  useEffect(() => {
+    if (session?.status !== 'active') return
+
+    const POLL_MS = 30000
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadData({ silent: true })
+    }, POLL_MS)
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') loadData({ silent: true })
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [session?.status, loadData])
 
   // Manual mark attendance
   async function handleManualMark(studentId, status, remarks) {

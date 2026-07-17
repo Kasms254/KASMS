@@ -7,17 +7,12 @@ import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './context/themeContext'
 import { AuthProvider } from './context/AuthProvider'
 import ToastProvider from './components/ToastProvider'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from './lib/queryClient'
 
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      gcTime: 10 * 60 * 1000,
-      retry: 1,
-    },
-  },
-})
+// Re-exported for existing imports (e.g. AuthProvider); new code should
+// import from './lib/queryClient' directly.
+export { queryClient }
 
 // Security: Disable DevTools and console logging in production
 if (typeof window !== 'undefined' && import.meta.env.PROD) {

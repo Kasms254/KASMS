@@ -25,19 +25,19 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
 ]
 
 const EDITABLE_ROLE_OPTIONS = [
@@ -54,6 +54,7 @@ const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value // identity mapping for stored values
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 // Normalize a rank value from the backend to the internal value used by dropdowns.
@@ -737,7 +738,10 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                        <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
+                        </div>
                     </td>
                   </tr>
                 ))}
@@ -821,6 +825,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       <td className="px-3 py-3">
                         <div className="flex flex-col items-stretch gap-1.5">
                           <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap text-center">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -925,6 +930,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 {/* Actions */}
                   <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
                     <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button onClick={() => handleDelete(it)} className="w-full px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">Delete</button>
                   </div>
               </div>
             ))}
@@ -1183,9 +1189,6 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
-                  </button>
-                  <button type="button" onClick={() => handleDelete(editingInstructor)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                    Delete
                   </button>
                 </div>
                 <div className="flex items-center gap-2">

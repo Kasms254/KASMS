@@ -1,7 +1,9 @@
+from enum import Enum
+
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
 from .managers import get_current_school
-from .models import DepartmentMembership, OICAssignment
+from .models import DepartmentMembership, OICAssignment, CourseReport
 
 
 class IsSuperAdmin(BasePermission):
@@ -74,7 +76,6 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         if request.user.role == 'superadmin':
             return True
 
-        # Enforce school isolation on all operations, including reads
         if hasattr(obj, 'school') and obj.school:
             if obj.school != request.user.school:
                 return False
@@ -286,7 +287,6 @@ class IsChiefInstructor(BasePermission):
             and request.user.role == 'chief_instructor'
         )
 
-
 class IsCommandantOrChiefInstructor(BasePermission):
 
     message = "Only Commandant, Chief Instructor, or Admin can access this."
@@ -318,7 +318,6 @@ class ReadOnlyForCommandantOrChiefInstructor(BasePermission):
         return False
 
 # oic
-
 class IsOIC(BasePermission):
 
     message = 'Only an Officer in Charge (OIC) can perform this action.'
@@ -396,3 +395,95 @@ class ReadOnlyForOIC(BasePermission):
             return request.method in SAFE_METHODS
 
         return False
+
+
+class IsCourseReportParticipant(BasePermission):
+
+    ALLOWED_ROLES={
+        'instructor', 'oic', 'chief_instructor', 'commandant', 'admin', 'superadmin',
+    }
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        if role:
+            role = role.replace(' ', '_')
+        return role in self.ALLOWED_ROLES
+
+
+class CanWriteCourseReportRemark(BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        role = getattr(request.user, 'active_role', None) or getattr(request.user, 'role', None)
+        if role:
+            role = role.replace(' ', '_')
+
+        if obj.status in CourseReport.ROLE_WRITE_STATUS.get(role, ()):
+            return True
+
+        if role in CourseReport.CORRECTABLE_ROLES and obj.status != 'approved':
+            return obj.stage_remarks.filter(stage=role, is_submitted=True).exists()
+
+        return False
+
+
+class CertificateCapability(str, Enum):
+    VIEW = 'view'
+    ISSUE = 'issue'
+    BULK_ISSUE = 'bulk_issue'
+    CLOSE_CLASS = 'close_class'
+    MANAGE_TEMPLATES = 'manage_templates'
+    REVOKE = 'revoke'
+
+
+CERTIFICATE_ROLE_CAPABILITIES = {
+    'superadmin': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+        CertificateCapability.MANAGE_TEMPLATES,
+        CertificateCapability.REVOKE,
+    },
+    'admin': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+        CertificateCapability.MANAGE_TEMPLATES,
+        CertificateCapability.REVOKE,
+    },
+    'commandant': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+    },
+    'chief_instructor': {
+        CertificateCapability.VIEW,
+        CertificateCapability.ISSUE,
+        CertificateCapability.BULK_ISSUE,
+        CertificateCapability.CLOSE_CLASS,
+    },
+}
+
+
+def has_certificate_capability(user, capability: CertificateCapability) -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    return capability in CERTIFICATE_ROLE_CAPABILITIES.get(user.role, set())
+
+
+def RequiresCertificateCapability(capability: CertificateCapability):
+
+    class _RequiresCertificateCapability(BasePermission):
+        message = "You do not have permission to perform this certificate action."
+
+        def has_permission(self, request, view):
+            return has_certificate_capability(request.user, capability)
+
+    return _RequiresCertificateCapability
+
+        

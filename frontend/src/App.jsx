@@ -11,6 +11,7 @@ import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
 import IntroPage from './pages/IntroPage'
+import VerifyCertificate from './pages/VerifyCertificate'
 import useAuth from './hooks/useAuth'
 
 // Lazy load heavy dashboard components for better performance
@@ -25,6 +26,7 @@ const AddResults = lazy(() => import('./dashboard/instructors/AddResults'))
 const ResultsRoute = lazy(() => import('./components/ResultsRoute'))
 const StudentsRoute = lazy(() => import('./components/StudentsRoute'))
 const AddUser = lazy(() => import('./pages/AddUser'))
+const StudentBulkImport = lazy(() => import('./pages/StudentBulkImport'))
 const Courses = lazy(() => import('./dashboard/admin/Courses'))
 const CourseDetail = lazy(() => import('./dashboard/admin/CourseDetail'))
 const Classes = lazy(() => import('./dashboard/admin/Classes'))
@@ -75,6 +77,10 @@ const CommandantCourses = lazy(() => import('./dashboard/commandants/CommandantC
 const OICAssignments = lazy(() => import('./dashboard/admin/OICAssignments'))
 
 // OIC components
+const CourseReports = lazy(() => import('./dashboard/shared/CourseReports'))
+const CourseReportDetail = lazy(() => import('./dashboard/shared/CourseReportDetail'))
+const CourseRoster = lazy(() => import('./dashboard/shared/CourseRoster'))
+
 const OICDashboard = lazy(() => import('./dashboard/oic/OICDashboard'))
 const OICClasses = lazy(() => import('./dashboard/oic/OICClasses'))
 const OICClassDetail = lazy(() => import('./dashboard/oic/OICClassDetail'))
@@ -127,6 +133,11 @@ const App = () => {
 			{/* Public landing page */}
 			<Route path="/" element={<IntroPage />} />
 
+			{/* Public certificate verification — no auth required, used by
+			    external parties (e.g. employers) who have a printed code */}
+			<Route path="/verify" element={<VerifyCertificate />} />
+			<Route path="/verify/:code" element={<VerifyCertificate />} />
+
 			{/* Login page - redirect to dashboard if already authenticated */}
 			<Route path="/login" element={<ProtectedLogin />} />
 
@@ -157,6 +168,10 @@ const App = () => {
 			{/* Admin user management */}
 			<Route path="/dashboard/add/user" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<AddUser />} />
+			</Route>
+
+			<Route path="/dashboard/import/students" element={<RoleProtectedLayout role="admin" />}>
+				<Route index element={<StudentBulkImport />} />
 			</Route>
 
 			{/* General dashboard routes - MUST come AFTER specific routes */}
@@ -257,6 +272,13 @@ const App = () => {
 				<Route index element={<ExamReports />} />
 			</Route>
 
+			{/* Course Reports (admins & instructors) */}
+			<Route path="/list/course-reports" element={<AdminOrInstructorLayout />}>
+				<Route index element={<CourseReports />} />
+				<Route path="class/:classId" element={<CourseRoster />} />
+				<Route path=":id" element={<CourseReportDetail />} />
+			</Route>
+
 			{/* Certificates list (admin) */}
 			<Route path="/list/certificates" element={<RoleProtectedLayout role="admin" />}>
 				<Route index element={<Certificates />} />
@@ -333,8 +355,12 @@ const App = () => {
 				<Route path="analytics" element={<PerformanceAnalytics />} />
 				<Route path="classes" element={<CommandantClasses />} />
 				<Route path="classes/:id" element={<CommandantClassDetail />} />
+				<Route path="classes/:id/certificates" element={<ClassCertificates />} />
 				<Route path="users" element={<CommandantUsers />} />
 				<Route path="exam-reports" element={<CommandantExamReports />} />
+				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
+				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
 				<Route path="notices" element={<CommandantNotices />} />
@@ -361,6 +387,9 @@ const App = () => {
 				<Route path="classes" element={<OICClasses />} />
 				<Route path="classes/:id" element={<OICClassDetail />} />
 				<Route path="exam-reports" element={<OICExamReports />} />
+				<Route path="course-reports" element={<CourseReports />} />
+				<Route path="course-reports/class/:classId" element={<CourseRoster />} />
+				<Route path="course-reports/:id" element={<CourseReportDetail />} />
 				<Route path="remarks" element={<OICRemarks />} />
 				<Route path="comparison" element={<OICComparison />} />
 				<Route path="attendance" element={<OICAttendance />} />

@@ -73,6 +73,13 @@ fi
 echo "[deploy] Preflight checks passed."
 echo ""
 
+# ── Monitoring network ────────────────────────────────────────────────────────
+# Monitoring network must exist before any stack starts — backend and the
+# exporters attach to it. Idempotent: safe to run on every deploy.
+docker network create monitoring_net 2>/dev/null || true
+echo "[deploy] monitoring_net ready."
+echo ""
+
 # ── Step 1: Build images ─────────────────────────────────────────────────────
 if [ "${SKIP_BUILD}" = "0" ]; then
     echo "[deploy] Step 1/6: Building Docker images..."

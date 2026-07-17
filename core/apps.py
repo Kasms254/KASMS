@@ -1,3 +1,4 @@
+import os
 from django.apps import AppConfig
 
 
@@ -5,5 +6,26 @@ class CoreConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "core"
 
+    started = False
+
     def ready(self):
-        import core.signals
+        import sys
+
+        argv0 = sys.argv[0] if sys.argv else ""
+        is_gunicorn = "gunicorn" in argv0
+        is_runserver = "manage.py" in argv0 and sys.argv[1:2] == ["runserver"]
+
+        should_start = is_gunicorn or (
+            is_runserver and os.environ.get("RUN_MAIN") == "true"
+        )
+
+        if not should_start:
+            return
+
+        if CoreConfig.started:
+            return
+
+        CoreConfig.started = True
+
+        from core.biometric_scheduler import start_scheduler
+        start_scheduler()

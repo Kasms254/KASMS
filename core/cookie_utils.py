@@ -1,8 +1,13 @@
 from django.conf import settings
+from django.core.cache import cache
+from django.utils import timezone
 from datetime import timedelta
-
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
 ACCESS_COOKIE_NAME ='access_token'
 REFRESH_COOKIE_NAME = 'refresh_token'
+
+ACCESS_DENYLIST_PREFIX = 'access_token_denylist:'
 
 def _get_jwt_setting(key, default):
     return getattr(settings, "SIMPLE_JWT", {}). get(key, default)
@@ -70,4 +75,29 @@ def delete_auth_cookies(response):
     response.delete_cookie(
         REFRESH_COOKIE_NAME, path="/api/auth", samesite=base["samesite"]
     )
-    
+
+
+def denylist_access_token(raw_token: str) -> None:
+
+
+
+    try:
+        token = AccessToken(raw_token)
+    except TokenError:
+        return
+
+    jti = token.get('jti')
+    if not jti:
+        return
+
+    remaining = token['exp'] - int(timezone.now().timestamp())
+    if remaining > 0:
+        cache.set(f'{ACCESS_DENYLIST_PREFIX}{jti}', True, timeout=remaining)
+
+
+def is_access_token_denylisted(token) -> bool:
+    """token: a validated simplejwt Token instance (has a jti claim)."""
+    jti = token.get('jti')
+    if not jti:
+        return False
+    return cache.get(f'{ACCESS_DENYLIST_PREFIX}{jti}') is not None

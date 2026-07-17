@@ -16,9 +16,11 @@ build/
 .coverage
 htmlcov/
 .pytest_cache/
+__pycache__/
+*.pyc
+core/management/
 
-# Virtual environments
-venv/
+.claude
 .venv/
 env/
 ENV/
@@ -40,7 +42,7 @@ core/migrations/__pycache__/
 # Environment / secrets (NEVER commit these)
 .env
 .env.*
-!.env.example
+monitoring/.env
 
 # Database dumps
 *.dump
@@ -75,6 +77,8 @@ CLAUDE.md
 
 # Developer handover docs (shared separately)
 DOCKER_MIGRATION.md
+DEVELOPER_GUIDE.md
+DEPLOY.md
 
 # One-off / legacy files
 find_old_references.sh
@@ -88,9 +92,29 @@ kasms_db_2026-03-18_02-00-01 (1).dump
 tests/
 tests.py
 pytest.ini
-core/migrations
 settings_test.py
 test_settings.py
 seed_system.py
-0003_gradefront_additions.py
 
+celerybeat-schedule.*
+celerybeat-schedule.dir
+celerybeat-schedule.dat
+celerybeat-schedule.bak
+find_old_references.sh
+fix_all.py
+CLAUDE.md
+BIOMETRIC_SETUP.md
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+test_device_connection.sh
+test_skteco_connection.py
+
+test_settings.py
+core/tests/
+test_policy.py
+tests/
+pytest.ini
+settings_test.py
+
+certbot/
