@@ -76,7 +76,7 @@ export function AuthProvider({ children }) {
                 secondary_color: themeData.secondary_color,
                 accent_color: themeData.accent_color,
                 logo_url: themeData.logo_url
-                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
                   : null,
                 school_name: themeData.school_name || me.school_name,
                 school_short_name: themeData.school_short_name || '',
@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || userInfo.school_name,
             school_short_name: themeData.school_short_name || '',
@@ -214,7 +214,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || me?.school_name,
             school_short_name: themeData.school_short_name || '',

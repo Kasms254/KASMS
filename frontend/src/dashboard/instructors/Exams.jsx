@@ -160,6 +160,33 @@ export default function Exams() {
     )
   }, [editForm.subject, fetchComponentChoices])
 
+  const VALID_EXAM_TYPES = ['cat', 'final', 'project', 'practical', 'theory']
+
+  function resolveExamType(comp) {
+    const nameLower = (comp?.name || '').toLowerCase()
+    if (VALID_EXAM_TYPES.includes(nameLower)) return nameLower
+    if (comp?.component_type && comp.component_type !== 'other') return comp.component_type
+    return 'final'
+  }
+
+  useEffect(() => {
+    if (createGradingMode === 'POLICY' && createForm.component) {
+      const comp = createComponents.find(c => String(c.id) === String(createForm.component))
+      if (comp) setCreateForm(f => ({ ...f, exam_type: resolveExamType(comp) }))
+    } else if (createGradingMode !== 'POLICY') {
+      setCreateForm(f => ({ ...f, exam_type: 'final' }))
+    }
+  }, [createForm.component, createGradingMode, createComponents])
+
+  useEffect(() => {
+    if (editGradingMode === 'POLICY' && editForm.component) {
+      const comp = editComponents.find(c => String(c.id) === String(editForm.component))
+      if (comp) setEditForm(f => ({ ...f, exam_type: resolveExamType(comp) }))
+    } else if (editGradingMode !== 'POLICY') {
+      setEditForm(f => ({ ...f, exam_type: 'final' }))
+    }
+  }, [editForm.component, editGradingMode, editComponents])
+
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
@@ -1008,7 +1035,7 @@ export default function Exams() {
                       <span>Title</span>
                       <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/25</span>
                     </div>
-                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g.. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <ModernDatePicker
@@ -1038,7 +1065,16 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
                       <div className="text-sm text-neutral-600 mb-1">Type</div>
-                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input
+                        type="text"
+                        value={
+                          createGradingMode === 'POLICY' && createForm.component
+                            ? (createComponents.find(c => String(c.id) === String(createForm.component))?.name || 'Final')
+                            : 'Final'
+                        }
+                        disabled
+                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                      />
                       <input type="hidden" value={createForm.exam_type || 'final'} />
                     </label>
                     <label className="block">
@@ -1136,7 +1172,16 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
                       <div className="text-sm text-neutral-600 mb-1">Type</div>
-                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input
+                        type="text"
+                        value={
+                          editGradingMode === 'POLICY' && editForm.component
+                            ? (editComponents.find(c => String(c.id) === String(editForm.component))?.name || 'Final')
+                            : 'Final'
+                        }
+                        disabled
+                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                      />
                       <input type="hidden" value={editForm.exam_type || 'final'} />
                     </label>
                     <label className="block">

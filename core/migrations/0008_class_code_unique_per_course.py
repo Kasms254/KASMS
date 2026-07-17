@@ -28,7 +28,7 @@ To list duplicates without running the migration:
     "
 """
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 def check_for_duplicates(apps, schema_editor):
@@ -65,24 +65,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # 1. Guard: fail fast if data would violate the new constraint.
+        # Guard: fail fast if data would violate the composite unique constraint.
+        # The AlterField (dropping a column-level unique=True) and the AddConstraint
+        # for 'unique_class_code_per_course' this migration originally also ran are
+        # no-ops here: migration 0002 already defines class_code as
+        # CharField(blank=True, null=True) with no column-level uniqueness, and
+        # already adds this exact composite constraint.
         migrations.RunPython(check_for_duplicates, migrations.RunPython.noop),
-
-        # 2. Drop the old global unique constraint that lives on the column itself.
-        migrations.AlterField(
-            model_name='class',
-            name='class_code',
-            field=models.CharField(blank=True, max_length=20, null=True),
-        ),
-
-        # 3. Add composite unique constraint (course + class_code), NULL-safe.
-        migrations.AddConstraint(
-            model_name='class',
-            constraint=models.UniqueConstraint(
-                condition=models.Q(class_code__isnull=False),
-                fields=['course', 'class_code'],
-                name='unique_class_code_per_course',
-            ),
-        ),
-
     ]

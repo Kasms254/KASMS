@@ -68,22 +68,10 @@ class Migration(migrations.Migration):
             model_name='biometricrecord',
             name='biometric_r_school__330cca_idx',
         ),
-        migrations.RemoveIndex(
-            model_name='biometricrecord',
-            name='biometric_r_biometr_54b67d_idx',
-        ),
-        migrations.RemoveField(
-            model_name='biometricrecord',
-            name='biometric_id_encrypted',
-        ),
-        migrations.RemoveField(
-            model_name='biometricrecord',
-            name='biometric_id_hash',
-        ),
-        migrations.RemoveField(
-            model_name='biometricrecord',
-            name='raw_data_encrypted',
-        ),
+        # biometric_r_biometr_54b67d_idx and the biometric_id_encrypted/
+        # biometric_id_hash/raw_data_encrypted fields are not removed here:
+        # 0005 (which used to add them) is now a no-op, so they never enter
+        # state in the first place.
         migrations.AlterField(
             model_name='oicassignment',
             name='school',

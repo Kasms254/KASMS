@@ -77,11 +77,9 @@ class Migration(migrations.Migration):
             name='exam',
             unique_together={('subject', 'exam_date', 'title')},
         ),
-        migrations.AddField(
-            model_name='notice',
-            name='target_role',
-            field=models.CharField(choices=[('all', 'All Users'), ('student', 'Students'), ('instructor', 'Instructors'), ('admin', 'Admins'), ('commandant', 'Commandant'), ('chief_instructor', 'Chief Instructor')], default='all', help_text='Target audience for this notice.', max_length=20),
-        ),
+        # notice.target_role is not added here: 0002 already adds this exact
+        # field for real, so a second AddField here would fail with
+        # "column already exists" on a from-scratch replay.
         migrations.AlterField(
             model_name='attendancesession',
             name='allow_late_minutes',

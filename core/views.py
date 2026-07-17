@@ -211,10 +211,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
         )
 
         academic_stats = School.objects.filter(id=school.id).aggregate(
-            courses=Count('courses', filter=Q(courses__is_active=True)),
-            classes=Count('classes', filter=Q(classes__is_active=True)),
-            subjects=Count('subjects', filter=Q(subjects__is_active=True)),
-            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            courses=Count('courses', filter=Q(courses__is_active=True), distinct=True),
+            classes=Count('classes', filter=Q(classes__is_active=True), distinct=True),
+            subjects=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            active_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
         )
 
         current_students = membership_stats['students'] or 0
@@ -1210,8 +1210,8 @@ class ClassViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
 
         queryset = Class.all_objects.select_related('course', 'instructor').annotate(
-            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
-            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
         ).all()
         user = self.request.user
 
@@ -3193,8 +3193,8 @@ class InstructorDashboardViewset(viewsets.ViewSet):
             school=school,
             is_active=True
         ).distinct().select_related('course', 'instructor').annotate(
-            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True)),
-            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            _subjects_count=Count('subjects', filter=Q(subjects__is_active=True), distinct=True),
+            _current_enrollment=Count('enrollments', filter=Q(enrollments__is_active=True), distinct=True),
         )
 
         my_subjects = Subject.all_objects.filter(

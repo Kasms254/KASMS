@@ -116,5 +116,5 @@ test_policy.py
 tests/
 pytest.ini
 settings_test.py
-
+backup/
 certbot/
