@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as LucideIcons from 'lucide-react'
 import Card from '../../components/Card'
+import { shortRank } from '../../lib/rankUtils'
 import { getCommandantDepartments } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
@@ -73,7 +75,7 @@ export default function CommandantDepartments() {
           <div className="text-sm text-neutral-400">No Departments Found</div>
         ) : (
           departments.map((dept) => (
-            <div key={dept.id}>
+            <div key={dept.id} onClick={() => navigate(`/commandant/departments/${dept.id}`)} className="cursor-pointer">
               <Card
                 title={dept.code || dept.name || 'Untitled'}
                 value={dept.name}
@@ -84,9 +86,9 @@ export default function CommandantDepartments() {
               >
                 <div className="space-y-1.5">
                   {dept.hod_name && (
-                    <div className="text-xs text-neutral-500 truncate">
-                      <span className="font-medium">HOD:</span> {dept.hod_name}
-                      {dept.hod_svc_number && <span className="text-neutral-400 ml-1">({dept.hod_svc_number})</span>}
+                    <div className="text-xs truncate">
+                      <span className="text-neutral-500 font-medium">HOD:</span>
+                      <span className="text-black ml-1">{[dept.hod_svc_number, shortRank(dept.hod_rank), dept.hod_name].filter(Boolean).join(' ')}</span>
                     </div>
                   )}
                   {dept.description && (
@@ -96,12 +98,9 @@ export default function CommandantDepartments() {
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
                       {dept.is_active ? 'Active' : 'Inactive'}
                     </span>
-                    <button
-                      onClick={() => navigate(`/commandant/departments/${dept.id}`)}
-                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
-                    >
-                      View Details
-                    </button>
+                    <span className="text-[10px] text-indigo-400 flex items-center gap-0.5">
+                      Click to view <LucideIcons.ArrowRight className="w-3 h-3" />
+                    </span>
                   </div>
                 </div>
               </Card>

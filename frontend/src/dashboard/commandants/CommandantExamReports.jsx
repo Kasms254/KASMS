@@ -8,7 +8,7 @@ import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import AdminPagination from '../../components/AdminPagination'
-import SearchableSelect from '../../components/SearchableSelect'
+import { shortRank } from '../../lib/rankUtils'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -403,6 +403,7 @@ export default function CommandantExamReports() {
   const exportPDF = useCallback(() => {
     if (!selectedExam || !examResults.length) return toast?.error?.('No results to export')
     const totalMarks = selectedExam?.total_marks || 100
+    const fmtNum = (v) => { const n = parseFloat(v); return Number.isInteger(n) ? String(n) : n.toFixed(1) }
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pw = doc.internal.pageSize.getWidth()
@@ -437,9 +438,9 @@ export default function CommandantExamReports() {
 
       // ── Prepared by (instructor) ─────────────────────────────────────────
       if (currentRemarksData?.created_by_name) {
-        const rank   = currentRemarksData.created_by_rank       || 'N/A'
+        const rank   = shortRank(currentRemarksData.created_by_rank || user?.rank) || 'N/A'
         const name   = currentRemarksData.created_by_name       || 'N/A'
-        const svcNum = currentRemarksData.created_by_svc_number || 'N/A'
+        const svcNum = currentRemarksData.created_by_svc_number || user?.svc_number || 'N/A'
         doc.setFillColor(242, 242, 246); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
         doc.roundedRect(margin, y, pw - margin * 2, 22, 2, 2, 'FD')
         // section label
@@ -529,10 +530,10 @@ export default function CommandantExamReports() {
           return [
             i + 1,
             r.student_svc_number || 'N/A',
-            r.student_rank || 'N/A',
+            shortRank(r.student_rank) || 'N/A',
             r.student_name || 'Unknown',
-            `${parseFloat(r.marks_obtained).toFixed(1)} / ${totalMarks}`,
-            `${pct.toFixed(1)}%`,
+            `${fmtNum(r.marks_obtained)} / ${totalMarks}`,
+            `${fmtNum(pct)}%`,
             r.grade || _gradeFromPct(pct),
           ]
         })
@@ -593,7 +594,7 @@ export default function CommandantExamReports() {
         }
 
         remarks.forEach((remark) => {
-          const rankAndName = [remark.author_rank, remark.author_name].filter(Boolean).join(' ')
+          const rankAndName = [shortRank(remark.author_rank), remark.author_name].filter(Boolean).join(' ')
           const svcLine = remark.author_svc_number ? `SVC: ${remark.author_svc_number}` : ''
           const lines = doc.splitTextToSize(remark.remark || '', pw - margin * 2 - 10)
           const cardH = 8 + 6 + lines.length * 4.5 + 5
@@ -636,20 +637,19 @@ export default function CommandantExamReports() {
         })
       }
 
-      // ── Signature block ──────────────────────────────────────────────────
-      checkPage(36)
-      y += 6
+      // ── Signature block (pinned to page bottom) ──────────────────────────
+      checkPage(70)
+      const sigY = ph - 52
       doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3)
-      doc.line(margin, y, pw - margin, y)
-      y += 8
-      const sigX = [margin, pw / 2 + 4]
-      const sigLabels = ["Commandant's Signature", "Chief Instructor's Signature"]
-      sigX.forEach((x, i) => {
+      doc.line(margin, sigY - 4, pw - margin, sigY - 4)
+      const sigPositions = [margin, pw - margin - 65]
+      const sigLabels = ["Chief Instructor's Signature", "Commandant's Signature"]
+      sigPositions.forEach((x, i) => {
         doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3)
-        doc.line(x, y + 12, x + 62, y + 12)
+        doc.line(x, sigY + 10, x + 65, sigY + 10)
         doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
-        doc.text(sigLabels[i], x, y + 17)
-        doc.text('Date: _______________', x, y + 23)
+        doc.text(sigLabels[i], x, sigY + 15)
+        doc.text('Date: _______________', x, sigY + 21)
       })
 
       // ── Page footer ──────────────────────────────────────────────────────
@@ -848,7 +848,7 @@ export default function CommandantExamReports() {
                         <tr key={idx} className={`hover:bg-neutral-50 transition ${!submitted ? 'opacity-60' : ''}`}>
                           <td className="px-4 py-3 text-sm text-neutral-500">{submitted ? rowNum : '—'}</td>
                           <td className="px-4 py-3 text-sm text-neutral-600">{r.student_svc_number || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_rank || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_rank ? shortRank(r.student_rank) : 'N/A'}</td>
                           <td className="px-4 py-3 font-medium text-black">{r.student_name || 'Unknown'}</td>
                           <td className="px-4 py-3 text-sm font-medium text-black">
                             {submitted ? `${parseFloat(r.marks_obtained).toFixed(1)} / ${selectedExam.total_marks || '—'}` : '—'}
@@ -895,7 +895,7 @@ export default function CommandantExamReports() {
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <div className="font-medium text-black text-sm">{r.student_name}</div>
-                          <div className="text-xs text-neutral-500">{r.student_rank} · {r.student_svc_number}</div>
+                          <div className="text-xs text-neutral-500">{r.student_rank ? shortRank(r.student_rank) : ''} · {r.student_svc_number}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           {grade && <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-gray-100'} ${gradeColor.text || 'text-gray-700'}`}>{grade}</span>}
@@ -964,7 +964,7 @@ export default function CommandantExamReports() {
                               <div className="flex items-center gap-2">
                                 <div>
                                   <div className="font-medium text-sm text-black">{remark.author_name}</div>
-                                  {remark.author_rank && <div className="text-xs text-neutral-500">{remark.author_rank}</div>}
+                                  {remark.author_rank && <div className="text-xs text-neutral-500">{shortRank(remark.author_rank)}</div>}
                                 </div>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full font-medium ${

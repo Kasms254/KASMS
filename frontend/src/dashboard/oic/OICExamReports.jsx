@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import * as Icons from 'lucide-react'
+import { shortRank } from '../../lib/rankUtils'
 import {
   getOICExamReports,
   getOICExamReportDetail,
@@ -232,7 +233,7 @@ export default function OICExamReports() {
                           <tr key={s.student_id} className="hover:bg-neutral-50 transition">
                             <td className="px-4 py-3 text-sm text-neutral-400 font-medium">{s.position ?? '—'}</td>
                             <td className="px-4 py-3 text-sm font-medium text-neutral-700 whitespace-nowrap">{s.svc_number || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-700">{s.rank || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{s.rank ? shortRank(s.rank) : '—'}</td>
                             <td className="px-4 py-3 text-sm font-medium text-black">{s.name || '—'}</td>
                             <td className="px-4 py-3"><PctBadge value={pct} /></td>
                             <td className="px-4 py-3">

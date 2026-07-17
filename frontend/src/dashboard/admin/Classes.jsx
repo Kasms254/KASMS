@@ -7,6 +7,7 @@ import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
 import SearchableSelect from '../../components/SearchableSelect'
 import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
+import { shortRank } from '../../lib/rankUtils'
 
 // Normalize a date value (from the API) to YYYY-MM-DD format for the date picker
 function normalizeDate(dateStr) {
@@ -293,7 +294,7 @@ export default function ClassesList(){
               >
                 <div className="flex flex-col flex-1">
                   <div className="truncate" title={[c.instructor_svc_number, getRankLabel(c.instructor_rank), c.instructor_name].filter(Boolean).join(' ')}>
-                    Instructor: {c.instructor_svc_number && <span>{c.instructor_svc_number} </span>}{c.instructor_rank && <span>{getRankLabel(c.instructor_rank)} </span>}{c.instructor_name || c.instructor || 'TBD'}
+                    Instructor: {c.instructor_svc_number && <span>{c.instructor_svc_number} </span>}{c.instructor_rank && <span>{shortRank(getRankLabel(c.instructor_rank))} </span>}{c.instructor_name || c.instructor || 'TBD'}
                   </div>
                   <div className="mt-1 text-xs">{c.start_date || ''} → {c.end_date || ''}</div>
                   <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
@@ -503,7 +504,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={classForm.instructor}
                       onChange={(val) => setClassForm({ ...classForm, instructor: val })}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${shortRank(getRankLabel(ins.rank) || ins.rank_display || '—')} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!classErrors.instructor}
@@ -721,7 +722,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={classForm.instructor}
                       onChange={(val) => { setClassForm({ ...classForm, instructor: val }); setClassErrors(prev => ({ ...prev, instructor: undefined })); if (classErrorsFromValidation) setClassErrorsFromValidation(Object.keys({ ...classErrors, instructor: undefined }).length > 0); }}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'}  ${shortRank(getRankLabel(ins.rank) || ins.rank_display || '—')} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!classErrors.instructor}
@@ -822,7 +823,7 @@ export default function ClassesList(){
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => { setForm({ ...form, instructor: val }); setSubjectErrors(prev => ({ ...prev, instructor: undefined })); }}
-                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${getRankLabel(ins.rank) || ins.rank_display || '—'} ${ins.full_name || ins.username}` }))}
+                      options={instructors.map(ins => ({ id: ins.id, label: `${ins.svc_number || '—'} | ${shortRank(getRankLabel(ins.rank) || ins.rank_display || '—')} ${ins.full_name || ins.username}` }))}
                       placeholder="— Select instructor —"
                       searchPlaceholder="Search by service number, rank, or name..."
                       error={!!subjectErrors.instructor}

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
@@ -471,6 +472,7 @@ export default function ExamReports() {
       return
     }
     const totalMarks = selectedExam.total_marks || 100
+    const fmtNum = (v) => { const n = parseFloat(v); return Number.isInteger(n) ? String(n) : n.toFixed(1) }
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pw = doc.internal.pageSize.getWidth()
@@ -506,9 +508,9 @@ export default function ExamReports() {
       // ── Prepared by ─────────────────────────────────────────────────────────
       const preparedBy = examReport?.created_by_name || user?.full_name || user?.username
       if (preparedBy) {
-        const rank   = examReport?.created_by_rank       || 'N/A'
+        const rank   = shortRank(examReport?.created_by_rank || user?.rank) || 'N/A'
         const name   = preparedBy
-        const svcNum = examReport?.created_by_svc_number || 'N/A'
+        const svcNum = examReport?.created_by_svc_number || user?.svc_number || 'N/A'
         doc.setFillColor(242, 242, 246); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
         doc.roundedRect(margin, y, pw - margin * 2, 22, 2, 2, 'FD')
         doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(110, 110, 110)
@@ -587,10 +589,10 @@ export default function ExamReports() {
         return [
           i + 1,
           r.student_svc_number || 'N/A',
-          r.student_rank || 'N/A',
+          shortRank(r.student_rank) || 'N/A',
           r.student_name || 'Unknown',
-          `${parseFloat(r.marks_obtained).toFixed(1)} / ${totalMarks}`,
-          `${pct.toFixed(1)}%`,
+          `${fmtNum(r.marks_obtained)} / ${totalMarks}`,
+          `${fmtNum(pct)}%`,
           r.grade || getGrade(pct),
         ]
       })
@@ -643,7 +645,7 @@ export default function ExamReports() {
         const roleBg     = { commandant: [20, 20, 20], chief_instructor: [55, 55, 55], instructor: [90, 90, 90] }
 
         remarks.forEach((remark) => {
-          const rankAndName = [remark.author_rank, remark.author_name].filter(Boolean).join(' ')
+          const rankAndName = [shortRank(remark.author_rank), remark.author_name].filter(Boolean).join(' ')
           const svcLine = remark.author_svc_number ? `SVC: ${remark.author_svc_number}` : ''
           const lines = doc.splitTextToSize(remark.remark || '', pw - margin * 2 - 10)
           const cardH = 8 + 6 + lines.length * 4.5 + 5
@@ -680,20 +682,19 @@ export default function ExamReports() {
         })
       }
 
-      // ── Signature block ──────────────────────────────────────────────────────
-      checkPage(36)
-      y += 6
+      // ── Signature block (pinned to page bottom) ──────────────────────────────
+      checkPage(70)
+      const sigY = ph - 52
       doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3)
-      doc.line(margin, y, pw - margin, y)
-      y += 8
-      const sigX = [margin, pw / 2 + 4]
-      const sigLabels = ["Commandant's Signature", "Chief Instructor's Signature"]
-      sigX.forEach((x, i) => {
+      doc.line(margin, sigY - 4, pw - margin, sigY - 4)
+      const sigPositions = [margin, pw - margin - 65]
+      const sigLabels = ["Chief Instructor's Signature", "Commandant's Signature"]
+      sigPositions.forEach((x, i) => {
         doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3)
-        doc.line(x, y + 12, x + 62, y + 12)
+        doc.line(x, sigY + 10, x + 65, sigY + 10)
         doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
-        doc.text(sigLabels[i], x, y + 17)
-        doc.text('Date: _______________', x, y + 23)
+        doc.text(sigLabels[i], x, sigY + 15)
+        doc.text('Date: _______________', x, sigY + 21)
       })
 
       // ── Page footer ──────────────────────────────────────────────────────────
@@ -1585,7 +1586,7 @@ export default function ExamReports() {
                                 {result.student_svc_number || 'N/A'}
                               </td>
                               <td className="px-4 py-3 text-sm text-neutral-600">
-                                {result.student_rank || 'N/A'}
+                                {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
@@ -1631,7 +1632,7 @@ export default function ExamReports() {
                                 {result.student_svc_number || 'N/A'}
                               </td>
                               <td className="px-4 py-3 text-sm text-neutral-600">
-                                {result.student_rank || 'N/A'}
+                                {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>

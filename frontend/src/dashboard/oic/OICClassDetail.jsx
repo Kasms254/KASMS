@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import * as Icons from 'lucide-react'
+import { shortRank } from '../../lib/rankUtils'
 import {
   getOICClassDetail,
   getOICClassStudents,
@@ -350,7 +351,7 @@ export default function OICClassDetail() {
                           </div>
                         </div>
                         <div className="space-y-1 text-xs mt-2">
-                          {s.rank && <div className="flex justify-between"><span className="text-neutral-500">Rank</span><span className="text-black">{s.rank}</span></div>}
+                          {s.rank && <div className="flex justify-between"><span className="text-neutral-500">Rank</span><span className="text-black">{shortRank(s.rank)}</span></div>}
                           <div className="flex justify-between"><span className="text-neutral-500">Enrolled</span><span className="text-black">{formatDate(s.enrollment_date)}</span></div>
                         </div>
                       </div>
@@ -374,7 +375,7 @@ export default function OICClassDetail() {
                           <tr key={s.id} className="hover:bg-neutral-50 transition">
                             <td className="px-4 py-3 text-sm text-neutral-400">{(safeStudentPage - 1) * studentPageSize + i + 1}</td>
                             <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap font-medium">{s.svc_number || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-700">{s.rank || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{s.rank ? shortRank(s.rank) : '—'}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -493,7 +494,7 @@ export default function OICClassDetail() {
                         <div className="text-xs text-indigo-600 font-medium mb-2">{s.subject_code || '—'}</div>
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between"><span className="text-neutral-500">Instr. Svc No</span><span className="text-black font-medium">{s.instructor_svc_number || '—'}</span></div>
-                          <div className="flex justify-between"><span className="text-neutral-500">Instr. Rank</span><span className="text-black">{s.instructor_rank || '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-neutral-500">Instr. Rank</span><span className="text-black">{s.instructor_rank ? shortRank(s.instructor_rank) : '—'}</span></div>
                           <div className="flex justify-between"><span className="text-neutral-500">Instructor</span><span className="text-black">{s.instructor_name || '—'}</span></div>
                         </div>
                       </div>
@@ -518,7 +519,7 @@ export default function OICClassDetail() {
                           <tr key={s.id} className="hover:bg-neutral-50 transition">
                             <td className="px-4 py-3 text-sm text-neutral-400">{(safeSubjectPage - 1) * subjectPageSize + i + 1}</td>
                             <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap font-medium">{s.instructor_svc_number || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-700">{s.instructor_rank || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{s.instructor_rank ? shortRank(s.instructor_rank) : '—'}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
@@ -819,7 +820,7 @@ export default function OICClassDetail() {
                               </div>
                               <div className="min-w-0">
                                 <div className="text-xs font-medium text-neutral-700">{sa.svc_number || '—'}</div>
-                                <div className="text-xs text-neutral-500">{sa.rank || '—'}</div>
+                                <div className="text-xs text-neutral-500">{sa.rank ? shortRank(sa.rank) : '—'}</div>
                                 <div className="font-medium text-sm text-black truncate">{sa.student_name || '—'}</div>
                               </div>
                             </div>
@@ -854,7 +855,7 @@ export default function OICClassDetail() {
                               <tr key={sa.student_id} className="hover:bg-neutral-50 transition">
                                 <td className="px-4 py-3 text-sm text-neutral-400">{(safeAttendancePage - 1) * attendancePageSize + i + 1}</td>
                                 <td className="px-4 py-3 text-sm font-medium text-neutral-700 whitespace-nowrap">{sa.svc_number || '—'}</td>
-                                <td className="px-4 py-3 text-sm text-neutral-700">{sa.rank || '—'}</td>
+                                <td className="px-4 py-3 text-sm text-neutral-700">{sa.rank ? shortRank(sa.rank) : '—'}</td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">

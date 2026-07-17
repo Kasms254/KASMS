@@ -5,6 +5,7 @@ import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import useAuth from '../../hooks/useAuth'
 import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
+import { shortRank } from '../../lib/rankUtils'
 
 function initials(name = '') {
   return name
@@ -288,7 +289,7 @@ export default function InstructorStudents() {
                     {st.rank && (
                       <div className="flex justify-between gap-2">
                         <span className="text-neutral-600">Rank:</span>
-                        <span className="text-black truncate">{getRankLabel(st.rank)}</span>
+                        <span className="text-black truncate">{shortRank(getRankLabel(st.rank))}</span>
                       </div>
                     )}
                     <div className="flex justify-between gap-2">
@@ -322,7 +323,7 @@ export default function InstructorStudents() {
                   {students.map((st) => (
                     <tr key={st.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{getRankLabel(st.rank) || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankLabel(st.rank)) || '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">

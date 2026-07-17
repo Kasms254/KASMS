@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import * as api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
@@ -301,7 +302,7 @@ export default function ClassStudents() {
                       )}
                     </div>
                     <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
-                    {st.rank && <div className="text-xs text-neutral-500">{getRankDisplay(st.rank)}</div>}
+                    {st.rank && <div className="text-xs text-neutral-500">{shortRank(getRankDisplay(st.rank))}</div>}
                   </div>
                   <button
                     onClick={() => openEditIndex(st)}
@@ -332,7 +333,7 @@ export default function ClassStudents() {
                   <tr key={st.id} className="hover:bg-neutral-50 transition">
                     <td className="px-4 py-3 text-sm font-medium text-indigo-700 whitespace-nowrap">{st.formatted_index || '-'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(st.rank)) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">

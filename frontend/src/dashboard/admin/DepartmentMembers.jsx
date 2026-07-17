@@ -2,7 +2,42 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { getDepartmentMemberships, addDepartmentMembership, updateDepartmentMembership, deleteDepartmentMembership, getDepartments, getAllInstructors } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import SearchableSelect from '../../components/SearchableSelect'
-import { getRankSortIndex, getRankLabel } from '../../lib/rankOrder'
+import { shortRank } from '../../lib/rankUtils'
+
+// Rank keys in ascending seniority order (index 0 = lowest)
+const RANK_KEYS = [
+  'civilian', 'constable_iii', 'constable_ii', 'constable_i',
+  'head_constable_ii', 'head_constable_i',
+  'private', 'lance_corporal', 'corporal', 'sergeant', 'senior_sergeant',
+  'warrant_officer_ii', 'warrant_officer_i', 'lieutenant', 'captain', 'major',
+  'lieutenant_colonel', 'colonel', 'brigadier', 'major_general', 'lieutenant_general', 'general',
+]
+const RANK_DISPLAY_MAP = {
+  civilian: 'Civilian',
+  constable_iii: 'Constable III', constable_ii: 'Constable II', constable_i: 'Constable I',
+  head_constable_ii: 'Head Constable II', head_constable_i: 'Head Constable I',
+  private: 'Private', lance_corporal: 'Lance Corporal', corporal: 'Corporal',
+  sergeant: 'Sergeant', senior_sergeant: 'Senior Sergeant',
+  warrant_officer_ii: 'Warrant Officer II', warrant_officer_i: 'Warrant Officer I',
+  lieutenant: 'Lieutenant', captain: 'Captain', major: 'Major',
+  lieutenant_colonel: 'Lieutenant Colonel', colonel: 'Colonel', brigadier: 'Brigadier',
+  major_general: 'Major General', lieutenant_general: 'Lieutenant General', general: 'General',
+}
+// Normalize any rank value (key or display string) to its canonical key
+function toRankKey(rank) {
+  if (!rank) return null
+  if (RANK_DISPLAY_MAP[rank]) return rank           // already a key
+  return rank.toLowerCase().replace(/\s+/g, '_')    // 'Warrant Officer Ii' → 'warrant_officer_ii'
+}
+function getRankOrder(rank) {
+  const key = toRankKey(rank)
+  const idx = RANK_KEYS.indexOf(key)
+  return idx  // -1 if unknown
+}
+function getRankDisplay(rank) {
+  const key = toRankKey(rank)
+  return RANK_DISPLAY_MAP[key] || rank || '—'
+}
 
 function sanitizeInput(value, trimSpaces = false) {
   if (typeof value !== 'string') return value
@@ -157,7 +192,7 @@ export default function DepartmentMembers() {
       })
       .map(ins => {
         const name = ins.full_name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim() || ins.username
-        return { id: ins.id, label: `${ins.svc_number || '—'} ${getRankLabel(ins.rank)} ${name}` }
+        return { id: ins.id, label: `${ins.svc_number || '—'} ${shortRank(getRankDisplay(ins.rank))} ${name}` }
       })
   }, [instructors])
 

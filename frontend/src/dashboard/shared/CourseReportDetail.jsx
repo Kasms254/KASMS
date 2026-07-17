@@ -4,6 +4,7 @@ import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 
 const STATUS_ORDER = [
   'instructor_draft', 'instructor_submitted',
@@ -140,9 +141,9 @@ function RemarkCard({ remark }) {
       {(remark.author_name || remark.author_rank || remark.author_svc_number) && (
         <p className="text-xs text-neutral-400 mt-2 pl-9">
           {isInstructorStage ? (
-            <>{remark.author_svc_number ? `${remark.author_svc_number} ` : ''}{remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}</>
+            <>{remark.author_svc_number ? `${remark.author_svc_number} ` : ''}{remark.author_rank ? `${shortRank(remark.author_rank)} ` : ''}{remark.author_name}</>
           ) : (
-            <>{remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}{remark.author_svc_number ? ` (${remark.author_svc_number})` : ''}</>
+            <>{remark.author_rank ? `${shortRank(remark.author_rank)} ` : ''}{remark.author_name}{remark.author_svc_number ? ` (${remark.author_svc_number})` : ''}</>
           )}
         </p>
       )}
@@ -398,7 +399,7 @@ export default function CourseReportDetail() {
               </span>
             </div>
             <p className="text-sm text-neutral-500 mt-0.5">
-              {student?.rank && <span className="font-medium text-neutral-700">{student.rank}</span>}
+              {student?.rank && <span className="font-medium text-neutral-700">{shortRank(student.rank)}</span>}
               {student?.rank && student?.svc_number && <span className="mx-1.5 text-neutral-300">·</span>}
               {student?.svc_number && <span className="font-mono">{student.svc_number}</span>}
             </p>

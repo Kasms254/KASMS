@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import { shortRank } from '../../lib/rankUtils'
 
 export default function Notices() {
   const toast = useToast()
@@ -509,7 +510,7 @@ export default function Notices() {
                     <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
                     {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
                       <p className="mt-2 text-xs text-neutral-400">
-                        By: {[n.created_by_svc_number, n.created_by_rank, n.created_by_name].filter(Boolean).join(' ')}
+                        By: {[n.created_by_svc_number, n.created_by_rank ? shortRank(n.created_by_rank) : null, n.created_by_name].filter(Boolean).join(' ')}
                       </p>
                     )}
                   </div>

@@ -1974,17 +1974,21 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class DepartmentMembershipSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
     user_svc_number = serializers.CharField(source='user.svc_number', read_only=True)
+    user_rank = serializers.SerializerMethodField(read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
 
     class Meta:
         model = DepartmentMembership
         fields = [
             'id', 'department', 'department_name',
-            'user', 'user_name', 'user_svc_number',
+            'user', 'user_name', 'user_svc_number', 'user_rank',
             'role', 'is_active', 'assigned_by',
             'assigned_at', 'updated_at',
         ]
         read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
+
+    def get_user_rank(self, obj):
+        return obj.user.get_rank_display()
 
     def run_validators(self, value):
         if self.instance and self.partial:
@@ -2549,12 +2553,14 @@ class DashboardDepartmentSerializer(serializers.ModelSerializer):
     course_count = serializers.SerializerMethodField(read_only=True)
     class_count = serializers.SerializerMethodField(read_only=True)
     hod_name = serializers.SerializerMethodField(read_only=True)
+    hod_rank = serializers.SerializerMethodField(read_only=True)
+    hod_svc_number = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Department
         fields = [
             'id', 'name', 'code', 'description', 'is_active',
-            'course_count', 'class_count', 'hod_name',
+            'course_count', 'class_count', 'hod_name', 'hod_rank', 'hod_svc_number',
         ]
 
     def get_course_count(self, obj):
@@ -2566,6 +2572,14 @@ class DashboardDepartmentSerializer(serializers.ModelSerializer):
     def get_hod_name(self, obj):
         hod = obj.hod
         return hod.get_full_name() if hod else None
+
+    def get_hod_rank(self, obj):
+        hod = obj.hod
+        return hod.get_rank_display() if hod and hod.rank else None
+
+    def get_hod_svc_number(self, obj):
+        hod = obj.hod
+        return hod.svc_number if hod else None
 
 class DashboardCertificateSerializer(serializers.ModelSerializer):
 
