@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 import {
   getBiometricDevices,
   createBiometricDevice,
@@ -974,7 +975,7 @@ export default function BiometricDevices() {
                     <SearchableSelect
                       value={mappingForm.student}
                       onChange={val => setMappingForm(f => ({ ...f, student: val }))}
-                      options={students.map(s => ({ id: s.id, label: [s.svc_number, s.rank, s.full_name || s.username].filter(Boolean).join(' ') }))}
+                      options={students.map(s => ({ id: s.id, label: [s.svc_number, s.rank ? shortRank(s.rank) : null, s.full_name || s.username].filter(Boolean).join(' ') }))}
                       placeholder={studentsLoading ? 'Loading students...' : '— Select student —'}
                       searchPlaceholder="Search by name or service number..."
                       error={!!mappingErrors.student}

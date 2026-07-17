@@ -639,6 +639,16 @@ class Class(models.Model):
     closed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
     )
+    closure_snapshot = models.JSONField(
+        null=True, blank=True,
+        help_text=(
+            "Identity and stats captured at close_class() time: instructor/subject-"
+            "instructor ids, student roster, and aggregate counts. Null for classes "
+            "closed before this field existed, or classes never closed. Used so "
+            "access checks and summaries for an archived class don't drift if "
+            "instructor assignments change afterwards."
+        ),
+    )
     index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
     index_start_from = models.PositiveIntegerField(default=1, help_text="First index number assigned to new students (e.g. 50 → first student gets 050).")
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes')

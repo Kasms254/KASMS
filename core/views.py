@@ -14,7 +14,7 @@ from .serializers import (
     DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer, AssessmentComponentSerializer, StudentComponentResultSerializer, SubjectEvaluationSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS
 from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -1316,9 +1316,9 @@ class ClassViewSet(viewsets.ModelViewSet):
             }, 
             status=status.HTTP_403_FORBIDDEN)
         
+
         all_classes = Class.objects.filter(
             Q(instructor=request.user) | Q(subjects__instructor=request.user),
-            is_active=True
         ).distinct().annotate(
             enrollment_count= Count('enrollments', filter=Q(enrollments__is_active=True))
         )
@@ -1538,9 +1538,10 @@ class SubjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(school=user.school)
         else:
             return queryset.none()
-        
-        queryset = queryset.exclude(class_obj__is_closed=True)
-        
+
+        if self.request.method not in SAFE_METHODS:
+            queryset = queryset.exclude(class_obj__is_closed=True)
+
         return queryset
 
 
@@ -2173,9 +2174,13 @@ class ExamViewSet(viewsets.ModelViewSet):
  
         if user.role == 'instructor':
             queryset = queryset.filter(subject__instructor=user)
- 
-        queryset = queryset.exclude(subject__class_obj__is_closed=True)
- 
+
+        # Closed classes are read-only, not invisible: exclude them only for
+        # write actions (create/update/destroy), so reports can still read
+        # historical exams for a closed class.
+        if self.request.method not in SAFE_METHODS:
+            queryset = queryset.exclude(subject__class_obj__is_closed=True)
+
         if self.action == 'list':
             queryset = queryset.prefetch_related('attachments')
  
@@ -2499,7 +2504,9 @@ class ExamResultViewSet(viewsets.ModelViewSet):
         elif user.role == 'student':
             queryset = queryset.filter(student=user)
 
-        queryset = queryset.exclude(exam__subject__class_obj__is_closed=True)
+
+        if self.request.method not in SAFE_METHODS:
+            queryset = queryset.exclude(exam__subject__class_obj__is_closed=True)
 
         return queryset
 

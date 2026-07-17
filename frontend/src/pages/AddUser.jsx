@@ -36,6 +36,7 @@ const ranks = [
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
@@ -423,22 +424,9 @@ export default function AddUser({ onSuccess } = {}) {
                   }`}
                 >
                   <option value="" disabled>-- Select a rank --</option>
-                  <option value="general">General</option>
-                  <option value="lieutenant_general">Lieutenant General</option>
-                  <option value="major_general">Major General</option>
-                  <option value="brigadier">Brigadier</option>
-                  <option value="colonel">Colonel</option>
-                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
-                  <option value="major">Major</option>
-                  <option value="captain">Captain</option>
-                  <option value="lieutenant">Lieutenant</option>
-                  <option value="warrant_officer_i">Warrant Officer I</option>
-                  <option value="warrant_officer_ii">Warrant Officer II</option>
-                  <option value="senior_sergeant">Senior Sergeant</option>
-                  <option value="sergeant">Sergeant</option>
-                  <option value="corporal">Corporal</option>
-                  <option value="lance_corporal">Lance Corporal</option>
-                  <option value="private">Private</option>
+                  {ranks.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
                 {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>

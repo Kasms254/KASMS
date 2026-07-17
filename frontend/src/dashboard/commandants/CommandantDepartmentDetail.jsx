@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCommandantDepartmentDetails } from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 
 function initials(name = '') {
   return name.split(' ').map((s) => s[0] || '').slice(0, 2).join('').toUpperCase()
@@ -21,17 +22,27 @@ export default function CommandantDepartmentDetail() {
   }, [toast])
 
   useEffect(() => {
-    setLoading(true)
-    ;(async () => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
       try {
         const data = await getCommandantDepartmentDetails(id)
-        setDept(data)
+        if (!cancelled) {
+          setDept({
+            ...(data.department || data),
+            courses: data.courses || [],
+            classes: data.classes || [],
+            members: data.members || [],
+          })
+        }
       } catch (err) {
-        reportError(err?.message || 'Failed to load department details')
+        if (!cancelled) reportError(err?.message || 'Failed to load department details')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
-    })()
+    }
+    load()
+    return () => { cancelled = true }
   }, [id, reportError])
 
   if (loading) {
@@ -89,7 +100,7 @@ export default function CommandantDepartmentDetail() {
           <p className="text-3xl font-semibold text-black">{dept.classes?.length ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4 col-span-2 sm:col-span-1">
-          <p className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-1">Members</p>
+          <p className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-1">HOD</p>
           <p className="text-3xl font-semibold text-black">{dept.member_count ?? dept.members?.length ?? 0}</p>
         </div>
       </div>
@@ -189,20 +200,23 @@ export default function CommandantDepartmentDetail() {
       {dept.members?.length > 0 && (
         <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">
           <div className="px-4 py-3 border-b border-neutral-200">
-            <h3 className="text-sm font-semibold text-black">Members</h3>
+            <h3 className="text-sm font-semibold text-black">HOD</h3>
           </div>
           <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full table-auto">
               <thead className="bg-neutral-50">
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Svc No.</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Role</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 bg-white">
                 {dept.members.map((m) => (
                   <tr key={m.id} className="hover:bg-neutral-50 transition">
+                    <td className="px-4 py-3 text-sm text-black">{m.svc_number || m.user_svc_number || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-black">{shortRank(m.user_rank) || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -211,7 +225,6 @@ export default function CommandantDepartmentDetail() {
                         <span className="text-sm font-medium text-black">{m.full_name || m.user_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-500">{m.svc_number || m.user_svc_number || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${m.role === 'hod' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                         {m.role === 'hod' ? 'HOD' : 'Member'}
@@ -230,8 +243,9 @@ export default function CommandantDepartmentDetail() {
                     {initials(m.full_name || m.user_name || '?')}
                   </div>
                   <div>
+                    <p className="text-xs text-neutral-500">{m.svc_number || m.user_svc_number || '—'}</p>
+                    {m.user_rank && <p className="text-xs text-neutral-400">{shortRank(m.user_rank)}</p>}
                     <p className="text-sm font-medium text-black">{m.full_name || m.user_name || '—'}</p>
-                    <p className="text-xs text-neutral-500">{m.svc_number || m.user_svc_number || ''}</p>
                   </div>
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${m.role === 'hod' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>

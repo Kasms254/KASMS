@@ -2,8 +2,8 @@ import { useState } from 'react'
 import * as Icons from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { getRankAbbreviation } from '../lib/rankOrder'
 import useToast from '../hooks/useToast'
+import { shortRank } from '../lib/rankUtils'
 
 function SortIcon({ columnKey, sortConfig }) {
   if (sortConfig.key !== columnKey) return <Icons.ChevronsUpDown className="w-3 h-3 text-gray-400" />
@@ -200,8 +200,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
       ? { top: 2, bottom: 2, left: 2, right: 2 }
       : { top: 3, bottom: 3, left: 3, right: 3 }
 
-    // Fixed column widths (mm): rank + svc + rankCol + name + score + grade
-    const fixedW = 10 + 20 + 22 + 38 + 18 + 12
+    // Fixed column widths (mm): s/no + svc + rank + name + score + grade
+    const fixedW = 10 + 20 + 18 + 38 + 18 + 12
     // Subject column width: fill remaining space evenly, clamped to a readable range
     const subjectColW = subjectCount > 0
       ? Math.max(12, Math.min(28, (pageW - margin * 2 - fixedW) / subjectCount))
@@ -220,7 +220,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     const body = sortedStudents.map((student, idx) => [
       { content: String(student.rank ?? idx + 1), styles: { halign: 'center', fontStyle: 'bold' } },
       { content: student.svc_number ?? '-' },
-      { content: student.student_rank ?? '-' },
+      { content: shortRank(student.student_rank) || '—' },
       { content: student.student_name ?? '', styles: { fontStyle: 'bold' } },
       ...subjectList.map(subj => {
         const b = student.subject_breakdown?.find(s => s.subject_name === subj.name)
@@ -257,7 +257,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 20 },
-        2: { cellWidth: 22 },
+        2: { cellWidth: 18 },
         3: { cellWidth: 38 },
         // Subject columns: fixed adaptive width
         ...Object.fromEntries(
@@ -333,9 +333,10 @@ export default function StudentPerformanceTable({ students, title = "All Student
         bottom: { style: 'thin', color: { argb: 'CCCCCC' } },
       }
     })
-    // Left-align name columns
+    // Left-align svc/rank/name columns
     headerRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' }
     headerRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' }
+    headerRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' }
     headerRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' }
 
     // Data rows
@@ -343,7 +344,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
       const row = ws.addRow([
         student.rank ?? idx + 1,
         student.svc_number || '-',
-        getRankAbbreviation(student.student_rank) || '-',
+        shortRank(student.student_rank) || '—',
         student.student_name || '',
         ...subjectList.map(subj => {
           const b = student.subject_breakdown?.find(s => s.subject_name === subj.name)
@@ -371,7 +372,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
     ws.columns.forEach((col, i) => {
       if (i === 0) col.width = 6          // S/No
       else if (i === 1) col.width = 14    // SVC No
-      else if (i === 2) col.width = 16    // Rank
+      else if (i === 2) col.width = 10    // Rank
       else if (i === 3) col.width = 28    // Name
       else if (i >= 4 && i < 4 + subjectList.length) col.width = 16 // Subjects
       else if (i === 4 + subjectList.length) col.width = 18 // Total
@@ -397,8 +398,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
   }
 
   // Sticky column widths (px) for left freeze
-  const stickyLeftW = { rank: 52, svc: 90, studentRank: 90, name: 160 }
-  const stickyLeftTotal = stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank + stickyLeftW.name
+  const stickyLeftW = { rank: 52, svc: 90, mrank: 72, name: 160 }
+  const stickyLeftTotal = stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.mrank + stickyLeftW.name
 
   return (
     <div className="space-y-4">
@@ -469,7 +470,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
       {/* Desktop Table — with sticky left columns when subjects > 5 */}
       <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200" style={{ position: 'relative' }}>
-        <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 5 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined}>
+        <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 5 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined} >
           <thead>
             <tr className="border-b-2 border-gray-200 bg-gray-50">
               {/* ── Sticky left columns ── */}
@@ -487,16 +488,15 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 SVC No.
               </th>
               <th
-                onClick={() => handleSort('student_rank')}
-                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20"
-                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.studentRank, minWidth: stickyLeftW.studentRank } : {}}
+                className="text-left py-3 px-3 font-medium text-gray-600 whitespace-nowrap bg-gray-50 z-20"
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.mrank, minWidth: stickyLeftW.mrank } : {}}
               >
-                <div className="flex items-center gap-1">Rank <SortIcon columnKey="student_rank" sortConfig={sortConfig} /></div>
+                Rank
               </th>
               <th
                 onClick={() => handleSort('student_name')}
                 className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20 border-r-2 border-gray-300"
-                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+                style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.mrank, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
               >
                 <div className="flex items-center gap-1">Student Name <SortIcon columnKey="student_name" sortConfig={sortConfig} /></div>
               </th>
@@ -543,11 +543,11 @@ export default function StudentPerformanceTable({ students, title = "All Student
                   className="py-2 px-3 text-gray-600 whitespace-nowrap bg-white z-10"
                   style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc } : {}}
                 >
-                  {getRankAbbreviation(student.student_rank) || '-'}
+                  {shortRank(student.student_rank) || '—'}
                 </td>
                 <td
                   className="py-2 px-3 font-medium text-gray-800 whitespace-nowrap bg-white z-10 border-r-2 border-gray-300"
-                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.studentRank, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
+                  style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.mrank, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
                 >
                   {student.student_name}
                 </td>
@@ -612,7 +612,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 }`}>{student.rank}</span>
                 <div>
                   <div className="font-medium text-gray-800">{student.student_name}</div>
-                  <div className="text-xs text-gray-500">{student.svc_number || '-'}{student.student_rank ? ` · ${getRankAbbreviation(student.student_rank)}` : ''}</div>
+                  <div className="text-xs text-gray-500">{[student.svc_number, shortRank(student.student_rank)].filter(Boolean).join(' · ')}</div>
                 </div>
               </div>
               <div className="text-right">
