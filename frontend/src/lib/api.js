@@ -95,6 +95,28 @@ export async function ensureCsrfCookie() {
   }
 }
 
+// Refresh tokens rotate on use (the old one is blacklisted immediately), so if
+// several requests 401 at the same time and each fires its own refresh call,
+// only the first succeeds — the rest race against an already-blacklisted
+// token and force a logout even though the session is still valid. Share a
+// single in-flight refresh across concurrent callers to avoid that.
+let refreshPromise = null
+function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE}/api/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
+}
+
 // Sanitize string input to prevent injection attacks
 function sanitizeInput(value) {
   if (typeof value !== 'string') return value
@@ -148,12 +170,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   // The server reads the refresh_token cookie automatically — no body needed.
   if (res.status === 401 && !path.includes('/token/refresh/')) {
     try {
-      const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      if (refreshRes.ok) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) {
         // New access_token cookie is set by the server; retry the original request
         res = await fetch(url, opts)
         data = await parseResponse(res)
@@ -245,7 +263,11 @@ async function requestMultipart(path, { method = 'POST', formData, headers = {} 
   if (!res.ok) {
     let data
     try { data = await res.json() } catch { data = await res.text() }
-    const err = new Error('Request failed')
+    const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
+    const userMessage = detail
+      ? (Array.isArray(detail) ? detail.join(', ') : String(detail))
+      : 'Request failed'
+    const err = new Error(userMessage)
     err.status = res.status
     err.data = data
     throw err

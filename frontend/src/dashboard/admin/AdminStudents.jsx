@@ -731,6 +731,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
                     <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button onClick={() => handleDelete(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 transition">Delete</button>
                   </div>
                 </div>
               ))}
@@ -775,6 +776,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                          <button onClick={() => handleDelete(st)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -888,9 +890,6 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => openResetPassword(editingStudent)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
-                  </button>
-                  <button type="button" onClick={() => handleDelete(editingStudent)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                    Delete
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
