@@ -6,6 +6,7 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import SearchableSelect from '../../components/SearchableSelect'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import AdminPagination from '../../components/AdminPagination'
 import { jsPDF } from 'jspdf'
@@ -113,6 +114,29 @@ export default function ExamReports() {
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
+
+
+  const activeClassId = selectedExam
+    ? (selectedExam.subject_class_id || selectedExam.class_id)
+    : selectedClass
+  const selectedClassObj = useMemo(
+    () => classes.find(c => String(c.id) === String(activeClassId)),
+    [classes, activeClassId]
+  )
+  const isArchivedClass = selectedClassObj?.status === 'archived' || !!selectedClassObj?.is_closed
+
+  
+  const classOptions = useMemo(() => {
+    const isArchived = (c) => c.status === 'archived' || !!c.is_closed
+    return [...classes]
+      .sort((a, b) => {
+        const aArchived = isArchived(a)
+        const bArchived = isArchived(b)
+        if (aArchived !== bArchived) return aArchived ? 1 : -1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      .map(c => ({ id: c.id, label: `${c.name}${isArchived(c) ? ' (Archived)' : ''}` }))
+  }, [classes])
 
   // Filter exams based on selections (class is already filtered server-side for admin)
   const filteredExams = useMemo(() => {
@@ -713,6 +737,14 @@ export default function ExamReports() {
           <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Archived class indicator - historical data stays viewable/exportable, nothing can be created or edited */}
+          {selectedClass && isArchivedClass && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+              <LucideIcons.Archive className="w-3.5 h-3.5" />
+              Archived — Read Only
+            </span>
+          )}
+
           {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
           {selectedClass && !selectedExam && !showComprehensive && (() => {
             const cls = classes.find(c => String(c.id) === selectedClass)
@@ -819,23 +851,17 @@ export default function ExamReports() {
                   </span>
                 )}
               </label>
-              <select
+              <SearchableSelect
                 value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value)
+                onChange={(val) => {
+                  setSelectedClass(val)
                   setSelectedSubject('')
                 }}
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${
-                  !selectedClass
-                    ? 'border-indigo-300 ring-1 ring-indigo-100'
-                    : 'border-neutral-200'
-                }`}
-              >
-                <option value="">Select a class...</option>
-                {classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                options={classOptions}
+                placeholder="Select a class..."
+                searchPlaceholder="Search classes..."
+                className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+              />
             </div>
 
             {/* Subject Filter */}
@@ -984,7 +1010,7 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        {!isAdmin && (
+                        {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
@@ -1047,7 +1073,7 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        {!isAdmin && (
+                        {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
@@ -1115,7 +1141,7 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center gap-2 justify-end flex-wrap">
-                            {!isAdmin && (
+                            {!isAdmin && !isArchivedClass && (
                               <button
                                 onClick={() => handleOpenCreateReportModal(exam)}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
@@ -1707,8 +1733,8 @@ export default function ExamReports() {
                         )}
                       </div>
 
-                      {/* Add Remark Form — hidden for admin */}
-                      {!isAdmin && (
+                      {/* Add Remark Form — hidden for admin and for archived classes */}
+                      {!isAdmin && !isArchivedClass && (
                         <div className="border-t border-neutral-200 pt-4">
                           <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
                           <textarea
@@ -1737,6 +1763,14 @@ export default function ExamReports() {
                               )}
                             </button>
                           </div>
+                        </div>
+                      )}
+                      {!isAdmin && isArchivedClass && (
+                        <div className="border-t border-neutral-200 pt-4">
+                          <p className="text-sm text-neutral-500 flex items-center gap-2">
+                            <LucideIcons.Lock className="w-4 h-4" />
+                            This class is archived — remarks are read-only.
+                          </p>
                         </div>
                       )}
                     </>
