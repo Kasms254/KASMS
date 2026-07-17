@@ -296,6 +296,8 @@ export function AuthProvider({ children }) {
     return () => {
       clearAllTimers()
       events.forEach(evt => window.removeEventListener(evt, resetTimer))
+      setShowInactivityWarning(false)
+      setInactivityCountdown(INACTIVITY_WARNING_MS / 1000)
     }
   }, [user, logout])
 

@@ -127,10 +127,11 @@ export default function AttendanceReports() {
 
   // Load low attendance alerts
   const loadLowAttendanceAlerts = useCallback(async () => {
+    if (!selectedClass) return
+    setAlertsError(false)
     try {
-      const data = await api.getLowAttendanceAlerts(selectedClass || null, 75)
+      const data = await api.getLowAttendanceAlerts(selectedClass, 75)
       setLowAttendanceStudents(data?.students || data || [])
-      setAlertsError(false)
     } catch (err) {
       setAlertsError(true)
       toast.error(err.message || 'Failed to load attendance alerts')
