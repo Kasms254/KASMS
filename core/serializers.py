@@ -1985,10 +1985,10 @@ class DepartmentMembershipSerializer(serializers.ModelSerializer):
             'role', 'is_active', 'assigned_by',
             'assigned_at', 'updated_at',
         ]
+        read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
 
     def get_user_rank(self, obj):
-        return obj.user.get_rank_display() if obj.user.rank else None
-        read_only_fields = ['id', 'assigned_by', 'assigned_at', 'updated_at']
+        return obj.user.get_rank_display()
 
     def run_validators(self, value):
         if self.instance and self.partial:
