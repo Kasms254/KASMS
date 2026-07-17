@@ -1205,11 +1205,28 @@ export async function getInstructorsPaginated(params = '') {
   return request(`/api/users/instructors/${qs}`)
 }
 
+// Extract a user-friendly message from a failed blob-download response
+// (the body is JSON on error, but a blob on success, so it can't go through
+// the shared request() helper).
+async function blobErrorMessage(res, fallback) {
+  try {
+    const data = await res.json()
+    const detail = data && (data.detail || data.message || data.error)
+    if (detail) return detail
+  } catch {
+    // response wasn't JSON — fall through to status-based message
+  }
+  if (res.status === 401 || res.status === 403) return 'You do not have permission to perform this action.'
+  if (res.status === 404) return 'The requested resource was not found.'
+  if (res.status >= 500) return 'A server error occurred. Please try again later.'
+  return fallback
+}
+
 export async function exportStudentsCSV(params = '') {
   const qs = params ? `?${params}` : ''
   const url = `${API_BASE}/api/users/students/export_csv/${qs}`
   const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error('Export failed')
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to export students.'))
   return res.blob()
 }
 
@@ -1217,7 +1234,7 @@ export async function exportInstructorsCSV(params = '') {
   const qs = params ? `?${params}` : ''
   const url = `${API_BASE}/api/users/instructors/export_csv/${qs}`
   const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error('Export failed')
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to export instructors.'))
   return res.blob()
 }
 

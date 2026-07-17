@@ -5,9 +5,11 @@ import {
   Eye, Power, PowerOff, Upload, School, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 export default function SchoolsPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [schools, setSchools] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -30,11 +32,11 @@ export default function SchoolsPage() {
       setTotalCount(data?.count || 0)
       setTotalPages(Math.ceil((data?.count || 0) / 10))
     } catch (err) {
-      console.error('Failed to fetch schools:', err)
+      toast.error(err?.message || 'Failed to load schools')
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm])
+  }, [currentPage, searchTerm, toast])
 
   useEffect(() => {
     fetchSchools()
@@ -49,7 +51,7 @@ export default function SchoolsPage() {
       }
       fetchSchools()
     } catch (err) {
-      console.error('Failed to toggle school status:', err)
+      toast.error(err?.message || 'Failed to update school status')
     }
     setActiveDropdown(null)
   }
@@ -61,7 +63,7 @@ export default function SchoolsPage() {
       setDeleteModal({ open: false, school: null })
       fetchSchools()
     } catch (err) {
-      console.error('Failed to delete school:', err)
+      toast.error(err?.message || 'Failed to delete school')
     }
   }
 

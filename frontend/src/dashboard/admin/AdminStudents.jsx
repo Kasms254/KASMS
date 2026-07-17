@@ -381,7 +381,9 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
               await api.withdrawEnrollment(a.id)
               setEnrollmentsList((lst) => lst.map((x) => x.id === a.id ? { ...x, is_active: false } : x))
             } catch (err) {
-              // non-fatal: continue but inform user
+              // non-fatal: continue with the remaining enrollments, but inform the user
+              // since a stale active enrollment can leave the student in two classes at once
+              reportError('Failed to withdraw a previous enrollment: ' + (err.message || String(err)))
             }
           }
 

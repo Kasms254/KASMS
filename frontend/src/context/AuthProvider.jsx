@@ -3,10 +3,13 @@ import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
 import { queryClient } from '../lib/queryClient'
+import InactivityWarningModal from '../components/InactivityWarningModal'
 
 // Mirrors the backend's ACCESS_TOKEN_LIFETIME (SIMPLE_JWT in kasms/settings.py).
 // Keep the two in sync if either changes.
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
+// How long before the timeout to warn the user, giving them a chance to stay signed in.
+const INACTIVITY_WARNING_MS = 10 * 1000 // 10 seconds
 
 // Session hint: the auth tokens are HTTP-only cookies, so JS cannot check
 // whether a session exists without a network round-trip. This localStorage
@@ -246,26 +249,52 @@ export function AuthProvider({ children }) {
     setTwoFA(null)
   }, [])
 
-  // Inactivity timer — log out after INACTIVITY_TIMEOUT_MS of no user interaction.
-  // Only active while a user is logged in.
+  // Inactivity timer — warn INACTIVITY_WARNING_MS before logging out after
+  // INACTIVITY_TIMEOUT_MS of no user interaction, so the session doesn't end
+  // without notice. Only active while a user is logged in.
   const inactivityTimer = useRef(null)
+  const warningTimer = useRef(null)
+  const countdownInterval = useRef(null)
+  const resetTimerRef = useRef(() => {})
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false)
+  const [inactivityCountdown, setInactivityCountdown] = useState(INACTIVITY_WARNING_MS / 1000)
 
   useEffect(() => {
     if (!user) return
 
-    const resetTimer = () => {
+    const clearAllTimers = () => {
+      clearTimeout(warningTimer.current)
       clearTimeout(inactivityTimer.current)
+      clearInterval(countdownInterval.current)
+    }
+
+    const resetTimer = () => {
+      clearAllTimers()
+      setShowInactivityWarning(false)
+
+      warningTimer.current = setTimeout(() => {
+        let secondsLeft = INACTIVITY_WARNING_MS / 1000
+        setInactivityCountdown(secondsLeft)
+        setShowInactivityWarning(true)
+        countdownInterval.current = setInterval(() => {
+          secondsLeft -= 1
+          setInactivityCountdown(secondsLeft)
+          if (secondsLeft <= 0) clearInterval(countdownInterval.current)
+        }, 1000)
+      }, INACTIVITY_TIMEOUT_MS - INACTIVITY_WARNING_MS)
+
       inactivityTimer.current = setTimeout(() => {
         logout()
       }, INACTIVITY_TIMEOUT_MS)
     }
+    resetTimerRef.current = resetTimer
 
     const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
     events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }))
     resetTimer() // start the timer immediately on login / mount
 
     return () => {
-      clearTimeout(inactivityTimer.current)
+      clearAllTimers()
       events.forEach(evt => window.removeEventListener(evt, resetTimer))
     }
   }, [user, logout])
@@ -276,6 +305,12 @@ export function AuthProvider({ children }) {
       verify2FA, resend2FA, clearTwoFA, twoFAEmail: twoFA?.email || null,
     }}>
       {children}
+      <InactivityWarningModal
+        open={showInactivityWarning}
+        secondsLeft={inactivityCountdown}
+        onStay={() => resetTimerRef.current()}
+        onLogout={logout}
+      />
     </AuthContext.Provider>
   )
 }
