@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q, Exists, OuterRef, Subquery
+from django.db.models import Q, Exists, OuterRef, Subquery, Avg
 from core.models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
@@ -457,6 +457,32 @@ def _resolve_default_template(school) -> Optional[CertificateTemplate]:
     qs = CertificateTemplate.objects.filter(school=school, is_active=True)
     return qs.filter(is_default=True).first() or qs.first()
 
+def _build_closure_snapshot(class_obj):
+
+    subjects = Subject.objects.filter(class_obj=class_obj).select_related('instructor')
+    subject_instructor_ids = sorted({
+        str(s.instructor_id) for s in subjects if s.instructor_id
+    })
+    enrollments = Enrollment.all_objects.filter(class_obj=class_obj)
+    student_ids = [str(sid) for sid in enrollments.values_list('student_id', flat=True)]
+    certs = Certificate.objects.filter(class_obj=class_obj)
+    avg_pct = certs.aggregate(avg=Avg('final_percentage'))['avg']
+
+    return {
+        'closed_at': class_obj.closed_at.isoformat() if class_obj.closed_at else None,
+        'closed_by_id': str(class_obj.closed_by_id) if class_obj.closed_by_id else None,
+        'closed_by_name': class_obj.closed_by.get_full_name() if class_obj.closed_by else None,
+        'instructor_id': str(class_obj.instructor_id) if class_obj.instructor_id else None,
+        'instructor_name': class_obj.instructor.get_full_name() if class_obj.instructor else None,
+        'subject_instructor_ids': subject_instructor_ids,
+        'student_ids': student_ids,
+        'total_students': len(student_ids),
+        'total_subjects': subjects.count(),
+        'total_exams': Exam.all_objects.filter(subject__class_obj=class_obj).count(),
+        'certificates_issued': certs.filter(status='issued').count(),
+        'academic_average': round(float(avg_pct), 2) if avg_pct is not None else None,
+    }
+
 def close_class(class_obj, closed_by):
 
     if class_obj.is_closed:
@@ -491,6 +517,9 @@ def close_class(class_obj, closed_by):
         enrollment.save(update_fields=['is_active', 'completion_date', 'completed_via'])
 
         _try_complete_membership(enrollment)
+
+    class_obj.closure_snapshot = _build_closure_snapshot(class_obj)
+    class_obj.save(update_fields=['closure_snapshot'])
 
     return True, None
 

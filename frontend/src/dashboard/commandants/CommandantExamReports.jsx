@@ -81,6 +81,26 @@ export default function CommandantExamReports() {
   const [remarksLoading,     setRemarksLoading]     = useState(false)
   const [remarkSubmitting,   setRemarkSubmitting]   = useState(false)
 
+  
+  const selectedClassObj = useMemo(
+    () => classes.find(c => String(c.id) === String(selectedClass)),
+    [classes, selectedClass]
+  )
+  const isArchivedClass = selectedClassObj?.status === 'archived' || !!selectedClassObj?.is_closed
+
+
+  const classOptions = useMemo(() => {
+    const isArchived = (c) => c.status === 'archived' || !!c.is_closed
+    return [...classes]
+      .sort((a, b) => {
+        const aArchived = isArchived(a)
+        const bArchived = isArchived(b)
+        if (aArchived !== bArchived) return aArchived ? 1 : -1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      .map(c => ({ id: c.id, label: `${c.name}${isArchived(c) ? ' (Archived)' : ''}` }))
+  }, [classes])
+
   // ── Load classes on mount ─────────────────────────────────────────────────
   useEffect(() => {
     api.getCommandantClasses('page_size=1000')
@@ -965,36 +985,45 @@ export default function CommandantExamReports() {
                     </div>
                   )}
 
-                  {/* Add Remark Form */}
-                  <div className="border-t border-neutral-200 pt-4">
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                    <textarea
-                      value={newRemark}
-                      onChange={(e) => setNewRemark(e.target.value)}
-                      placeholder="Enter your remark about this exam…"
-                      rows={4}
-                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                    />
-                    <div className="flex gap-3 justify-end mt-3">
-                      <button
-                        onClick={handleAddRemark}
-                        disabled={remarkSubmitting || !newRemark.trim() || !currentRemarksData}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {remarkSubmitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <LucideIcons.Send size={16} />
-                            Submit Remark
-                          </>
-                        )}
-                      </button>
+                  {/* Add Remark Form — hidden for archived classes */}
+                  {!isArchivedClass ? (
+                    <div className="border-t border-neutral-200 pt-4">
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                      <textarea
+                        value={newRemark}
+                        onChange={(e) => setNewRemark(e.target.value)}
+                        placeholder="Enter your remark about this exam…"
+                        rows={4}
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                      />
+                      <div className="flex gap-3 justify-end mt-3">
+                        <button
+                          onClick={handleAddRemark}
+                          disabled={remarkSubmitting || !newRemark.trim() || !currentRemarksData}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {remarkSubmitting ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Submitting...
+                            </>
+                          ) : (
+                            <>
+                              <LucideIcons.Send size={16} />
+                              Submit Remark
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="border-t border-neutral-200 pt-4">
+                      <p className="text-sm text-neutral-500 flex items-center gap-2">
+                        <LucideIcons.Lock className="w-4 h-4" />
+                        This class is archived — remarks are read-only.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-4 md:p-6 text-center">
@@ -1023,6 +1052,12 @@ export default function CommandantExamReports() {
           <h2 className="text-2xl font-semibold text-black">Exam Reports</h2>
           <p className="text-sm text-gray-500">Comprehensive exam analysis and student performance</p>
         </div>
+        {selectedClass && isArchivedClass && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+            <LucideIcons.Archive className="w-3.5 h-3.5" />
+            Archived — Read Only
+          </span>
+        )}
         {selectedClass && (
           <button
             onClick={handleViewComprehensive}
@@ -1059,14 +1094,14 @@ export default function CommandantExamReports() {
             <label className={`flex items-center gap-1 text-sm mb-1 ${!selectedClass ? 'text-indigo-700 font-medium' : 'text-neutral-600'}`}>
               <LucideIcons.School className="w-4 h-4" />Class
             </label>
-            <select
+            <SearchableSelect
               value={selectedClass}
-              onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); setSelectedExamType('') }}
-              className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 ${!selectedClass ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-neutral-200'}`}
-            >
-              <option value="">Select a class…</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              onChange={val => { setSelectedClass(val); setSelectedSubject(''); setSelectedExamType('') }}
+              options={classOptions}
+              placeholder="Select a class…"
+              searchPlaceholder="Search classes..."
+              className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+            />
           </div>
           {/* Subject */}
           <div>
@@ -1372,16 +1407,25 @@ export default function CommandantExamReports() {
                 )}
               </div>
 
-              {/* Add Remark Form */}
+              {/* Add Remark Form — hidden for archived classes */}
               <div className="border-t border-neutral-200 pt-4 mt-4">
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                <textarea
-                  value={newRemark}
-                  onChange={(e) => setNewRemark(e.target.value)}
-                  placeholder="Enter your remark..."
-                  rows={4}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                />
+                {isArchivedClass ? (
+                  <p className="text-sm text-neutral-500 flex items-center gap-2 mb-3">
+                    <LucideIcons.Lock className="w-4 h-4" />
+                    This class is archived — remarks are read-only.
+                  </p>
+                ) : (
+                  <>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                    <textarea
+                      value={newRemark}
+                      onChange={(e) => setNewRemark(e.target.value)}
+                      placeholder="Enter your remark..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                    />
+                  </>
+                )}
                 <div className="flex gap-3 justify-end mt-3">
                   <button
                     onClick={() => { setRemarksModalOpen(false); setCurrentRemarksData(null) }}
@@ -1390,23 +1434,25 @@ export default function CommandantExamReports() {
                   >
                     Close
                   </button>
-                  <button
-                    onClick={handleAddRemark}
-                    disabled={remarkSubmitting || !newRemark.trim()}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {remarkSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <LucideIcons.Send size={16} />
-                        Submit Remark
-                      </>
-                    )}
-                  </button>
+                  {!isArchivedClass && (
+                    <button
+                      onClick={handleAddRemark}
+                      disabled={remarkSubmitting || !newRemark.trim()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {remarkSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <LucideIcons.Send size={16} />
+                          Submit Remark
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

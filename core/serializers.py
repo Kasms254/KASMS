@@ -731,11 +731,23 @@ class ClassSerializer(serializers.ModelSerializer):
     current_enrollment = serializers.SerializerMethodField(read_only=True)
     enrollment_status = serializers.SerializerMethodField(read_only=True)
     subjects_count = serializers.SerializerMethodField(read_only=True)
+    status = serializers.SerializerMethodField(read_only=True)
+    closure_snapshot = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Class
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'current_enrollment')
+
+    def get_status(self, obj):
+        return 'archived' if obj.is_closed else 'operational'
+
+    def get_closure_snapshot(self, obj):
+        snap = obj.closure_snapshot
+        if not snap:
+            return None
+
+        return {k: v for k, v in snap.items() if k != 'student_ids'}
 
     def get_instructor_name(self, obj):
         return obj.instructor.get_full_name() if obj.instructor else "Not Assigned"
