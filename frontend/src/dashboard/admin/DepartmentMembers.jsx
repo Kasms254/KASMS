@@ -3,6 +3,7 @@ import { getDepartmentMemberships, addDepartmentMembership, updateDepartmentMemb
 import useToast from '../../hooks/useToast'
 import SearchableSelect from '../../components/SearchableSelect'
 import { shortRank } from '../../lib/rankUtils'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 // Rank keys in ascending seniority order (index 0 = lowest)
 const RANK_KEYS = [
