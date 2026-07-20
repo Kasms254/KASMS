@@ -67,8 +67,8 @@ const menuItems = [
       },
       {
         icon: 'FileText',
-        label: 'Assignments',
-        href: '/list/assignments',
+        label: 'Subjects',
+        href: '/list/subjects',
         visible: ['admin'],
       },
       {

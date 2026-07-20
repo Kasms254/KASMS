@@ -146,13 +146,13 @@ export default function ClassNotices() {
         const res = await api.getMyClasses()
         const list = Array.isArray(res) ? res : (res && Array.isArray(res.results) ? res.results : [])
         if (mounted) setClasses(list)
-      } catch {
-        // Silently handle load error
+      } catch (err) {
+        if (mounted) toast.error(err?.message || 'Failed to load your classes')
       }
     }
     loadClasses()
     return () => { mounted = false }
-  }, [])
+  }, [toast])
 
   // When a class is selected, fetch its subjects so instructor can
   // select the required subject for the notice.

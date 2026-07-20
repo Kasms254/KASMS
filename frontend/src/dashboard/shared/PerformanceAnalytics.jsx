@@ -592,45 +592,58 @@ export default function PerformanceAnalytics() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [error, _setError] = useState(null)
-
   // Selected filters
   const [selectedClass, setSelectedClass] = useState(searchParams.get('class') || '')
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
   // Instructors default to 'subject' view since they don't have access to class-level analytics
   const [viewMode, setViewMode] = useState(user?.role === 'instructor' ? 'subject' : 'class')
 
-  // Analytics data (cached per class/subject selection)
-  const { data: classPerformance, isPending: loadingClassPerf } = useQuery({
+  // Analytics data (cached per class/subject selection). Errors are left to
+  // react-query (no .catch swallowing) so a failed fetch is distinguishable
+  // from "nothing selected yet" — see the `error` banner rendered below.
+  const { data: classPerformance, isPending: loadingClassPerf, error: classPerfError } = useQuery({
     queryKey: ['class-performance', selectedClass],
-    queryFn: () => api.getClassPerformanceSummary(selectedClass).catch(() => null),
+    queryFn: () => api.getClassPerformanceSummary(selectedClass),
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
-  const { data: subjectComparison } = useQuery({
+  const { data: subjectComparison, error: subjectComparisonError } = useQuery({
     queryKey: ['subject-comparison', selectedClass],
-    queryFn: () => api.compareSubjects(selectedClass).catch(() => null),
+    queryFn: () => api.compareSubjects(selectedClass),
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
-  const { data: correlationData } = useQuery({
+  const { data: correlationData, error: correlationError } = useQuery({
     queryKey: ['attendance-correlation', selectedClass],
-    queryFn: () => api.getAttendanceCorrelation(selectedClass).catch(() => null),
+    queryFn: () => api.getAttendanceCorrelation(selectedClass),
     enabled: viewMode === 'class' && !!selectedClass,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
-  const { data: subjectPerformance, isPending: loadingSubjectPerf } = useQuery({
+  const { data: subjectPerformance, isPending: loadingSubjectPerf, error: subjectPerfError } = useQuery({
     queryKey: ['subject-performance', selectedSubject],
-    queryFn: () => api.getSubjectPerformanceSummary(selectedSubject).catch(() => null),
+    queryFn: () => api.getSubjectPerformanceSummary(selectedSubject),
     enabled: viewMode === 'subject' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
-  const { data: trendData, isPending: loadingTrends } = useQuery({
+  const { data: trendData, isPending: loadingTrends, error: trendsError } = useQuery({
     queryKey: ['subject-trends', selectedSubject],
-    queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90).catch(() => null),
+    queryFn: () => api.getSubjectTrendAnalysis(selectedSubject, 90),
     enabled: viewMode === 'trends' && !!selectedSubject,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   })
+  // Only show one banner at a time, scoped to whichever queries feed the active view
+  const error = viewMode === 'class'
+    ? (classPerfError || subjectComparisonError || correlationError)?.message
+    : viewMode === 'subject'
+    ? subjectPerfError?.message
+    : viewMode === 'trends'
+    ? trendsError?.message
+    : null
   const analyticsLoading = viewMode === 'class'
     ? (!!selectedClass && loadingClassPerf)
     : viewMode === 'subject'

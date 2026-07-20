@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as Icons from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import useToast from '../hooks/useToast'
 import { shortRank } from '../lib/rankUtils'
 
 function SortIcon({ columnKey, sortConfig }) {
@@ -29,6 +30,7 @@ const fmtPct = n => `${parseFloat(Number(n).toFixed(1))}%`
 
 
 export default function StudentPerformanceTable({ students, title = "All Students Performance" }) {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
@@ -77,6 +79,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
   // ── PDF Download ──────────────────────────────────────────────────────────
   const handleDownload = () => {
+   try {
     const subjectCount = subjectList.length
 
     // Use A3 landscape when there are many subjects, A4 otherwise
@@ -283,10 +286,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
     const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_')
     doc.save(`Performance_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`)
+   } catch (err) {
+     toast.error(err?.message || 'Failed to generate PDF report')
+   }
   }
 
   // ── Excel Download ────────────────────────────────────────────────────────
   const handleExcelDownload = async () => {
+   try {
     const ExcelJS = (await import('exceljs')).default
     const wb = new ExcelJS.Workbook()
     wb.creator = 'KASMS'
@@ -385,6 +392,9 @@ export default function StudentPerformanceTable({ students, title = "All Student
     a.download = `Performance_${safeTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
+   } catch (err) {
+     toast.error(err?.message || 'Failed to generate Excel report')
+   }
   }
 
   // Sticky column widths (px) for left freeze

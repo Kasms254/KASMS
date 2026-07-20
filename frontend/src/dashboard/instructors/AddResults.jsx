@@ -297,7 +297,12 @@ export default function AddResults() {
       }
 
     } catch (err) {
-      toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : 'Failed to save results')
+      const d = err?.data
+      if (d && typeof d === 'object' && !Array.isArray(d)) {
+        toast.error(Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | '))
+      } else {
+        toast.error(err?.message || 'Failed to save results')
+      }
     } finally { setSaving(false) }
   }
 

@@ -135,9 +135,12 @@ export default function CertificateTemplates() {
       resetForm()
       await load()
     } catch (err) {
-      const details = err?.data || err?.message || 'Failed to save template'
-      const msg = typeof details === 'string' ? details : JSON.stringify(details)
-      toast?.error?.(msg)
+      const d = err?.data
+      if (d && typeof d === 'object' && !Array.isArray(d)) {
+        toast?.error?.(Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | '))
+      } else {
+        toast?.error?.(err?.message || 'Failed to save template')
+      }
     } finally {
       setSubmitting(false)
     }

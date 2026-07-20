@@ -238,7 +238,7 @@ export default function Notices() {
         }
         setErrors(serverErrors)
       }
-      toast.error(err?.message || (err && err.data) ? JSON.stringify(err.data) : (editTarget ? 'Failed to update notice' : 'Failed to create notice'))
+      toast.error(err?.message || (editTarget ? 'Failed to update notice' : 'Failed to create notice'))
     } finally { setSaving(false) }
   }
 
