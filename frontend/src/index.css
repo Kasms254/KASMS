@@ -34,10 +34,8 @@ img, picture, video, canvas, svg, iframe, embed, object {
 
 html, body {
   background-color: #fff;
-  /* Stop the browser's auto/forced-dark heuristic from re-coloring
-     intentionally-dark elements (e.g. the maroon hero card) — this
-     app has no dark theme, so nothing should be auto-adjusted. */
-  forced-color-adjust: none;
+  /* Allow OS/browser forced-colors (high-contrast) mode to adjust colors for accessibility. */
+  forced-color-adjust: auto;
 }
 
 @media (max-width: 640px) {
