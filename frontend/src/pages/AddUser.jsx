@@ -151,7 +151,7 @@ export default function AddUser({ onSuccess } = {}) {
       case 'svc_number':
         if (!value) return 'Service number is required'
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
-        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        if (value.length > 14) return 'Service number cannot exceed 14 digits'
         return ''
       case 'phone_number':
         if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
@@ -193,9 +193,9 @@ export default function AddUser({ onSuccess } = {}) {
     const { name, value, type, checked } = e.target
     let newValue = type === 'checkbox' ? checked : value
 
-    // Only allow numeric input for service number (max 7 digits)
+    // Only allow numeric input for service number (max 14 digits)
     if (name === 'svc_number') {
-      newValue = value.replace(/\D/g, '').slice(0, 7)
+      newValue = value.replace(/\D/g, '').slice(0, 14)
     }
 
     // Only allow numeric input for phone number
@@ -407,7 +407,7 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Service number</label>
-                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={7} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={14} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.svc_number}</div>}
               </div>
 

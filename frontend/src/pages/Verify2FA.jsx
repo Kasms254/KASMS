@@ -238,7 +238,7 @@ export default function Verify2FA() {
           </form>
 
           <p className="mt-8 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} KASMS All Rights Reserved.
+            © {new Date().getFullYear()} SOS All Rights Reserved.
           </p>
         </div>
 
