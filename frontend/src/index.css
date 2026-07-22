@@ -29,6 +29,15 @@ img, picture, video, canvas, svg, iframe, embed, object {
   --radius-lg: 8px;
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
+  color-scheme: light;
+}
+
+html, body {
+  background-color: #fff;
+  /* Stop the browser's auto/forced-dark heuristic from re-coloring
+     intentionally-dark elements (e.g. the maroon hero card) — this
+     app has no dark theme, so nothing should be auto-adjusted. */
+  forced-color-adjust: none;
 }
 
 @media (max-width: 640px) {
