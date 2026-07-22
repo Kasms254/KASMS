@@ -221,7 +221,7 @@ export default function AdminLeadershipUsers() {
 
   function handleEditChange(key, value) {
     let nextValue = value
-    if (key === 'svc_number') nextValue = String(value).replace(/\D/g, '').slice(0, 7)
+    if (key === 'svc_number') nextValue = String(value).replace(/\D/g, '').slice(0, 14)
     if (key === 'phone_number') nextValue = String(value).replace(/\D/g, '')
     if (key === 'role' && value !== 'student') {
       setEditForm((form) => ({ ...form, [key]: nextValue, class_obj: '' }))
@@ -510,7 +510,7 @@ export default function AdminLeadershipUsers() {
                 </div>
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={7} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={14} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
                 </div>
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Role</label>

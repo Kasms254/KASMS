@@ -116,7 +116,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       case 'svc_number':
         if (!value) return 'Service number is required'
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
-        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        if (value.length > 14) return 'Service number cannot exceed 14 digits'
         return ''
       case 'phone_number':
         if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
@@ -274,9 +274,9 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
   function handleEditChange(key, value) {
     let newValue = value
 
-    // Only allow numeric input for service number (max 7 digits)
+    // Only allow numeric input for service number (max 14 digits)
     if (key === 'svc_number') {
-      newValue = value.replace(/\D/g, '').slice(0, 7)
+      newValue = value.replace(/\D/g, '').slice(0, 14)
     }
 
     // Only allow numeric input for phone number
@@ -829,7 +829,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={7} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={14} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                   {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
                 </div>
 
