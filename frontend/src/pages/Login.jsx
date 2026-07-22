@@ -130,21 +130,12 @@ export default function Login() {
               <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
-<<<<<<< Updated upstream
-              <h1 className="text-lg font-extrabold text-white text-center leading-tight">Kenya Army Schools Management System</h1>
-              <p className="mt-3 text-sm text-red-100 text-center">Manage Classes, Students, Exams And Results</p>
-              <div className="mt-6 flex gap-3 flex-wrap justify-center">
-                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5">
-                  <LucideIcons.FileText className="w-3.5 h-3.5" />
-                  Assignments
-=======
               <h1 className="text-lg font-extrabold text-white text-center leading-tight">ELIMUKA</h1>
               <p className="mt-3 text-sm text-red-100 text-center">A training platform built for growth</p>
               <div className="mt-6 grid grid-cols-3 gap-2 w-full">
                 <span className="px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center justify-center gap-1.5 whitespace-nowrap">
                   <LucideIcons.FileText className="w-3.5 h-3.5 shrink-0" />
                   Learning
->>>>>>> Stashed changes
                 </span>
                 <span className="px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center justify-center gap-1.5 whitespace-nowrap">
                   <LucideIcons.ClipboardList className="w-3.5 h-3.5 shrink-0" />

@@ -32,13 +32,6 @@ export default function IntroPage() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
-
   /*
   const features = [
     {
@@ -167,11 +160,7 @@ export default function IntroPage() {
                 loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
             >
-<<<<<<< Updated upstream
-              Streamline classes, student records, instructor management, examinations, and academic results on one seamless platform built to meet the precision, discipline, and operational standards of Kenya Army training institutions.
-=======
               A training platform designed to streamline training operations and enhance the learning experience.
->>>>>>> Stashed changes
             </p>
 
             {/* CTA Button */}
