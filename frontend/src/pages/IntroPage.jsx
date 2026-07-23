@@ -86,7 +86,7 @@ export default function IntroPage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-red-900 to-rose-800 rounded-full p-1 shadow-lg">
               <div className="w-full h-full bg-white rounded-full p-0.5">
-                <img src="/ka.png" alt="KASMS Logo" className="w-full h-full object-contain" />
+                <img src="/ka.png" alt="elimuka Logo" className="w-full h-full object-contain" />
               </div>
             </div>
             <div className="hidden sm:block">
