@@ -504,6 +504,14 @@ class User(AbstractUser):
     is_active = models.BooleanField(default=True)
     unit = models.CharField(null=True, blank=True, max_length=100)
 
+    # --- TOTP (RFC 6238) two-factor authentication ---
+    totp_secret_encrypted = models.TextField(blank=True, default='')
+    totp_enabled = models.BooleanField(default=False)
+    totp_confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_totp_verified_at = models.DateTimeField(null=True, blank=True)
+    totp_pending_secret_encrypted = models.TextField(blank=True, default='')
+    totp_pending_expires_at = models.DateTimeField(null=True, blank=True)
+
     objects = TenantAwareUserManager()
     all_objects = models.Manager()
 

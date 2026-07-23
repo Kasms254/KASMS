@@ -53,6 +53,7 @@ pydyf==0.12.1
 pyHanko==0.32.0
 pyhanko-certvalidator==0.29.0
 PyJWT==2.10.1
+pyotp==2.9.0
 pypdf==6.6.2
 pyphen==0.17.2
 python-bidi

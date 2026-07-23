@@ -363,6 +363,8 @@ class UserSerializer(serializers.ModelSerializer):
             'svc_number': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
+            'totp_secret_encrypted': {'write_only': True},
+            'totp_pending_secret_encrypted': {'write_only': True},
         }
         
     def get_full_name(self, obj):
@@ -552,7 +554,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        exclude = ['password']
+        exclude = ['password', 'totp_secret_encrypted', 'totp_pending_secret_encrypted']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_full_name(self, obj):

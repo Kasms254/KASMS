@@ -3,6 +3,7 @@ import * as Icons from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 import * as api from '../lib/api'
+import TOTPSettings from '../components/TOTPSettings'
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -395,6 +396,9 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Two-factor authentication */}
+      <TOTPSettings user={user} />
     </div>
   )
 }

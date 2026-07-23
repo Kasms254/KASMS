@@ -325,13 +325,25 @@ def login_view(request):
         can_login, error_msg = check_student_can_login(user)
         if not can_login:
             return Response({'error': error_msg}, status=status.HTTP_403_FORBIDDEN)
- 
+
     if not user.email:
         return Response(
             {'error': 'No email address on file. Contact your administrator.'},
             status=status.HTTP_403_FORBIDDEN,
         )
- 
+
+    if user.totp_enabled:
+        logger.info(
+            'Login requires TOTP | svc=%s | ip=%s',
+            svc_number, ip_address,
+            extra={'event': 'login_requires_totp'},
+        )
+        return Response({
+            'message': 'TOTP verification required.',
+            'requires_totp': True,
+            'svc_number': user.svc_number,
+        }, status=status.HTTP_200_OK)
+
     two_fa = _create_2fa_code(user)
     email_sent = _send_2fa_email(user, two_fa.code)
  

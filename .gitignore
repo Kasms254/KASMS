@@ -118,3 +118,5 @@ pytest.ini
 settings_test.py
 backup/
 certbot/
+logs/
+certificate_verification.log

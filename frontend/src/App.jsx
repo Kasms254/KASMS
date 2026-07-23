@@ -10,6 +10,7 @@ import CommandantOrCILayout from './components/CommandantOrCILayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
+import TOTPVerifyLogin from './pages/TOTPVerifyLogin'
 import IntroPage from './pages/IntroPage'
 import VerifyCertificate from './pages/VerifyCertificate'
 import useAuth from './hooks/useAuth'
@@ -51,6 +52,8 @@ const StudentCertificates = lazy(() => import('./dashboard/students/StudentCerti
 const CertificateTemplates = lazy(() => import('./dashboard/admin/CertificateTemplates'))
 const ClassStudents = lazy(() => import('./dashboard/admin/ClassStudents'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const TOTPSetup = lazy(() => import('./pages/TOTPSetup'))
+const TOTPRecovery = lazy(() => import('./pages/TOTPRecovery'))
 
 // Department & HOD components
 const Departments = lazy(() => import('./dashboard/admin/Departments'))
@@ -144,6 +147,14 @@ const App = () => {
 			{/* 2FA verification step — shown after login, before tokens are issued */}
 		<Route path="/verify-2fa" element={<Verify2FA />} />
 
+			{/* TOTP verification step — shown after login instead of /verify-2fa for
+			    users who have an authenticator app enabled */}
+		<Route path="/verify-totp" element={<TOTPVerifyLogin />} />
+
+			{/* Lost-authenticator recovery — identity re-verified via email OTP,
+			    no auth required (mirrors /verify-2fa, not behind ProtectedRoute) */}
+		<Route path="/totp-recovery" element={<TOTPRecovery />} />
+
 			{/* Change password page — requires auth but skips the mustChangePassword redirect to avoid loops */}
 		<Route path="/change-password" element={<ProtectedRoute skipMustChangeRedirect><ChangePassword /></ProtectedRoute>} />
 
@@ -151,6 +162,9 @@ const App = () => {
 		<Route path="/profile" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 			<Route index element={<ProfilePage />} />
 		</Route>
+
+		{/* Enable authenticator app — requires an existing session */}
+		<Route path="/totp-setup" element={<ProtectedRoute><TOTPSetup /></ProtectedRoute>} />
 
 		{/* IMPORTANT: Specific routes MUST come before general routes */}
 
