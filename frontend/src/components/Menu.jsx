@@ -246,6 +246,12 @@ const menuItems = [
         visible: ['chief_of_training'],
       },
       {
+        icon: 'BarChart3',
+        label: 'Analytics',
+        href: '/cot/analytics',
+        visible: ['chief_of_training'],
+      },
+      {
         icon: 'FileText',
         label: 'School Reports',
         href: '/cot/reports',

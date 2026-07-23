@@ -2127,6 +2127,10 @@ export async function getCOTDashboard() {
   return request('/api/cot/reports/dashboard/')
 }
 
+export async function getCOTAnalytics() {
+  return request('/api/cot/reports/analytics/')
+}
+
 export async function getCOTReports(params = '') {
   const q = params ? `?${params}` : ''
   return request(`/api/cot/reports/${q}`)
@@ -2449,6 +2453,7 @@ export default {
   downloadCommandantReportPdf,
   // Chief of Training
   getCOTDashboard,
+  getCOTAnalytics,
   getCOTReports,
   getCOTReportDetail,
   downloadCOTReportPdf,

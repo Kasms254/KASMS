@@ -68,6 +68,7 @@ const CommandantReportDetail = lazy(() => import('./dashboard/commandants/Comman
 
 // Chief of Training components
 const COTDashboard = lazy(() => import('./dashboard/chief_of_training/COTDashboard'))
+const COTAnalytics = lazy(() => import('./dashboard/chief_of_training/COTAnalytics'))
 const COTReports = lazy(() => import('./dashboard/chief_of_training/COTReports'))
 const COTReportDetail = lazy(() => import('./dashboard/chief_of_training/COTReportDetail'))
 const CommandantDepartments = lazy(() => import('./dashboard/commandants/CommandantDepartments'))
@@ -367,6 +368,7 @@ const App = () => {
 
 			{/* Chief of Training sub-routes */}
 			<Route path="/cot" element={<ChiefOfTrainingLayout />}>
+				<Route path="analytics" element={<COTAnalytics />} />
 				<Route path="reports" element={<COTReports />} />
 				<Route path="reports/:id" element={<COTReportDetail />} />
 			</Route>
