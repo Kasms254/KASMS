@@ -131,7 +131,7 @@ export default function Login() {
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
               <h1 className="text-lg font-extrabold text-white text-center leading-tight">ELIMUKA</h1>
-              <p className="mt-3 text-sm text-red-100 text-center">A training platform built for growth</p>
+              <p className="mt-3 text-sm text-red-100 text-center">A Training Platform</p>
               <div className="mt-6 grid grid-cols-3 gap-2 w-full">
                 <span className="px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center justify-center gap-1.5 whitespace-nowrap">
                   <LucideIcons.FileText className="w-3.5 h-3.5 shrink-0" />
@@ -288,7 +288,7 @@ export default function Login() {
           </p>
 
           <p className="mt-4 text-center text-sm text-gray-500">
-                         © {new Date().getFullYear()} SOS All Rights Reserved.
+                         © {new Date().getFullYear()} KACS All Rights Reserved.
           </p>
 
         </div>

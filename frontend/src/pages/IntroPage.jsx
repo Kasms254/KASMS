@@ -160,7 +160,7 @@ export default function IntroPage() {
                 loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
             >
-              A training platform designed to streamline training operations and enhance the learning experience.
+              A platform designed to streamline training and enhance the learning experience.
             </p>
 
             {/* CTA Button */}
@@ -257,7 +257,7 @@ export default function IntroPage() {
         <div className="px-6 md:px-12 lg:px-20">
           <div className="max-w-6xl mx-auto text-center">
             <p className="text-gray-500 text-sm">
-              © {new Date().getFullYear()} SOS All Rights Reserved
+              © {new Date().getFullYear()} KACS All Rights Reserved
             </p>
           </div>
         </div>
