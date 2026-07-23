@@ -504,7 +504,6 @@ class User(AbstractUser):
     is_active = models.BooleanField(default=True)
     unit = models.CharField(null=True, blank=True, max_length=100)
 
-    # --- TOTP (RFC 6238) two-factor authentication ---
     totp_secret_encrypted = models.TextField(blank=True, default='')
     totp_enabled = models.BooleanField(default=False)
     totp_confirmed_at = models.DateTimeField(null=True, blank=True)

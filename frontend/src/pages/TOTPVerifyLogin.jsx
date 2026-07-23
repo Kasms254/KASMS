@@ -13,9 +13,6 @@ export default function TOTPVerifyLogin() {
   const navigate = useNavigate()
   const { verifyTOTP, clearTotpPending, requiresTOTP, user, loading: authLoading } = useAuth()
 
-  // Guard: if already authenticated (verify just completed, or back-navigated
-  // here while logged in) go straight to dashboard. If there's no pending
-  // TOTP login attempt, go back to login. Mirrors Verify2FA's guard.
   useEffect(() => {
     if (authLoading) return
     if (user) {
