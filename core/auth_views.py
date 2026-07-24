@@ -16,6 +16,7 @@ from django.core.cache import cache
 from .models import Enrollment, SchoolMembership, TwoFactorCode
 from .cookie_utils import denylist_access_token
 from .serializers import UserListSerializer, SchoolMembershipSerializer
+from .rate_limiting import LockoutGuard, get_client_ip
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
@@ -23,90 +24,34 @@ logger = logging.getLogger(__name__)
 
 
 LOGIN_MAX_ATTEMPTS = getattr(settings, 'LOGIN_MAX_ATTEMPTS', 5)
+LOGIN_IP_MAX_ATTEMPTS = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
 LOGIN_LOCKOUT_DURATION = getattr(settings, 'LOGIN_LOCKOUT_DURATION', 1800)
 LOGIN_ATTEMPT_WINDOW = getattr(settings, 'LOGIN_ATTEMPT_WINDOW', 300)
 
+_get_client_ip = get_client_ip
 
-def _get_client_ip(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        return x_forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'unknown')
-
-def _cache_keys(svc_number, ip_address=None):
-    safe_svc = (svc_number or 'unknown').replace(' ', '_')
-    keys = {
-        'acct_failures':  f'login:failures:acct:{safe_svc}',
-        'acct_lockout':   f'login:lockout:acct:{safe_svc}',
-    }
-    if ip_address:
-        keys['ip_failures'] = f'login:failures:ip:{ip_address}'
-        keys['ip_lockout']  = f'login:lockout:ip:{ip_address}'
-    return keys
+_login_guard = LockoutGuard(
+    namespace='login',
+    max_attempts=LOGIN_MAX_ATTEMPTS,
+    ip_max_attempts=LOGIN_IP_MAX_ATTEMPTS,
+    lockout_duration=LOGIN_LOCKOUT_DURATION,
+    attempt_window=LOGIN_ATTEMPT_WINDOW,
+    log_label='Login',
+    locked_message='Account locked due to too many failed login attempts, Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed login attempts from this location. Try again in {minutes} minute(s)',
+)
 
 
 def _check_lockout(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
+    return _login_guard.check(svc_number, ip_address)
 
-    acct_locked_until = cache.get(keys['acct_lockout'])
-    if acct_locked_until:
-        remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
-        minutes = remaining // 60 + (1 if remaining % 60 else 0)
-        return True, (
-            f'Account locked due to too many failed login attempts, '
-            f'Try again in {minutes} minute(s)'
-        ), remaining
-
-    if ip_address:
-        ip_locked_until = cache.get(keys['ip_lockout'])
-        if ip_locked_until:
-            remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
-            minutes = remaining // 60 + (1 if remaining % 60 else 0)
-            return True, (
-                f'Too many failed login attempts from this location. '
-                f'Try again in {minutes} minute(s)'
-            ), remaining
-
-    return False, None, 0
 
 def _record_failed_login(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
-    locked = False
+    return _login_guard.record_failure(svc_number, ip_address)
 
-    acct_count = cache.get(keys['acct_failures'], 0) + 1
-    cache.set(keys['acct_failures'], acct_count, timeout=LOGIN_ATTEMPT_WINDOW)
-
-    if acct_count >= LOGIN_MAX_ATTEMPTS:
-        lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-        cache.set(keys['acct_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
-        locked = True
-        logger.warning(
-            'Login lockout triggered | key=%s | attempts=%d',
-            keys['acct_failures'], acct_count,
-            extra={'event': 'login_lockout'},
-        )
-
-    if ip_address and 'ip_failures' in keys:
-        ip_limit = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
-        ip_count = cache.get(keys['ip_failures'], 0) + 1
-        cache.set(keys['ip_failures'], ip_count, timeout=LOGIN_ATTEMPT_WINDOW)
-
-        if ip_count >= ip_limit:
-            lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-            cache.set(keys['ip_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
-            locked = True
-            logger.warning(
-                'IP login lockout triggered | ip=%s | attempts=%d',
-                ip_address, ip_count,
-                extra={'event': 'ip_login_lockout'},
-            )
-
-    remaining = max(0, LOGIN_MAX_ATTEMPTS - acct_count)
-    return locked, remaining
 
 def _clear_failed_login(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
-    cache.delete_many(list(keys.values()))
+    return _login_guard.clear(svc_number, ip_address)
 
 def _get_tokens_for_user(user, session_id=None):
 

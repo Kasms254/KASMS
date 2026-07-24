@@ -5,7 +5,6 @@ from datetime import timedelta
 import pyotp
 from django.conf import settings
 from django.contrib.auth import authenticate
-from django.core.cache import cache
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -16,11 +15,9 @@ from rest_framework.response import Response
 from .encryption import encrypt_value, decrypt_value
 from .models import SchoolMembership, TwoFactorCode
 from .serializers import UserListSerializer
+from .rate_limiting import LockoutGuard, get_client_ip
 from .auth_views import (
-    _get_client_ip,
-    _check_lockout,
-    _record_failed_login,
-    _clear_failed_login,
+    _login_guard,
     _get_tokens_for_user,
     _stamp_initial_activity,
     _set_token_cookies,
@@ -31,89 +28,79 @@ from .auth_views import (
 
 logger = logging.getLogger(__name__)
 
+_get_client_ip = get_client_ip
+
 TOTP_ISSUER_NAME = getattr(settings, 'TOTP_ISSUER_NAME', 'KASMS')
 TOTP_ENROLLMENT_EXPIRY_MINUTES = getattr(settings, 'TOTP_ENROLLMENT_EXPIRY_MINUTES', 10)
 TOTP_MAX_ATTEMPTS = getattr(settings, 'TOTP_MAX_ATTEMPTS', 5)
+TOTP_IP_MAX_ATTEMPTS = getattr(settings, 'TOTP_IP_MAX_ATTEMPTS', TOTP_MAX_ATTEMPTS * 3)
 TOTP_LOCKOUT_DURATION = getattr(settings, 'TOTP_LOCKOUT_DURATION', 1800)
 TOTP_ATTEMPT_WINDOW = getattr(settings, 'TOTP_ATTEMPT_WINDOW', 300)
 
+TOTP_RECOVERY_MAX_ATTEMPTS = getattr(settings, 'TOTP_RECOVERY_MAX_ATTEMPTS', 5)
+TOTP_RECOVERY_IP_MAX_ATTEMPTS = getattr(settings, 'TOTP_RECOVERY_IP_MAX_ATTEMPTS', TOTP_RECOVERY_MAX_ATTEMPTS * 3)
+TOTP_RECOVERY_LOCKOUT_DURATION = getattr(settings, 'TOTP_RECOVERY_LOCKOUT_DURATION', 1800)
+TOTP_RECOVERY_ATTEMPT_WINDOW = getattr(settings, 'TOTP_RECOVERY_ATTEMPT_WINDOW', 300)
 
-def _totp_cache_keys(svc_number, ip_address=None):
-    safe_svc = (svc_number or 'unknown').replace(' ', '_')
-    keys = {
-        'acct_failures': f'totp:failures:acct:{safe_svc}',
-        'acct_lockout': f'totp:lockout:acct:{safe_svc}',
-    }
-    if ip_address:
-        keys['ip_failures'] = f'totp:failures:ip:{ip_address}'
-        keys['ip_lockout'] = f'totp:lockout:ip:{ip_address}'
-    return keys
+TOTP_SETTINGS_MAX_ATTEMPTS = getattr(settings, 'TOTP_SETTINGS_MAX_ATTEMPTS', 5)
+TOTP_SETTINGS_IP_MAX_ATTEMPTS = getattr(settings, 'TOTP_SETTINGS_IP_MAX_ATTEMPTS', TOTP_SETTINGS_MAX_ATTEMPTS * 3)
+TOTP_SETTINGS_LOCKOUT_DURATION = getattr(settings, 'TOTP_SETTINGS_LOCKOUT_DURATION', 1800)
+TOTP_SETTINGS_ATTEMPT_WINDOW = getattr(settings, 'TOTP_SETTINGS_ATTEMPT_WINDOW', 300)
+
+# Login-time TOTP code verification — unchanged namespace/thresholds from
+# before the LockoutGuard migration.
+_totp_guard = LockoutGuard(
+    namespace='totp',
+    max_attempts=TOTP_MAX_ATTEMPTS,
+    ip_max_attempts=TOTP_IP_MAX_ATTEMPTS,
+    lockout_duration=TOTP_LOCKOUT_DURATION,
+    attempt_window=TOTP_ATTEMPT_WINDOW,
+    log_label='TOTP',
+    locked_message='Too many failed authenticator attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed authenticator attempts from this location. Try again in {minutes} minute(s)',
+)
+
+# "Forgot authenticator" recovery — its own namespace, independent of both
+# `_login_guard` (password login) and `_totp_guard` (login-time TOTP code),
+# so a failed recovery attempt can never lock a user out of ordinary login
+# or vice versa.
+_totp_recovery_guard = LockoutGuard(
+    namespace='totp-recovery',
+    max_attempts=TOTP_RECOVERY_MAX_ATTEMPTS,
+    ip_max_attempts=TOTP_RECOVERY_IP_MAX_ATTEMPTS,
+    lockout_duration=TOTP_RECOVERY_LOCKOUT_DURATION,
+    attempt_window=TOTP_RECOVERY_ATTEMPT_WINDOW,
+    log_label='TOTP recovery',
+    locked_message='Too many failed recovery attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed recovery attempts from this location. Try again in {minutes} minute(s)',
+)
+
+# Self-service TOTP settings actions (enroll start/confirm, disable) — all
+# re-authentication-style (password/code re-entry) on an already
+# authenticated session, so they get the same layered protection as login,
+# but keyed by the user's immutable id rather than svc_number.
+_totp_settings_guard = LockoutGuard(
+    namespace='totp-settings',
+    max_attempts=TOTP_SETTINGS_MAX_ATTEMPTS,
+    ip_max_attempts=TOTP_SETTINGS_IP_MAX_ATTEMPTS,
+    lockout_duration=TOTP_SETTINGS_LOCKOUT_DURATION,
+    attempt_window=TOTP_SETTINGS_ATTEMPT_WINDOW,
+    log_label='TOTP settings',
+    locked_message='Too many failed attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed attempts from this location. Try again in {minutes} minute(s)',
+)
 
 
 def _check_totp_lockout(svc_number, ip_address=None):
-    keys = _totp_cache_keys(svc_number, ip_address)
-
-    acct_locked_until = cache.get(keys['acct_lockout'])
-    if acct_locked_until:
-        remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
-        minutes = remaining // 60 + (1 if remaining % 60 else 0)
-        return True, (
-            f'Too many failed authenticator attempts. '
-            f'Try again in {minutes} minute(s)'
-        ), remaining
-
-    if ip_address:
-        ip_locked_until = cache.get(keys['ip_lockout'])
-        if ip_locked_until:
-            remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
-            minutes = remaining // 60 + (1 if remaining % 60 else 0)
-            return True, (
-                f'Too many failed authenticator attempts from this location. '
-                f'Try again in {minutes} minute(s)'
-            ), remaining
-
-    return False, None, 0
+    return _totp_guard.check(svc_number, ip_address)
 
 
 def _record_totp_failed(svc_number, ip_address=None):
-    keys = _totp_cache_keys(svc_number, ip_address)
-    locked = False
-
-    acct_count = cache.get(keys['acct_failures'], 0) + 1
-    cache.set(keys['acct_failures'], acct_count, timeout=TOTP_ATTEMPT_WINDOW)
-
-    if acct_count >= TOTP_MAX_ATTEMPTS:
-        lockout_until = timezone.now() + timedelta(seconds=TOTP_LOCKOUT_DURATION)
-        cache.set(keys['acct_lockout'], lockout_until, timeout=TOTP_LOCKOUT_DURATION)
-        locked = True
-        logger.warning(
-            'TOTP lockout triggered | key=%s | attempts=%d',
-            keys['acct_failures'], acct_count,
-            extra={'event': 'totp_lockout'},
-        )
-
-    if ip_address and 'ip_failures' in keys:
-        ip_limit = TOTP_MAX_ATTEMPTS * 3
-        ip_count = cache.get(keys['ip_failures'], 0) + 1
-        cache.set(keys['ip_failures'], ip_count, timeout=TOTP_ATTEMPT_WINDOW)
-
-        if ip_count >= ip_limit:
-            lockout_until = timezone.now() + timedelta(seconds=TOTP_LOCKOUT_DURATION)
-            cache.set(keys['ip_lockout'], lockout_until, timeout=TOTP_LOCKOUT_DURATION)
-            locked = True
-            logger.warning(
-                'TOTP IP lockout triggered | ip=%s | attempts=%d',
-                ip_address, ip_count,
-                extra={'event': 'totp_ip_lockout'},
-            )
-
-    remaining = max(0, TOTP_MAX_ATTEMPTS - acct_count)
-    return locked, remaining
+    return _totp_guard.record_failure(svc_number, ip_address)
 
 
 def _clear_totp_failed(svc_number, ip_address=None):
-    keys = _totp_cache_keys(svc_number, ip_address)
-    cache.delete_many(list(keys.values()))
+    return _totp_guard.clear(svc_number, ip_address)
 
 
 def _verify_totp_code(secret_plain, code):
@@ -166,9 +153,20 @@ def totp_enroll_start_view(request):
     if blocked:
         return blocked
 
+    ip_address = _get_client_ip(request)
+    is_locked, lockout_msg, remaining_seconds = _totp_settings_guard.check(str(user.id), ip_address)
+    if is_locked:
+        return Response(
+            {'error': lockout_msg, 'locked': True, 'retry_after_seconds': remaining_seconds},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     password = request.data.get('password')
     if not password or not user.check_password(password):
+        _totp_settings_guard.record_failure(str(user.id), ip_address)
         return Response({'error': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _totp_settings_guard.clear(str(user.id), ip_address)
 
     secret = pyotp.random_base32()
     user.totp_pending_secret_encrypted = encrypt_value(secret)
@@ -200,6 +198,14 @@ def totp_enroll_confirm_view(request):
     if blocked:
         return blocked
 
+    ip_address = _get_client_ip(request)
+    is_locked, lockout_msg, remaining_seconds = _totp_settings_guard.check(str(user.id), ip_address)
+    if is_locked:
+        return Response(
+            {'error': lockout_msg, 'locked': True, 'retry_after_seconds': remaining_seconds},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     code = (request.data.get('code') or '').strip()
 
     if not user.totp_pending_secret_encrypted:
@@ -219,12 +225,15 @@ def totp_enroll_confirm_view(request):
 
     pending_secret = decrypt_value(user.totp_pending_secret_encrypted)
     if not _verify_totp_code(pending_secret, code):
+        _totp_settings_guard.record_failure(str(user.id), ip_address)
         logger.info(
             'TOTP enrollment confirm failed | user_id=%s',
             user.id,
             extra={'event': 'totp_enroll_confirm_fail'},
         )
         return Response({'error': 'Invalid code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _totp_settings_guard.clear(str(user.id), ip_address)
 
     now = timezone.now()
     user.totp_secret_encrypted = user.totp_pending_secret_encrypted
@@ -254,9 +263,20 @@ def totp_disable_view(request):
     if blocked:
         return blocked
 
+    ip_address = _get_client_ip(request)
+    is_locked, lockout_msg, remaining_seconds = _totp_settings_guard.check(str(user.id), ip_address)
+    if is_locked:
+        return Response(
+            {'error': lockout_msg, 'locked': True, 'retry_after_seconds': remaining_seconds},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     password = request.data.get('password')
     if not password or not user.check_password(password):
+        _totp_settings_guard.record_failure(str(user.id), ip_address)
         return Response({'error': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    _totp_settings_guard.clear(str(user.id), ip_address)
 
     user.totp_enabled = False
     user.totp_secret_encrypted = ''
@@ -319,7 +339,12 @@ def totp_verify_login_view(request):
         )
 
     _clear_totp_failed(svc_number, ip_address)
-    _clear_failed_login(svc_number, ip_address)
+    # Belt-and-suspenders: login_view already clears the LOGIN namespace as
+    # soon as the password check succeeds, but a full successful auth here
+    # (password + TOTP code) is an unambiguous proof the password was
+    # correct, so also clear any stray LOGIN-namespace counter for this
+    # account directly.
+    _login_guard.clear(svc_number, ip_address)
 
     user.last_totp_verified_at = timezone.now()
     user.save(update_fields=['last_totp_verified_at'])
@@ -356,7 +381,7 @@ def totp_recover_start_view(request):
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
 
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    is_locked, lockout_msg, remaining_seconds = _totp_recovery_guard.check(svc_number, ip_address)
     if is_locked:
         return Response(
             {'error': lockout_msg, 'locked': True, 'retry_after_seconds': remaining_seconds},
@@ -368,13 +393,13 @@ def totp_recover_start_view(request):
     # exists, so credential-stuffing can't be used to enumerate accounts.
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number, ip_address)
+        _totp_recovery_guard.record_failure(svc_number, ip_address)
         return Response(
             {'message': 'If the account exists and has TOTP enabled, a recovery code has been sent.'},
             status=status.HTTP_200_OK,
         )
 
-    _clear_failed_login(svc_number, ip_address)
+    _totp_recovery_guard.clear(svc_number, ip_address)
 
     # Password is now verified, so it's safe to be specific — the caller
     # already proved they hold the account's credentials.
@@ -428,7 +453,7 @@ def totp_recover_confirm_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    is_locked, lockout_msg, remaining_seconds = _check_lockout(svc_number, ip_address)
+    is_locked, lockout_msg, remaining_seconds = _totp_recovery_guard.check(svc_number, ip_address)
     if is_locked:
         return Response(
             {'error': lockout_msg, 'locked': True, 'retry_after_seconds': remaining_seconds},
@@ -437,7 +462,7 @@ def totp_recover_confirm_view(request):
 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
-        _record_failed_login(svc_number, ip_address)
+        _totp_recovery_guard.record_failure(svc_number, ip_address)
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
     max_attempts = getattr(settings, 'TWO_FA_MAX_ATTEMPTS', 5)
@@ -466,7 +491,7 @@ def totp_recover_confirm_view(request):
 
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
-    _clear_failed_login(svc_number, ip_address)
+    _totp_recovery_guard.clear(svc_number, ip_address)
 
     user.totp_enabled = False
     user.totp_secret_encrypted = ''
