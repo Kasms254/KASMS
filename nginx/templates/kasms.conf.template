@@ -141,10 +141,14 @@ server {
         proxy_send_timeout    60s;
     }
 
-    # ── Login / 2FA — strict brute-force protection ───────────────────────────
+    # ── Login / 2FA / TOTP — strict brute-force protection ─────────────────────
     # Regex locations take priority over prefix locations in Nginx.
-    # These paths get 5 req/min instead of the 30 req/s api zone.
-    location ~ ^/api/auth/(login|2fa) {
+    # These paths get 5 req/min instead of the 30 req/s api zone. Covers
+    # login, both email-2FA endpoints, and every TOTP endpoint (enroll,
+    # verify, disable, recover) — the old regex only matched literal
+    # "login" or "2fa" right after /api/auth/, silently missing
+    # verify-2fa, resend-2fa, and all totp/* paths.
+    location ~ ^/api/auth/(login|verify-2fa|resend-2fa|totp/) {
         limit_req zone=auth burst=10 nodelay;
 
         proxy_pass         http://django_backend;
