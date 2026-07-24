@@ -6,30 +6,44 @@
 #
 # Usage:
 #   chmod +x scripts/restore_db.sh
-#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump
+#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump.age
+#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump      # pre-encryption backups still work
 #
 # What this script does:
 #   1. Verifies the backup file is readable
-#   2. Stops backend services so no sessions are open
-#   3. Waits for the PostgreSQL Docker container to be ready
-#   4. Drops and recreates the database (clean slate)
-#   5. Restores the backup using pg_restore (custom format)
-#   6. Verifies row counts in key tables
-#   7. Restarts backend services
+#   2. If the file ends in .age, decrypts it with the age private key,
+#      streaming straight into pg_restore — the decrypted dump is never
+#      written to disk. Requires AGE_KEY_FILE (default
+#      /etc/kasms/age/backup-key.txt) to be present on this host.
+#   3. Stops backend services so no sessions are open
+#   4. Waits for the PostgreSQL Docker container to be ready
+#   5. Drops and recreates the database (clean slate)
+#   6. Restores the backup using pg_restore (custom format)
+#   7. Verifies row counts in key tables
+#   8. Restarts backend services
 # =============================================================================
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
 BACKUP_FILE="${1:-}"
 if [ -z "${BACKUP_FILE}" ]; then
-    echo "Usage: $0 <backup_file.dump>"
-    echo "Example: $0 /var/backups/kasms/db_20260518_010000.dump"
+    echo "Usage: $0 <backup_file.dump[.age]>"
+    echo "Example: $0 /var/backups/kasms/db_20260518_010000.dump.age"
     exit 1
 fi
 
 if [ ! -f "${BACKUP_FILE}" ]; then
     echo "ERROR: Backup file not found: ${BACKUP_FILE}"
     exit 1
+fi
+
+ENCRYPTED=0
+if [[ "${BACKUP_FILE}" == *.age ]]; then
+    ENCRYPTED=1
+    require_age_decryption
 fi
 
 # ── Configuration (read from .env if present) ─────────────────────────────────
@@ -45,6 +59,7 @@ BACKUP_SIZE=$(du -sh "${BACKUP_FILE}" | cut -f1)
 echo "============================================================"
 echo "  KASMS PostgreSQL Restore"
 echo "  Backup file : ${BACKUP_FILE} (${BACKUP_SIZE})"
+echo "  Encrypted   : $([ "${ENCRYPTED}" -eq 1 ] && echo yes || echo no)"
 echo "  Target DB   : ${DB_NAME}"
 echo "  Container   : ${COMPOSE_SERVICE}"
 echo "============================================================"
@@ -85,14 +100,25 @@ docker compose exec -T "${COMPOSE_SERVICE}" \
 
 # ── Restore the backup ────────────────────────────────────────────────────────
 echo "[restore] Restoring backup (this may take several minutes for large databases)..."
-docker compose exec -T "${COMPOSE_SERVICE}" \
-    pg_restore \
-    --username="${DB_USER}" \
-    --dbname="${DB_NAME}" \
-    --no-owner \
-    --no-acl \
-    --format=custom \
-    < "${BACKUP_FILE}" || true
+if [ "${ENCRYPTED}" -eq 1 ]; then
+    age -d -i "${AGE_KEY_FILE}" "${BACKUP_FILE}" | \
+    docker compose exec -T "${COMPOSE_SERVICE}" \
+        pg_restore \
+        --username="${DB_USER}" \
+        --dbname="${DB_NAME}" \
+        --no-owner \
+        --no-acl \
+        --format=custom || true
+else
+    docker compose exec -T "${COMPOSE_SERVICE}" \
+        pg_restore \
+        --username="${DB_USER}" \
+        --dbname="${DB_NAME}" \
+        --no-owner \
+        --no-acl \
+        --format=custom \
+        < "${BACKUP_FILE}" || true
+fi
 
 echo ""
 echo "[restore] Restore pipeline completed."

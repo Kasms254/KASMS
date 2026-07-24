@@ -239,10 +239,10 @@ check_last_backup() {
     fi
 
     local newest
-    newest=$(find "${backup_dir}" -name "db_*.dump" -mmin -$((max_age_hours * 60)) 2>/dev/null | sort | tail -1)
+    newest=$(find "${backup_dir}" -name "db_*.dump.age" -mmin -$((max_age_hours * 60)) 2>/dev/null | sort | tail -1)
 
     if [ -z "${newest}" ]; then
-        FAILURES+=("No DB backup found in the last ${max_age_hours}h in ${backup_dir}. Check cron and scripts/local_backup.sh.")
+        FAILURES+=("No encrypted DB backup (db_*.dump.age) found in the last ${max_age_hours}h in ${backup_dir}. Check cron and scripts/local_backup.sh.")
     else
         echo "[monitor][OK] Last backup: $(basename "${newest}") ($(stat -c '%y' "${newest}" | cut -d. -f1))"
     fi
