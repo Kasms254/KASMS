@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, ClipboardList, BarChart3, ArrowRight, Target, Shield, Award } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import useAuth from '../hooks/useAuth'
 
 export default function IntroPage() {
@@ -32,13 +32,7 @@ export default function IntroPage() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
-
+  /*
   const features = [
     {
       icon: Users,
@@ -77,6 +71,7 @@ export default function IntroPage() {
       description: 'We are committed to continuous improvement and innovation, ensuring that KASMS remains at the forefront of educational technology solutions.',
     },
   ]
+  */
 
   return (
     <div className="min-h-screen bg-white relative">
@@ -91,17 +86,17 @@ export default function IntroPage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-red-900 to-rose-800 rounded-full p-1 shadow-lg">
               <div className="w-full h-full bg-white rounded-full p-0.5">
-                <img src="/ka.png" alt="KASMS Logo" className="w-full h-full object-contain" />
+                <img src="/ka.png" alt="elimuka Logo" className="w-full h-full object-contain" />
               </div>
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-red-900 font-bold text-lg tracking-tight">KASMS</h1>
-              <p className="text-gray-500 text-xs">Schools Management</p>
+              <h1 className="text-red-900 font-bold text-lg tracking-tight">Elimuka</h1>
+              <p className="text-gray-500 text-xs">Training Platform</p>
             </div>
           </div>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-8">
+          {/* <nav className="hidden md:flex items-center gap-8">
             <button
               onClick={() => scrollToSection('home')}
               className="text-gray-700 hover:text-red-900 font-medium text-sm transition-colors"
@@ -120,7 +115,7 @@ export default function IntroPage() {
             >
               Features
             </button>
-          </nav>
+          </nav> */}
 
           {/* Login button */}
           <button
@@ -154,11 +149,9 @@ export default function IntroPage() {
                 loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
             >
-              Kenya Army{' '}
-              <span className="text-transparent bg-clip-text bg-red-900">
-                Schools Management
-              </span>{' '}
-              System
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-900 to-rose-800">
+                Elimuka
+              </span>
             </h2>
 
             {/* Description */}
@@ -167,7 +160,7 @@ export default function IntroPage() {
                 loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
             >
-              Streamline classes, student records, instructor management, examinations, and academic results on one seamless platform built to meet the precision, discipline, and operational standards of Kenya Army training institutions.
+              A platform designed to streamline training and enhance the learning experience.
             </p>
 
             {/* CTA Button */}
@@ -188,11 +181,10 @@ export default function IntroPage() {
         </div>
       </section>
 
-      {/* About Us Section */}
+      {/* About Us Section
       <section id="about" className="py-20 bg-gray-50">
         <div className="px-6 md:px-12 lg:px-20">
           <div className="max-w-6xl mx-auto">
-            {/* Section Header */}
             <div className="text-center mb-16">
               <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
                 About <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-900 to-rose-700">KASMS</span>
@@ -203,7 +195,6 @@ export default function IntroPage() {
               </p>
             </div>
 
-            {/* About Items */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {aboutItems.map((item) => {
                 const Icon = item.icon
@@ -224,12 +215,12 @@ export default function IntroPage() {
           </div>
         </div>
       </section>
+      */}
 
-      {/* Features Section */}
+      {/* Features Section
       <section id="features" className="py-20 bg-white">
         <div className="px-6 md:px-12 lg:px-20">
           <div className="max-w-6xl mx-auto">
-            {/* Section Header */}
             <div className="text-center mb-16">
               <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
                 Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-900 to-rose-700">Features</span>
@@ -239,7 +230,6 @@ export default function IntroPage() {
               </p>
             </div>
 
-            {/* Feature Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {features.map((feature) => {
                 const Icon = feature.icon
@@ -260,13 +250,14 @@ export default function IntroPage() {
           </div>
         </div>
       </section>
+      */}
 
       {/* Footer */}
       <footer className="py-8 bg-white border-t border-gray-100">
         <div className="px-6 md:px-12 lg:px-20">
           <div className="max-w-6xl mx-auto text-center">
             <p className="text-gray-500 text-sm">
-              © {new Date().getFullYear()} KASMS — All Rights Reserved
+              © {new Date().getFullYear()} KACS All Rights Reserved
             </p>
           </div>
         </div>
