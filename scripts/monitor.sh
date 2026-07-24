@@ -1,24 +1,6 @@
-#!/bin/bash
-# =============================================================================
-# KASMS Production Monitor
-#
-# Checks: Django health endpoint, all Docker containers, disk usage, SSL expiry.
-# Sends email alert if any check fails.
-#
-# SETUP:
-#   1. Install mail client:  sudo apt-get install -y mailutils
-#   2. Configure .env with MONITOR_ALERT_EMAIL and DOMAIN.
-#   3. Add to crontab (runs every 5 minutes):
-#        crontab -e
-#        */5 * * * * /path/to/KASMS/scripts/monitor.sh >> /var/log/kasms_monitor.log 2>&1
-#   4. Optional Slack webhook:
-#        Set MONITOR_SLACK_WEBHOOK=https://hooks.slack.com/services/... in .env
-#
-# Exit codes:  0 = all OK,  1 = one or more checks failed
-# =============================================================================
+
 set -euo pipefail
 
-# ── Load config ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
@@ -34,14 +16,12 @@ DISK_WARN_PCT="${MONITOR_DISK_WARN:-80}"
 DISK_CRIT_PCT="${MONITOR_DISK_CRIT:-90}"
 SSL_WARN_DAYS="${MONITOR_SSL_WARN_DAYS:-21}"
 
-# ── State ─────────────────────────────────────────────────────────────────────
 FAILURES=()
 WARNINGS=()
 TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
 cd "${PROJECT_DIR}"
 
-# ── Helper: send alert ────────────────────────────────────────────────────────
 send_alert() {
     local subject="$1"
     local body="$2"
@@ -66,7 +46,6 @@ send_alert() {
     fi
 }
 
-# ── Check 1: Django /health/ endpoint ────────────────────────────────────────
 check_health_endpoint() {
     local http_code
     http_code=$(curl -s -o /tmp/kasms_health_resp.json \
@@ -89,7 +68,6 @@ check_health_endpoint() {
     rm -f /tmp/kasms_health_resp.json
 }
 
-# ── Check 2: Docker container status ─────────────────────────────────────────
 check_docker_containers() {
     local required_services=("db" "redis" "backend" "celery_worker" "celery_beat" "nginx")
 

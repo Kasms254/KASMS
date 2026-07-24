@@ -1,33 +1,9 @@
-#!/bin/bash
-# =============================================================================
-# PostgreSQL Database Restore – KASMS
-#
-# Run this on the server from /var/www/KASMS.
-#
-# Usage:
-#   chmod +x scripts/restore_db.sh
-#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump.age
-#   ./scripts/restore_db.sh /var/backups/kasms/db_20260518_010000.dump      # pre-encryption backups still work
-#
-# What this script does:
-#   1. Verifies the backup file is readable
-#   2. If the file ends in .age, decrypts it with the age private key,
-#      streaming straight into pg_restore — the decrypted dump is never
-#      written to disk. Requires AGE_KEY_FILE (default
-#      /etc/kasms/age/backup-key.txt) to be present on this host.
-#   3. Stops backend services so no sessions are open
-#   4. Waits for the PostgreSQL Docker container to be ready
-#   5. Drops and recreates the database (clean slate)
-#   6. Restores the backup using pg_restore (custom format)
-#   7. Verifies row counts in key tables
-#   8. Restarts backend services
-# =============================================================================
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
-# ── Arguments ─────────────────────────────────────────────────────────────────
 BACKUP_FILE="${1:-}"
 if [ -z "${BACKUP_FILE}" ]; then
     echo "Usage: $0 <backup_file.dump[.age]>"
@@ -46,7 +22,6 @@ if [[ "${BACKUP_FILE}" == *.age ]]; then
     require_age_decryption
 fi
 
-# ── Configuration (read from .env if present) ─────────────────────────────────
 if [ -f .env ]; then
     set -a; source .env; set +a
 fi
@@ -73,12 +48,10 @@ if [ "${CONFIRM}" != "yes" ]; then
     exit 1
 fi
 
-# ── Stop application services to close all DB connections ─────────────────────
 echo ""
 echo "[restore] Stopping backend services..."
 docker compose stop backend celery_worker celery_beat || true
 
-# ── Wait for PostgreSQL to be ready ──────────────────────────────────────────
 echo "[restore] Waiting for PostgreSQL container to be ready..."
 until docker compose exec -T "${COMPOSE_SERVICE}" \
     pg_isready -U "${DB_USER}" -d postgres -q; do
@@ -87,7 +60,6 @@ until docker compose exec -T "${COMPOSE_SERVICE}" \
 done
 echo "[restore] PostgreSQL is ready."
 
-# ── Drop and recreate the target database ────────────────────────────────────
 echo "[restore] Dropping existing database (if it exists)..."
 docker compose exec -T "${COMPOSE_SERVICE}" \
     psql -U "${DB_USER}" -d postgres \
@@ -98,7 +70,6 @@ docker compose exec -T "${COMPOSE_SERVICE}" \
     psql -U "${DB_USER}" -d postgres \
     -c "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\" ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8' TEMPLATE template0;"
 
-# ── Restore the backup ────────────────────────────────────────────────────────
 echo "[restore] Restoring backup (this may take several minutes for large databases)..."
 if [ "${ENCRYPTED}" -eq 1 ]; then
     age -d -i "${AGE_KEY_FILE}" "${BACKUP_FILE}" | \
@@ -123,7 +94,6 @@ fi
 echo ""
 echo "[restore] Restore pipeline completed."
 
-# ── Verify restore ────────────────────────────────────────────────────────────
 echo ""
 echo "[restore] Verifying restore – table row counts:"
 docker compose exec -T "${COMPOSE_SERVICE}" \
@@ -138,7 +108,6 @@ ORDER BY n_live_tup DESC
 LIMIT 20;
 "
 
-# ── Restart application services ──────────────────────────────────────────────
 echo ""
 echo "[restore] Restarting backend services..."
 docker compose start backend celery_worker celery_beat

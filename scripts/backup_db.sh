@@ -1,35 +1,9 @@
-#!/bin/bash
-# =============================================================================
-# PostgreSQL Database Backup – KASMS
-#
-# Run this on the OLD server BEFORE migration.
-#
-# Usage:
-#   chmod +x scripts/backup_db.sh
-#   ./scripts/backup_db.sh
-#
-# Output: kasms_backup_YYYYMMDD_HHMMSS.sql.gz.age  (in current directory)
-#
-# The backup uses pg_dump with --format=plain (SQL text) so it is:
-#   - Human-readable for verification (after decrypting)
-#   - Compatible with any PostgreSQL version >= source version
-#   - Safe for cross-version restores (14→16, etc.)
-# It is gzip-compressed then age-encrypted before ever touching disk — no
-# plaintext dump is written at any point.
-#
-# Requires an age key to already exist (run once): sudo ./scripts/generate_age_key.sh
-#
-# NOTE: Run on the OLD server. The database does NOT need to be in Docker.
-# This script works against a native PostgreSQL install OR a Docker container.
-# =============================================================================
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-# If running against a Docker container on the old server, set these to match
-# your old server's PostgreSQL credentials.
 DB_NAME="${DB_NAME:-kasms_db}"
 DB_USER="${DB_USER:-kasms_user}"
 DB_HOST="${DB_HOST:-localhost}"
@@ -46,7 +20,6 @@ echo "  Host     : ${DB_HOST}:${DB_PORT}"
 echo "  Output   : ${BACKUP_FILE}"
 echo "============================================================"
 
-# ── Method A: Native PostgreSQL (old server without Docker) ──────────────────
 set +e
 if command -v pg_dump &>/dev/null; then
     echo "[backup] Using native pg_dump..."

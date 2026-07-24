@@ -1,25 +1,4 @@
-#!/bin/bash
-# =============================================================================
-# Freeze Writes + Final Backup – KASMS
-#
-# Use this for the FINAL backup immediately before DNS cutover.
-# It quiesces the application (stops Django + Celery), waits for any
-# in-flight tasks to drain, then takes a backup of the fully quiet database.
-#
-# This guarantees the backup contains EVERY write that was committed before
-# the migration — zero data loss.
-#
-# Usage:
-#   chmod +x scripts/freeze_backup.sh
-#   ./scripts/freeze_backup.sh
-#
-# After this script completes:
-#   1. Review the backup file path printed at the end.
-#   2. Transfer the backup to the new server.
-#   3. Point DNS to the new server.
-#   4. The old server's services are STOPPED — do not restart them.
-#      If you need to rollback, run: docker compose up -d backend celery_worker celery_beat
-# =============================================================================
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,7 +15,6 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="kasms_FINAL_backup_${TIMESTAMP}.dump.age"
 TASK_DRAIN_TIMEOUT=60   # seconds to wait for Celery tasks to finish
 
-# Fail before touching any running services if encryption isn't ready.
 require_age_encryption
 
 echo "============================================================"

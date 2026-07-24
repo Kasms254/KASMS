@@ -1,17 +1,4 @@
-#!/bin/bash
-# =============================================================================
-# Local Backup – KASMS
-#
-# Backs up PostgreSQL DB, media files, and config to /var/backups/kasms/.
-# Every artifact is streamed through `age` and encrypted before it ever
-# touches disk — no plaintext dump, tarball, or .env copy is ever written.
-# Retention: 14 days.
-#
-# Requires an age key to already exist (run once): sudo ./scripts/generate_age_key.sh
-#
-# Add to crontab (run as kasms user):
-#   0 1 * * * /var/www/KASMS/scripts/local_backup.sh
-# =============================================================================
+
 set -euo pipefail
 
 cd /var/www/KASMS
@@ -79,9 +66,7 @@ tar -czf - -C / \
     | age -R "${AGE_RECIPIENTS_FILE}" -o "${CONFIG_OUT}"
 PIPE_STATUSES=("${PIPESTATUS[@]}")
 set -e
-# tar exits 2 (not fatal) when some of the listed files don't exist, e.g. no
-# Dockerfile in this checkout — archive whatever it found. Only a hard tar
-# failure (anything else non-zero) or an age failure should abort this leg.
+
 if [ "${PIPE_STATUSES[0]}" -eq 2 ]; then
     PIPE_STATUSES[0]=0
 fi
@@ -91,8 +76,7 @@ else
     FAILED=1
 fi
 
-# Retention — keep 14 days (applies to .age artifacts only; nothing else
-# is ever written to this directory)
+
 find "${BACKUP_BASE}" -type f -name '*.age' -mtime +14 -delete
 
 if [ "${FAILED}" -ne 0 ]; then

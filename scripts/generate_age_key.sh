@@ -1,27 +1,4 @@
-#!/bin/bash
-# =============================================================================
-# Generate age Backup Encryption Key – KASMS
-#
-# Idempotent: if a key already exists at AGE_KEY_FILE, this does nothing
-# except re-print the recipients file location. Safe to run repeatedly
-# (e.g. from a provisioning script) without ever overwriting an existing key.
-#
-# Creates:
-#   /etc/kasms/age/backup-key.txt   – PRIVATE key (mode 600, root-only)
-#   /etc/kasms/age/recipients.txt   – PUBLIC key(s) (mode 644)
-#
-# Only the recipients file is needed by the day-to-day backup scripts
-# (local_backup.sh, offsite_backup.sh, etc.) — encrypting to an age
-# recipient never requires the private key. Only scripts/restore_db.sh and
-# scripts/restore_media.sh need the private key, and only at restore time.
-#
-# This is what makes it safe to move backup-key.txt to offline/cold storage
-# later (see BACKUP_ENCRYPTION.md): once moved, backups keep working
-# unchanged; only restores need the operator to supply the key back.
-#
-# Usage:
-#   sudo ./scripts/generate_age_key.sh
-# =============================================================================
+
 set -euo pipefail
 
 AGE_DIR="${AGE_DIR:-/etc/kasms/age}"

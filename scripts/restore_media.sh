@@ -1,34 +1,9 @@
-#!/bin/bash
-# =============================================================================
-# Media Files Restore – KASMS
-#
-# Run this on the server from /var/www/KASMS.
-#
-# Usage:
-#   chmod +x scripts/restore_media.sh
-#   ./scripts/restore_media.sh /var/backups/kasms/media_20260518_010000.tar.gz.age
-#   ./scripts/restore_media.sh /var/backups/kasms/media_20260518_010000.tar.gz   # pre-encryption backups still work
-#   ./scripts/restore_media.sh <file> --yes   # skip confirmation prompt
-#
-# What this script does:
-#   1. Verifies the backup file is readable
-#   2. If the file ends in .age, decrypts it with the age private key,
-#      streaming straight into `tar -x` — the decrypted archive is never
-#      written to disk. Requires AGE_KEY_FILE (default
-#      /etc/kasms/age/backup-key.txt) to be present on this host.
-#   3. Extracts into the kasms_media_files Docker volume. This OVERWRITES
-#      any file with the same path but does not delete files that aren't
-#      in the archive — for a byte-for-byte restore, use a fresh volume.
-#
-# Run this alongside scripts/restore_db.sh for a full disaster recovery:
-# certificate/exam records in the database reference files stored here.
-# =============================================================================
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
-# ── Arguments ─────────────────────────────────────────────────────────────────
 BACKUP_FILE="${1:-}"
 if [ -z "${BACKUP_FILE}" ]; then
     echo "Usage: $0 <media_backup.tar.gz[.age]> [--yes]"
@@ -54,7 +29,6 @@ if [[ "${BACKUP_FILE}" == *.age ]]; then
     require_age_decryption
 fi
 
-# ── Configuration (read from .env if present) ─────────────────────────────────
 if [ -f .env ]; then
     set -a; source .env; set +a
 fi
@@ -82,7 +56,6 @@ if [ "${AUTO_YES}" -ne 1 ]; then
     fi
 fi
 
-# ── Restore ────────────────────────────────────────────────────────────────────
 echo ""
 echo "[restore-media] Extracting into ${MEDIA_VOLUME}..."
 if [ "${ENCRYPTED}" -eq 1 ]; then

@@ -1,27 +1,6 @@
-#!/bin/bash
-# =============================================================================
-# Offsite Backup – KASMS
-#
-# Backs up PostgreSQL (custom format) + media files to a remote via rclone.
-# Both artifacts are streamed through `age` and encrypted before they ever
-# touch disk — the staging directory only ever holds .age ciphertext, never
-# a plaintext dump or tarball, even transiently. Retention: 14 days.
-#
-# Requires an age key to already exist (run once): sudo ./scripts/generate_age_key.sh
-#
-# SETUP (run once on the server):
-#   1. Install rclone:  curl https://rclone.org/install.sh | sudo bash
-#   2. Configure:       rclone config
-#      Name your remote "kasms-backup" (must match RCLONE_REMOTE below).
-#      For SFTP (backup to another server):
-#        rclone config → n → sftp → enter host, user, key path
-#   3. Test:            rclone lsd kasms-backup:
-#   4. Add to crontab (run as kasms user):
-#      0 2 * * * /var/www/KASMS/scripts/offsite_backup.sh
-# =============================================================================
+
 set -euo pipefail
 
-# ── Configuration ─────────────────────────────────────────────────────────────
 cd /var/www/KASMS
 if [ -f .env ]; then set -a; source .env; set +a; fi
 
@@ -40,12 +19,10 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DB_BACKUP_NAME="db_${TIMESTAMP}.dump.age"
 MEDIA_BACKUP_NAME="media_${TIMESTAMP}.tar.gz.age"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 alert() {
     echo "[offsite-backup] ALERT: $1"
 }
 
-# ── Preflight ─────────────────────────────────────────────────────────────────
 require_age_encryption
 
 if ! command -v rclone &>/dev/null; then
@@ -66,7 +43,6 @@ echo "  KASMS Offsite Backup — $(date)"
 echo "  Remote : ${RCLONE_DEST}"
 echo "============================================================"
 
-# ── Database Backup (encrypted, streamed — never written to disk in plain) ───
 echo ""
 echo "[offsite-backup] Backing up PostgreSQL database..."
 DB_OUT="${STAGING_DIR}/${DB_BACKUP_NAME}"
@@ -89,10 +65,6 @@ fi
 DB_SIZE=$(du -sh "${DB_OUT}" | cut -f1)
 echo "[offsite-backup]   Database backup: ${DB_SIZE} (encrypted)"
 
-# Integrity check — only possible while the private key is still on this
-# host. Once it's moved to offline storage (see BACKUP_ENCRYPTION.md), this
-# step is skipped; that's expected, not an error — verify those backups
-# from the offline key instead (e.g. a periodic restore drill).
 if age_key_available; then
     TABLE_COUNT=$(age -d -i "${AGE_KEY_FILE}" "${DB_OUT}" 2>/dev/null \
         | docker compose exec -T db pg_restore --list 2>/dev/null \
@@ -106,7 +78,6 @@ else
     echo "[offsite-backup]   Private key not present locally — skipping decrypt-verify (expected once the key has been moved offline)."
 fi
 
-# ── Media Files Backup (encrypted, streamed) ──────────────────────────────────
 echo ""
 echo "[offsite-backup] Backing up media files..."
 MEDIA_OUT="${STAGING_DIR}/${MEDIA_BACKUP_NAME}"
@@ -126,7 +97,6 @@ fi
 MEDIA_SIZE=$(du -sh "${MEDIA_OUT}" | cut -f1)
 echo "[offsite-backup]   Media backup: ${MEDIA_SIZE} (encrypted)"
 
-# ── Upload to Remote ──────────────────────────────────────────────────────────
 echo ""
 echo "[offsite-backup] Uploading to ${RCLONE_DEST}/..."
 
@@ -138,7 +108,6 @@ rclone copy "${MEDIA_OUT}" "${RCLONE_DEST}/" \
 
 echo "[offsite-backup] Upload complete."
 
-# ── Retention Policy (14 days) ────────────────────────────────────────────────
 echo ""
 echo "[offsite-backup] Applying retention (14 days)..."
 rclone delete "${RCLONE_DEST}/" --min-age 14d --include "*.dump.age" 2>/dev/null || true
@@ -149,7 +118,6 @@ echo "[offsite-backup] uploaded before this change are NOT matched by the"
 echo "[offsite-backup] patterns above and must be purged manually — see"
 echo "[offsite-backup] BACKUP_ENCRYPTION.md for the one-time cleanup steps."
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "[offsite-backup] Current remote backups:"
 rclone ls "${RCLONE_DEST}/" 2>/dev/null | tail -20
