@@ -83,6 +83,23 @@ _totp_settings_guard = LockoutGuard(
 )
 
 
+TWO_FA_GUARD_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_MAX_ATTEMPTS', 5)
+TWO_FA_GUARD_IP_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_IP_MAX_ATTEMPTS', TWO_FA_GUARD_MAX_ATTEMPTS * 3)
+TWO_FA_GUARD_LOCKOUT_DURATION = getattr(settings, 'TWO_FA_GUARD_LOCKOUT_DURATION', 1800)
+TWO_FA_GUARD_ATTEMPT_WINDOW = getattr(settings, 'TWO_FA_GUARD_ATTEMPT_WINDOW', 300)
+
+_otp_recovery_guard = LockoutGuard(
+    namespace='email-otp-recovery',
+    max_attempts=TWO_FA_GUARD_MAX_ATTEMPTS,
+    ip_max_attempts=TWO_FA_GUARD_IP_MAX_ATTEMPTS,
+    lockout_duration=TWO_FA_GUARD_LOCKOUT_DURATION,
+    attempt_window=TWO_FA_GUARD_ATTEMPT_WINDOW,
+    log_label='Email OTP recovery',
+    locked_message='Too many failed verification attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed verification attempts from this location. Try again in {minutes} minute(s)',
+)
+
+
 def _check_totp_lockout(svc_number, ip_address=None):
     return _totp_guard.check(svc_number, ip_address)
 
@@ -376,6 +393,12 @@ def totp_recover_start_view(request):
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_recovery_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {'error': otp_lockout_msg, 'locked': True, 'retry_after_seconds': otp_remaining_seconds},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
@@ -442,6 +465,13 @@ def totp_recover_confirm_view(request):
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_recovery_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {'error': otp_lockout_msg, 'locked': True, 'retry_after_seconds': otp_remaining_seconds},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
         _totp_recovery_guard.record_failure(svc_number, ip_address)
@@ -466,6 +496,12 @@ def totp_recover_confirm_view(request):
         two_fa.attempts += 1
         two_fa.save(update_fields=['attempts'])
         remaining = max_attempts - two_fa.attempts
+        is_now_otp_locked, _ = _otp_recovery_guard.record_failure(svc_number, ip_address)
+        if is_now_otp_locked:
+            return Response(
+                {'error': 'Too many failed attempts. Account temporarily locked.', 'locked': True},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         return Response(
             {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
             status=status.HTTP_400_BAD_REQUEST,
@@ -474,6 +510,7 @@ def totp_recover_confirm_view(request):
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
     _totp_recovery_guard.clear(svc_number, ip_address)
+    _otp_recovery_guard.clear(svc_number, ip_address)
 
     user.totp_enabled = False
     user.totp_secret_encrypted = ''

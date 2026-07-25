@@ -53,6 +53,24 @@ def _record_failed_login(svc_number, ip_address=None):
 def _clear_failed_login(svc_number, ip_address=None):
     return _login_guard.clear(svc_number, ip_address)
 
+
+TWO_FA_GUARD_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_MAX_ATTEMPTS', 5)
+TWO_FA_GUARD_IP_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_IP_MAX_ATTEMPTS', TWO_FA_GUARD_MAX_ATTEMPTS * 3)
+TWO_FA_GUARD_LOCKOUT_DURATION = getattr(settings, 'TWO_FA_GUARD_LOCKOUT_DURATION', 1800)
+TWO_FA_GUARD_ATTEMPT_WINDOW = getattr(settings, 'TWO_FA_GUARD_ATTEMPT_WINDOW', 300)
+
+
+_otp_guard = LockoutGuard(
+    namespace='email-otp',
+    max_attempts=TWO_FA_GUARD_MAX_ATTEMPTS,
+    ip_max_attempts=TWO_FA_GUARD_IP_MAX_ATTEMPTS,
+    lockout_duration=TWO_FA_GUARD_LOCKOUT_DURATION,
+    attempt_window=TWO_FA_GUARD_ATTEMPT_WINDOW,
+    log_label='Email OTP',
+    locked_message='Too many failed verification attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed verification attempts from this location. Try again in {minutes} minute(s)',
+)
+
 def _get_tokens_for_user(user, session_id=None):
 
     if session_id is None:
@@ -330,7 +348,18 @@ def verify_2fa_view(request):
             },
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {
+                'error': otp_lockout_msg,
+                'locked': True,
+                'retry_after_seconds': otp_remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
         _record_failed_login(svc_number, ip_address)
@@ -338,46 +367,53 @@ def verify_2fa_view(request):
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
- 
+
     max_attempts = getattr(settings, 'TWO_FA_MAX_ATTEMPTS', 5)
     recent_failures = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         created_at__gte=timezone.now() - timedelta(minutes=15),
     ).first()
- 
+
     if recent_failures and recent_failures.attempts >= max_attempts:
         return Response(
             {'error': 'Too many failed attempts. Please request a new code.'},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
     two_fa = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         expires_at__gt=timezone.now(),
     ).order_by('-created_at').first()
- 
+
     if not two_fa:
         return Response(
             {'error': 'No valid verification code found. Please login again.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
- 
+
     if not secrets.compare_digest(two_fa.code, code):
         two_fa.attempts += 1
         two_fa.save(update_fields=['attempts'])
         remaining = max_attempts - two_fa.attempts
+        is_now_otp_locked, _ = _otp_guard.record_failure(svc_number, ip_address)
+        if is_now_otp_locked:
+            return Response(
+                {'error': 'Too many failed attempts. Account temporarily locked.', 'locked': True},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         return Response(
             {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
- 
+
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
- 
+
     _clear_failed_login(svc_number, ip_address)
- 
+    _otp_guard.clear(svc_number, ip_address)
+
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)
 
@@ -427,7 +463,18 @@ def resend_2fa_view(request):
             },
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {
+                'error': otp_lockout_msg,
+                'locked': True,
+                'retry_after_seconds': otp_remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     from django.contrib.auth import authenticate
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
