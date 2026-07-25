@@ -1,5 +1,8 @@
+import logging
 import os
 from django.apps import AppConfig
+
+logger = logging.getLogger(__name__)
 
 
 class CoreConfig(AppConfig):
@@ -43,12 +46,30 @@ class CoreConfig(AppConfig):
             return
 
         backend = settings.CACHES.get('default', {}).get('BACKEND', '')
-        if 'locmem' in backend.lower():
-            raise ImproperlyConfigured(
-                "CACHES['default']['BACKEND'] is LocMemCache with DEBUG=False. "
-                "This cache is per-process only, but rate-limit lockout "
-                "counters, the JWT denylist, and session inactivity "
-                "tracking all need to be shared across every "
-                "worker/process. Set REDIS_URL (or otherwise configure a "
-                "shared cache backend) before running in production."
+        if 'locmem' not in backend.lower():
+            return
+
+        if os.getenv('ALLOW_LOCMEM_CACHE_IN_PRODUCTION', 'False') == 'True':
+
+            logger.warning(
+                "Booting with CACHES['default']['BACKEND']=LocMemCache in "
+                "production because ALLOW_LOCMEM_CACHE_IN_PRODUCTION=True "
+                "is set. Rate-limit lockout counters, the JWT denylist, "
+                "and session inactivity tracking are NOT shared across "
+                "workers/processes while this is active — each worker "
+                "enforces them independently. Set REDIS_URL and remove "
+                "this override as soon as Redis is available.",
             )
+            return
+
+        raise ImproperlyConfigured(
+            "CACHES['default']['BACKEND'] is LocMemCache with DEBUG=False. "
+            "This cache is per-process only, but rate-limit lockout "
+            "counters, the JWT denylist, and session inactivity "
+            "tracking all need to be shared across every "
+            "worker/process. Set REDIS_URL (or otherwise configure a "
+            "shared cache backend) before running in production. If you "
+            "need to deploy before Redis is ready, set "
+            "ALLOW_LOCMEM_CACHE_IN_PRODUCTION=True as a deliberate, "
+            "temporary override."
+        )
