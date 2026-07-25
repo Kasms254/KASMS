@@ -30,6 +30,37 @@ LOGIN_ATTEMPT_WINDOW = getattr(settings, 'LOGIN_ATTEMPT_WINDOW', 300)
 
 _get_client_ip = get_client_ip
 
+
+def _is_cross_origin_auth_request(request):
+
+    trusted_origins = set(getattr(settings, 'CORS_ALLOWED_ORIGINS', None) or [])
+
+    origin = request.META.get('HTTP_ORIGIN')
+    if origin:
+        return origin not in trusted_origins
+
+    referer = request.META.get('HTTP_REFERER')
+    if referer:
+        return not any(referer.startswith(o) for o in trusted_origins)
+
+    return False
+
+
+def _reject_if_cross_origin(request):
+    if not _is_cross_origin_auth_request(request):
+        return None
+    logger.warning(
+        'Blocked cross-origin auth request | path=%s | origin=%s',
+        request.path,
+        request.META.get('HTTP_ORIGIN') or request.META.get('HTTP_REFERER'),
+        extra={'event': 'login_csrf_blocked'},
+    )
+    return Response(
+        {'error': 'Request origin not allowed.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 _login_guard = LockoutGuard(
     namespace='login',
     max_attempts=LOGIN_MAX_ATTEMPTS,
@@ -208,6 +239,10 @@ def csrf_token_view(request):
 @permission_classes([AllowAny])
 def login_view(request):
 
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
+
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
@@ -327,6 +362,10 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_2fa_view(request):
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
+
     svc_number = request.data.get('svc_number')
     code = request.data.get('code', '').strip()
     password = request.data.get('password')
@@ -442,11 +481,14 @@ def verify_2fa_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_2fa_view(request):
- 
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
+
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
- 
+
     if not svc_number or not password:
         return Response(
             {'error': 'svc_number and password are required.'},

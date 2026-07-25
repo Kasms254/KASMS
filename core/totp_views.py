@@ -24,6 +24,7 @@ from .auth_views import (
     _create_2fa_code,
     _send_2fa_email,
     _mask_email,
+    _reject_if_cross_origin,
 )
 
 logger = logging.getLogger(__name__)
@@ -310,6 +311,9 @@ def totp_disable_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def totp_verify_login_view(request):
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
 
     svc_number = request.data.get('svc_number')
     code = (request.data.get('code') or '').strip()
@@ -381,6 +385,9 @@ def totp_verify_login_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def totp_recover_start_view(request):
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
 
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
@@ -446,6 +453,9 @@ def totp_recover_start_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def totp_recover_confirm_view(request):
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
 
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
