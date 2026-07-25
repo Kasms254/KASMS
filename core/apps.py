@@ -38,7 +38,8 @@ class CoreConfig(AppConfig):
         from django.conf import settings
         from django.core.exceptions import ImproperlyConfigured
 
-        if settings.DEBUG:
+        debug = os.getenv('DEBUG', 'False') == 'True'
+        if debug:
             return
 
         backend = settings.CACHES.get('default', {}).get('BACKEND', '')
