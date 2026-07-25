@@ -1,17 +1,11 @@
 #!/bin/bash
-# =============================================================================
-# Local Backup – KASMS
-#
-# Backs up PostgreSQL DB, media files, and config to /var/backups/kasms/.
-# Retention: 14 days.
-#
-# Add to crontab (run as kasms user):
-#   0 1 * * * /var/www/KASMS/scripts/local_backup.sh
-# =============================================================================
 set -euo pipefail
 
 cd /var/www/KASMS
 if [ -f .env ]; then set -a; source .env; set +a; fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
 DB_NAME="${DB_NAME:-kasms_db}"
 DB_USER="${DB_USER:-kasms_user}"
@@ -23,35 +17,73 @@ exec >> "$LOGFILE" 2>&1
 echo "========================================"
 echo "LOCAL BACKUP STARTED: $(date)"
 
+require_age_encryption
 mkdir -p "${BACKUP_BASE}"
+
+FAILED=0
 
 # Database
 echo "--- Database ---"
+DB_OUT="${BACKUP_BASE}/db_${TIMESTAMP}.dump.age"
+set +e
 docker compose exec -T db \
     pg_dump --username="${DB_USER}" --dbname="${DB_NAME}" \
     --format=custom --no-owner --no-acl \
-    > "${BACKUP_BASE}/db_${TIMESTAMP}.dump"
-echo "DB: $(du -sh ${BACKUP_BASE}/db_${TIMESTAMP}.dump | cut -f1)"
+    | age -R "${AGE_RECIPIENTS_FILE}" -o "${DB_OUT}"
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+set -e
+if check_pipeline_status "${DB_OUT}" "${PIPE_STATUSES[@]}"; then
+    echo "DB: $(du -sh "${DB_OUT}" | cut -f1) (encrypted)"
+else
+    FAILED=1
+fi
 
 # Media
 echo "--- Media ---"
+MEDIA_OUT="${BACKUP_BASE}/media_${TIMESTAMP}.tar.gz.age"
+set +e
 docker run --rm \
     -v kasms_media_files:/media:ro \
     alpine \
     tar -czf - -C /media . \
-    > "${BACKUP_BASE}/media_${TIMESTAMP}.tar.gz"
-echo "Media: $(du -sh ${BACKUP_BASE}/media_${TIMESTAMP}.tar.gz | cut -f1)"
+    | age -R "${AGE_RECIPIENTS_FILE}" -o "${MEDIA_OUT}"
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+set -e
+if check_pipeline_status "${MEDIA_OUT}" "${PIPE_STATUSES[@]}"; then
+    echo "Media: $(du -sh "${MEDIA_OUT}" | cut -f1) (encrypted)"
+else
+    FAILED=1
+fi
 
-# Config
+# Config (includes .env — this is secrets material, always encrypt)
 echo "--- Config ---"
-tar -czf "${BACKUP_BASE}/config_${TIMESTAMP}.tar.gz" \
-    /var/www/KASMS/.env \
-    /var/www/KASMS/docker-compose.yml \
-    /var/www/KASMS/Dockerfile 2>/dev/null || true
-echo "Config: $(du -sh ${BACKUP_BASE}/config_${TIMESTAMP}.tar.gz | cut -f1)"
+CONFIG_OUT="${BACKUP_BASE}/config_${TIMESTAMP}.tar.gz.age"
+set +e
+tar -czf - -C / \
+    var/www/KASMS/.env \
+    var/www/KASMS/docker-compose.yml \
+    var/www/KASMS/Dockerfile 2>/dev/null \
+    | age -R "${AGE_RECIPIENTS_FILE}" -o "${CONFIG_OUT}"
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+set -e
 
-# Retention — keep 14 days
-find "${BACKUP_BASE}" -type f -mtime +14 -delete
+if [ "${PIPE_STATUSES[0]}" -eq 2 ]; then
+    PIPE_STATUSES[0]=0
+fi
+if check_pipeline_status "${CONFIG_OUT}" "${PIPE_STATUSES[@]}"; then
+    echo "Config: $(du -sh "${CONFIG_OUT}" | cut -f1) (encrypted)"
+else
+    FAILED=1
+fi
+
+
+find "${BACKUP_BASE}" -type f -name '*.age' -mtime +14 -delete
+
+if [ "${FAILED}" -ne 0 ]; then
+    echo "LOCAL BACKUP FINISHED WITH ERRORS: $(date)"
+    echo "========================================"
+    exit 1
+fi
 
 echo "LOCAL BACKUP FINISHED: $(date)"
 echo "========================================"
