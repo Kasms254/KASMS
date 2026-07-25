@@ -27,5 +27,27 @@ class CoreConfig(AppConfig):
 
         CoreConfig.started = True
 
+        self._check_cache_backend_for_production()
+
         from core.biometric_scheduler import start_scheduler
         start_scheduler()
+
+    @staticmethod
+    def _check_cache_backend_for_production():
+
+        from django.conf import settings
+        from django.core.exceptions import ImproperlyConfigured
+
+        if settings.DEBUG:
+            return
+
+        backend = settings.CACHES.get('default', {}).get('BACKEND', '')
+        if 'locmem' in backend.lower():
+            raise ImproperlyConfigured(
+                "CACHES['default']['BACKEND'] is LocMemCache with DEBUG=False. "
+                "This cache is per-process only, but rate-limit lockout "
+                "counters, the JWT denylist, and session inactivity "
+                "tracking all need to be shared across every "
+                "worker/process. Set REDIS_URL (or otherwise configure a "
+                "shared cache backend) before running in production."
+            )
