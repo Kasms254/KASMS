@@ -1,4 +1,4 @@
-
+#!/bin/bash
 set -euo pipefail
 
 AGE_DIR="${AGE_DIR:-/etc/kasms/age}"
