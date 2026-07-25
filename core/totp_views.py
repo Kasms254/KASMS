@@ -25,6 +25,7 @@ from .auth_views import (
     _send_2fa_email,
     _mask_email,
     _reject_if_cross_origin,
+    _reject_if_ineligible_for_login,
 )
 
 logger = logging.getLogger(__name__)
@@ -359,6 +360,10 @@ def totp_verify_login_view(request):
     user.last_totp_verified_at = timezone.now()
     user.last_totp_step = matched_step
     user.save(update_fields=['last_totp_verified_at', 'last_totp_step'])
+
+    ineligible = _reject_if_ineligible_for_login(user)
+    if ineligible:
+        return ineligible
 
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)
