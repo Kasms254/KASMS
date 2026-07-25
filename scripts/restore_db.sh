@@ -79,7 +79,7 @@ if [ "${ENCRYPTED}" -eq 1 ]; then
         --dbname="${DB_NAME}" \
         --no-owner \
         --no-acl \
-        --format=custom || true
+        --format=custom
 else
     docker compose exec -T "${COMPOSE_SERVICE}" \
         pg_restore \
@@ -88,7 +88,7 @@ else
         --no-owner \
         --no-acl \
         --format=custom \
-        < "${BACKUP_FILE}" || true
+        < "${BACKUP_FILE}"
 fi
 
 echo ""
