@@ -120,3 +120,4 @@ backup/
 certbot/
 logs/
 certificate_verification.log
+BACKUP_ENCRYPTION.md
