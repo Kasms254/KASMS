@@ -3,15 +3,26 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.utils import timezone
+from rest_framework.settings import api_settings
 
 logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request):
+
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    remote_addr = request.META.get('REMOTE_ADDR', 'unknown')
+    num_proxies = api_settings.NUM_PROXIES
+
+    if num_proxies is not None:
+        if num_proxies == 0 or not x_forwarded_for:
+            return remote_addr
+        addrs = x_forwarded_for.split(',')
+        return addrs[-min(num_proxies, len(addrs))].strip()
+
     if x_forwarded_for:
-        return x_forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'unknown')
+        return x_forwarded_for.split(',')[-1].strip()
+    return remote_addr
 
 
 class LockoutGuard:

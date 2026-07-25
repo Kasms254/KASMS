@@ -27,15 +27,15 @@ def _get_fernet() -> Fernet:
     if _FERNET is not None:
         return _FERNET
 
-    raw_key = getattr(settings, 'BIOMETRIC_ENCRYPTION_KEY', None)
+    raw_key = getattr(settings, 'TOTP_ENCRYPTION_KEY', None)
     if not raw_key:
         raise ImproperlyConfigured(
-            'BIOMETRIC_ENCRYPTION_KEY is not set in Django settings. '
+            'TOTP_ENCRYPTION_KEY is not set in Django settings. '
             'Add a 32+ character key to your .env file.'
         )
     if len(raw_key) < 32:
         raise ImproperlyConfigured(
-            'BIOMETRIC_ENCRYPTION_KEY must be at least 32 characters long.'
+            'TOTP_ENCRYPTION_KEY must be at least 32 characters long.'
         )
 
     fernet_key, _ = _derive_keys(raw_key)
@@ -48,10 +48,10 @@ def _get_hash_key() -> bytes:
     if _HASH_KEY is not None:
         return _HASH_KEY
 
-    raw_key = getattr(settings, 'BIOMETRIC_ENCRYPTION_KEY', None)
+    raw_key = getattr(settings, 'TOTP_ENCRYPTION_KEY', None)
     if not raw_key:
         raise ImproperlyConfigured(
-            'BIOMETRIC_ENCRYPTION_KEY is not set in Django settings.'
+            'TOTP_ENCRYPTION_KEY is not set in Django settings.'
         )
 
     _, _HASH_KEY = _derive_keys(raw_key)

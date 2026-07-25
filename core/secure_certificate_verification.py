@@ -15,6 +15,7 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
 from .models import Certificate
+from .rate_limiting import get_client_ip
 
 verification_logger = logging.getLogger("certificate.verification")
 
@@ -26,16 +27,6 @@ class CertificateVerificationBurstThrottle(AnonRateThrottle):
 
     scope = "certificate_verify_burst"
     rate = "10/min"
-
-
-def get_client_ip(request):
-
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        addrs = [addr.strip() for addr in x_forwarded_for.split(",") if addr.strip()]
-        if addrs:
-            return addrs[-1]
-    return request.META.get("REMOTE_ADDR", "unknown")
 
 
 LOCKOUT_THRESHOLD = getattr(settings, "CERT_VERIFY_LOCKOUT_THRESHOLD", 20)
