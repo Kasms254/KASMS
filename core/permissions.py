@@ -201,6 +201,10 @@ class ForcePasswordChangePermission(BasePermission):
             "verify_2fa_view",
             "resend_2fa_view",
             "csrf_token_view",
+
+            "totp_verify_login_view",
+            "totp_recover_start_view",
+            "totp_recover_confirm_view",
         ]
 
         if user.must_change_password:

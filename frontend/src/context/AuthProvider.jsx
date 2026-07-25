@@ -35,6 +35,8 @@ export function AuthProvider({ children }) {
   const [mustChangePassword, setMustChangePassword] = useState(false)
   // twoFA holds { svc_number, password, email } during the 2FA step (never persisted to storage)
   const [twoFA, setTwoFA] = useState(null)
+  // totpPending holds { svc_number, password } during the TOTP login-verify step (never persisted to storage)
+  const [totpPending, setTotpPending] = useState(null)
   const { setTheme, resetTheme } = useContext(ThemeContext)
 
   // On mount, always try to fetch the current user.
@@ -112,6 +114,13 @@ export function AuthProvider({ children }) {
         return { ok: true, requires2FA: true, email: resp.email }
       }
 
+      // Backend requires an authenticator app code — no tokens yet
+      if (resp?.requires_totp) {
+        setTotpPending({ svc_number, password })
+        setLoading(false)
+        return { ok: true, requiresTOTP: true }
+      }
+
       // Fallback: direct login response (if 2FA is ever disabled on backend).
       // Tokens are set as HTTP-only cookies by the server; no client-side storage needed.
       const userInfo = resp?.user || resp?.data || null
@@ -164,6 +173,22 @@ export function AuthProvider({ children }) {
       }
     }
   }, [setTheme])
+
+  // Re-fetches the current user from the server and updates the cached
+  // `user` object in context. Needed after actions that change fields on
+  // User but don't go through login/verify (e.g. enabling/disabling TOTP,
+  // which is called directly from the settings/setup pages, not through
+  // this provider) — without this, `user.totp_enabled` would keep showing
+  // its value from the last login until the next full page load.
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.getCurrentUser()
+      setUser(me)
+      return me
+    } catch {
+      return null
+    }
+  }, [])
 
   // When api.js exhausts both the original request and the token refresh and
   // still gets 401, it dispatches 'auth:session-expired'. We clear all auth
@@ -231,6 +256,45 @@ export function AuthProvider({ children }) {
       return { ok: false, error: detail, remainingAttempts }
     }
   }, [twoFA, setTheme])
+
+  const verifyTOTP = useCallback(async (code) => {
+    if (!totpPending) return { ok: false, error: 'No active TOTP session. Please log in again.' }
+    try {
+      const resp = await api.totpVerifyLogin(totpPending.svc_number, totpPending.password, code)
+      const me = resp?.user || null
+      setTotpPending(null) // Clear credentials from memory immediately after use
+      setSessionHint()
+      setUser(me)
+      const needsPasswordChange = !!resp?.must_change_password
+      setMustChangePassword(needsPasswordChange)
+      if (me?.role !== 'superadmin') {
+        const themeData = me?.school_theme
+        if (themeData) {
+          setTheme({
+            primary_color: themeData.primary_color,
+            secondary_color: themeData.secondary_color,
+            accent_color: themeData.accent_color,
+            logo_url: themeData.logo_url
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
+              : null,
+            school_name: themeData.school_name || me?.school_name,
+            school_short_name: themeData.school_short_name || '',
+            school_code: themeData.school_code || me?.school_code,
+          })
+        }
+      }
+      return { ok: true, mustChangePassword: needsPasswordChange }
+    } catch (err) {
+      const detail = err?.data?.error || err?.data?.detail || err?.message || 'Verification failed.'
+      const match = typeof detail === 'string' ? detail.match(/(\d+) attempt/) : null
+      const remainingAttempts = match ? parseInt(match[1], 10) : null
+      return { ok: false, error: detail, remainingAttempts }
+    }
+  }, [totpPending, setTheme])
+
+  const clearTotpPending = useCallback(() => {
+    setTotpPending(null)
+  }, [])
 
   const resend2FA = useCallback(async () => {
     if (!twoFA) return { ok: false, error: 'No active 2FA session. Please log in again.' }
@@ -305,6 +369,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, loading, login, logout, mustChangePassword, setMustChangePassword,
       verify2FA, resend2FA, clearTwoFA, twoFAEmail: twoFA?.email || null,
+      verifyTOTP, clearTotpPending, requiresTOTP: !!totpPending, refreshUser,
     }}>
       {children}
       <InactivityWarningModal

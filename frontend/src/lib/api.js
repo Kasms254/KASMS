@@ -317,6 +317,62 @@ export async function logout() {
   return request('/api/auth/logout/', { method: 'POST' })
 }
 
+export async function totpEnrollStart(password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/enroll/start/', {
+    method: 'POST',
+    body: { password: sanitizeInput(password) },
+  })
+}
+
+export async function totpEnrollConfirm(code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/enroll/confirm/', {
+    method: 'POST',
+    body: { code: sanitizeInput(code) },
+  })
+}
+
+export async function totpDisable(password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/disable/', {
+    method: 'POST',
+    body: { password: sanitizeInput(password) },
+  })
+}
+
+export async function totpVerifyLogin(svc_number, password, code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/verify/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizeInput(svc_number),
+      password: sanitizeInput(password),
+      code: sanitizeInput(code),
+    },
+  })
+}
+
+export async function totpRecoverStart(svc_number, password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/recover/start/', {
+    method: 'POST',
+    body: { svc_number: sanitizeInput(svc_number), password: sanitizeInput(password) },
+  })
+}
+
+export async function totpRecoverConfirm(svc_number, password, code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/recover/confirm/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizeInput(svc_number),
+      password: sanitizeInput(password),
+      code: sanitizeInput(code),
+    },
+  })
+}
+
 export async function changePassword(oldPassword, newPassword, newPassword2) {
   return request('/api/auth/change-password/', {
     method: 'POST',

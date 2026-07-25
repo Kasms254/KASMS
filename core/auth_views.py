@@ -2,6 +2,7 @@ import secrets
 import uuid
 import logging
 from datetime import timedelta
+from urllib.parse import urlparse
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -16,97 +17,98 @@ from django.core.cache import cache
 from .models import Enrollment, SchoolMembership, TwoFactorCode
 from .cookie_utils import denylist_access_token
 from .serializers import UserListSerializer, SchoolMembershipSerializer
+from .rate_limiting import LockoutGuard, get_client_ip
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
 logger = logging.getLogger(__name__)
 
-
 LOGIN_MAX_ATTEMPTS = getattr(settings, 'LOGIN_MAX_ATTEMPTS', 5)
+LOGIN_IP_MAX_ATTEMPTS = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
 LOGIN_LOCKOUT_DURATION = getattr(settings, 'LOGIN_LOCKOUT_DURATION', 1800)
 LOGIN_ATTEMPT_WINDOW = getattr(settings, 'LOGIN_ATTEMPT_WINDOW', 300)
 
+_get_client_ip = get_client_ip
 
-def _get_client_ip(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        return x_forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'unknown')
 
-def _cache_keys(svc_number, ip_address=None):
-    safe_svc = (svc_number or 'unknown').replace(' ', '_')
-    keys = {
-        'acct_failures':  f'login:failures:acct:{safe_svc}',
-        'acct_lockout':   f'login:lockout:acct:{safe_svc}',
-    }
-    if ip_address:
-        keys['ip_failures'] = f'login:failures:ip:{ip_address}'
-        keys['ip_lockout']  = f'login:lockout:ip:{ip_address}'
-    return keys
+def _origin_from_referer(referer):
+
+    parsed = urlparse(referer)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f'{parsed.scheme}://{parsed.netloc}'
+
+
+def _is_cross_origin_auth_request(request):
+
+    trusted_origins = set(getattr(settings, 'CORS_ALLOWED_ORIGINS', None) or [])
+
+    origin = request.META.get('HTTP_ORIGIN')
+    if origin:
+        return origin not in trusted_origins
+
+    referer = request.META.get('HTTP_REFERER')
+    if referer:
+        return _origin_from_referer(referer) not in trusted_origins
+
+    return False
+
+
+def _reject_if_cross_origin(request):
+    if not _is_cross_origin_auth_request(request):
+        return None
+    logger.warning(
+        'Blocked cross-origin auth request | path=%s | origin=%s',
+        request.path,
+        request.META.get('HTTP_ORIGIN') or request.META.get('HTTP_REFERER'),
+        extra={'event': 'login_csrf_blocked'},
+    )
+    return Response(
+        {'error': 'Request origin not allowed.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+_login_guard = LockoutGuard(
+    namespace='login',
+    max_attempts=LOGIN_MAX_ATTEMPTS,
+    ip_max_attempts=LOGIN_IP_MAX_ATTEMPTS,
+    lockout_duration=LOGIN_LOCKOUT_DURATION,
+    attempt_window=LOGIN_ATTEMPT_WINDOW,
+    log_label='Login',
+    locked_message='Account locked due to too many failed login attempts, Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed login attempts from this location. Try again in {minutes} minute(s)',
+)
 
 
 def _check_lockout(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
+    return _login_guard.check(svc_number, ip_address)
 
-    acct_locked_until = cache.get(keys['acct_lockout'])
-    if acct_locked_until:
-        remaining = max(0, int((acct_locked_until - timezone.now()).total_seconds()))
-        minutes = remaining // 60 + (1 if remaining % 60 else 0)
-        return True, (
-            f'Account locked due to too many failed login attempts, '
-            f'Try again in {minutes} minute(s)'
-        ), remaining
-
-    if ip_address:
-        ip_locked_until = cache.get(keys['ip_lockout'])
-        if ip_locked_until:
-            remaining = max(0, int((ip_locked_until - timezone.now()).total_seconds()))
-            minutes = remaining // 60 + (1 if remaining % 60 else 0)
-            return True, (
-                f'Too many failed login attempts from this location. '
-                f'Try again in {minutes} minute(s)'
-            ), remaining
-
-    return False, None, 0
 
 def _record_failed_login(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
-    locked = False
+    return _login_guard.record_failure(svc_number, ip_address)
 
-    acct_count = cache.get(keys['acct_failures'], 0) + 1
-    cache.set(keys['acct_failures'], acct_count, timeout=LOGIN_ATTEMPT_WINDOW)
-
-    if acct_count >= LOGIN_MAX_ATTEMPTS:
-        lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-        cache.set(keys['acct_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
-        locked = True
-        logger.warning(
-            'Login lockout triggered | key=%s | attempts=%d',
-            keys['acct_failures'], acct_count,
-            extra={'event': 'login_lockout'},
-        )
-
-    if ip_address and 'ip_failures' in keys:
-        ip_limit = getattr(settings, 'LOGIN_IP_MAX_ATTEMPTS', LOGIN_MAX_ATTEMPTS * 3)
-        ip_count = cache.get(keys['ip_failures'], 0) + 1
-        cache.set(keys['ip_failures'], ip_count, timeout=LOGIN_ATTEMPT_WINDOW)
-
-        if ip_count >= ip_limit:
-            lockout_until = timezone.now() + timedelta(seconds=LOGIN_LOCKOUT_DURATION)
-            cache.set(keys['ip_lockout'], lockout_until, timeout=LOGIN_LOCKOUT_DURATION)
-            locked = True
-            logger.warning(
-                'IP login lockout triggered | ip=%s | attempts=%d',
-                ip_address, ip_count,
-                extra={'event': 'ip_login_lockout'},
-            )
-
-    remaining = max(0, LOGIN_MAX_ATTEMPTS - acct_count)
-    return locked, remaining
 
 def _clear_failed_login(svc_number, ip_address=None):
-    keys = _cache_keys(svc_number, ip_address)
-    cache.delete_many(list(keys.values()))
+    return _login_guard.clear(svc_number, ip_address)
+
+
+TWO_FA_GUARD_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_MAX_ATTEMPTS', 5)
+TWO_FA_GUARD_IP_MAX_ATTEMPTS = getattr(settings, 'TWO_FA_GUARD_IP_MAX_ATTEMPTS', TWO_FA_GUARD_MAX_ATTEMPTS * 3)
+TWO_FA_GUARD_LOCKOUT_DURATION = getattr(settings, 'TWO_FA_GUARD_LOCKOUT_DURATION', 1800)
+TWO_FA_GUARD_ATTEMPT_WINDOW = getattr(settings, 'TWO_FA_GUARD_ATTEMPT_WINDOW', 300)
+
+
+_otp_guard = LockoutGuard(
+    namespace='email-otp',
+    max_attempts=TWO_FA_GUARD_MAX_ATTEMPTS,
+    ip_max_attempts=TWO_FA_GUARD_IP_MAX_ATTEMPTS,
+    lockout_duration=TWO_FA_GUARD_LOCKOUT_DURATION,
+    attempt_window=TWO_FA_GUARD_ATTEMPT_WINDOW,
+    log_label='Email OTP',
+    locked_message='Too many failed verification attempts. Try again in {minutes} minute(s)',
+    locked_message_ip='Too many failed verification attempts from this location. Try again in {minutes} minute(s)',
+)
 
 def _get_tokens_for_user(user, session_id=None):
 
@@ -233,6 +235,28 @@ def check_student_can_login(user):
         )
     return True, None
 
+def _reject_if_ineligible_for_login(user):
+
+    if user.role != 'superadmin':
+        has_active_membership = SchoolMembership.all_objects.filter(
+            user=user, status='active',
+        ).exists()
+        if not has_active_membership:
+            history = SchoolMembership.all_objects.filter(
+                user=user,
+            ).select_related('school').order_by('-ended_at')
+            return Response({
+                'error': 'No active school membership.',
+                'school_history': SchoolMembershipSerializer(history, many=True).data,
+            }, status=status.HTTP_403_FORBIDDEN)
+
+    if user.role == 'student':
+        can_login, error_msg = check_student_can_login(user)
+        if not can_login:
+            return Response({'error': error_msg}, status=status.HTTP_403_FORBIDDEN)
+
+    return None
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
@@ -244,6 +268,10 @@ def csrf_token_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
+
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
 
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
@@ -308,30 +336,28 @@ def login_view(request):
  
     _clear_failed_login(svc_number, ip_address)
 
-    memberships = SchoolMembership.all_objects.filter(
-        user=user, status='active',
-    ).select_related('school')
- 
-    if user.role != 'superadmin' and not memberships.exists():
-        history = SchoolMembership.all_objects.filter(
-            user=user,
-        ).select_related('school').order_by('-ended_at')
-        return Response({
-            'error': 'No active school membership.',
-            'school_history': SchoolMembershipSerializer(history, many=True).data,
-        }, status=status.HTTP_403_FORBIDDEN)
- 
-    if user.role == 'student':
-        can_login, error_msg = check_student_can_login(user)
-        if not can_login:
-            return Response({'error': error_msg}, status=status.HTTP_403_FORBIDDEN)
- 
+    ineligible = _reject_if_ineligible_for_login(user)
+    if ineligible:
+        return ineligible
+
     if not user.email:
         return Response(
             {'error': 'No email address on file. Contact your administrator.'},
             status=status.HTTP_403_FORBIDDEN,
         )
- 
+
+    if user.totp_enabled:
+        logger.info(
+            'Login requires TOTP | svc=%s | ip=%s',
+            svc_number, ip_address,
+            extra={'event': 'login_requires_totp'},
+        )
+        return Response({
+            'message': 'TOTP verification required.',
+            'requires_totp': True,
+            'svc_number': user.svc_number,
+        }, status=status.HTTP_200_OK)
+
     two_fa = _create_2fa_code(user)
     email_sent = _send_2fa_email(user, two_fa.code)
  
@@ -352,6 +378,10 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_2fa_view(request):
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
+
     svc_number = request.data.get('svc_number')
     code = request.data.get('code', '').strip()
     password = request.data.get('password')
@@ -373,7 +403,18 @@ def verify_2fa_view(request):
             },
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {
+                'error': otp_lockout_msg,
+                'locked': True,
+                'retry_after_seconds': otp_remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
         _record_failed_login(svc_number, ip_address)
@@ -381,46 +422,72 @@ def verify_2fa_view(request):
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
- 
+
+    if user.totp_enabled:
+        # Email-OTP login must never complete for a TOTP-enabled account,
+        # regardless of whether a matching TwoFactorCode exists. Without
+        # this, the "forgot authenticator" recovery flow's own code
+        # (created by totp_recover_start_view, which only requires a
+        # correct password — proving TOTP possession is the whole thing
+        # recovery exists to skip) sits in the same TwoFactorCode pool
+        # verify_2fa_view reads from, and could be submitted here to
+        # obtain a full session without ever providing a TOTP code or
+        # completing the reset flow.
+        return Response(
+            {'error': 'This account requires authenticator app verification.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     max_attempts = getattr(settings, 'TWO_FA_MAX_ATTEMPTS', 5)
     recent_failures = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         created_at__gte=timezone.now() - timedelta(minutes=15),
     ).first()
- 
+
     if recent_failures and recent_failures.attempts >= max_attempts:
         return Response(
             {'error': 'Too many failed attempts. Please request a new code.'},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
     two_fa = TwoFactorCode.objects.filter(
         user=user,
         is_used=False,
         expires_at__gt=timezone.now(),
     ).order_by('-created_at').first()
- 
+
     if not two_fa:
         return Response(
             {'error': 'No valid verification code found. Please login again.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
- 
+
     if not secrets.compare_digest(two_fa.code, code):
         two_fa.attempts += 1
         two_fa.save(update_fields=['attempts'])
         remaining = max_attempts - two_fa.attempts
+        is_now_otp_locked, _ = _otp_guard.record_failure(svc_number, ip_address)
+        if is_now_otp_locked:
+            return Response(
+                {'error': 'Too many failed attempts. Account temporarily locked.', 'locked': True},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         return Response(
             {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
- 
+
     two_fa.is_used = True
     two_fa.save(update_fields=['is_used'])
- 
+
     _clear_failed_login(svc_number, ip_address)
- 
+    _otp_guard.clear(svc_number, ip_address)
+
+    ineligible = _reject_if_ineligible_for_login(user)
+    if ineligible:
+        return ineligible
+
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)
 
@@ -449,11 +516,14 @@ def verify_2fa_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_2fa_view(request):
- 
+    blocked = _reject_if_cross_origin(request)
+    if blocked:
+        return blocked
+
     svc_number = request.data.get('svc_number')
     password = request.data.get('password')
     ip_address = _get_client_ip(request)
- 
+
     if not svc_number or not password:
         return Response(
             {'error': 'svc_number and password are required.'},
@@ -470,7 +540,18 @@ def resend_2fa_view(request):
             },
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
- 
+
+    is_otp_locked, otp_lockout_msg, otp_remaining_seconds = _otp_guard.check(svc_number, ip_address)
+    if is_otp_locked:
+        return Response(
+            {
+                'error': otp_lockout_msg,
+                'locked': True,
+                'retry_after_seconds': otp_remaining_seconds,
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     from django.contrib.auth import authenticate
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:

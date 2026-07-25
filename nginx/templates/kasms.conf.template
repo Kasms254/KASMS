@@ -116,7 +116,12 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — Nginx is the internet-facing edge here,
+        # so $remote_addr is the true, non-spoofable client IP. Appending to
+        # a client-suppliable X-Forwarded-For would let Django's own
+        # first-entry parsing (core.rate_limiting.get_client_ip) be fooled
+        # by an attacker-forged value further left in the chain.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_read_timeout 5s;
         access_log off;
@@ -131,7 +136,8 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — see /health/ location above for rationale.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         # CRITICAL: required for CSRF_COOKIE_SECURE, SESSION_COOKIE_SECURE,
         # SameSite=None cookies, and request.is_secure() to work correctly.
         proxy_set_header   X-Forwarded-Proto $scheme;
@@ -141,10 +147,14 @@ server {
         proxy_send_timeout    60s;
     }
 
-    # ── Login / 2FA — strict brute-force protection ───────────────────────────
+    # ── Login / 2FA / TOTP — strict brute-force protection ─────────────────────
     # Regex locations take priority over prefix locations in Nginx.
-    # These paths get 5 req/min instead of the 30 req/s api zone.
-    location ~ ^/api/auth/(login|2fa) {
+    # These paths get 5 req/min instead of the 30 req/s api zone. Covers
+    # login, both email-2FA endpoints, and every TOTP endpoint (enroll,
+    # verify, disable, recover) — the old regex only matched literal
+    # "login" or "2fa" right after /api/auth/, silently missing
+    # verify-2fa, resend-2fa, and all totp/* paths.
+    location ~ ^/api/auth/(login|verify-2fa|resend-2fa|totp/) {
         limit_req zone=auth burst=10 nodelay;
 
         proxy_pass         http://django_backend;
@@ -152,7 +162,11 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — this is the endpoint the hybrid IP+account
+        # rate limiter (core.rate_limiting.LockoutGuard) protects; forwarding
+        # a client-suppliable header here would let an attacker spoof the IP
+        # tier of that limiter entirely. See /health/ location for rationale.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_read_timeout 30s;
     }
@@ -186,7 +200,8 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — see /health/ location above for rationale.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
 
@@ -199,7 +214,8 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — see /health/ location above for rationale.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_read_timeout 120s;
     }
@@ -213,7 +229,8 @@ server {
         proxy_set_header   Connection        "";
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Overwrite (not append) — see /health/ location above for rationale.
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
 
