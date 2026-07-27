@@ -14,6 +14,7 @@ const roles = [
 ]
 
 const ranks = [
+  // Officer Ranks (Most Senior)
   { value: 'general', label: 'General' },
   { value: 'lieutenant_general', label: 'Lieutenant General' },
   { value: 'major_general', label: 'Major General' },
@@ -24,18 +25,22 @@ const ranks = [
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
   { value: '2nd_lieutenant', label: '2nd Lieutenant' },
+  // Warrant Officer Ranks
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
-  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
-  { value: 'HCII', label: 'HCII' },
+  // Non-Commissioned and Enlisted Ranks
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
-  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
-  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
-  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
+  // Constabulary/Support Ranks
+  { value: 'HCI', label: 'HCI' },
+  { value: 'HCII', label: 'HCII' },
+  { value: 'CI', label: 'CI' },
+  { value: 'CII', label: 'CII' },
+  { value: 'CIII', label: 'Constable' },
+  // Civilian
   { value: 'civ', label: 'Civilian' },
 ]
 
