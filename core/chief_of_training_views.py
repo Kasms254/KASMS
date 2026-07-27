@@ -1,4 +1,3 @@
-
 import io
 import os
 import base64
@@ -22,6 +21,12 @@ from .models import (
     CommandantReportAuditLog,
     PersonalNotification,
     User,
+    School,
+    Course,
+    Class,
+    Enrollment,
+    SchoolMembership,
+    ExamResult,
 )
 from .permissions import IsCommandant, IsChiefOfTraining, IsChiefOfTrainingOrSuperAdmin
 from .report_serializers import (
@@ -40,6 +45,35 @@ def _get_school(user):
     return school if school else user.school
 
 
+def _with_pct(qs):
+    from django.db.models import ExpressionWrapper, F, FloatField
+    from django.db.models.functions import Cast
+
+    return qs.annotate(
+        pct=ExpressionWrapper(
+            Cast(F('marks_obtained'), FloatField()) * 100.0 / Cast(F('exam__total_marks'), FloatField()),
+            output_field=FloatField(),
+        )
+    )
+
+
+def _avg_percentage(qs):
+    from django.db.models import Avg
+
+    result = _with_pct(qs).aggregate(avg_pct=Avg('pct'))['avg_pct']
+    return round(result, 1) if result is not None else None
+
+
+def _months_before(d, months):
+    """First-of-month date `months` months before `d`."""
+    month = d.month - months
+    year = d.year
+    while month <= 0:
+        month += 12
+        year -= 1
+    return date(year, month, 1)
+
+
 def _audit(report, action, user, notes='', metadata=None):
     CommandantReportAuditLog.all_objects.create(
         report=report,
@@ -52,7 +86,6 @@ def _audit(report, action, user, notes='', metadata=None):
 
 
 def _notify_cot_users(report):
-    """Send a PersonalNotification to every active Chief of Training user."""
     cot_users = User.all_objects.filter(
         role='chief_of_training', is_active=True
     )
@@ -86,10 +119,7 @@ def _notify_cot_users(report):
 
 
 class CommandantReportViewSet(viewsets.ModelViewSet):
-    """
-    Commandant creates, edits (draft only), and submits school reports.
-    All queries are scoped to the commandant's school.
-    """
+
     pagination_class = PageSizeAwarePagination
     permission_classes = [IsAuthenticated, IsCommandant]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -152,11 +182,7 @@ class CommandantReportViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
-        """
-        Transitions a Draft report → Submitted.
-        Snapshots statistics at this moment and notifies COT users.
-        The report becomes read-only after this.
-        """
+  
         report = self.get_object()
         if report.status != CommandantSchoolReport.Status.DRAFT:
             return Response(
@@ -195,7 +221,6 @@ class CommandantReportViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def statistics(self, request, pk=None):
-        """Return live statistics for a draft, or snapshot for a submitted report."""
         report = self.get_object()
         if report.statistics_snapshot:
             data = report.statistics_snapshot
@@ -227,10 +252,7 @@ class CommandantReportViewSet(viewsets.ModelViewSet):
         return response
 
 class ChiefOfTrainingViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Chief of Training views reports from ALL schools.
-    Read-only: COT can view, filter, search, and download PDFs but cannot modify.
-    """
+
     pagination_class = PageSizeAwarePagination
     permission_classes = [IsAuthenticated, IsChiefOfTrainingOrSuperAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -291,6 +313,157 @@ class ChiefOfTrainingViewSet(viewsets.ReadOnlyModelViewSet):
             'by_status': by_status,
             'by_school': by_school,
             'recent_submissions': recent_data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def analytics(self, request):
+
+        from django.db.models import Avg, Count, Q
+        from django.db.models.functions import TruncMonth
+
+        today = timezone.localdate()
+        exam_result_base = ExamResult.all_objects.filter(
+            is_submitted=True, marks_obtained__isnull=False, exam__total_marks__gt=0,
+        )
+        active_schools = list(School.objects.filter(is_active=True))
+
+        overview = {
+            'total_schools': len(active_schools),
+            'total_courses': Course.all_objects.filter(is_active=True).count(),
+            'active_students': SchoolMembership.all_objects.filter(
+                role='student', status='active'
+            ).count(),
+            'running_classes': Class.all_objects.filter(
+                is_active=True, is_closed=False,
+                start_date__lte=today, end_date__gte=today,
+            ).count(),
+            'total_classes': Class.all_objects.count(),
+            'graduates': Enrollment.all_objects.filter(completion_date__isnull=False).count(),
+            'avg_performance': _avg_percentage(exam_result_base),
+        }
+
+        courses_by_school = dict(
+            Course.all_objects.filter(is_active=True)
+            .values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        active_students_by_school = dict(
+            SchoolMembership.all_objects.filter(role='student', status='active')
+            .values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        instructors_by_school = dict(
+            SchoolMembership.all_objects.filter(role='instructor', status='active')
+            .values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        running_by_school = dict(
+            Class.all_objects.filter(
+                is_active=True, is_closed=False,
+                start_date__lte=today, end_date__gte=today,
+            ).values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        completed_by_school = dict(
+            Class.all_objects.filter(Q(is_closed=True) | Q(end_date__lt=today))
+            .values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        graduates_by_school = dict(
+            Enrollment.all_objects.filter(completion_date__isnull=False)
+            .values_list('school').annotate(c=Count('id')).values_list('school', 'c')
+        )
+        perf_by_school = {
+            row['school']: round(row['avg_pct'], 1) if row['avg_pct'] is not None else None
+            for row in _with_pct(exam_result_base).values('school').annotate(avg_pct=Avg('pct'))
+        }
+
+        by_school = []
+        for school in active_schools:
+            by_school.append({
+                'school_id': str(school.id),
+                'school_name': school.name,
+                'school_code': school.code,
+                'courses': courses_by_school.get(school.id, 0),
+                'active_students': active_students_by_school.get(school.id, 0),
+                'instructors': instructors_by_school.get(school.id, 0),
+                'running_classes': running_by_school.get(school.id, 0),
+                'completed_classes': completed_by_school.get(school.id, 0),
+                'graduates': graduates_by_school.get(school.id, 0),
+                'avg_performance': perf_by_school.get(school.id),
+            })
+        by_school.sort(key=lambda s: s['active_students'], reverse=True)
+
+        enrollment_rows = (
+            Enrollment.all_objects.filter(is_active=True, class_obj__course__isnull=False)
+            .values(
+                course_name=F('class_obj__course__name'),
+                school_pk=F('school'),
+                school_name=F('school__name'),
+                school_code=F('school__code'),
+            )
+            .annotate(students=Count('id', distinct=True))
+        )
+        course_perf_by_school = {
+            (row['course_name'], row['school_pk']): (
+                round(row['avg_pct'], 1) if row['avg_pct'] is not None else None
+            )
+            for row in _with_pct(exam_result_base)
+            .values(
+                course_name=F('exam__subject__class_obj__course__name'),
+                school_pk=F('school'),
+            )
+            .annotate(avg_pct=Avg('pct'))
+        }
+
+        courses_map = {}
+        for row in enrollment_rows:
+            name = row['course_name']
+            if not name:
+                continue
+            entry = courses_map.setdefault(name, {'course': name, 'schools': [], 'total_students': 0})
+            entry['schools'].append({
+                'school_id': str(row['school_pk']),
+                'school_name': row['school_name'],
+                'school_code': row['school_code'],
+                'students': row['students'],
+                'avg_performance': course_perf_by_school.get((name, row['school_pk'])),
+            })
+            entry['total_students'] += row['students']
+
+        course_comparison = []
+        for name, entry in courses_map.items():
+            school_count = len(entry['schools'])
+            perfs = [s['avg_performance'] for s in entry['schools'] if s['avg_performance'] is not None]
+            course_comparison.append({
+                'course': name,
+                'multi_school': school_count > 1,
+                'school_count': school_count,
+                'total_students': entry['total_students'],
+                'avg_performance': round(sum(perfs) / len(perfs), 1) if perfs else None,
+                'schools': entry['schools'],
+            })
+        course_comparison.sort(key=lambda c: c['total_students'], reverse=True)
+
+        # ---- Graduate output trend (last 12 months) ----
+        start_month = _months_before(today, 11)
+        trend_rows = (
+            Enrollment.all_objects
+            .filter(completion_date__isnull=False, completion_date__gte=start_month)
+            .annotate(month=TruncMonth('completion_date'))
+            .values('month')
+            .annotate(graduates=Count('id'))
+        )
+        trend_map = {row['month'].strftime('%Y-%m'): row['graduates'] for row in trend_rows}
+
+        output_trend = []
+        cursor = start_month
+        for _ in range(12):
+            key = cursor.strftime('%Y-%m')
+            output_trend.append({'month': key, 'graduates': trend_map.get(key, 0)})
+            cursor = date(cursor.year + (1 if cursor.month == 12 else 0),
+                           1 if cursor.month == 12 else cursor.month + 1, 1)
+
+        return Response({
+            'overview': overview,
+            'by_school': by_school,
+            'course_comparison': course_comparison,
+            'output_trend': output_trend,
         })
 
     @action(detail=True, methods=['get'])
