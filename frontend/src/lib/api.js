@@ -2172,11 +2172,24 @@ export async function deleteAssessmentComponent(id) {
 }
 
 // Student Component Results (POLICY grading mode)
+// Iterates through every page — a partial list silently hides saved marks and
+// the "Request Edit" button for students beyond the first page.
 export async function getComponentResults(params = '') {
-  const qs = params ? `?${params}` : ''
-  const data = await request(`/api/component-results/${qs}`)
-  if (data && Array.isArray(data.results)) return data.results
-  return Array.isArray(data) ? data : []
+  const baseParams = params ? `${params}&` : ''
+  let all = []
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    const data = await request(`/api/component-results/?${baseParams}page=${page}&page_size=1000`)
+    if (Array.isArray(data)) return data
+    const results = Array.isArray(data?.results) ? data.results : []
+    all = [...all, ...results]
+    hasMore = !!data?.next && results.length > 0
+    page++
+  }
+
+  return all
 }
 
 export async function getComponentResultsByStudentSubject(studentId, subjectId) {

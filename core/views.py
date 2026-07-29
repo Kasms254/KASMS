@@ -6805,6 +6805,7 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
     ).all()
     serializer_class = StudentComponentResultSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    pagination_class = PageSizeAwarePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['component', 'student', 'status', 'is_retake', 'is_submitted']
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']

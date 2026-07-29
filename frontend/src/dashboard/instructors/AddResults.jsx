@@ -18,18 +18,114 @@ function gradeFromPct(pct) {
   return 'F'
 }
 
+// Mobile card views have no table headers to click, so sorting gets its own
+// control. Reuses the same handleSort(key) toggle the desktop headers use.
+function MobileSortControls({ options, sortConfig, onSort }) {
+  const activeKey = sortConfig.key || options[0].value
+  return (
+    <div className="md:hidden flex items-center gap-2">
+      <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Sort by:</label>
+      <select
+        value={activeKey}
+        onChange={e => onSort(e.target.value)}
+        className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => onSort(activeKey)}
+        aria-label={sortConfig.direction === 'asc' ? 'Sort descending' : 'Sort ascending'}
+        className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
+      >
+        {sortConfig.direction === 'asc' ? '↑ Asc' : '↓ Desc'}
+      </button>
+    </div>
+  )
+}
+
+// Mirrors the loaded layout (info cards → controls → rows) so the page keeps its
+// shape while students load instead of collapsing to a centred spinner.
+function ResultsSkeleton({ rows = 8, label = 'Loading students…' }) {
+  return (
+    <div role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <div className="bg-white rounded-lg shadow-lg animate-pulse" aria-hidden="true">
+        {/* Info cards */}
+        <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="h-2.5 w-16 bg-gray-200 rounded" />
+                <div className="h-4 w-24 bg-gray-200 rounded mt-2" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Search / controls bar */}
+        <div className="p-3 sm:p-4 border-b bg-gray-50 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="h-9 flex-1 bg-gray-200 rounded-lg" />
+            <div className="h-9 w-full sm:w-28 bg-gray-200 rounded-lg" />
+          </div>
+          <div className="h-9 w-full sm:w-32 bg-gray-200 rounded-lg" />
+        </div>
+
+        {/* Desktop rows */}
+        <div className="hidden md:block p-4 space-y-4">
+          {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <div className="h-4 w-20 bg-gray-200 rounded" />
+              <div className="h-8 flex-1 bg-gray-200 rounded-md" />
+              <div className="h-4 w-14 bg-gray-200 rounded" />
+              <div className="h-5 w-10 bg-gray-200 rounded-full" />
+              <div className="h-8 flex-1 bg-gray-200 rounded-md" />
+              <div className="h-7 w-24 bg-gray-200 rounded-md" />
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile cards */}
+        <div className="md:hidden p-3 space-y-3">
+          {Array.from({ length: Math.min(rows, 4) }).map((_, i) => (
+            <div key={i} className="rounded-xl border-2 border-gray-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-20 bg-gray-200 rounded" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-10 bg-gray-200 rounded-lg" />
+                  <div className="h-6 w-12 bg-gray-200 rounded-lg" />
+                </div>
+              </div>
+              <div className="h-3 w-24 bg-gray-200 rounded" />
+              <div className="h-11 w-full bg-gray-200 rounded-lg" />
+              <div className="h-3 w-20 bg-gray-200 rounded" />
+              <div className="h-11 w-full bg-gray-200 rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AddResults() {
   const { user } = useAuth()
   const toast = useToast()
 
   const [exams, setExams] = useState([])
+  // Starts true so the selector reads as loading on first paint rather than empty
+  const [examsLoading, setExamsLoading] = useState(true)
   const [selectedExam, setSelectedExam] = useState('')
   const [examInfo, setExamInfo] = useState(null)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
+  // Default to index order so the list starts at the first index, not name order
+  const [sortConfig, setSortConfig] = useState({ key: 'class_index', direction: 'asc' })
   const [savedSnapshot, setSavedSnapshot] = useState([])
 
   // Edit request state for locked results
@@ -62,6 +158,8 @@ export default function AddResults() {
 
   const [subjectsMap, setSubjectsMap] = useState({})
   const [activeComponentId, setActiveComponentId] = useState(null)
+  // Retained so Refresh / post-save reloads still fetch the full class roster
+  const [activeClassId, setActiveClassId] = useState(null)
   const [examGradingMode, setExamGradingMode] = useState('LEGACY')
 
   useEffect(() => {
@@ -81,6 +179,8 @@ export default function AddResults() {
         setSubjectsMap(map)
       } catch (err) {
         toast.error(err?.message || 'Failed to load exams')
+      } finally {
+        if (mounted) setExamsLoading(false)
       }
     }
     if (user) load()
@@ -133,6 +233,23 @@ export default function AddResults() {
     }
   }
 
+  // exam stats from server
+  const [examStats, setExamStats] = useState({ count: 0, submitted: 0, pending: 0 })
+
+  // ── Component-based grading (POLICY mode) ──
+  // Declared above the effect below: referencing these setters before their
+  // declaration is what makes React Compiler bail out of optimizing this file.
+  const [componentInfo, setComponentInfo] = useState(null)
+  const [componentStudents, setComponentStudents] = useState([])
+  const [componentLoading, setComponentLoading] = useState(false)
+  const [componentSearchTerm, setComponentSearchTerm] = useState('')
+  const [componentSaving, setComponentSaving] = useState(false)
+  const [componentPage, setComponentPage] = useState(1)
+  const [componentItemsPerPage, setComponentItemsPerPage] = useState(10)
+  // Tracks which student IDs have had their retake input explicitly activated
+  const [retakeActive, setRetakeActive] = useState(new Set())
+  const [componentSortConfig, setComponentSortConfig] = useState({ key: 'class_index', direction: 'asc' })
+
   // load results whenever selectedExam changes
   useEffect(() => {
     let mounted = true
@@ -145,8 +262,9 @@ export default function AddResults() {
       setComponentStudents([])
       setComponentInfo(null)
       setActiveComponentId(null)
+      setActiveClassId(null)
       setComponentPage(1)
-      setComponentSortConfig({ key: null, direction: 'asc' })
+      setComponentSortConfig({ key: 'class_index', direction: 'asc' })
       setResults([])
       setExamInfo(null)
       setRetakeActive(new Set())
@@ -166,6 +284,7 @@ export default function AddResults() {
         const subjectId = exam?.subject?.id ?? exam?.subject
         const subject = subjectsMap[String(subjectId)]
         const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
+        setActiveClassId(classId || null)
         if (mounted) await loadComponentStudents(String(compId), compInfo, classId)
       } else {
         setLoading(true)
@@ -189,6 +308,7 @@ export default function AddResults() {
       setExamInfo(null)
       setResults([])
       setActiveComponentId(null)
+      setActiveClassId(null)
       setComponentStudents([])
       setComponentInfo(null)
     }
@@ -323,7 +443,13 @@ export default function AddResults() {
   async function handleSubmitEditRequest(e) {
     e.preventDefault()
     const errs = {}
+    const noProposedMarks = editRequestForm.proposed_marks === '' || editRequestForm.proposed_marks == null
     if (!editRequestForm.reason.trim()) errs.reason = 'Reason is required'
+    // Approving a component request applies proposed_marks directly; without it
+    // the approval silently changes nothing (unlike legacy, which unlocks the row).
+    if (editRequestRow?._isComponent && noProposedMarks) {
+      errs.proposed_marks = 'Proposed marks are required — approval applies this value directly'
+    }
     if (editRequestForm.proposed_marks !== '' && editRequestForm.proposed_marks != null) {
       const n = Number(editRequestForm.proposed_marks)
       const max = editRequestRow?._isComponent
@@ -426,6 +552,14 @@ export default function AddResults() {
   // Total pages calculation
   const totalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage)
 
+  // Row -> index lookup. Sorting reorders rows, but updateRow/handleKeyDown need
+  // the position in `results`; scanning per rendered row is O(rows x students).
+  const resultIndexById = React.useMemo(() => {
+    const map = new Map()
+    results.forEach((r, i) => map.set(r.id, i))
+    return map
+  }, [results])
+
   // Reset to page 1 when search term or sort changes
   React.useEffect(() => {
     setCurrentPage(1)
@@ -462,20 +596,55 @@ export default function AddResults() {
     }
   }
 
-  // exam stats from server
-  const [examStats, setExamStats] = useState({ count: 0, submitted: 0, pending: 0 })
+  const compGraded = React.useMemo(
+    () => componentStudents.filter(r => r.current_marks != null).length,
+    [componentStudents],
+  )
+  const compPending = componentStudents.length - compGraded
 
-  // ── Component-based grading (POLICY mode) ──
-  const [componentInfo, setComponentInfo] = useState(null)
-  const [componentStudents, setComponentStudents] = useState([])
-  const [componentLoading, setComponentLoading] = useState(false)
-  const [componentSearchTerm, setComponentSearchTerm] = useState('')
-  const [componentSaving, setComponentSaving] = useState(false)
-  const [componentPage, setComponentPage] = useState(1)
-  const [componentItemsPerPage, setComponentItemsPerPage] = useState(10)
-  // Tracks which student IDs have had their retake input explicitly activated
-  const [retakeActive, setRetakeActive] = useState(new Set())
-  const [componentSortConfig, setComponentSortConfig] = useState({ key: null, direction: 'asc' })
+  // Memoised: this filters and sorts every enrolled student, and `componentStudents`
+  // gets a new identity on each keystroke while marks are being typed.
+  const filteredComp = React.useMemo(() => {
+    const totalMarks = componentInfo?.total_marks
+    return componentStudents
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => {
+        if (!componentSearchTerm) return true
+        const q = componentSearchTerm.toLowerCase()
+        return r.student_name?.toLowerCase().includes(q) || (r.class_index || '').toLowerCase().includes(q)
+      })
+      .sort(({ r: a }, { r: b }) => {
+        if (!componentSortConfig.key) return 0
+        let aVal, bVal
+        if (componentSortConfig.key === 'marks_obtained') {
+          aVal = Number(a.marks_obtained) || 0
+          bVal = Number(b.marks_obtained) || 0
+        } else if (componentSortConfig.key === 'percentage') {
+          aVal = a.marks_obtained !== '' && a.marks_obtained != null && totalMarks
+            ? (parseFloat(a.marks_obtained) / totalMarks) * 100
+            : (a.current_percentage != null ? parseFloat(a.current_percentage) : 0)
+          bVal = b.marks_obtained !== '' && b.marks_obtained != null && totalMarks
+            ? (parseFloat(b.marks_obtained) / totalMarks) * 100
+            : (b.current_percentage != null ? parseFloat(b.current_percentage) : 0)
+        } else if (componentSortConfig.key === 'status') {
+          const order = { PASS: 1, FAIL: 2, RETAKE_REQUIRED: 3, PENDING: 4 }
+          aVal = order[a.current_status] || 5
+          bVal = order[b.current_status] || 5
+        } else {
+          aVal = String(a[componentSortConfig.key] || '').toLowerCase()
+          bVal = String(b[componentSortConfig.key] || '').toLowerCase()
+        }
+        if (aVal < bVal) return componentSortConfig.direction === 'asc' ? -1 : 1
+        if (aVal > bVal) return componentSortConfig.direction === 'asc' ? 1 : -1
+        return 0
+      })
+  }, [componentStudents, componentSearchTerm, componentSortConfig, componentInfo])
+
+  const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
+  const paginatedComp = React.useMemo(
+    () => filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage),
+    [filteredComp, componentPage, componentItemsPerPage],
+  )
 
   React.useEffect(() => {
     setComponentPage(1)
@@ -624,7 +793,7 @@ export default function AddResults() {
     try {
       await api.bulkGradeComponentResults(payload)
       toast.success(`${dirtyRows.length} result(s) saved`)
-      await loadComponentStudents(activeComponentId, componentInfo, null)
+      await loadComponentStudents(activeComponentId, componentInfo, activeClassId)
     } catch (err) {
       const d = err?.data
       if (d && typeof d === 'object') {
@@ -660,17 +829,29 @@ export default function AddResults() {
 
       {/* Exam Selection — single selector for all exams */}
       <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
-        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
+        <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-700 mb-2">
+          Select Exam
+          {examsLoading && (
+            <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600" aria-hidden="true"></span>
+          )}
+        </label>
         <select
           value={selectedExam}
+          disabled={examsLoading}
           onChange={e => {
             setSelectedExam(e.target.value)
             setSearchTerm('')
-            setSortConfig({ key: null, direction: 'asc' })
+            setSortConfig({ key: 'class_index', direction: 'asc' })
           }}
-          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
         >
-          <option value="">-- Select an exam --</option>
+          <option value="">
+            {examsLoading
+              ? 'Loading exams…'
+              : exams.length === 0
+              ? 'No exams assigned to you'
+              : '-- Select an exam --'}
+          </option>
           {exams.map(ex => (
             <option key={ex.id} value={ex.id}>
               {ex.title} — {ex.subject_name || ex.subject?.name}
@@ -683,12 +864,7 @@ export default function AddResults() {
       {/* ── Component Grading Section (POLICY exams) ── */}
       {examGradingMode === 'POLICY' && (
         <div>
-          {componentLoading && (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <p className="mt-2 text-gray-600">Loading...</p>
-            </div>
-          )}
+          {componentLoading && <ResultsSkeleton />}
 
           {!componentLoading && activeComponentId && componentStudents.length === 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
@@ -705,42 +881,6 @@ export default function AddResults() {
           )}
 
           {!componentLoading && componentStudents.length > 0 && componentInfo && (() => {
-            const compGraded = componentStudents.filter(r => r.current_marks != null).length
-            const compPending = componentStudents.filter(r => r.current_marks == null).length
-            const filteredComp = componentStudents
-              .map((r, i) => ({ r, i }))
-              .filter(({ r }) => {
-                if (!componentSearchTerm) return true
-                const q = componentSearchTerm.toLowerCase()
-                return r.student_name?.toLowerCase().includes(q) || (r.class_index || '').toLowerCase().includes(q)
-              })
-              .sort(({ r: a }, { r: b }) => {
-                if (!componentSortConfig.key) return 0
-                let aVal, bVal
-                if (componentSortConfig.key === 'marks_obtained') {
-                  aVal = Number(a.marks_obtained) || 0
-                  bVal = Number(b.marks_obtained) || 0
-                } else if (componentSortConfig.key === 'percentage') {
-                  aVal = a.marks_obtained !== '' && a.marks_obtained != null && componentInfo.total_marks
-                    ? (parseFloat(a.marks_obtained) / componentInfo.total_marks) * 100
-                    : (a.current_percentage != null ? parseFloat(a.current_percentage) : 0)
-                  bVal = b.marks_obtained !== '' && b.marks_obtained != null && componentInfo.total_marks
-                    ? (parseFloat(b.marks_obtained) / componentInfo.total_marks) * 100
-                    : (b.current_percentage != null ? parseFloat(b.current_percentage) : 0)
-                } else if (componentSortConfig.key === 'status') {
-                  const order = { PASS: 1, FAIL: 2, RETAKE_REQUIRED: 3, PENDING: 4 }
-                  aVal = order[a.current_status] || 5
-                  bVal = order[b.current_status] || 5
-                } else {
-                  aVal = String(a[componentSortConfig.key] || '').toLowerCase()
-                  bVal = String(b[componentSortConfig.key] || '').toLowerCase()
-                }
-                if (aVal < bVal) return componentSortConfig.direction === 'asc' ? -1 : 1
-                if (aVal > bVal) return componentSortConfig.direction === 'asc' ? 1 : -1
-                return 0
-              })
-            const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
-            const paginatedComp = filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage)
             return (
             <div className="bg-white rounded-lg shadow-lg">
               {/* Info Cards — same layout as legacy */}
@@ -796,9 +936,21 @@ export default function AddResults() {
                       </select>
                     </div>
                   </div>
+                  {/* Sort control — mobile only; desktop sorts via table headers */}
+                  <MobileSortControls
+                    options={[
+                      { value: 'class_index', label: 'Index' },
+                      { value: 'marks_obtained', label: 'Marks' },
+                      { value: 'percentage', label: 'Percentage' },
+                      { value: 'status', label: 'Status' },
+                    ]}
+                    sortConfig={componentSortConfig}
+                    onSort={handleComponentSort}
+                  />
+
                   <div className="flex gap-2 flex-wrap">
                     <button
-                      onClick={() => loadComponentStudents(activeComponentId, componentInfo, null)}
+                      onClick={() => loadComponentStudents(activeComponentId, componentInfo, activeClassId)}
                       className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
                     >
                       Refresh
@@ -957,7 +1109,7 @@ export default function AddResults() {
                               />
                             </td>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
-                              {r.id && (
+                              {r.id && r.current_marks != null && (
                                 <button
                                   type="button"
                                   onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
@@ -1075,7 +1227,7 @@ export default function AddResults() {
                             } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
                           />
                         </div>
-                        {r.id && (
+                        {r.id && r.current_marks != null && (
                           <button
                             type="button"
                             onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
@@ -1130,15 +1282,10 @@ export default function AddResults() {
       {examGradingMode === 'LEGACY' && (
         <div>
 
-      {loading && (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      )}
+      {loading && <ResultsSkeleton label="Preparing result entries…" />}
 
       {/* Empty State - No Exam Selected */}
-      {!loading && !selectedExam && (
+      {!loading && !examsLoading && !selectedExam && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6 text-center">
           <svg className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1228,6 +1375,18 @@ export default function AddResults() {
                 </div>
               </div>
 
+              {/* Sort control — mobile only; desktop sorts via table headers */}
+              <MobileSortControls
+                options={[
+                  { value: 'class_index', label: 'Index' },
+                  { value: 'marks_obtained', label: 'Marks' },
+                  { value: 'percentage', label: 'Percentage' },
+                  { value: 'grade', label: 'Grade' },
+                ]}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+
               {/* Bulk Actions */}
               <div className="flex gap-2 flex-wrap">
                 <button
@@ -1244,7 +1403,7 @@ export default function AddResults() {
           {/* Mobile Card View */}
           <div className="md:hidden p-3 space-y-3">
             {paginatedResults.map((r) => {
-              const actualIdx = results.findIndex(row => row.id === r.id);
+              const actualIdx = resultIndexById.get(r.id);
               const livePct = r.marks_obtained !== '' && r.marks_obtained != null && examInfo?.total_marks
                 ? (parseFloat(r.marks_obtained) / examInfo.total_marks) * 100
                 : r.percentage != null ? parseFloat(r.percentage) : null
@@ -1403,7 +1562,7 @@ export default function AddResults() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedResults.map((r) => {
-                    const actualIdx = results.findIndex(row => row.id === r.id);
+                    const actualIdx = resultIndexById.get(r.id);
                     const livePct = r.marks_obtained !== '' && r.marks_obtained != null && examInfo?.total_marks
                       ? (parseFloat(r.marks_obtained) / examInfo.total_marks) * 100
                       : r.percentage != null ? parseFloat(r.percentage) : null
