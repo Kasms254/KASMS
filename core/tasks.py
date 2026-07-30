@@ -8,31 +8,22 @@ logger = logging.getLogger('biometric.sync')
 @shared_task(bind=True, max_retries=0)
 def sync_all_devices(self):
     from core.models import BiometricDevice
-    from core.services.zkteco_service import ZKTecoSyncService
+    from core.biometric_scheduler import sync_device_once
 
-    devices = BiometricDevice.objects.filter(
+    # all_objects: system-wide beat task with no request/school context —
+    # see core.biometric_scheduler.sync_loop for why this must be explicit.
+    devices = BiometricDevice.all_objects.filter(
         status='active', is_active=True
     )
 
     results = []
     for device in devices:
-        lock_key = f'biometric_sync:{device.id}'
-        if cache.get(lock_key):
-            logger.debug(f'Skipping {device.name}: sync in progress')
-            continue
-
         try:
-            cache.set(lock_key, True, timeout=120)
-            service = ZKTecoSyncService(device)
-            result = service.fetch_and_store_logs()
-            results.append({
-                'device': device.name,
-                'result': result
-            })
+            result = sync_device_once(device)
+            if result is not None:
+                results.append({'device': device.name, 'result': result})
         except Exception as e:
             logger.error(f'Task error for {device.name}: {e}')
-        finally:
-            cache.delete(lock_key)
 
     return results
 
@@ -40,14 +31,17 @@ def sync_all_devices(self):
 @shared_task
 def sync_single_device(device_id):
     from core.models import BiometricDevice
-    from core.services.zkteco_service import ZKTecoSyncService
+    from core.biometric_scheduler import sync_device_once
 
     try:
-        device = BiometricDevice.objects.get(id=device_id, is_active=True)
-        service = ZKTecoSyncService(device)
-        return service.fetch_and_store_logs()
+        device = BiometricDevice.all_objects.get(id=device_id, is_active=True)
     except BiometricDevice.DoesNotExist:
         return {'status': 'error', 'message': 'Device not found'}
+
+    result = sync_device_once(device)
+    if result is None:
+        return {'status': 'skipped', 'message': 'Sync already in progress'}
+    return result
 
 
 @shared_task
@@ -56,7 +50,8 @@ def process_pending_records():
     from django.utils import timezone
     from datetime import timedelta
 
-    pending = BiometricRecord.objects.filter(
+    # all_objects: see sync_all_devices above — no request/school context here.
+    pending = BiometricRecord.all_objects.filter(
         processed=False,
         scan_time__gte=timezone.now() - timedelta(hours=24)
     ).select_related('student')
@@ -77,13 +72,24 @@ def process_pending_records():
 def sync_device_clocks():
     from core.models import BiometricDevice
     from core.services.zkteco_service import ZKTecoSyncService
+    from core.biometric_scheduler import SYNC_LOCK_KEY, SYNC_LOCK_TIMEOUT
 
-    devices = BiometricDevice.objects.filter(
+    # all_objects: see sync_all_devices above — no request/school context here.
+    devices = BiometricDevice.all_objects.filter(
         status='active', is_active=True
     )
     for device in devices:
+        # Share the attendance-sync lock: this also opens a device session,
+        # and ZKTeco devices don't support concurrent connections.
+        lock_key = SYNC_LOCK_KEY.format(device_id=device.id)
+        if not cache.add(lock_key, True, timeout=SYNC_LOCK_TIMEOUT):
+            logger.debug(f'Skipping clock sync for {device.name}: sync in progress')
+            continue
+
         try:
             service = ZKTecoSyncService(device)
             service.sync_device_time()
         except Exception as e:
             logger.error(f'Clock sync failed for {device.name}: {e}')
+        finally:
+            cache.delete(lock_key)

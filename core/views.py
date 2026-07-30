@@ -6623,8 +6623,13 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def sync_now(self, request, pk=None):
         device = self.get_object()
-        service = ZKTecoSyncService(device)
-        result = service.fetch_and_store_logs()
+        from core.biometric_scheduler import sync_device_once
+        result = sync_device_once(device, bypass_backoff=True)
+        if result is None:
+            return Response(
+                {'status': 'skipped', 'message': 'Sync already in progress for this device'},
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response(result)
     
     @action(detail=True, methods=['get'])
