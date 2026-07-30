@@ -42,6 +42,12 @@ html, body {
   :root { font-size: 13px; }
 }
 
+/* Slow ambient light drift on the public splash */
+@keyframes brand-breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
 /* Respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   * {
