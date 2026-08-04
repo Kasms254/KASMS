@@ -339,10 +339,32 @@ LOGGING = {
             'backupCount': 10,
             'formatter': 'json',
         },
+        'biometric_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'logs/biometric.log',
+            'maxBytes': 10 * 1024 * 1024,   # 10 MB
+            'backupCount': 10,
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'certificate.verification': {
             'handlers': ['console', 'verification_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'biometric.scheduler': {
+            'handlers': ['console', 'biometric_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'biometric.sync': {
+            'handlers': ['console', 'biometric_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'biometric.adms': {
+            'handlers': ['console', 'biometric_file'],
             'level': 'INFO',
             'propagate': False,
         },
