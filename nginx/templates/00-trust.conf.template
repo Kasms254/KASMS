@@ -1,0 +1,29 @@
+# =============================================================================
+# Trusted reverse-proxy configuration.
+#
+# Generated from ${TRUSTED_PROXY_IP} at container startup — see
+# scripts/nginx-entrypoint.sh. Only meaningful in NGINX_TLS_MODE=proxy (this
+# nginx sitting behind an edge proxy like Caddy that terminates TLS); in
+# NGINX_TLS_MODE=standalone it's a harmless no-op since nothing will ever
+# connect from TRUSTED_PROXY_IP and $trusted_forwarded_proto goes unused.
+# =============================================================================
+
+# ── Real client IP recovery ─────────────────────────────────────────────────
+# Without this, $remote_addr would always be the edge proxy's own IP, not the
+# actual visitor's — breaking any IP-based allow/deny rule (e.g. /admin/).
+set_real_ip_from ${TRUSTED_PROXY_IP};
+real_ip_header    X-Forwarded-For;
+real_ip_recursive on;
+
+# ── Trusted X-Forwarded-Proto ────────────────────────────────────────────────
+# Unlike X-Forwarded-For, there's no realip-style module to validate this
+# header, so it's trusted unconditionally by default — any client that can
+# reach nginx directly (bypassing the edge proxy) could claim "https" and
+# fool Django's request.is_secure(). $realip_remote_addr is the *actual* TCP
+# peer (unaffected by the realip rewrite above), so this only forwards
+# X-Forwarded-Proto when the connection genuinely came from the edge proxy;
+# every other source gets a hardcoded "http", which is what it actually is.
+map $realip_remote_addr $trusted_forwarded_proto {
+    default            "http";
+    ${TRUSTED_PROXY_IP} $http_x_forwarded_proto;
+}

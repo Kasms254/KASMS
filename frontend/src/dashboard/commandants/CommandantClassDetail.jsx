@@ -4,6 +4,7 @@ import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { getCommandantClassStudents, getCommandantClassSubjects } from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 
 const RANK_OPTIONS = [
   { value: 'general', label: 'General' },
@@ -15,25 +16,27 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 const RANK_MAP = {}
 for (const r of RANK_OPTIONS) {
   RANK_MAP[r.value] = r.label
   RANK_MAP[r.label.toLowerCase()] = r.label
+  RANK_MAP[r.value.toLowerCase()] = r.label // handles uppercase values like CIII
 }
 
 function getRankDisplay(raw) {
@@ -193,6 +196,13 @@ export default function CommandantClassDetail() {
             )}
           </p>
         </div>
+        <button
+          onClick={() => navigate(`/commandant/classes/${id}/certificates`)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition shadow-sm whitespace-nowrap"
+        >
+          <LucideIcons.Award className="w-4 h-4" />
+          Certificates
+        </button>
       </header>
 
       {/* Search */}
@@ -272,7 +282,7 @@ export default function CommandantClassDetail() {
                         )}
                       </div>
                       <p className="text-xs text-neutral-600">{st.svc_number || '—'}</p>
-                      {st.rank && <p className="text-xs text-neutral-500">{getRankDisplay(st.rank)}</p>}
+                      {st.rank && <p className="text-xs text-neutral-500">{shortRank(getRankDisplay(st.rank))}</p>}
                       {st.unit && <p className="text-xs text-neutral-400">{st.unit}</p>}
                     </div>
                   </div>
@@ -299,7 +309,7 @@ export default function CommandantClassDetail() {
                         {st.index_number || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(st.rank)) || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -324,7 +334,7 @@ export default function CommandantClassDetail() {
                 <div key={s.id} className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
                   <p className="text-sm font-medium text-black">{s.name}</p>
                   <p className="text-xs text-neutral-600 mt-0.5">
-                    {getRankDisplay(s.instructor_rank) ? `${getRankDisplay(s.instructor_rank)} · ` : ''}{s.instructor_name || '—'}
+                    {getRankDisplay(s.instructor_rank) ? `${shortRank(getRankDisplay(s.instructor_rank))} · ` : ''}{s.instructor_name || '—'}
                   </p>
                   {s.instructor_svc_number && (
                     <p className="text-xs text-neutral-400 mt-0.5">{s.instructor_svc_number}</p>
@@ -339,18 +349,18 @@ export default function CommandantClassDetail() {
                 <thead className="bg-neutral-50">
                   <tr className="text-left">
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Subject</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Svc No.</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Instructor Rank</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Instructor</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Svc No.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 bg-white">
                   {pageRows.map((s) => (
                     <tr key={s.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm font-medium text-black">{s.name}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(s.instructor_rank) || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{s.instructor_name || '—'}</td>
                       <td className="px-4 py-3 text-sm text-neutral-700">{s.instructor_svc_number || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(s.instructor_rank)) || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{s.instructor_name || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

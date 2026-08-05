@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import AdminPagination from '../../components/AdminPagination'
 
 export default function Exams() {
   const { user } = useAuth()
@@ -37,7 +38,14 @@ export default function Exams() {
   
   const [attachmentsMap, setAttachmentsMap] = useState({})
   const [attachmentsOpenId, setAttachmentsOpenId] = useState(null)
-  const [sortOrder, setSortOrder] = useState('newest')
+  // Default to creation order so an exam an instructor just created sits at the top
+  const [sortOrder, setSortOrder] = useState('recent')
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  // Exams whose attachments have already been requested, so paging back and
+  // forth doesn't refetch them
+  const requestedAttachments = useRef(new Set())
   const navigate = useNavigate()
 
   // fetch attachments for a single exam and stash into attachmentsMap
@@ -68,13 +76,7 @@ export default function Exams() {
         const examsArr = Array.isArray(elist.results) ? elist.results : (Array.isArray(elist) ? elist : (elist && elist.results) ? elist.results : [])
         setSubjects(subjectsArr)
         setExams(examsArr)
-        // fetch attachments for loaded exams
-        try {
-          const ids = examsArr.map(x => x.id).filter(Boolean)
-          ids.forEach(id => fetchAttachmentsForExam(id))
-        } catch (err) {
-          // Silently handle prefetch failure
-        }
+        // Attachments are fetched per visible page instead of for every exam
       } catch (err) {
         toast.error(err.message || 'Failed to load exams')
       } finally {
@@ -96,6 +98,14 @@ export default function Exams() {
 
   const displayed = useMemo(() => {
     const list = [...filtered]
+    if (sortOrder === 'recent') {
+      // Falls back to id when created_at is missing so freshly created exams
+      // still land at the top
+      return list.sort((a, b) => {
+        const diff = new Date(b.created_at || 0) - new Date(a.created_at || 0)
+        return diff !== 0 ? diff : (Number(b.id) || 0) - (Number(a.id) || 0)
+      })
+    }
     if (sortOrder === 'newest') {
       return list.sort((a, b) => new Date(b.exam_date || 0) - new Date(a.exam_date || 0))
     }
@@ -104,6 +114,25 @@ export default function Exams() {
     }
     return list
   }, [filtered, sortOrder])
+
+  const totalPages = Math.max(1, Math.ceil(displayed.length / pageSize))
+  // Derived rather than stored: deleting the last row on the final page would
+  // otherwise leave the pager pointing past the end of the list
+  const page = Math.min(currentPage, totalPages)
+
+  const paged = useMemo(
+    () => displayed.slice((page - 1) * pageSize, page * pageSize),
+    [displayed, page, pageSize]
+  )
+
+  // Only load attachments for the exams actually on screen
+  useEffect(() => {
+    paged.forEach(x => {
+      if (!x?.id || requestedAttachments.current.has(x.id)) return
+      requestedAttachments.current.add(x.id)
+      fetchAttachmentsForExam(x.id)
+    })
+  }, [paged])
 
   const metrics = useMemo(() => {
     const total = exams.length
@@ -159,6 +188,33 @@ export default function Exams() {
       () => setEditForm(f => ({ ...f, component: '' }))
     )
   }, [editForm.subject, fetchComponentChoices])
+
+  const VALID_EXAM_TYPES = ['cat', 'final', 'project', 'practical', 'theory']
+
+  function resolveExamType(comp) {
+    const nameLower = (comp?.name || '').toLowerCase()
+    if (VALID_EXAM_TYPES.includes(nameLower)) return nameLower
+    if (comp?.component_type && comp.component_type !== 'other') return comp.component_type
+    return 'final'
+  }
+
+  useEffect(() => {
+    if (createGradingMode === 'POLICY' && createForm.component) {
+      const comp = createComponents.find(c => String(c.id) === String(createForm.component))
+      if (comp) setCreateForm(f => ({ ...f, exam_type: resolveExamType(comp) }))
+    } else if (createGradingMode !== 'POLICY') {
+      setCreateForm(f => ({ ...f, exam_type: 'final' }))
+    }
+  }, [createForm.component, createGradingMode, createComponents])
+
+  useEffect(() => {
+    if (editGradingMode === 'POLICY' && editForm.component) {
+      const comp = editComponents.find(c => String(c.id) === String(editForm.component))
+      if (comp) setEditForm(f => ({ ...f, exam_type: resolveExamType(comp) }))
+    } else if (editGradingMode !== 'POLICY') {
+      setEditForm(f => ({ ...f, exam_type: 'final' }))
+    }
+  }, [editForm.component, editGradingMode, editComponents])
 
   function updateField(k, v) { setCreateForm(f => ({ ...f, [k]: v })) }
   function updateEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
@@ -306,8 +362,9 @@ export default function Exams() {
       try {
         const res = await api.createExam(payload)
         toast.success('Exam created')
-        // prepend to list
+        // prepend to list and jump to the first page so it is visible
         setExams(s => [res, ...s])
+        setCurrentPage(1)
         setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' })
         // if files were selected on create, upload them now (create-time uploads only)
         if (createFiles && createFiles.length) {
@@ -603,15 +660,16 @@ export default function Exams() {
         <div className="bg-white rounded-lg shadow p-4 border border-neutral-200">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
             <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-              <input placeholder="Search by title or subject" value={query} onChange={e => setQuery(e.target.value)} className="w-full sm:w-72 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <input placeholder="Search by title or subject" value={query} onChange={e => { setQuery(e.target.value); setCurrentPage(1) }} className="w-full sm:w-72 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
               <div className="flex gap-2">
-                <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)} className="px-3 py-2 rounded-lg border w-full sm:w-52">
+                <select value={subjectFilter} onChange={e => { setSubjectFilter(e.target.value); setCurrentPage(1) }} className="px-3 py-2 rounded-lg border w-full sm:w-52">
                   <option value="">All subjects</option>
                   {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="px-3 py-2 rounded-lg border w-full sm:w-36">
-                  <option value="newest">Newest</option>
-                  <option value="oldest">Oldest</option>
+                <select value={sortOrder} onChange={e => { setSortOrder(e.target.value); setCurrentPage(1) }} className="px-3 py-2 rounded-lg border w-full sm:w-44">
+                  <option value="recent">Recently created</option>
+                  <option value="newest">Exam date (newest)</option>
+                  <option value="oldest">Exam date (oldest)</option>
                 </select>
               </div>
             </div>
@@ -633,7 +691,7 @@ export default function Exams() {
             <>
               {/* Mobile & Tablet: card list */}
               <div className="lg:hidden space-y-4">
-                {displayed.map((x) => {
+                {paged.map((x) => {
                   const links = parseLinksFromDescription(x.description)
                   const files = attachmentsMap[x.id] || []
                   const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
@@ -859,7 +917,7 @@ export default function Exams() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {displayed.map((x) => {
+                    {paged.map((x) => {
                       const links = parseLinksFromDescription(x.description)
                       const files = attachmentsMap[x.id] || []
                       const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
@@ -974,6 +1032,16 @@ export default function Exams() {
                   </tbody>
                 </table>
               </div>
+
+              <AdminPagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalCount={displayed.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                label="exams"
+              />
             </>
           )}
         </div>
@@ -1008,7 +1076,7 @@ export default function Exams() {
                       <span>Title</span>
                       <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/25</span>
                     </div>
-                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g., Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g.. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <ModernDatePicker
@@ -1038,7 +1106,16 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
                       <div className="text-sm text-neutral-600 mb-1">Type</div>
-                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input
+                        type="text"
+                        value={
+                          createGradingMode === 'POLICY' && createForm.component
+                            ? (createComponents.find(c => String(c.id) === String(createForm.component))?.name || 'Final')
+                            : 'Final'
+                        }
+                        disabled
+                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                      />
                       <input type="hidden" value={createForm.exam_type || 'final'} />
                     </label>
                     <label className="block">
@@ -1136,7 +1213,16 @@ export default function Exams() {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
                       <div className="text-sm text-neutral-600 mb-1">Type</div>
-                      <input type="text" value="Final" disabled className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100" />
+                      <input
+                        type="text"
+                        value={
+                          editGradingMode === 'POLICY' && editForm.component
+                            ? (editComponents.find(c => String(c.id) === String(editForm.component))?.name || 'Final')
+                            : 'Final'
+                        }
+                        disabled
+                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                      />
                       <input type="hidden" value={editForm.exam_type || 'final'} />
                     </label>
                     <label className="block">

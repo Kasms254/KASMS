@@ -2,9 +2,32 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from 'rea
 import AuthContext from './authContext'
 import { ThemeContext } from './themeContext'
 import * as api from '../lib/api'
-import { queryClient } from '../main'
+import { queryClient } from '../lib/queryClient'
+import InactivityWarningModal from '../components/InactivityWarningModal'
 
-const INACTIVITY_TIMEOUT_MS = 90 * 60 * 1000 // 30 minutes
+// Mirrors the backend's ACCESS_TOKEN_LIFETIME (SIMPLE_JWT in kasms/settings.py).
+// Keep the two in sync if either changes.
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
+// How long before the timeout to warn the user, giving them a chance to stay signed in.
+const INACTIVITY_WARNING_MS = 10 * 1000 // 10 seconds
+
+// Session hint: the auth tokens are HTTP-only cookies, so JS cannot check
+// whether a session exists without a network round-trip. This localStorage
+// flag is set on login and cleared on logout/expiry, letting restoreSession()
+// skip the verify-token + token-refresh requests entirely for anonymous
+// visitors (e.g. on the public landing page). It is only a hint — the server
+// still validates the actual cookies on every request.
+const SESSION_HINT_KEY = 'kasms_has_session'
+
+function hasSessionHint() {
+  try { return window.localStorage.getItem(SESSION_HINT_KEY) === '1' } catch { return false }
+}
+function setSessionHint() {
+  try { window.localStorage.setItem(SESSION_HINT_KEY, '1') } catch { /* ignore */ }
+}
+function clearSessionHint() {
+  try { window.localStorage.removeItem(SESSION_HINT_KEY) } catch { /* ignore */ }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -12,6 +35,8 @@ export function AuthProvider({ children }) {
   const [mustChangePassword, setMustChangePassword] = useState(false)
   // twoFA holds { svc_number, password, email } during the 2FA step (never persisted to storage)
   const [twoFA, setTwoFA] = useState(null)
+  // totpPending holds { svc_number, password } during the TOTP login-verify step (never persisted to storage)
+  const [totpPending, setTotpPending] = useState(null)
   const { setTheme, resetTheme } = useContext(ThemeContext)
 
   // On mount, always try to fetch the current user.
@@ -20,13 +45,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
     async function restoreSession() {
+      // No session hint means the user never logged in (or explicitly logged
+      // out) — skip the network entirely so public pages make zero requests.
+      if (!hasSessionHint()) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
       setLoading(true)
       // Ensure the csrftoken cookie is set before any state-changing requests
-      try {
-        await fetch(`${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL}/api/auth/csrf/`, { credentials: 'include' })
-      } catch {
-        // Non-fatal — proceed without CSRF cookie
-      }
+      await api.ensureCsrfCookie()
       try {
         // verifyToken validates the session AND re-checks student enrollment.
         // Response shape: { valid: true, user: {...} }
@@ -50,7 +78,7 @@ export function AuthProvider({ children }) {
                 secondary_color: themeData.secondary_color,
                 accent_color: themeData.accent_color,
                 logo_url: themeData.logo_url
-                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+                  ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
                   : null,
                 school_name: themeData.school_name || me.school_name,
                 school_short_name: themeData.school_short_name || '',
@@ -86,10 +114,18 @@ export function AuthProvider({ children }) {
         return { ok: true, requires2FA: true, email: resp.email }
       }
 
+      // Backend requires an authenticator app code — no tokens yet
+      if (resp?.requires_totp) {
+        setTotpPending({ svc_number, password })
+        setLoading(false)
+        return { ok: true, requiresTOTP: true }
+      }
+
       // Fallback: direct login response (if 2FA is ever disabled on backend).
       // Tokens are set as HTTP-only cookies by the server; no client-side storage needed.
       const userInfo = resp?.user || resp?.data || null
       if (!userInfo) throw new Error('Login failed: no user data returned')
+      setSessionHint()
       setUser(userInfo)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
@@ -104,7 +140,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || userInfo.school_name,
             school_short_name: themeData.school_short_name || '',
@@ -138,11 +174,28 @@ export function AuthProvider({ children }) {
     }
   }, [setTheme])
 
+  // Re-fetches the current user from the server and updates the cached
+  // `user` object in context. Needed after actions that change fields on
+  // User but don't go through login/verify (e.g. enabling/disabling TOTP,
+  // which is called directly from the settings/setup pages, not through
+  // this provider) — without this, `user.totp_enabled` would keep showing
+  // its value from the last login until the next full page load.
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.getCurrentUser()
+      setUser(me)
+      return me
+    } catch {
+      return null
+    }
+  }, [])
+
   // When api.js exhausts both the original request and the token refresh and
   // still gets 401, it dispatches 'auth:session-expired'. We clear all auth
   // state here so ProtectedRoute automatically redirects to the login page.
   useEffect(() => {
     const handleSessionExpired = () => {
+      clearSessionHint()
       setUser(null)
       setMustChangePassword(false)
       resetTheme()
@@ -155,6 +208,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     // Clear React state immediately so ProtectedRoute blocks any forward navigation
     // before the network request completes.
+    clearSessionHint()
     setUser(null)
     setMustChangePassword(false)
     resetTheme()
@@ -173,6 +227,7 @@ export function AuthProvider({ children }) {
       const resp = await api.verify2FA(twoFA.svc_number, twoFA.password, code)
       const me = resp?.user || null
       setTwoFA(null) // Clear credentials from memory immediately after use
+      setSessionHint()
       setUser(me)
       const needsPasswordChange = !!resp?.must_change_password
       setMustChangePassword(needsPasswordChange)
@@ -184,7 +239,7 @@ export function AuthProvider({ children }) {
             secondary_color: themeData.secondary_color,
             accent_color: themeData.accent_color,
             logo_url: themeData.logo_url
-              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || ''}${themeData.logo_url}`)
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
               : null,
             school_name: themeData.school_name || me?.school_name,
             school_short_name: themeData.school_short_name || '',
@@ -201,6 +256,45 @@ export function AuthProvider({ children }) {
       return { ok: false, error: detail, remainingAttempts }
     }
   }, [twoFA, setTheme])
+
+  const verifyTOTP = useCallback(async (code) => {
+    if (!totpPending) return { ok: false, error: 'No active TOTP session. Please log in again.' }
+    try {
+      const resp = await api.totpVerifyLogin(totpPending.svc_number, totpPending.password, code)
+      const me = resp?.user || null
+      setTotpPending(null) // Clear credentials from memory immediately after use
+      setSessionHint()
+      setUser(me)
+      const needsPasswordChange = !!resp?.must_change_password
+      setMustChangePassword(needsPasswordChange)
+      if (me?.role !== 'superadmin') {
+        const themeData = me?.school_theme
+        if (themeData) {
+          setTheme({
+            primary_color: themeData.primary_color,
+            secondary_color: themeData.secondary_color,
+            accent_color: themeData.accent_color,
+            logo_url: themeData.logo_url
+              ? (themeData.logo_url.startsWith('http') ? themeData.logo_url : `${api.API_BASE}${themeData.logo_url}`)
+              : null,
+            school_name: themeData.school_name || me?.school_name,
+            school_short_name: themeData.school_short_name || '',
+            school_code: themeData.school_code || me?.school_code,
+          })
+        }
+      }
+      return { ok: true, mustChangePassword: needsPasswordChange }
+    } catch (err) {
+      const detail = err?.data?.error || err?.data?.detail || err?.message || 'Verification failed.'
+      const match = typeof detail === 'string' ? detail.match(/(\d+) attempt/) : null
+      const remainingAttempts = match ? parseInt(match[1], 10) : null
+      return { ok: false, error: detail, remainingAttempts }
+    }
+  }, [totpPending, setTheme])
+
+  const clearTotpPending = useCallback(() => {
+    setTotpPending(null)
+  }, [])
 
   const resend2FA = useCallback(async () => {
     if (!twoFA) return { ok: false, error: 'No active 2FA session. Please log in again.' }
@@ -219,27 +313,55 @@ export function AuthProvider({ children }) {
     setTwoFA(null)
   }, [])
 
-  // Inactivity timer — log out after 30 minutes of no user interaction.
-  // Only active while a user is logged in.
+  // Inactivity timer — warn INACTIVITY_WARNING_MS before logging out after
+  // INACTIVITY_TIMEOUT_MS of no user interaction, so the session doesn't end
+  // without notice. Only active while a user is logged in.
   const inactivityTimer = useRef(null)
+  const warningTimer = useRef(null)
+  const countdownInterval = useRef(null)
+  const resetTimerRef = useRef(() => {})
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false)
+  const [inactivityCountdown, setInactivityCountdown] = useState(INACTIVITY_WARNING_MS / 1000)
 
   useEffect(() => {
     if (!user) return
 
-    const resetTimer = () => {
+    const clearAllTimers = () => {
+      clearTimeout(warningTimer.current)
       clearTimeout(inactivityTimer.current)
+      clearInterval(countdownInterval.current)
+    }
+
+    const resetTimer = () => {
+      clearAllTimers()
+      setShowInactivityWarning(false)
+
+      warningTimer.current = setTimeout(() => {
+        let secondsLeft = INACTIVITY_WARNING_MS / 1000
+        setInactivityCountdown(secondsLeft)
+        setShowInactivityWarning(true)
+        countdownInterval.current = setInterval(() => {
+          secondsLeft -= 1
+          setInactivityCountdown(secondsLeft)
+          if (secondsLeft <= 0) clearInterval(countdownInterval.current)
+        }, 1000)
+      }, INACTIVITY_TIMEOUT_MS - INACTIVITY_WARNING_MS)
+
       inactivityTimer.current = setTimeout(() => {
         logout()
       }, INACTIVITY_TIMEOUT_MS)
     }
+    resetTimerRef.current = resetTimer
 
     const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
     events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }))
     resetTimer() // start the timer immediately on login / mount
 
     return () => {
-      clearTimeout(inactivityTimer.current)
+      clearAllTimers()
       events.forEach(evt => window.removeEventListener(evt, resetTimer))
+      setShowInactivityWarning(false)
+      setInactivityCountdown(INACTIVITY_WARNING_MS / 1000)
     }
   }, [user, logout])
 
@@ -247,8 +369,15 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, loading, login, logout, mustChangePassword, setMustChangePassword,
       verify2FA, resend2FA, clearTwoFA, twoFAEmail: twoFA?.email || null,
+      verifyTOTP, clearTotpPending, requiresTOTP: !!totpPending, refreshUser,
     }}>
       {children}
+      <InactivityWarningModal
+        open={showInactivityWarning}
+        secondsLeft={inactivityCountdown}
+        onStay={() => resetTimerRef.current()}
+        onLogout={logout}
+      />
     </AuthContext.Provider>
   )
 }

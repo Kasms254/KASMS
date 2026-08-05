@@ -6,8 +6,10 @@ import {
   Building2, X, Key, Eye, EyeOff
 } from 'lucide-react'
 import * as api from '../../lib/api'
+import useToast from '../../hooks/useToast'
 
 export default function AdminsPage() {
+  const toast = useToast()
   const [admins, setAdmins] = useState([])
   const [schools, setSchools] = useState([])
   const [loading, setLoading] = useState(true)
@@ -65,11 +67,11 @@ export default function AdminsPage() {
         const data = await api.getSchools('page_size=100')
         setSchools(data?.results || [])
       } catch (err) {
-        console.error('Failed to fetch schools:', err)
+        toast.error(err?.message || 'Failed to load schools')
       }
     }
     fetchSchools()
-  }, [])
+  }, [toast])
 
   const fetchAdmins = useCallback(async () => {
     setLoading(true)
@@ -85,11 +87,11 @@ export default function AdminsPage() {
       setTotalCount(data?.count || 0)
       setTotalPages(Math.ceil((data?.count || 0) / 10))
     } catch (err) {
-      console.error('Failed to fetch admins:', err)
+      toast.error(err?.message || 'Failed to load admins')
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm, selectedSchool])
+  }, [currentPage, searchTerm, selectedSchool, toast])
 
   useEffect(() => {
     fetchAdmins()
@@ -102,7 +104,7 @@ export default function AdminsPage() {
       setDeleteModal({ open: false, admin: null })
       fetchAdmins()
     } catch (err) {
-      console.error('Failed to delete admin:', err)
+      toast.error(err?.message || 'Failed to delete admin')
     }
   }
 
@@ -111,7 +113,7 @@ export default function AdminsPage() {
       await api.updateSchoolAdmin(admin.id, { is_primary: !admin.is_primary })
       fetchAdmins()
     } catch (err) {
-      console.error('Failed to update admin:', err)
+      toast.error(err?.message || 'Failed to update admin')
     }
     setActiveDropdown(null)
   }
@@ -189,13 +191,20 @@ export default function AdminsPage() {
       })
       fetchAdmins()
     } catch (err) {
-      console.error('Failed to create admin:', err)
-      if (err.data) {
+      const knownFields = ['school', 'first_name', 'last_name', 'svc_number', 'email', 'phone_number', 'password']
+      if (err.data && typeof err.data === 'object') {
         const fieldErrors = {}
         Object.entries(err.data).forEach(([key, value]) => {
           fieldErrors[key] = Array.isArray(value) ? value[0] : value
         })
         setErrors(fieldErrors)
+        // Surface anything the form has no dedicated field for (e.g. non_field_errors, detail)
+        const unmatched = Object.keys(fieldErrors).filter((k) => !knownFields.includes(k))
+        if (unmatched.length) {
+          toast.error(unmatched.map((k) => fieldErrors[k]).join(' '))
+        }
+      } else {
+        toast.error(err?.message || 'Failed to create admin')
       }
     } finally {
       setSaving(false)

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 import {
   getBiometricDevices,
   createBiometricDevice,
@@ -224,7 +225,11 @@ export default function BiometricDevices() {
       let result
       if (action === 'sync_now') {
         result = await syncBiometricDeviceNow(deviceId)
-        reportSuccess(`Sync complete — ${result?.records_synced ?? 0} records synced`)
+        if (result?.status === 'success') {
+          reportSuccess(`Sync complete — ${result?.created ?? 0} records synced`)
+        } else {
+          reportError(result?.message || 'Sync failed — check device connectivity')
+        }
       } else if (action === 'trigger_sync') {
         await triggerBiometricDeviceSync(deviceId)
         reportSuccess('Background sync queued successfully')
@@ -974,7 +979,7 @@ export default function BiometricDevices() {
                     <SearchableSelect
                       value={mappingForm.student}
                       onChange={val => setMappingForm(f => ({ ...f, student: val }))}
-                      options={students.map(s => ({ id: s.id, label: [s.svc_number, s.rank, s.full_name || s.username].filter(Boolean).join(' ') }))}
+                      options={students.map(s => ({ id: s.id, label: [s.svc_number, s.rank ? shortRank(s.rank) : null, s.full_name || s.username].filter(Boolean).join(' ') }))}
                       placeholder={studentsLoading ? 'Loading students...' : '— Select student —'}
                       searchPlaceholder="Search by name or service number..."
                       error={!!mappingErrors.student}

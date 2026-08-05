@@ -4,6 +4,7 @@ import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { getCommandantUsers, getCommandantUsersSummary } from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import { shortRank } from '../../lib/rankUtils'
 
 function initials(name = '') {
   return name.split(' ').map((s) => s[0] || '').slice(0, 2).join('').toUpperCase()
@@ -248,7 +249,7 @@ export default function CommandantUsers({ initialRole = '' }) {
                       </span>
                     </div>
                     <div className="text-xs text-neutral-500 space-y-1">
-                      <p>Rank: <span className="text-black capitalize">{u.rank ? u.rank.replace(/_/g, ' ') : '—'}</span></p>
+                      <p>Rank: <span className="text-black capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</span></p>
                       <p>Unit: <span className="text-black">{u.unit || '—'}</span></p>
                     </div>
                   </div>
@@ -286,7 +287,7 @@ export default function CommandantUsers({ initialRole = '' }) {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-neutral-700">{u.svc_number || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700 capitalize">{u.rank ? u.rank.replace(/_/g, ' ') : '—'}</td>
+                        <td className="px-4 py-3 text-sm text-neutral-700 capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</td>
                         {!roleFilter && (
                           <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${meta.badge}`}>

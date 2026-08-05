@@ -17,7 +17,10 @@ ACTIVITY_EXEMPT_PATHS = getattr(settings, 'ACTIVITY_EXEMPT_PATHS', [
     '/api/auth/token/refresh/',
 ])
 
-def get_user_from_jwt(request):
+def get_user_from_jwt(request, return_token=False):
+
+    def _miss():
+        return (None, None) if return_token else None
 
     raw_token = None
 
@@ -30,14 +33,14 @@ def get_user_from_jwt(request):
             raw_token = auth_header[7:]
 
     if not raw_token:
-        return None
+        return _miss()
 
     try:
         access_token = AccessToken(raw_token)
 
         if is_access_token_denylisted(access_token):
             logger.debug("Access token is denylisted (logged out)")
-            return None
+            return _miss()
 
         user_id = access_token.get('user_id')
 
@@ -50,63 +53,69 @@ def get_user_from_jwt(request):
                 )
             else:
                 logger.warning("No active user found for user_id: %s", user_id)
-            return user
+            return (user, access_token) if return_token else user
         else:
             logger.warning("No user_id in token payload")
-            return None
+            return _miss()
 
     except TokenError as e:
         logger.debug("Token validation error: %s", e)
-        return None
+        return _miss()
 
     except Exception as e:
         logger.error(
             "Unexpected error in JWT validation: %s", e, exc_info=True,
         )
-        return None
+        return _miss()
 
 class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         if hasattr(request, 'user') and request.user.is_authenticated:
+
             self._stamp_activity_if_allowed(request)
             return None
 
-        user = get_user_from_jwt(request)
+        user, validated_token = get_user_from_jwt(request, return_token=True)
+
+        request._jwt_validated_token = validated_token
         if user:
             request.user = user
             request._jwt_user = user
-            self._stamp_activity_if_allowed(request)
+            self._stamp_activity_if_allowed(request, validated_token)
         else:
             request._jwt_user = None
 
         return None
 
     @classmethod
-    def _stamp_activity_if_allowed(cls, request):
+    def _stamp_activity_if_allowed(cls, request, validated_token=None):
 
         for path in ACTIVITY_EXEMPT_PATHS:
             if request.path.rstrip('/') == path.rstrip('/'):
                 return
-        cls._stamp_activity(request)
+        cls._stamp_activity(request, validated_token)
 
     @staticmethod
-    def _stamp_activity(request):
+    def _stamp_activity(request, validated_token=None):
 
         user = request.user
         if not user or not getattr(user, 'is_authenticated', False):
             return
 
-  
         session_id = None
-        cookie_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
-        raw_token = request.COOKIES.get(cookie_name)
-        if raw_token:
-            try:
-                token = AccessToken(raw_token)
-                session_id = token.get('session_id')
-            except TokenError:
-                pass
+        if validated_token is not None:
+            session_id = validated_token.get('session_id')
+        else:
+
+            cookie_name = getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'access_token')
+            raw_token = request.COOKIES.get(cookie_name)
+            if raw_token:
+                try:
+                    token = AccessToken(raw_token)
+                    session_id = token.get('session_id')
+                except TokenError:
+                    pass
 
         cache_key = f'user_last_activity:{user.id}:{session_id}' if session_id else f'user_last_activity:{user.id}'
 
@@ -114,7 +123,7 @@ class CookieJWTAuthenticationMiddleware(MiddlewareMixin):
         cache.set(
             cache_key,
             timezone.now().isoformat(),
-            timeout=timeout * 2, 
+            timeout=timeout * 2,
         )
    
 class TenantMiddleware(MiddlewareMixin):
@@ -142,10 +151,7 @@ class TenantMiddleware(MiddlewareMixin):
         school_code = request.headers.get('X-School-Code')
 
         if school_code:
-            # Cache only the school PK, not the object, so is_active is always
-            # re-checked against the database on each request. This ensures a
-            # deactivated school loses access within CACHE_TIMEOUT seconds rather
-            # than up to the full object-cache TTL.
+
             cache_key = f'school_id_by_code:{school_code}'
             school_id = cache.get(cache_key)
             if school_id is None:

@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import EmptyState from '../../components/EmptyState'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import SearchableSelect from '../../components/SearchableSelect'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import AdminPagination from '../../components/AdminPagination'
 import { jsPDF } from 'jspdf'
@@ -76,7 +78,14 @@ export default function ExamReports() {
     description: '',
   })
 
-
+  // Fetch initial data with React Query.
+  // Admins: only fetch exams for the selected class (server-side filtered),
+  // instead of downloading every exam in the school.
+  // staleTime is overridden to 0 here (instead of inheriting the app-wide
+  // 5 min default in main.jsx) so that returning to this screen after an
+  // exam is created/edited elsewhere always refetches rather than serving
+  // a cached list that's missing it. This is affordable now that each fetch
+  // is scoped to one class instead of the whole school.
   const { data: examsQueryData, isPending: loadingExams } = useQuery({
     queryKey: ['exams', isAdmin, selectedClass],
     queryFn: () => {
@@ -87,7 +96,7 @@ export default function ExamReports() {
       return api.getMyExams()
     },
     enabled: isAdmin ? !!selectedClass : true,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   })
   const { data: classesQueryData } = useQuery({
     queryKey: ['classes', 'active', isAdmin],
@@ -100,26 +109,56 @@ export default function ExamReports() {
     staleTime: 10 * 60 * 1000,
   })
 
- 
-  const loading = loadingExams && (isAdmin ? !!selectedClass : true)
+  // For admin, the exams query is disabled until a class is selected, so it
+  // must not block the initial page (class picker) from rendering.
+  const loading = isAdmin ? (!!selectedClass && loadingExams) : loadingExams
   const exams = Array.isArray(examsQueryData) ? examsQueryData : (examsQueryData?.results ?? [])
   const classes = Array.isArray(classesQueryData) ? classesQueryData : (classesQueryData?.results ?? [])
   const subjects = Array.isArray(subjectsQueryData) ? subjectsQueryData : (subjectsQueryData?.results ?? [])
+
+
+  const activeClassId = selectedExam
+    ? (selectedExam.subject_class_id || selectedExam.class_id)
+    : selectedClass
+  const selectedClassObj = useMemo(
+    () => classes.find(c => String(c.id) === String(activeClassId)),
+    [classes, activeClassId]
+  )
+  const isArchivedClass = selectedClassObj?.status === 'archived' || !!selectedClassObj?.is_closed
+
+  
+  const classOptions = useMemo(() => {
+    const isArchived = (c) => c.status === 'archived' || !!c.is_closed
+    return [...classes]
+      .sort((a, b) => {
+        const aArchived = isArchived(a)
+        const bArchived = isArchived(b)
+        if (aArchived !== bArchived) return aArchived ? 1 : -1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      .map(c => ({ id: c.id, label: `${c.name}${isArchived(c) ? ' (Archived)' : ''}` }))
+  }, [classes])
 
   // Filter exams based on selections (class is already filtered server-side for admin)
   const filteredExams = useMemo(() => {
     if (!selectedClass) return []
 
+    // Regular exams (LEGACY with results, or POLICY that happen to have exams too)
+    // Note: for admin, `exams` is already server-side scoped to selectedClass
+    // (subject__class_obj filter), so the class match below only applies to
+    // the instructor path, whose exams span all their classes. `subj` is
+    // still needed unconditionally for the POLICY grading-mode bypass.
     return exams.filter(exam => {
+      const subj = subjects.find(s => s.id === exam.subject || s.id === exam.subject_id)
       if (!isAdmin) {
-        // For non-admin, still filter by class client-side
-        const subj = subjects.find(s => s.id === exam.subject)
         if (!subj || subj.class_obj !== parseInt(selectedClass)) return false
       }
-      if (selectedSubject && exam.subject !== parseInt(selectedSubject)) return false
+      if (selectedSubject && exam.subject !== parseInt(selectedSubject) && exam.subject_id !== parseInt(selectedSubject)) return false
       if (selectedExamType && exam.exam_type !== selectedExamType) return false
       if (dateRange.start && new Date(exam.exam_date) < new Date(dateRange.start)) return false
       if (dateRange.end && new Date(exam.exam_date) > new Date(dateRange.end)) return false
+
+      if (subj?.grading_mode === 'POLICY') return true
       return exam.submission_count > 0 || (exam.average_score != null && exam.average_score > 0)
     })
   }, [exams, isAdmin, selectedClass, selectedSubject, selectedExamType, dateRange, subjects])
@@ -433,6 +472,7 @@ export default function ExamReports() {
       return
     }
     const totalMarks = selectedExam.total_marks || 100
+    const fmtNum = (v) => { const n = parseFloat(v); return Number.isInteger(n) ? String(n) : n.toFixed(1) }
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pw = doc.internal.pageSize.getWidth()
@@ -468,9 +508,9 @@ export default function ExamReports() {
       // ── Prepared by ─────────────────────────────────────────────────────────
       const preparedBy = examReport?.created_by_name || user?.full_name || user?.username
       if (preparedBy) {
-        const rank   = examReport?.created_by_rank       || 'N/A'
+        const rank   = shortRank(examReport?.created_by_rank || user?.rank) || 'N/A'
         const name   = preparedBy
-        const svcNum = examReport?.created_by_svc_number || 'N/A'
+        const svcNum = examReport?.created_by_svc_number || user?.svc_number || 'N/A'
         doc.setFillColor(242, 242, 246); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
         doc.roundedRect(margin, y, pw - margin * 2, 22, 2, 2, 'FD')
         doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(110, 110, 110)
@@ -549,10 +589,10 @@ export default function ExamReports() {
         return [
           i + 1,
           r.student_svc_number || 'N/A',
-          r.student_rank || 'N/A',
+          shortRank(r.student_rank) || 'N/A',
           r.student_name || 'Unknown',
-          `${parseFloat(r.marks_obtained).toFixed(1)} / ${totalMarks}`,
-          `${pct.toFixed(1)}%`,
+          `${fmtNum(r.marks_obtained)} / ${totalMarks}`,
+          `${fmtNum(pct)}%`,
           r.grade || getGrade(pct),
         ]
       })
@@ -605,7 +645,7 @@ export default function ExamReports() {
         const roleBg     = { commandant: [20, 20, 20], chief_instructor: [55, 55, 55], instructor: [90, 90, 90] }
 
         remarks.forEach((remark) => {
-          const rankAndName = [remark.author_rank, remark.author_name].filter(Boolean).join(' ')
+          const rankAndName = [shortRank(remark.author_rank), remark.author_name].filter(Boolean).join(' ')
           const svcLine = remark.author_svc_number ? `SVC: ${remark.author_svc_number}` : ''
           const lines = doc.splitTextToSize(remark.remark || '', pw - margin * 2 - 10)
           const cardH = 8 + 6 + lines.length * 4.5 + 5
@@ -642,20 +682,19 @@ export default function ExamReports() {
         })
       }
 
-      // ── Signature block ──────────────────────────────────────────────────────
-      checkPage(36)
-      y += 6
+      // ── Signature block (pinned to page bottom) ──────────────────────────────
+      checkPage(70)
+      const sigY = ph - 52
       doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3)
-      doc.line(margin, y, pw - margin, y)
-      y += 8
-      const sigX = [margin, pw / 2 + 4]
-      const sigLabels = ["Commandant's Signature", "Chief Instructor's Signature"]
-      sigX.forEach((x, i) => {
+      doc.line(margin, sigY - 4, pw - margin, sigY - 4)
+      const sigPositions = [margin, pw - margin - 65]
+      const sigLabels = ["Chief Instructor's Signature", "Commandant's Signature"]
+      sigPositions.forEach((x, i) => {
         doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3)
-        doc.line(x, y + 12, x + 62, y + 12)
+        doc.line(x, sigY + 10, x + 65, sigY + 10)
         doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
-        doc.text(sigLabels[i], x, y + 17)
-        doc.text('Date: _______________', x, y + 23)
+        doc.text(sigLabels[i], x, sigY + 15)
+        doc.text('Date: _______________', x, sigY + 21)
       })
 
       // ── Page footer ──────────────────────────────────────────────────────────
@@ -699,6 +738,14 @@ export default function ExamReports() {
           <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Archived class indicator - historical data stays viewable/exportable, nothing can be created or edited */}
+          {selectedClass && isArchivedClass && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+              <LucideIcons.Archive className="w-3.5 h-3.5" />
+              Archived — Read Only
+            </span>
+          )}
+
           {/* Comprehensive Results button - visible when class selected, no exam selected, not in comprehensive view */}
           {selectedClass && !selectedExam && !showComprehensive && (() => {
             const cls = classes.find(c => String(c.id) === selectedClass)
@@ -805,23 +852,17 @@ export default function ExamReports() {
                   </span>
                 )}
               </label>
-              <select
+              <SearchableSelect
                 value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value)
+                onChange={(val) => {
+                  setSelectedClass(val)
                   setSelectedSubject('')
                 }}
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${
-                  !selectedClass
-                    ? 'border-indigo-300 ring-1 ring-indigo-100'
-                    : 'border-neutral-200'
-                }`}
-              >
-                <option value="">Select a class...</option>
-                {classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                options={classOptions}
+                placeholder="Select a class..."
+                searchPlaceholder="Search classes..."
+                className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+              />
             </div>
 
             {/* Subject Filter */}
@@ -970,7 +1011,7 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        {!isAdmin && (
+                        {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
@@ -1033,7 +1074,7 @@ export default function ExamReports() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-col gap-2">
-                        {!isAdmin && (
+                        {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
@@ -1101,7 +1142,7 @@ export default function ExamReports() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center gap-2 justify-end flex-wrap">
-                            {!isAdmin && (
+                            {!isAdmin && !isArchivedClass && (
                               <button
                                 onClick={() => handleOpenCreateReportModal(exam)}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
@@ -1545,7 +1586,7 @@ export default function ExamReports() {
                                 {result.student_svc_number || 'N/A'}
                               </td>
                               <td className="px-4 py-3 text-sm text-neutral-600">
-                                {result.student_rank || 'N/A'}
+                                {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
@@ -1591,7 +1632,7 @@ export default function ExamReports() {
                                 {result.student_svc_number || 'N/A'}
                               </td>
                               <td className="px-4 py-3 text-sm text-neutral-600">
-                                {result.student_rank || 'N/A'}
+                                {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
@@ -1693,8 +1734,8 @@ export default function ExamReports() {
                         )}
                       </div>
 
-                      {/* Add Remark Form — hidden for admin */}
-                      {!isAdmin && (
+                      {/* Add Remark Form — hidden for admin and for archived classes */}
+                      {!isAdmin && !isArchivedClass && (
                         <div className="border-t border-neutral-200 pt-4">
                           <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
                           <textarea
@@ -1723,6 +1764,14 @@ export default function ExamReports() {
                               )}
                             </button>
                           </div>
+                        </div>
+                      )}
+                      {!isAdmin && isArchivedClass && (
+                        <div className="border-t border-neutral-200 pt-4">
+                          <p className="text-sm text-neutral-500 flex items-center gap-2">
+                            <LucideIcons.Lock className="w-4 h-4" />
+                            This class is archived — remarks are read-only.
+                          </p>
                         </div>
                       )}
                     </>

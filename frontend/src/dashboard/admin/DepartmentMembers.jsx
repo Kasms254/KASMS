@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { getDepartmentMemberships, addDepartmentMembership, updateDepartmentMembership, deleteDepartmentMembership, getDepartments, getAllInstructors } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import SearchableSelect from '../../components/SearchableSelect'
+import { shortRank } from '../../lib/rankUtils'
+import { getRankSortIndex } from '../../lib/rankOrder'
 
 // Rank keys in ascending seniority order (index 0 = lowest)
 const RANK_KEYS = [
@@ -177,20 +179,21 @@ export default function DepartmentMembers() {
     }
   }
 
-  // Sort by rank descending (most senior first), then service number ascending within same rank
+  // Sort by rank (most senior first, per getRankSortIndex's 0=most-senior convention),
+  // then service number ascending within same rank
   const sortedInstructorOptions = useMemo(() => {
     return [...instructors]
       .sort((a, b) => {
-        const aRank = getRankOrder(a.rank)
-        const bRank = getRankOrder(b.rank)
-        if (bRank !== aRank) return bRank - aRank
+        const aRank = getRankSortIndex(a.rank)
+        const bRank = getRankSortIndex(b.rank)
+        if (aRank !== bRank) return aRank - bRank
         const aNum = a.svc_number ? parseInt(a.svc_number.replace(/\D/g, ''), 10) : Infinity
         const bNum = b.svc_number ? parseInt(b.svc_number.replace(/\D/g, ''), 10) : Infinity
         return aNum - bNum
       })
       .map(ins => {
         const name = ins.full_name || `${ins.first_name || ''} ${ins.last_name || ''}`.trim() || ins.username
-        return { id: ins.id, label: `${ins.svc_number || '—'} ${getRankDisplay(ins.rank)} ${name}` }
+        return { id: ins.id, label: `${ins.svc_number || '—'} ${shortRank(getRankDisplay(ins.rank))} ${name}` }
       })
   }, [instructors])
 

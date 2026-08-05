@@ -39,6 +39,7 @@ export default function AttendanceReports() {
   const [classSummary, setClassSummary] = useState(null)
   const [trendData, setTrendData] = useState([])
   const [lowAttendanceStudents, setLowAttendanceStudents] = useState([])
+  const [alertsError, setAlertsError] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [studentDetail, setStudentDetail] = useState(null)
 
@@ -120,19 +121,22 @@ export default function AttendanceReports() {
       // Backend returns { class, period, trend_data: [...] }
       setTrendData(data?.trend_data || data?.trend || [])
     } catch (err) {
-      console.error('Failed to load trend data:', err)
+      toast.error(err.message || 'Failed to load trend data')
     }
-  }, [selectedClass])
+  }, [selectedClass, toast])
 
   // Load low attendance alerts
   const loadLowAttendanceAlerts = useCallback(async () => {
+    if (!selectedClass) return
+    setAlertsError(false)
     try {
-      const data = await api.getLowAttendanceAlerts(selectedClass || null, 75)
+      const data = await api.getLowAttendanceAlerts(selectedClass, 75)
       setLowAttendanceStudents(data?.students || data || [])
     } catch (err) {
-      console.error('Failed to load alerts:', err)
+      setAlertsError(true)
+      toast.error(err.message || 'Failed to load attendance alerts')
     }
-  }, [selectedClass])
+  }, [selectedClass, toast])
 
   // Load student detail
   const loadStudentDetail = useCallback(async () => {
@@ -676,7 +680,13 @@ export default function AttendanceReports() {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            {lowAttendanceStudents.length === 0 ? (
+            {alertsError ? (
+              <div className="p-8 text-center">
+                <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
+                <h3 className="mt-4 text-gray-700 font-medium">Failed to Load Alerts</h3>
+                <p className="text-sm text-gray-500 mt-1">Something went wrong fetching attendance alerts. Please try again.</p>
+              </div>
+            ) : lowAttendanceStudents.length === 0 ? (
               <div className="p-8 text-center">
                 <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
                 <h3 className="mt-4 text-gray-700 font-medium">No Low Attendance Alerts</h3>

@@ -3,6 +3,7 @@ import { useParams, useLocation } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import api from '../../lib/api'
 import { getRankSortIndex } from '../../lib/rankOrder'
+import useToast from '../../hooks/useToast'
 
 function toPercent(n) {
   if (n == null || Number.isNaN(Number(n))) return null
@@ -24,6 +25,7 @@ function gradeFromPercent(p) {
 
 export default function ClassDetail() {
   const { id } = useParams()
+  const toast = useToast()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -171,13 +173,14 @@ export default function ClassDetail() {
           [subjectId]: studentStats
         }))
       } catch (err) {
+        toast.error(err?.message || 'Failed to load marks for this subject')
       } finally {
         if (mounted) setMarksLoading(false)
       }
     }
     loadMarks()
     return () => { mounted = false }
-  }, [subjectId])
+  }, [subjectId, toast])
 
   function downloadCSV() {
     // build CSV with svc_number, rank, name, marks_percent

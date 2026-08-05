@@ -192,6 +192,13 @@ def _get_school_from_request(request):
     return getattr(request, 'school', None)
 
 
+def _enrollments_for_reporting(class_obj):
+
+    if class_obj.is_closed:
+        return Enrollment.all_objects.filter(class_obj=class_obj)
+    return Enrollment.objects.filter(class_obj=class_obj, is_active=True)
+
+
 class IsAnalyticsViewer(IsAuthenticated):
 
     ADMIN_ROLES = ('admin', 'superadmin')
@@ -238,6 +245,19 @@ class _ClassAccessMixin:
         ).exists()
 
         if user_role == 'instructor':
+            # For an archived class with a snapshot, check against who was
+            # actually assigned at closure time rather than the live FK —
+            # otherwise reassigning instructors afterwards could silently
+            # revoke access from whoever actually taught it, or grant it
+            # to someone who never did.
+            if class_obj.is_closed and class_obj.closure_snapshot:
+                snap = class_obj.closure_snapshot
+                uid = str(user.id)
+                if uid == snap.get('instructor_id'):
+                    return True
+                if uid in (snap.get('subject_instructor_ids') or []):
+                    return True
+                return False
             if class_obj.instructor_id == user.id:
                 return True
             if class_obj.subjects.filter(instructor=user, is_active=True).exists():
@@ -287,7 +307,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Subject.objects.select_related('instructor', 'class_obj', 'class_obj__course')
             if school:
                 qs = qs.filter(school=school)
-            subject = qs.get(id=subject_id, is_active=True)
+            subject = qs.get(id=subject_id)
         except Subject.DoesNotExist:
             return Response({'error': 'Subject Not Found'}, status=404)
 
@@ -299,9 +319,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 status=403,
             )
 
-        enrollments = Enrollment.objects.filter(
-            class_obj=class_obj, is_active=True
-        ).select_related('student')
+        enrollments = _enrollments_for_reporting(class_obj).select_related('student')
         total_students = enrollments.count()
 
         results_qs = ExamResult.objects.filter(
@@ -576,7 +594,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('course')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class not found'}, status=404)
 
@@ -584,7 +602,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             return Response({'error': 'You do not have permission to view this class.'}, status=403)
 
         subjects = Subject.objects.filter(class_obj=class_obj, is_active=True).select_related('instructor')
-        enrolled = Enrollment.objects.filter(class_obj=class_obj, is_active=True).count()
+        enrolled = _enrollments_for_reporting(class_obj).count()
 
         subj_exam = (
             ExamResult.objects
@@ -687,7 +705,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Subject.objects.all()
             if school:
                 qs = qs.filter(school=school)
-            subject = qs.get(id=subject_id, is_active=True)
+            subject = qs.get(id=subject_id)
         except Subject.DoesNotExist:
             return Response({'error': 'Subject not found'}, status=404)
 
@@ -695,7 +713,7 @@ class SubjectPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             return Response({'error': 'You do not have permission to view this subject.'}, status=403)
 
         cutoff = timezone.now().date() - timedelta(days=days)
-        enrolled = Enrollment.objects.filter(class_obj=subject.class_obj, is_active=True).count()
+        enrolled = _enrollments_for_reporting(subject.class_obj).count()
 
         exam_trend = (
             ExamResult.objects
@@ -810,7 +828,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('course', 'instructor')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class Not found'}, status=404)
 
@@ -834,9 +852,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             )
 
     def _compute_summary(self, request, class_obj, cache_key):
-        enrollments = Enrollment.objects.filter(
-            class_obj=class_obj, is_active=True
-        ).select_related('student')
+        enrollments = _enrollments_for_reporting(class_obj).select_related('student')
         total_students = enrollments.count()
         subjects = list(
             Subject.objects.filter(class_obj=class_obj, is_active=True).select_related('instructor')
@@ -935,7 +951,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                 'student_id': s.id,
                 'student_name': s.get_full_name(),
                 'svc_number': getattr(s, 'svc_number', None),
-                'student_rank': s.get_rank_display() if s.rank else '',
+                'student_rank': s.get_rank_display(),
                 'total_exams_taken': ed.get('exams_taken', 0),
                 'total_marks_obtained': total_marks_obtained,
                 'total_marks_possible': total_marks_possible,
@@ -1049,16 +1065,14 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('instructor')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class not found'}, status=404)
 
         if not self._has_class_access(request, class_obj):
             return Response({'error': 'You do not have permission to view this class.'}, status=403)
 
-        enrollments = Enrollment.objects.filter(
-            class_obj=class_obj, is_active=True,
-        ).select_related('student')
+        enrollments = _enrollments_for_reporting(class_obj).select_related('student')
         results_qs = ExamResult.objects.filter(
             exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False,
         )
@@ -1216,7 +1230,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('instructor')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class Not found'}, status=404)
 
@@ -1254,7 +1268,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('course', 'instructor')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class not found'}, status=404)
 
@@ -1262,7 +1276,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             return Response({'error': 'You do not have permission to view this class.'}, status=403)
 
         cutoff = timezone.now().date() - timedelta(days=days)
-        enrolled = Enrollment.objects.filter(class_obj=class_obj, is_active=True).count()
+        enrolled = _enrollments_for_reporting(class_obj).count()
 
         exam_trend = (
             ExamResult.objects
@@ -1397,16 +1411,14 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             qs = Class.objects.select_related('course', 'instructor')
             if school:
                 qs = qs.filter(school=school)
-            class_obj = qs.get(id=class_id, is_active=True)
+            class_obj = qs.get(id=class_id)
         except Class.DoesNotExist:
             return Response({'error': 'Class not found'}, status=404)
 
         if not self._has_class_access(request, class_obj):
             return Response({'error': 'You do not have permission to view this class.'}, status=403)
 
-        enrollments = Enrollment.objects.filter(
-            class_obj=class_obj, is_active=True,
-        ).select_related('student')
+        enrollments = _enrollments_for_reporting(class_obj).select_related('student')
         results_qs = ExamResult.objects.filter(
             exam__subject__class_obj=class_obj, is_submitted=True, marks_obtained__isnull=False,
         )

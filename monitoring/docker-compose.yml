@@ -6,7 +6,7 @@ name: kasms-monitoring
 # Command:  docker compose up -d
 #
 # Ports exposed on LAN (192.168.2.254):
-#   Grafana      → :3000
+
 #   Prometheus   → :9090
 #   Uptime Kuma  → :3001
 #   Dozzle       → :9999
@@ -23,7 +23,6 @@ x-log-rotation: &log-rotation
     max-file: "3"
 
 services:
-
   # ── Prometheus ──────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
@@ -46,7 +45,15 @@ services:
     networks:
       - monitoring_net
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -67,7 +74,15 @@ services:
     volumes:
       - /:/host:ro,rslave
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9100/metrics"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:9100/metrics",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -89,7 +104,15 @@ services:
     networks:
       - monitoring_net
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/healthz",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -132,18 +155,21 @@ services:
     logging: *log-rotation
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-kasms@monitoring}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in monitoring/.env — no default password is provided}
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
-      GF_SERVER_ROOT_URL: http://192.168.2.254:3000
+
+      GF_SERVER_ROOT_URL: https://${GRAFANA_DOMAIN:-192.168.2.254}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_COOKIE_SECURE: "true" # safe now — only ever reached via Nginx's HTTPS
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_COOKIE_SAMESITE: "strict"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-    ports:
-      - "3000:3000"
+
     networks:
       - monitoring_net
     depends_on:
@@ -152,7 +178,15 @@ services:
       loki:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:3000/api/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -466,28 +466,29 @@ class User(AbstractUser):
         ('chief_of_training', 'Chief of Training'),
     ]
     RANK_CHOICES = [
-        ('general', 'General'),
-        ('lieutenant_general', 'Lieutenant General'),
-        ('major_general', 'Major General'),
-        ('brigadier', 'Brigadier'),
-        ('colonel', 'Colonel'),
-        ('lieutenant_colonel', 'Lieutenant Colonel'),
-        ('major', 'Major'),
-        ('captain', 'Captain'),
-        ('lieutenant', 'Lieutenant'),
-        ('warrant_officer_i', 'Warrant Officer I'),
-        ('warrant_officer_ii', 'Warrant Officer II'),
-        ('senior_sergeant', 'Senior Sergeant'),
-        ('sergeant', 'Sergeant'),
-        ('corporal', 'Corporal'),
-        ('lance_corporal', 'Lance Corporal'),
         ('private', 'Private'),
-        ('head_constable_i', 'Head Constable I'),
-        ('head_constable_ii', 'Head Constable II'),
-        ('constable_i', 'Constable I'),
-        ('constable_ii', 'Constable II'),
-        ('constable_iii', 'Constable III'),
-        ('civilian', 'Civilian'),
+        ('CIII', 'Constable'),
+        ('lance_corporal', 'Lance Corporal'),
+        ('CII', 'CII_Corporal'),
+        ('corporal', 'Corporal'),
+        ('CI', 'CI_Sergeant'),
+        ('sergeant', 'Sergeant'),
+        ('senior_sergeant', 'Senior Sergeant'),
+        ('HCII', 'HCII_Warrant Officer II'),
+        ('warrant_officer_ii', 'Warrant Officer II'),
+        ('HCI', 'HCI_Warrant Officer I'),
+        ('warrant_officer_i', 'Warrant Officer I'),
+        ('2nd_lieutenant', '2nd Lieutenant'),
+        ('lieutenant', 'Lieutenant'),
+        ('captain', 'Captain'),
+        ('major', 'Major'),
+        ('lieutenant_colonel', 'Lieutenant Colonel'),
+        ('colonel', 'Colonel'),
+        ('brigadier', 'Brigadier'),
+        ('major_general', 'Major General'),
+        ('lieutenant_general', 'Lieutenant General'),
+        ('general', 'General'),
+        ('civ', 'Civilian'),
     ]
 
     must_change_password = models.BooleanField(default=True)
@@ -503,6 +504,17 @@ class User(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     unit = models.CharField(null=True, blank=True, max_length=100)
+
+    totp_secret_encrypted = models.TextField(blank=True, default='')
+    totp_enabled = models.BooleanField(default=False)
+    totp_confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_totp_verified_at = models.DateTimeField(null=True, blank=True)
+    last_totp_step = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="30s time-step of the last accepted TOTP code, so the same code can't be replayed within its valid_window.",
+    )
+    totp_pending_secret_encrypted = models.TextField(blank=True, default='')
+    totp_pending_expires_at = models.DateTimeField(null=True, blank=True)
 
     objects = TenantAwareUserManager()
     all_objects = models.Manager()
@@ -638,6 +650,16 @@ class Class(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes_closed'
+    )
+    closure_snapshot = models.JSONField(
+        null=True, blank=True,
+        help_text=(
+            "Identity and stats captured at close_class() time: instructor/subject-"
+            "instructor ids, student roster, and aggregate counts. Null for classes "
+            "closed before this field existed, or classes never closed. Used so "
+            "access checks and summaries for an archived class don't drift if "
+            "instructor assignments change afterwards."
+        ),
     )
     index_prefix = models.CharField(max_length=20, blank=True, default='', help_text="Prefix for student indexes")
     index_start_from = models.PositiveIntegerField(default=1, help_text="First index number assigned to new students (e.g. 50 → first student gets 050).")
@@ -2046,7 +2068,7 @@ class Certificate(models.Model):
         self.revocation_reason = reason
         self.revoked_at = timezone.now()
         self.save(update_fields=[
-            'status', 'revoked_by', 'revocation_reason', 'revoked_at', 'updated_at',
+            'status', 'revoked_by', 'revocation_reason', 'revoked_at',
         ])
 
     def record_download(self):
@@ -2104,39 +2126,80 @@ class CertificateDownloadLog(models.Model):
         db_table = 'certificate_download_logs'
         ordering = ['-downloaded_at']
 
-    DOWNLOAD_TYPE_CHOICES = [
-        ('pdf', 'PDF Download'),
-        ('html', 'HTML Preview'),
-        ('view', 'View Only'),
+class CertificateAuditLog(models.Model):
+    """Immutable audit trail for privileged certificate-module actions."""
+
+    ACTION_CHOICES = [
+        ('issued', 'Certificate Issued'),
+        ('bulk_issued', 'Certificates Bulk Issued'),
+        ('revoked', 'Certificate Revoked'),
+        ('class_closed', 'Class Closed'),
+        ('template_created', 'Template Created'),
+        ('template_updated', 'Template Updated'),
+        ('template_deleted', 'Template Deleted'),
+        ('template_set_default', 'Template Set Default'),
     ]
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
-        related_name='certificate_downloads',
+        related_name='certificate_audit_logs',
         null=True, blank=True,
     )
-    certificate = models.ForeignKey(
-        Certificate, on_delete=models.CASCADE,
-        related_name='download_logs',
-    )
-    downloaded_by = models.ForeignKey(
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, blank=True,
-        related_name='certificate_downloads',
+        related_name='certificate_audit_actions',
     )
-    download_type = models.CharField(
-        max_length=20, choices=DOWNLOAD_TYPE_CHOICES, default='pdf',
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificate_audit_logs',
     )
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
-    downloaded_at = models.DateTimeField(auto_now_add=True)
+    certificate = models.ForeignKey(
+        Certificate, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='audit_logs',
+    )
+    student = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certificate_audit_subject_logs',
+    )
+    previous_state = models.JSONField(default=dict, blank=True)
+    new_state = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text='Request metadata: ip_address, user_agent, counts, etc.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    objects = TenantAwareManager()
-    all_objects = models.Manager()
+    objects = models.Manager()
 
     class Meta:
-        db_table = 'certificate_download_logs'
-        ordering = ['-downloaded_at']
+        db_table = 'certificate_audit_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['school', 'created_at']),
+            models.Index(fields=['certificate', 'action']),
+            models.Index(fields=['class_obj', 'action']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} by {self.performed_by} at {self.created_at}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                CertificateAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except CertificateAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
 
 class BiometricDevice(models.Model):
 
@@ -2349,127 +2412,368 @@ class OICRemark(models.Model):
         super().save(*args, **kwargs)
 
 
-class CommandantSchoolReport(models.Model):
+# course reports
+class CourseReport(models.Model):
 
-    class Status(models.TextChoices):
-        DRAFT = 'draft', 'Draft'
-        SUBMITTED = 'submitted', 'Submitted'
-        REVIEWED = 'reviewed', 'Reviewed'
-        ARCHIVED = 'archived', 'Archived'
+    STATUS_CHOICES =[
+        ('instructor_draft', 'Instructor Draft'),
+        ('instructor_submitted', 'Instructor Submitted'),
+        ('oic_draft', 'OIC Draft'),
+        ('oic_submitted', 'OIC Submitted'),
+        ('ci_draft', 'Chief Instructor Draft'),
+        ('ci_submitted', 'Chief Instructor Submitted'),
+        ('commandant_draft', 'Commandant Draft'),
+        ('approved', 'Approved'),
+    ]
+
+    ROLE_WRITE_STATUS = {
+        'instructor':       ('instructor_draft',),
+        'oic':              ('oic_draft',),
+        'chief_instructor': ('ci_draft',),
+        'commandant':       ('commandant_draft',),
+    }
+
+    VALID_TRANSITIONS ={
+        'instructor_draft':      'instructor_submitted',
+        'instructor_submitted':  'oic_draft',
+        'oic_draft':             'oic_submitted',
+        'oic_submitted':         'ci_draft',
+        'ci_draft':              'ci_submitted',
+        'ci_submitted':          'commandant_draft',
+        'commandant_draft':      'approved',
+    }
+
+    SUBMIT_REQUIRES_STAGE = {
+        'instructor_draft':  'instructor',
+        'oic_draft':         'oic',
+        'ci_draft':          'chief_instructor',
+        'commandant_draft':  'commandant',
+    }
+
+    SUBMIT_ROLE_STATUS = {
+        'instructor':       'instructor_draft',
+        'oic':              'oic_draft',
+        'chief_instructor': 'ci_draft',
+        'commandant':       'commandant_draft',
+    }
+
+    ADVANCE_ROLE_STATUS = {
+        'oic':              'instructor_submitted',
+        'chief_instructor': 'oic_submitted',
+        'commandant':       'ci_submitted',
+    }
+
+
+    CORRECTABLE_ROLES = {'instructor', 'oic', 'chief_instructor'}
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     school = models.ForeignKey(
-        School, on_delete=models.CASCADE, related_name='commandant_reports'
+        School, on_delete=models.CASCADE,
+        related_name='course_reports',
     )
-    commandant = models.ForeignKey(
-        User, on_delete=models.CASCADE,
-        related_name='authored_commandant_reports',
+
+    enrollment = models.ForeignKey(
+        'Enrollment', on_delete=models.PROTECT,
+        related_name='course_reports',
+        help_text = 'The specific student enrollment this report is for.'
     )
-    title = models.CharField(max_length=300, blank=True)
-    reporting_period_start = models.DateField()
-    reporting_period_end = models.DateField()
-    report_date = models.DateField(default=date.today)
+
+    class_obj = models.ForeignKey(
+        Class, on_delete=models.CASCADE,
+        related_name='course_reports',
+        help_text='Denormalized from enrollment for efficient filtering.',
+    )
 
     status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.DRAFT
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='instructor_draft',
+        db_index=True,
     )
-    submitted_at = models.DateTimeField(null=True, blank=True)
-    submitted_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='submitted_commandant_reports',
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_reports_created',
     )
-
-    observations = models.TextField(blank=True)
-    challenges = models.TextField(blank=True)
-    achievements = models.TextField(blank=True)
-    recommendations = models.TextField(blank=True)
-    overall_remarks = models.TextField(blank=True)
-
-    # Populated on submission; None while still draft (computed live for drafts)
-    statistics_snapshot = models.JSONField(null=True, blank=True)
-
+    report_file = models.FileField(
+        upload_to='course_reports/pdf/',
+        null=True, blank=True,
+        help_text='Generated PDF after final approval.',
+    )
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    objects = TenantAwareManager()
+ 
+    objects = SimpleTenantAwareManager()
     all_objects = models.Manager()
 
     class Meta:
-        db_table = 'commandant_school_reports'
-        ordering = ['-report_date', '-created_at']
+        db_table = 'course_reports'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['enrollment'],
+                condition=models.Q(is_active=True),
+                name='unique_active_report_per_enrollment',
+            ),
+        ]
         indexes = [
-            models.Index(fields=['school', 'status']),
-            models.Index(fields=['commandant', 'status']),
-            models.Index(fields=['school', 'report_date']),
-            models.Index(fields=['status', 'submitted_at']),
+            models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['class_obj', 'status']),
+            models.Index(fields=['class_obj', 'is_active']),
+            models.Index(fields=['enrollment', 'is_active']),
+            models.Index(fields=['status', 'is_active']),
         ]
 
     def __str__(self):
-        return (
-            f"{self.school.code} Report — "
-            f"{self.reporting_period_start} to {self.reporting_period_end} "
-            f"({self.status})"
-        )
-
+            return (
+                f"CourseReport: {self.enrollment.student.username} "
+                f"in {self.class_obj} [{self.status}]"
+            )
+ 
     def save(self, *args, **kwargs):
-        if not self.title:
-            start = self.reporting_period_start
-            end = self.reporting_period_end
-            if start and end:
-                self.title = (
-                    f"{self.school.name} — "
-                    f"{start.strftime('%b %Y')} to {end.strftime('%b %Y')}"
-                )
+            if self.enrollment_id:
+                if not self.school_id:
+                    self.school = self.enrollment.school
+                if not self.class_obj_id:
+                    self.class_obj = self.enrollment.class_obj
+            super().save(*args, **kwargs)
+    
+    def can_transition_to(self, new_status):
+            return self.VALID_TRANSITIONS.get(self.status) == new_status
+    
+    def get_visible_stages_for_role(self, role):
+
+            all_stages = ['instructor', 'oic', 'chief_instructor', 'commandant']
+
+            # Once fully approved, every stage's remark is already baked into
+            # the final signed PDF (which the instructor can download), so
+            # keeping the in-app view restricted at that point only produces
+            # a misleading "not yet submitted" for stages that are in fact
+            # long done. Reveal everything to everyone with report access.
+            if self.status == 'approved':
+                return all_stages
+
+            visibility = {
+                'instructor':       ['instructor'],
+                'oic':              ['instructor', 'oic'],
+                'chief_instructor': ['instructor', 'oic', 'chief_instructor'],
+                'commandant':       all_stages,
+                'admin':            all_stages,
+                'superadmin':       all_stages,
+            }
+            return visibility.get(role, [])
+
+PAD_SUBJECTS = [
+    ('leadership_and_command_skills', 'Leadership and Command Skills'),
+    ('instructional_ability',         'Instructional Ability'),
+    ('attitude',                      'Attitude'),
+    ('initiative',                    'Initiative'),
+    ('power_of_expression',           'Power of Expression'),
+    ('ability_to_grasp_instructions', 'Ability to Grasp Instructions'),
+    ('industry',                      'Industry'),
+    ('motivation',                    'Motivation'),
+    ('co_operation',                  'Co-operation'),
+]
+PAD_SUBJECT_LABELS = dict(PAD_SUBJECTS)
+PAD_SUBJECT_KEYS = set(PAD_SUBJECT_LABELS)
+
+
+class CourseReportStageRemark(models.Model):
+
+    STAGE_CHOICES = [
+        ('instructor', 'Instructor'),
+        ('oic', 'OIC'),
+        ('chief_instructor', 'Chief Instructor'),
+        ('commandant', 'Commandant'),
+    ]
+ 
+    PREREQUISITE_STAGE = {
+        'oic':              'instructor',
+        'chief_instructor': 'oic',
+        'commandant':       'chief_instructor',
+    }
+ 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        CourseReport, on_delete=models.CASCADE,
+        related_name='stage_remarks',
+    )
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, db_index=True)
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_report_remarks',
+    )
+    content = models.TextField(
+        help_text='The remark/assessment text for this student (OIC/CI/Commandant stages).',
+        null=True, blank=True,
+    )
+    character_and_personality = models.TextField(null=True, blank=True)
+    knowledge_and_ability = models.TextField(null=True, blank=True)
+    command_and_leadership = models.TextField(null=True, blank=True)
+    strengths = models.TextField(null=True, blank=True)
+    weaknesses = models.TextField(null=True, blank=True)
+    deployment_recommendation = models.TextField(null=True, blank=True)
+    pad_scores = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'Personal Ability Dimension scores (1-5), keyed by subject code '
+            '(instructor stage only). e.g. {"attitude": 3}.'
+        ),
+    )
+
+    is_submitted = models.BooleanField(
+        default=False,
+        help_text=(
+            'Once True, this remark is locked for the commandant stage. '
+            'For instructor/oic/chief_instructor stages it can still be '
+            'corrected until the report is approved (see CORRECTABLE_ROLES).'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+ 
+    objects = models.Manager() 
+ 
+    class Meta:
+        db_table = 'course_report_stage_remarks'
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['report', 'stage'],
+                name='unique_stage_per_report',
+            ),
+        ]
+ 
+    def __str__(self):
+        return f"{self.stage} remark on {self.report_id} ({'submitted' if self.is_submitted else 'draft'})"
+ 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                existing = CourseReportStageRemark.objects.select_related('report').get(pk=self.pk)
+                if existing.is_submitted:
+                    correctable = (
+                        existing.stage in CourseReport.CORRECTABLE_ROLES
+                        and existing.report.status != 'approved'
+                    )
+                    if not correctable:
+                        raise ValidationError(
+                            f"Cannot edit a submitted {self.stage} remark."
+                        )
+            except CourseReportStageRemark.DoesNotExist:
+                pass
         super().save(*args, **kwargs)
 
-    def clean(self):
-        if (
-            self.reporting_period_start
-            and self.reporting_period_end
-            and self.reporting_period_start > self.reporting_period_end
-        ):
-            raise ValidationError(
-                'Reporting period start must be before or equal to end date.'
-            )
 
-
-class CommandantReportAuditLog(models.Model):
+class CourseReportAuditLog(models.Model):
 
     ACTION_CHOICES = [
-        ('created', 'Created'),
-        ('updated', 'Updated'),
-        ('submitted', 'Submitted'),
-        ('reviewed', 'Reviewed'),
-        ('archived', 'Archived'),
+        ('created', 'Report Created'),
+        ('bulk_created', 'Bulk Reports Created'),
+        ('remark_saved', 'Remark Saved'),
+        ('remark_submitted', 'Remark Submitted'),
+        ('status_changed', 'Status Changed'),
+        ('bulk_submitted', 'Bulk Submitted'),
+        ('approved', 'Report Approved'),
+        ('pdf_generated', 'PDF Generated'),
+        ('pdf_downloaded', 'PDF Downloaded'),
+    ]
+ 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        CourseReport, on_delete=models.CASCADE,
+        related_name='audit_logs',
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='course_report_audit_actions',
+    )
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text='Additional context: old_status, new_status, stage, etc.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+ 
+    objects = models.Manager()
+ 
+    class Meta:
+        db_table = 'course_report_audit_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['report', 'action']),
+            models.Index(fields=['performed_by', 'created_at']),
+        ]
+ 
+    def __str__(self):
+        return f"{self.action} on {self.report_id} by {self.performed_by}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                CourseReportAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except CourseReportAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
+
+
+class UserImportAuditLog(models.Model):
+
+    ACTION_CHOICES = [
+        ('completed', 'Import Completed'),
+        ('failed', 'Import Failed'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    report = models.ForeignKey(
-        CommandantSchoolReport, on_delete=models.CASCADE, related_name='audit_logs'
-    )
     school = models.ForeignKey(
         School, on_delete=models.CASCADE,
-        related_name='commandant_report_audit_logs'
+        null=True, blank=True,
+        related_name='user_import_audit_logs',
     )
     action = models.CharField(max_length=20, choices=ACTION_CHOICES)
     performed_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='commandant_report_audit_logs',
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='user_import_audit_actions',
     )
-    notes = models.TextField(blank=True)
-    metadata = models.JSONField(default=dict, blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            'filename, ip_address, total_rows, created_count, failed_count, '
+            'skipped_count, created_svc_numbers, error_summary, etc.'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    all_objects = models.Manager()
+    objects = models.Manager()
 
     class Meta:
-        db_table = 'commandant_report_audit_logs'
-        ordering = ['-timestamp']
+        db_table = 'user_import_audit_logs'
+        ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['report', 'timestamp']),
-            models.Index(fields=['action', 'timestamp']),
-            models.Index(fields=['school', 'timestamp']),
+            models.Index(fields=['school', 'created_at']),
+            models.Index(fields=['performed_by', 'created_at']),
         ]
 
     def __str__(self):
-        return f"{self.action.title()} — {self.report} by {self.performed_by}"
+        return f"{self.action} import by {self.performed_by} at {self.created_at}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                UserImportAuditLog.objects.get(pk=self.pk)
+                raise ValidationError("Audit logs cannot be modified.")
+            except UserImportAuditLog.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")
+ 

@@ -6,8 +6,10 @@ import useAuth from '../../hooks/useAuth'
 import EmptyState from '../../components/EmptyState'
 import Card from '../../components/Card'
 import ModernDatePicker from '../../components/ModernDatePicker'
+import SearchableSelect from '../../components/SearchableSelect'
 import StudentPerformanceTable from '../../components/StudentPerformanceTable'
 import AdminPagination from '../../components/AdminPagination'
+import { shortRank } from '../../lib/rankUtils'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -36,7 +38,7 @@ function _gradeFromPct(pct) {
   return 'F'
 }
 
-const EXAM_TYPES = ['cat', 'final', 'project', 'quiz', 'midterm', 'assignment']
+const EXAM_TYPES = ['cat', 'final', 'project', 'assignment']
 
 export default function CommandantExamReports() {
   const toast = useToast()
@@ -79,6 +81,26 @@ export default function CommandantExamReports() {
   const [newRemark,          setNewRemark]          = useState('')
   const [remarksLoading,     setRemarksLoading]     = useState(false)
   const [remarkSubmitting,   setRemarkSubmitting]   = useState(false)
+
+  
+  const selectedClassObj = useMemo(
+    () => classes.find(c => String(c.id) === String(selectedClass)),
+    [classes, selectedClass]
+  )
+  const isArchivedClass = selectedClassObj?.status === 'archived' || !!selectedClassObj?.is_closed
+
+
+  const classOptions = useMemo(() => {
+    const isArchived = (c) => c.status === 'archived' || !!c.is_closed
+    return [...classes]
+      .sort((a, b) => {
+        const aArchived = isArchived(a)
+        const bArchived = isArchived(b)
+        if (aArchived !== bArchived) return aArchived ? 1 : -1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      .map(c => ({ id: c.id, label: `${c.name}${isArchived(c) ? ' (Archived)' : ''}` }))
+  }, [classes])
 
   // ── Load classes on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -382,6 +404,7 @@ export default function CommandantExamReports() {
   const exportPDF = useCallback(() => {
     if (!selectedExam || !examResults.length) return toast?.error?.('No results to export')
     const totalMarks = selectedExam?.total_marks || 100
+    const fmtNum = (v) => { const n = parseFloat(v); return Number.isInteger(n) ? String(n) : n.toFixed(1) }
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pw = doc.internal.pageSize.getWidth()
@@ -416,9 +439,9 @@ export default function CommandantExamReports() {
 
       // ── Prepared by (instructor) ─────────────────────────────────────────
       if (currentRemarksData?.created_by_name) {
-        const rank   = currentRemarksData.created_by_rank       || 'N/A'
+        const rank   = shortRank(currentRemarksData.created_by_rank || user?.rank) || 'N/A'
         const name   = currentRemarksData.created_by_name       || 'N/A'
-        const svcNum = currentRemarksData.created_by_svc_number || 'N/A'
+        const svcNum = currentRemarksData.created_by_svc_number || user?.svc_number || 'N/A'
         doc.setFillColor(242, 242, 246); doc.setDrawColor(210, 210, 220); doc.setLineWidth(0.3)
         doc.roundedRect(margin, y, pw - margin * 2, 22, 2, 2, 'FD')
         // section label
@@ -508,10 +531,10 @@ export default function CommandantExamReports() {
           return [
             i + 1,
             r.student_svc_number || 'N/A',
-            r.student_rank || 'N/A',
+            shortRank(r.student_rank) || 'N/A',
             r.student_name || 'Unknown',
-            `${parseFloat(r.marks_obtained).toFixed(1)} / ${totalMarks}`,
-            `${pct.toFixed(1)}%`,
+            `${fmtNum(r.marks_obtained)} / ${totalMarks}`,
+            `${fmtNum(pct)}%`,
             r.grade || _gradeFromPct(pct),
           ]
         })
@@ -572,7 +595,7 @@ export default function CommandantExamReports() {
         }
 
         remarks.forEach((remark) => {
-          const rankAndName = [remark.author_rank, remark.author_name].filter(Boolean).join(' ')
+          const rankAndName = [shortRank(remark.author_rank), remark.author_name].filter(Boolean).join(' ')
           const svcLine = remark.author_svc_number ? `SVC: ${remark.author_svc_number}` : ''
           const lines = doc.splitTextToSize(remark.remark || '', pw - margin * 2 - 10)
           const cardH = 8 + 6 + lines.length * 4.5 + 5
@@ -615,20 +638,19 @@ export default function CommandantExamReports() {
         })
       }
 
-      // ── Signature block ──────────────────────────────────────────────────
-      checkPage(36)
-      y += 6
+      // ── Signature block (pinned to page bottom) ──────────────────────────
+      checkPage(70)
+      const sigY = ph - 52
       doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3)
-      doc.line(margin, y, pw - margin, y)
-      y += 8
-      const sigX = [margin, pw / 2 + 4]
-      const sigLabels = ["Commandant's Signature", "Chief Instructor's Signature"]
-      sigX.forEach((x, i) => {
+      doc.line(margin, sigY - 4, pw - margin, sigY - 4)
+      const sigPositions = [margin, pw - margin - 65]
+      const sigLabels = ["Chief Instructor's Signature", "Commandant's Signature"]
+      sigPositions.forEach((x, i) => {
         doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3)
-        doc.line(x, y + 12, x + 62, y + 12)
+        doc.line(x, sigY + 10, x + 65, sigY + 10)
         doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
-        doc.text(sigLabels[i], x, y + 17)
-        doc.text('Date: _______________', x, y + 23)
+        doc.text(sigLabels[i], x, sigY + 15)
+        doc.text('Date: _______________', x, sigY + 21)
       })
 
       // ── Page footer ──────────────────────────────────────────────────────
@@ -827,7 +849,7 @@ export default function CommandantExamReports() {
                         <tr key={idx} className={`hover:bg-neutral-50 transition ${!submitted ? 'opacity-60' : ''}`}>
                           <td className="px-4 py-3 text-sm text-neutral-500">{submitted ? rowNum : '—'}</td>
                           <td className="px-4 py-3 text-sm text-neutral-600">{r.student_svc_number || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_rank || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_rank ? shortRank(r.student_rank) : 'N/A'}</td>
                           <td className="px-4 py-3 font-medium text-black">{r.student_name || 'Unknown'}</td>
                           <td className="px-4 py-3 text-sm font-medium text-black">
                             {submitted ? `${parseFloat(r.marks_obtained).toFixed(1)} / ${selectedExam.total_marks || '—'}` : '—'}
@@ -874,7 +896,7 @@ export default function CommandantExamReports() {
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <div className="font-medium text-black text-sm">{r.student_name}</div>
-                          <div className="text-xs text-neutral-500">{r.student_rank} · {r.student_svc_number}</div>
+                          <div className="text-xs text-neutral-500">{r.student_rank ? shortRank(r.student_rank) : ''} · {r.student_svc_number}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           {grade && <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-gray-100'} ${gradeColor.text || 'text-gray-700'}`}>{grade}</span>}
@@ -943,7 +965,7 @@ export default function CommandantExamReports() {
                               <div className="flex items-center gap-2">
                                 <div>
                                   <div className="font-medium text-sm text-black">{remark.author_name}</div>
-                                  {remark.author_rank && <div className="text-xs text-neutral-500">{remark.author_rank}</div>}
+                                  {remark.author_rank && <div className="text-xs text-neutral-500">{shortRank(remark.author_rank)}</div>}
                                 </div>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full font-medium ${
@@ -964,36 +986,45 @@ export default function CommandantExamReports() {
                     </div>
                   )}
 
-                  {/* Add Remark Form */}
-                  <div className="border-t border-neutral-200 pt-4">
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                    <textarea
-                      value={newRemark}
-                      onChange={(e) => setNewRemark(e.target.value)}
-                      placeholder="Enter your remark about this exam…"
-                      rows={4}
-                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                    />
-                    <div className="flex gap-3 justify-end mt-3">
-                      <button
-                        onClick={handleAddRemark}
-                        disabled={remarkSubmitting || !newRemark.trim() || !currentRemarksData}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {remarkSubmitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <LucideIcons.Send size={16} />
-                            Submit Remark
-                          </>
-                        )}
-                      </button>
+                  {/* Add Remark Form — hidden for archived classes */}
+                  {!isArchivedClass ? (
+                    <div className="border-t border-neutral-200 pt-4">
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                      <textarea
+                        value={newRemark}
+                        onChange={(e) => setNewRemark(e.target.value)}
+                        placeholder="Enter your remark about this exam…"
+                        rows={4}
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                      />
+                      <div className="flex gap-3 justify-end mt-3">
+                        <button
+                          onClick={handleAddRemark}
+                          disabled={remarkSubmitting || !newRemark.trim() || !currentRemarksData}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {remarkSubmitting ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Submitting...
+                            </>
+                          ) : (
+                            <>
+                              <LucideIcons.Send size={16} />
+                              Submit Remark
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="border-t border-neutral-200 pt-4">
+                      <p className="text-sm text-neutral-500 flex items-center gap-2">
+                        <LucideIcons.Lock className="w-4 h-4" />
+                        This class is archived — remarks are read-only.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-4 md:p-6 text-center">
@@ -1022,6 +1053,12 @@ export default function CommandantExamReports() {
           <h2 className="text-2xl font-semibold text-black">Exam Reports</h2>
           <p className="text-sm text-gray-500">Comprehensive exam analysis and student performance</p>
         </div>
+        {selectedClass && isArchivedClass && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+            <LucideIcons.Archive className="w-3.5 h-3.5" />
+            Archived — Read Only
+          </span>
+        )}
         {selectedClass && (
           <button
             onClick={handleViewComprehensive}
@@ -1058,14 +1095,14 @@ export default function CommandantExamReports() {
             <label className={`flex items-center gap-1 text-sm mb-1 ${!selectedClass ? 'text-indigo-700 font-medium' : 'text-neutral-600'}`}>
               <LucideIcons.School className="w-4 h-4" />Class
             </label>
-            <select
+            <SearchableSelect
               value={selectedClass}
-              onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); setSelectedExamType('') }}
-              className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 ${!selectedClass ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-neutral-200'}`}
-            >
-              <option value="">Select a class…</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              onChange={val => { setSelectedClass(val); setSelectedSubject(''); setSelectedExamType('') }}
+              options={classOptions}
+              placeholder="Select a class…"
+              searchPlaceholder="Search classes..."
+              className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+            />
           </div>
           {/* Subject */}
           <div>
@@ -1371,16 +1408,25 @@ export default function CommandantExamReports() {
                 )}
               </div>
 
-              {/* Add Remark Form */}
+              {/* Add Remark Form — hidden for archived classes */}
               <div className="border-t border-neutral-200 pt-4 mt-4">
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
-                <textarea
-                  value={newRemark}
-                  onChange={(e) => setNewRemark(e.target.value)}
-                  placeholder="Enter your remark..."
-                  rows={4}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
-                />
+                {isArchivedClass ? (
+                  <p className="text-sm text-neutral-500 flex items-center gap-2 mb-3">
+                    <LucideIcons.Lock className="w-4 h-4" />
+                    This class is archived — remarks are read-only.
+                  </p>
+                ) : (
+                  <>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                    <textarea
+                      value={newRemark}
+                      onChange={(e) => setNewRemark(e.target.value)}
+                      placeholder="Enter your remark..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                    />
+                  </>
+                )}
                 <div className="flex gap-3 justify-end mt-3">
                   <button
                     onClick={() => { setRemarksModalOpen(false); setCurrentRemarksData(null) }}
@@ -1389,23 +1435,25 @@ export default function CommandantExamReports() {
                   >
                     Close
                   </button>
-                  <button
-                    onClick={handleAddRemark}
-                    disabled={remarkSubmitting || !newRemark.trim()}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {remarkSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <LucideIcons.Send size={16} />
-                        Submit Remark
-                      </>
-                    )}
-                  </button>
+                  {!isArchivedClass && (
+                    <button
+                      onClick={handleAddRemark}
+                      disabled={remarkSubmitting || !newRemark.trim()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {remarkSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <LucideIcons.Send size={16} />
+                          Submit Remark
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

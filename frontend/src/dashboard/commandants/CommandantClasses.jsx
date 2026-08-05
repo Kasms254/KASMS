@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import Card from '../../components/Card'
-import { getCommandantClasses, getCommandantClassStudents } from '../../lib/api'
+import { getCommandantClasses } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 
 function formatDate(str) {
@@ -20,6 +20,7 @@ export default function CommandantClasses() {
   const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [showOnlyActive, setShowOnlyActive] = useState(true)
   const pageSize = 12
 
   const reportError = useCallback((msg) => {
@@ -31,7 +32,7 @@ export default function CommandantClasses() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      let params = `page=${currentPage}&page_size=${pageSize}`
+      let params = `page=${currentPage}&page_size=${pageSize}&is_active=${showOnlyActive}`
       if (search.trim()) params += `&search=${encodeURIComponent(search.trim())}`
       // allow filtering by course via query param: /commandant/classes?course=<id>
       const qs = new URLSearchParams(location.search)
@@ -41,43 +42,18 @@ export default function CommandantClasses() {
       const list = Array.isArray(data) ? data : data?.results ?? []
 
       // Normalize student count fields from various possible API keys
-      const initialMapped = list.map((cl) => ({ ...cl, student_count: cl.student_count ?? cl.students_count ?? cl.current_enrollment ?? cl.enrollment_count ?? null }))
-      setClasses(initialMapped)
+      const mapped = list.map((cl) => ({ ...cl, student_count: cl.student_count ?? cl.students_count ?? cl.current_enrollment ?? cl.enrollment_count ?? null }))
+      setClasses(mapped)
       if (data?.count !== undefined) {
         setTotalCount(data.count)
         setTotalPages(Math.ceil(data.count / pageSize))
-      }
-
-      // For any classes missing a student_count, fetch per-class student list
-      const toFetch = initialMapped.reduce((acc, cl, idx) => {
-        if (cl.student_count == null) acc.push({ id: cl.id, idx })
-        return acc
-      }, [])
-
-      if (toFetch.length > 0) {
-        try {
-          const counts = await Promise.allSettled(toFetch.map((t) => getCommandantClassStudents(t.id).catch(() => null)))
-          const mapped = [...initialMapped]
-          toFetch.forEach((t, i) => {
-            const res = counts[i]
-            let studentsCount = null
-            if (res && res.status === 'fulfilled' && res.value) {
-              const v = res.value
-              studentsCount = Array.isArray(v) ? v.length : (v?.count ?? null)
-            }
-            mapped[t.idx] = { ...mapped[t.idx], student_count: studentsCount }
-          })
-          setClasses(mapped)
-        } catch {
-          // ignore per-class failures
-        }
       }
     } catch (err) {
       reportError(err?.message || 'Failed to load classes')
     } finally {
       setLoading(false)
     }
-  }, [currentPage, search, reportError, location.search])
+  }, [currentPage, search, showOnlyActive, reportError, location.search])
 
   useEffect(() => { load() }, [load])
 
@@ -89,13 +65,24 @@ export default function CommandantClasses() {
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">All classes in this school</p>
         </div>
-        <input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
-          className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-        />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
+            <input
+              type="checkbox"
+              checked={!showOnlyActive}
+              onChange={() => { setShowOnlyActive(s => !s); setCurrentPage(1) }}
+            />
+            <span className="hidden sm:inline">Show Closed / Inactive</span>
+            <span className="sm:hidden">Inactive</span>
+          </label>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
+            className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+        </div>
       </div>
 
       {totalCount > 0 && (
@@ -139,13 +126,23 @@ export default function CommandantClasses() {
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls.is_closed ? 'bg-red-100 text-red-700' : cls.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>
                       {cls.is_closed ? 'Closed' : cls.is_active ? 'Active' : 'Inactive'}
                     </span>
-                    <button
-                      onClick={() => navigate(`/commandant/classes/${cls.id}`)}
-                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
-                    >
-                      <LucideIcons.Users className="w-3 h-3 inline mr-1" />
-                      View
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/commandant/classes/${cls.id}`)}
+                        className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition"
+                      >
+                        <LucideIcons.Users className="w-3 h-3 inline mr-1" />
+                        View
+                      </button>
+                      <button
+                        onClick={() => navigate(`/commandant/classes/${cls.id}/certificates`)}
+                        className="px-2 py-1 rounded-md bg-emerald-600 text-white text-xs hover:bg-emerald-700 transition"
+                        aria-label={`Certificates for ${cls.name || 'class'}`}
+                      >
+                        <LucideIcons.Award className="w-3 h-3 inline mr-1" />
+                        Certificates
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Card>

@@ -10,6 +10,14 @@ from .auth_views import (
     change_password_view,
     verify_token_view,
 )
+from .totp_views import (
+    totp_enroll_start_view,
+    totp_enroll_confirm_view,
+    totp_disable_view,
+    totp_verify_login_view,
+    totp_recover_start_view,
+    totp_recover_confirm_view,
+)
 
 auth_urlpatterns = [
     path('csrf/', csrf_token_view, name='csrf_token'),
@@ -29,4 +37,16 @@ auth_urlpatterns = [
     path('change-password/', change_password_view, name='change_password'),
 
     path('verify-token/', verify_token_view, name='verify_token'),
+
+    path('totp/enroll/start/', totp_enroll_start_view, name='totp_enroll_start'),
+
+    path('totp/enroll/confirm/', totp_enroll_confirm_view, name='totp_enroll_confirm'),
+
+    path('totp/disable/', totp_disable_view, name='totp_disable'),
+
+    path('totp/verify/', totp_verify_login_view, name='totp_verify_login'),
+
+    path('totp/recover/start/', totp_recover_start_view, name='totp_recover_start'),
+
+    path('totp/recover/confirm/', totp_recover_confirm_view, name='totp_recover_confirm'),
 ]

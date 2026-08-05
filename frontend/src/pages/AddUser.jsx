@@ -14,24 +14,34 @@ const roles = [
 ]
 
 const ranks = [
+  // Officer Ranks (Most Senior)
   { value: 'general', label: 'General' },
+  { value: 'lieutenant_general', label: 'Lieutenant General' },
+  { value: 'major_general', label: 'Major General' },
+  { value: 'brigadier', label: 'Brigadier' },
+  { value: 'colonel', label: 'Colonel' },
   { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
+  // Warrant Officer Ranks
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  // Non-Commissioned and Enlisted Ranks
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
   { value: 'corporal', label: 'Corporal' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  // Constabulary/Support Ranks
+  { value: 'HCI', label: 'HCI' },
+  { value: 'HCII', label: 'HCII' },
+  { value: 'CI', label: 'CI' },
+  { value: 'CII', label: 'CII' },
+  { value: 'CIII', label: 'Constable' },
+  // Civilian
+  { value: 'civ', label: 'Civilian' },
 ]
 
 // Sanitize text input by removing script tags, HTML tags, and control characters
@@ -146,7 +156,7 @@ export default function AddUser({ onSuccess } = {}) {
       case 'svc_number':
         if (!value) return 'Service number is required'
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
-        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        if (value.length > 14) return 'Service number cannot exceed 14 digits'
         return ''
       case 'phone_number':
         if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
@@ -188,9 +198,9 @@ export default function AddUser({ onSuccess } = {}) {
     const { name, value, type, checked } = e.target
     let newValue = type === 'checkbox' ? checked : value
 
-    // Only allow numeric input for service number (max 7 digits)
+    // Only allow numeric input for service number (max 14 digits)
     if (name === 'svc_number') {
-      newValue = value.replace(/\D/g, '').slice(0, 7)
+      newValue = value.replace(/\D/g, '').slice(0, 14)
     }
 
     // Only allow numeric input for phone number
@@ -402,7 +412,7 @@ export default function AddUser({ onSuccess } = {}) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Service number</label>
-                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={7} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={14} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                 {fieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.svc_number}</div>}
               </div>
 
@@ -419,28 +429,9 @@ export default function AddUser({ onSuccess } = {}) {
                   }`}
                 >
                   <option value="" disabled>-- Select a rank --</option>
-                  <option value="general">General</option>
-                  <option value="lieutenant_general">Lieutenant General</option>
-                  <option value="major_general">Major General</option>
-                  <option value="brigadier">Brigadier</option>
-                  <option value="colonel">Colonel</option>
-                  <option value="lieutenant_colonel">Lieutenant Colonel</option>
-                  <option value="major">Major</option>
-                  <option value="captain">Captain</option>
-                  <option value="lieutenant">Lieutenant</option>
-                  <option value="warrant_officer_i">Warrant Officer I</option>
-                  <option value="warrant_officer_ii">Warrant Officer II</option>
-                  <option value="senior_sergeant">Senior Sergeant</option>
-                  <option value="sergeant">Sergeant</option>
-                  <option value="corporal">Corporal</option>
-                  <option value="lance_corporal">Lance Corporal</option>
-                  <option value="private">Private</option>
-                  <option value="head_constable_i">Head Constable I</option>
-                  <option value="head_constable_ii">Head Constable II</option>
-                  <option value="constable_i">Constable I</option>
-                  <option value="constable_ii">Constable II</option>
-                  <option value="constable_iii">Constable III</option>
-                  <option value="civilian">Civilian</option>
+                  {ranks.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
                 {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>

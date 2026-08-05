@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 
@@ -25,19 +26,19 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
 ]
 
 const EDITABLE_ROLE_OPTIONS = [
@@ -54,6 +55,7 @@ const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value // identity mapping for stored values
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 // Normalize a rank value from the backend to the internal value used by dropdowns.
@@ -117,7 +119,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
       case 'svc_number':
         if (!value) return 'Service number is required'
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
-        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        if (value.length > 14) return 'Service number cannot exceed 14 digits'
         return ''
       case 'phone_number':
         if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
@@ -388,9 +390,9 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
   function handleEditChange(k, v) {
     let newValue = v
 
-    // Only allow numeric input for service number (max 7 digits)
+    // Only allow numeric input for service number (max 14 digits)
     if (k === 'svc_number') {
-      newValue = v.replace(/\D/g, '').slice(0, 7)
+      newValue = v.replace(/\D/g, '').slice(0, 14)
     }
 
     // Only allow numeric input for phone number
@@ -565,11 +567,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
           <p className="text-sm text-neutral-500">Manage instructors — quick table view</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
-            {exportLoading ? 'Exporting…' : 'Download CSV'}
-          </button>
-        </div>
+        {!hideActions && (
+          <div className="flex items-center gap-3">
+            <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+              {exportLoading ? 'Exporting…' : 'Download CSV'}
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Search and Filters */}
@@ -666,14 +670,14 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Phone</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Classes</th>
                   <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Subjects</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                  {!hideActions && <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {instructors.map((it) => (
                   <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
                     <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(it.rank) || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank)) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
@@ -737,7 +741,10 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                        <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
+                        </div>
                     </td>
                   </tr>
                 ))}
@@ -754,7 +761,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Instructor</th>
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Contact</th>
                     <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Teaching</th>
-                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                    {!hideActions && <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -764,7 +771,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         <div className="min-w-0">
                           <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                           <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                          {it.rank && <div className="text-xs text-neutral-600">{getRankDisplay(it.rank)}</div>}
+                          {it.rank && <div className="text-xs text-neutral-600">{shortRank(getRankDisplay(it.rank))}</div>}
                           {it.unit && <div className="text-xs text-neutral-400">{it.unit}</div>}
                         </div>
                       </td>
@@ -821,6 +828,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       <td className="px-3 py-3">
                         <div className="flex flex-col items-stretch gap-1.5">
                           <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap text-center">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -845,7 +853,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   {it.rank ? (
                     <div className="flex items-start">
                       <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{getRankDisplay(it.rank)}</span>
+                      <span className="text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank))}</span>
                     </div>
                   ) : null}
 
@@ -922,10 +930,12 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   </div>
                 </div>
 
-                {/* Actions */}
+                {!hideActions && (
                   <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
                     <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button onClick={() => handleDelete(it)} className="w-full px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">Delete</button>
                   </div>
+                )}
               </div>
             ))}
           </div>
@@ -1110,7 +1120,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={7} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={14} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                   {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
                 </div>
 
@@ -1183,9 +1193,6 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
-                  </button>
-                  <button type="button" onClick={() => handleDelete(editingInstructor)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                    Delete
                   </button>
                 </div>
                 <div className="flex items-center gap-2">

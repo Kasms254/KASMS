@@ -16,9 +16,11 @@ build/
 .coverage
 htmlcov/
 .pytest_cache/
+__pycache__/
+*.pyc
+core/management/
 
-# Virtual environments
-venv/
+.claude
 .venv/
 env/
 ENV/
@@ -44,10 +46,21 @@ monitoring/.env
 
 # Database dumps
 *.dump
+*.dump.age
 *.sql
 *.sql.gz
+*.sql.gz.age
 backup.json
 datadump.json
+
+# age encryption keys (NEVER commit — the real key lives outside the repo
+# at /etc/kasms/age/backup-key.txt, but these patterns are a safety net in
+# case anyone generates or copies one into the project directory)
+age-key.txt
+*.agekey
+backup-key.txt
+identity.txt
+age/
 
 # SSL certificates (server-specific, generated on server)
 certbot/
@@ -93,7 +106,29 @@ pytest.ini
 settings_test.py
 test_settings.py
 seed_system.py
-migrations/
-core/migrations
 
+celerybeat-schedule.*
+celerybeat-schedule.dir
+celerybeat-schedule.dat
+celerybeat-schedule.bak
+find_old_references.sh
+fix_all.py
+CLAUDE.md
+BIOMETRIC_SETUP.md
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+test_device_connection.sh
+test_skteco_connection.py
+
+test_settings.py
+core/tests/
+test_policy.py
+tests/
+pytest.ini
+settings_test.py
 backup/
+certbot/
+logs/
+certificate_verification.log
+BACKUP_ENCRYPTION.md

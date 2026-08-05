@@ -1,9 +1,9 @@
-// API client for the frontend.
+  // API client for the frontend.
 // Authentication is handled via HTTP-only cookies set by the server.
 // All requests include credentials:'include' so cookies are sent automatically.
 import { transformToSentenceCase } from './textTransform'
 
-const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_FALLBACK = import.meta.env.VITE_API_FALLBACK || null;
 
 // Configuration for sentence case transformation
@@ -32,6 +32,7 @@ const SENTENCE_CASE_CONFIG = {
     'role', // CRITICAL: preserve role for authentication checks (admin, instructor, student, superadmin)
     'must_change_password', // Preserve boolean flag for auth flow
     'status', // Preserve status values for comparisons
+    'stage', // Preserve stage values for comparisons (instructor, oic, chief_instructor, commandant)
     'type', // Preserve type values
     'id', // Preserve ID fields
     'logo', // Preserve file paths (e.g., school_logos/...)
@@ -80,6 +81,40 @@ const SENTENCE_CASE_CONFIG = {
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
   return match ? match[1] : null
+}
+
+// Seed the csrftoken cookie if it isn't set yet. Called lazily before
+// unauthenticated state-changing requests (login, 2FA) instead of on every
+// page load, so public pages make no requests at all.
+export async function ensureCsrfCookie() {
+  if (getCsrfToken()) return
+  try {
+    await fetch(`${API_BASE}/api/auth/csrf/`, { credentials: 'include' })
+  } catch {
+    // Non-fatal — proceed without CSRF cookie
+  }
+}
+
+// Refresh tokens rotate on use (the old one is blacklisted immediately), so if
+// several requests 401 at the same time and each fires its own refresh call,
+// only the first succeeds — the rest race against an already-blacklisted
+// token and force a logout even though the session is still valid. Share a
+// single in-flight refresh across concurrent callers to avoid that.
+let refreshPromise = null
+function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE}/api/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
 }
 
 // Sanitize string input to prevent injection attacks
@@ -135,12 +170,8 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   // The server reads the refresh_token cookie automatically — no body needed.
   if (res.status === 401 && !path.includes('/token/refresh/')) {
     try {
-      const refreshRes = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      if (refreshRes.ok) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) {
         // New access_token cookie is set by the server; retry the original request
         res = await fetch(url, opts)
         data = await parseResponse(res)
@@ -232,7 +263,11 @@ async function requestMultipart(path, { method = 'POST', formData, headers = {} 
   if (!res.ok) {
     let data
     try { data = await res.json() } catch { data = await res.text() }
-    const err = new Error('Request failed')
+    const detail = data && (data.detail || data.message || data.error || data.non_field_errors)
+    const userMessage = detail
+      ? (Array.isArray(detail) ? detail.join(', ') : String(detail))
+      : 'Request failed'
+    const err = new Error(userMessage)
     err.status = res.status
     err.data = data
     throw err
@@ -243,6 +278,7 @@ async function requestMultipart(path, { method = 'POST', formData, headers = {} 
 }
 
 export async function login(svc_number, password) {
+  await ensureCsrfCookie()
   // Sanitize inputs before sending to API
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
@@ -256,6 +292,7 @@ export async function login(svc_number, password) {
 }
 
 export async function verify2FA(svc_number, password, code) {
+  await ensureCsrfCookie()
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
   const sanitizedCode = sanitizeInput(code)
@@ -266,6 +303,7 @@ export async function verify2FA(svc_number, password, code) {
 }
 
 export async function resend2FA(svc_number, password) {
+  await ensureCsrfCookie()
   const sanitizedSvcNumber = sanitizeInput(svc_number)
   const sanitizedPassword = sanitizeInput(password)
   return request('/api/auth/resend-2fa/', {
@@ -277,6 +315,62 @@ export async function resend2FA(svc_number, password) {
 export async function logout() {
   // No body needed — server reads the refresh_token cookie, blacklists it, and clears both cookies
   return request('/api/auth/logout/', { method: 'POST' })
+}
+
+export async function totpEnrollStart(password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/enroll/start/', {
+    method: 'POST',
+    body: { password: sanitizeInput(password) },
+  })
+}
+
+export async function totpEnrollConfirm(code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/enroll/confirm/', {
+    method: 'POST',
+    body: { code: sanitizeInput(code) },
+  })
+}
+
+export async function totpDisable(password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/disable/', {
+    method: 'POST',
+    body: { password: sanitizeInput(password) },
+  })
+}
+
+export async function totpVerifyLogin(svc_number, password, code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/verify/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizeInput(svc_number),
+      password: sanitizeInput(password),
+      code: sanitizeInput(code),
+    },
+  })
+}
+
+export async function totpRecoverStart(svc_number, password) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/recover/start/', {
+    method: 'POST',
+    body: { svc_number: sanitizeInput(svc_number), password: sanitizeInput(password) },
+  })
+}
+
+export async function totpRecoverConfirm(svc_number, password, code) {
+  await ensureCsrfCookie()
+  return request('/api/auth/totp/recover/confirm/', {
+    method: 'POST',
+    body: {
+      svc_number: sanitizeInput(svc_number),
+      password: sanitizeInput(password),
+      code: sanitizeInput(code),
+    },
+  })
 }
 
 export async function changePassword(oldPassword, newPassword, newPassword2) {
@@ -317,7 +411,8 @@ export async function getAllStudents(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getStudentsPaginated(`${baseParams}page=${page}&page_size=100`)
+      // Backend caps this endpoint's page_size at 200
+      const data = await getStudentsPaginated(`${baseParams}page=${page}&page_size=200`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allStudents = [...allStudents, ...results]
 
@@ -343,7 +438,7 @@ export async function getAllCourses() {
 
   while (hasMore) {
     try {
-      const data = await getCoursesPaginated(`page=${page}&page_size=100`)
+      const data = await getCoursesPaginated(`page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allCourses = [...allCourses, ...results]
 
@@ -394,7 +489,7 @@ export async function getAllClasses(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getClassesPaginated(`${baseParams}page=${page}&page_size=100`)
+      const data = await getClassesPaginated(`${baseParams}page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allClasses = [...allClasses, ...results]
 
@@ -752,7 +847,7 @@ export async function getAllSubjects(params = '') {
 
   while (hasMore) {
     try {
-      const data = await getSubjectsPaginated(`${baseParams}page=${page}&page_size=100`)
+      const data = await getSubjectsPaginated(`${baseParams}page=${page}&page_size=1000`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allSubjects = [...allSubjects, ...results]
 
@@ -773,9 +868,11 @@ export async function getMySubjects() {
     const data = await request('/api/subjects/my_subjects/')
     if (data && Array.isArray(data.results)) return data.results
     return data
-  } catch {
-    // Fall back to general subjects list
-    return getSubjects()
+  } catch (err) {
+    // Fall back to the general subjects list only if the endpoint doesn't
+    // exist (older backend). Other errors shouldn't trigger a second request.
+    if (err?.status === 404) return getSubjects()
+    throw err
   }
 }
 
@@ -1143,7 +1240,8 @@ export async function getAllInstructors() {
 
   while (hasMore) {
     try {
-      const data = await getInstructorsPaginated(`page=${page}&page_size=100`)
+      // Backend caps this endpoint's page_size at 200
+      const data = await getInstructorsPaginated(`page=${page}&page_size=200`)
       const results = Array.isArray(data) ? data : (data && data.results) ? data.results : []
       allInstructors = [...allInstructors, ...results]
 
@@ -1163,11 +1261,28 @@ export async function getInstructorsPaginated(params = '') {
   return request(`/api/users/instructors/${qs}`)
 }
 
+// Extract a user-friendly message from a failed blob-download response
+// (the body is JSON on error, but a blob on success, so it can't go through
+// the shared request() helper).
+async function blobErrorMessage(res, fallback) {
+  try {
+    const data = await res.json()
+    const detail = data && (data.detail || data.message || data.error)
+    if (detail) return detail
+  } catch {
+    // response wasn't JSON — fall through to status-based message
+  }
+  if (res.status === 401 || res.status === 403) return 'You do not have permission to perform this action.'
+  if (res.status === 404) return 'The requested resource was not found.'
+  if (res.status >= 500) return 'A server error occurred. Please try again later.'
+  return fallback
+}
+
 export async function exportStudentsCSV(params = '') {
   const qs = params ? `?${params}` : ''
   const url = `${API_BASE}/api/users/students/export_csv/${qs}`
   const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error('Export failed')
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to export students.'))
   return res.blob()
 }
 
@@ -1175,7 +1290,7 @@ export async function exportInstructorsCSV(params = '') {
   const qs = params ? `?${params}` : ''
   const url = `${API_BASE}/api/users/instructors/export_csv/${qs}`
   const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error('Export failed')
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to export instructors.'))
   return res.blob()
 }
 
@@ -1234,6 +1349,24 @@ export async function deactivateUser(id) {
 
 export async function resetUserPassword(id, newPassword) {
   return request(`/api/users/${id}/reset_password/`, { method: 'POST', body: { new_password: newPassword } })
+}
+
+export async function previewStudentImport(file) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return requestMultipart('/api/users/import/preview/', { method: 'POST', formData: fd })
+}
+
+export async function confirmStudentImport(importId) {
+  return request('/api/users/import/confirm/', { method: 'POST', body: { import_id: importId } })
+}
+
+export async function downloadStudentImportTemplate() {
+  const response = await fetch(`${API_BASE}/api/users/import/template/`, { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error(`Failed to download template (${response.status})`)
+  }
+  return response.text()
 }
 
 // =====================
@@ -1331,6 +1464,11 @@ export async function deactivateSchool(id) {
 export async function getSchoolAdmins(params = '') {
   const qs = params ? `?${params}` : ''
   return request(`/api/school-admins/${qs}`)
+}
+
+// Get aggregate superadmin dashboard counts (schools, admins, students, instructors)
+export async function getSuperadminDashboardSummary() {
+  return request('/api/superadmin-dashboard/summary/')
 }
 
 // Get a single school admin by ID
@@ -1547,11 +1685,6 @@ export async function getCertificateStats() {
   return request('/api/certificates/stats/')
 }
 
-// Bulk create certificates (server-side helper)
-export async function bulkCreateCertificates(payload) {
-  return request('/api/certificates/bulk_create/', { method: 'POST', body: payload })
-}
-
 // Certificate download logs
 export async function getCertificateDownloadLogs(params = '') {
   const qs = params ? `?${params}` : ''
@@ -1742,22 +1875,8 @@ export async function getCommandantDepartmentDetails(id) {
 }
 
 export async function getCommandantClasses(params = '') {
-  let allClasses = []
-  let page = 1
-  let hasMore = true
-  const baseParams = params ? `${params}&` : ''
-  while (hasMore) {
-    try {
-      const data = await request(`/api/commandant/classes/?${baseParams}page=${page}`)
-      const results = Array.isArray(data) ? data : (data?.results ?? [])
-      allClasses = [...allClasses, ...results]
-      hasMore = !!(data?.next)
-      page++
-    } catch {
-      hasMore = false
-    }
-  }
-  return allClasses
+  const q = params ? `?${params}` : ''
+  return request(`/api/commandant/classes/${q}`)
 }
 
 export async function getCommandantClassStudents(id) {
@@ -2082,75 +2201,64 @@ export async function evaluateStudentSubject(subjectId, studentId) {
   return request(`/api/subjects/${encodeURIComponent(subjectId)}/evaluate_student/?student_id=${encodeURIComponent(studentId)}`)
 }
 
+// ── Course Reports ─────────────────────────────────────────────────────────────
 
-export async function getCommandantReports(params = '') {
-  const q = params ? `?${params}` : ''
-  return request(`/api/commandant/reports/${q}`)
+export async function getCourseReports(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/course-reports/${qs}`)
 }
 
-export async function getCommandantReportDetail(id) {
-  return request(`/api/commandant/reports/${id}/`)
+export async function getCourseReportDetail(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/`)
 }
 
-export async function createCommandantReport(data) {
-  return request('/api/commandant/reports/', { method: 'POST', body: data })
+export async function bulkCreateCourseReports(classId) {
+  return request('/api/course-reports/bulk-create/', { method: 'POST', body: { class_obj: classId } })
 }
 
-export async function updateCommandantReport(id, data) {
-  return request(`/api/commandant/reports/${id}/`, { method: 'PATCH', body: data })
+export async function saveCourseReportRemark(id, payload) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/save-remark/`, { method: 'POST', body: payload })
 }
 
-export async function deleteCommandantReport(id) {
-  return request(`/api/commandant/reports/${id}/`, { method: 'DELETE' })
+export async function submitCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/submit/`, { method: 'POST', body: {} })
 }
 
-export async function submitCommandantReport(id) {
-  return request(`/api/commandant/reports/${id}/submit/`, { method: 'POST' })
+export async function advanceCourseReport(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/advance/`, { method: 'POST', body: {} })
 }
 
-export async function getCommandantReportStatistics(id) {
-  return request(`/api/commandant/reports/${id}/statistics/`)
+export async function bulkSubmitCourseReports(classId) {
+  return request('/api/course-reports/bulk-submit/', { method: 'POST', body: { class_id: classId } })
 }
 
-export async function downloadCommandantReportPdf(id) {
-  const res = await fetch(`${API_BASE}/api/commandant/reports/${id}/pdf/`, {
+export async function bulkAdvanceCourseReports(classId) {
+  return request('/api/course-reports/bulk-advance/', { method: 'POST', body: { class_id: classId } })
+}
+
+export async function downloadCourseReport(id) {
+  const url = `${API_BASE}/api/course-reports/${encodeURIComponent(id)}/download/`
+  const csrf = getCsrfToken()
+  const res = await fetch(url, {
     method: 'GET',
     credentials: 'include',
+    headers: csrf ? { 'X-CSRFToken': csrf } : {},
   })
-  if (!res.ok) throw new Error('Failed to download report PDF')
+  if (!res.ok) {
+    let msg = 'Failed to download report'
+    try { const e = await res.json(); msg = e.detail || msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
   return res.blob()
 }
 
-// --- Chief of Training ---
-
-export async function getCOTDashboard() {
-  return request('/api/cot/reports/dashboard/')
-}
-
-export async function getCOTAnalytics() {
-  return request('/api/cot/reports/analytics/')
-}
-
-export async function getCOTReports(params = '') {
-  const q = params ? `?${params}` : ''
-  return request(`/api/cot/reports/${q}`)
-}
-
-export async function getCOTReportDetail(id) {
-  return request(`/api/cot/reports/${id}/`)
-}
-
-export async function downloadCOTReportPdf(id) {
-  const res = await fetch(`${API_BASE}/api/cot/reports/${id}/pdf/`, {
-    method: 'GET',
-    credentials: 'include',
-  })
-  if (!res.ok) throw new Error('Failed to download report PDF')
-  return res.blob()
+export async function getCourseReportAuditLog(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/audit-log/`)
 }
 
 export default {
   login,
+  ensureCsrfCookie,
   changePassword,
   getCurrentUser,
   getStudents,
@@ -2366,7 +2474,6 @@ export default {
   deleteCertificateTemplate,
   setCertificateTemplateDefault,
   previewCertificateTemplate,
-  bulkCreateCertificates,
   getCertificateDownloadLogs,
   verifyCertificate,
   // Student Index / Roster
@@ -2429,6 +2536,17 @@ export default {
   deleteOICAssignment,
   bulkAssignOIC,
   getOICUsers,
+  // Course Reports
+  getCourseReports,
+  getCourseReportDetail,
+  bulkCreateCourseReports,
+  saveCourseReportRemark,
+  submitCourseReport,
+  advanceCourseReport,
+  bulkSubmitCourseReports,
+  bulkAdvanceCourseReports,
+  downloadCourseReport,
+  getCourseReportAuditLog,
   getComponentChoices,
   getAssessmentComponents,
   getComponentsBySubject,

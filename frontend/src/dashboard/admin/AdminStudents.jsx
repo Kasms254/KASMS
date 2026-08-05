@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
+import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
@@ -26,19 +27,20 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 const EDITABLE_ROLE_OPTIONS = [
@@ -55,6 +57,7 @@ const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value // identity mapping for stored values
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 // Normalize a rank value from the backend to the internal value used by dropdowns.
@@ -113,7 +116,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       case 'svc_number':
         if (!value) return 'Service number is required'
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
-        if (value.length > 7) return 'Service number cannot exceed 7 digits'
+        if (value.length > 14) return 'Service number cannot exceed 14 digits'
         return ''
       case 'phone_number':
         if (value && !/^\d{7,15}$/.test(value)) return 'Phone number must be 7-15 digits'
@@ -132,6 +135,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
   }
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleteBlockedReason, setDeleteBlockedReason] = useState(null)
   const [classesList, setClassesList] = useState([])
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
   const [enrollmentsList, setEnrollmentsList] = useState([])
@@ -271,9 +275,9 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
   function handleEditChange(key, value) {
     let newValue = value
 
-    // Only allow numeric input for service number (max 7 digits)
+    // Only allow numeric input for service number (max 14 digits)
     if (key === 'svc_number') {
-      newValue = value.replace(/\D/g, '').slice(0, 7)
+      newValue = value.replace(/\D/g, '').slice(0, 14)
     }
 
     // Only allow numeric input for phone number
@@ -379,7 +383,9 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
               await api.withdrawEnrollment(a.id)
               setEnrollmentsList((lst) => lst.map((x) => x.id === a.id ? { ...x, is_active: false } : x))
             } catch (err) {
-              // non-fatal: continue but inform user
+              // non-fatal: continue with the remaining enrollments, but inform the user
+              // since a stale active enrollment can leave the student in two classes at once
+              reportError('Failed to withdraw a previous enrollment: ' + (err.message || String(err)))
             }
           }
 
@@ -438,12 +444,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
   // show confirm modal (instead of window.confirm)
   function handleDelete(st) {
+    setDeleteBlockedReason(null)
     setConfirmDelete(st)
   }
 
   async function performDelete(st) {
     if (!st) return
     setDeletingId(st.id)
+    setDeleteBlockedReason(null)
     try {
       await api.deleteUser(st.id)
       queryClient.invalidateQueries({ queryKey: ['students'] })
@@ -452,10 +460,21 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       closeEdit()
       toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
-      reportError('Failed to delete student: ' + (err.message || String(err)))
+
+      if (err.status === 409) {
+        setDeleteBlockedReason(err.message || 'This student has related records that must be preserved.')
+      } else {
+        reportError('Failed to delete student: ' + (err.message || String(err)))
+      }
     } finally {
       setDeletingId(null)
     }
+  }
+
+  async function deactivateInsteadOfDelete(st) {
+    setConfirmDelete(null)
+    setDeleteBlockedReason(null)
+    await toggleActivation(st)
   }
 
   // Toggle user activation status
@@ -570,6 +589,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {!hideActions && source !== 'commandant' && (
+            <button
+              onClick={() => navigate('/dashboard/import/students')}
+              className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+            >
+              Bulk Import
+            </button>
+          )}
           <button onClick={downloadCSV} disabled={exportLoading} className="flex-1 sm:flex-none px-3 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
             {exportLoading ? 'Exporting…' : 'Download CSV'}
           </button>
@@ -714,13 +741,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                   </div>
 
                   <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm mb-3">
-                    {st.rank && <div className="flex justify-between gap-2"><span className="text-neutral-600">Rank:</span><span className="text-black truncate">{getRankDisplay(st.rank)}</span></div>}
+                    {st.rank && <div className="flex justify-between gap-2"><span className="text-neutral-600">Rank:</span><span className="text-black truncate">{shortRank(getRankDisplay(st.rank))}</span></div>}
                     <div className="flex justify-between gap-2"><span className="text-neutral-600 flex-shrink-0">Email:</span><span className="text-black truncate">{st.email || '-'}</span></div>
                     <div className="flex justify-between gap-2"><span className="text-neutral-600">Phone:</span><span className="text-black truncate">{st.phone_number || '-'}</span></div>
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
                     <button onClick={() => openEdit(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">Edit</button>
+                    <button onClick={() => handleDelete(st)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 transition">Delete</button>
                   </div>
                 </div>
               ))}
@@ -739,14 +767,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Phone</th>
                     <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>
+                    {!hideActions && <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 bg-white">
                   {students.map((st) => (
                     <tr key={st.id} className="hover:bg-neutral-50 transition">
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-700">{getRankDisplay(st.rank) || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(st.rank)) || '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">{initials(st.name || st.svc_number)}</div>
@@ -765,6 +793,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEdit(st)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
+                          <button onClick={() => handleDelete(st)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -814,7 +843,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={7} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={14} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
                   {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
                 </div>
 
@@ -879,9 +908,6 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                   <button type="button" onClick={() => openResetPassword(editingStudent)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
                   </button>
-                  <button type="button" onClick={() => handleDelete(editingStudent)} className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">
-                    Delete
-                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
@@ -895,7 +921,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       {/* Confirm delete modal */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} />
           <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between mb-4">
@@ -903,18 +929,30 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
                     <LucideIcons.AlertTriangle className="w-5 h-5 text-red-600" />
                   </div>
-                  <h4 className="text-lg font-medium text-black">Confirm delete</h4>
+                  <h4 className="text-lg font-medium text-black">{deleteBlockedReason ? 'Cannot delete student' : 'Confirm delete'}</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                <button type="button" aria-label="Close" onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
-              <p className="text-sm text-neutral-600 ml-13">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
 
-              <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
-              </div>
+              {deleteBlockedReason ? (
+                <>
+                  <p className="text-sm text-neutral-600 ml-13">{deleteBlockedReason}</p>
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                    <button onClick={() => deactivateInsteadOfDelete(confirmDelete)} disabled={togglingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{togglingId === confirmDelete.id ? 'Deactivating...' : 'Deactivate instead'}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-neutral-600 ml-13">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                    <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

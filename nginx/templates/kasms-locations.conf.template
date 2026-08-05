@@ -1,0 +1,231 @@
+# =============================================================================
+# KASMS shared request-handling logic — included by both TLS-mode server
+# blocks (nginx/templates/kasms-proxy.conf.template and
+# kasms-standalone.conf.template) so routing/rate-limit fixes only ever need
+# to happen in one place.
+#
+# Requires the including server block to `set $forwarded_proto ...;` and
+# `set $forwarded_for ...;` before this include — X-Forwarded-Proto/-For must
+# reflect the scheme/IP the *client* actually used, which differs by mode:
+#   - proxy mode:      $forwarded_proto = $trusted_forwarded_proto (see
+#                       00-trust.conf.template), $forwarded_for = $remote_addr
+#                       (already realip-recovered).
+#   - standalone mode: $forwarded_proto = $scheme (nginx terminates TLS
+#                       itself here), $forwarded_for = $remote_addr.
+#
+# ${ADMIN_ALLOWED_CIDR} is substituted at container startup by
+# scripts/nginx-entrypoint.sh — set per-environment in .env.
+# =============================================================================
+
+# ── Security Headers ──────────────────────────────────────────────────────
+# HSTS is deliberately NOT set here — it only belongs on whichever layer
+# actually terminates TLS for the browser (Caddy in proxy mode; the 443
+# server block itself in standalone mode), so it's added there instead.
+add_header X-Content-Type-Options    "nosniff"                              always;
+add_header X-Frame-Options           "SAMEORIGIN"                           always;
+add_header X-XSS-Protection          "1; mode=block"                        always;
+add_header Referrer-Policy           "strict-origin-when-cross-origin"      always;
+add_header Permissions-Policy        "camera=(), microphone=(), geolocation=()" always;
+add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
+
+# ── Connection Limits ─────────────────────────────────────────────────────
+limit_conn conn_limit 30;
+
+# ── Block Known Bad User Agents ───────────────────────────────────────────
+# $blocked_ua is set by the map block in nginx.conf.
+if ($blocked_ua) {
+    return 444;   # drop connection immediately (no response body, saves bandwidth)
+}
+
+# ── Custom Error Pages ────────────────────────────────────────────────────
+# 429: returned by limit_req / limit_conn for rate-limited requests.
+# API routes return JSON; all others return the React app (SPA handles it).
+error_page 429 @too_many_requests;
+error_page 502 503 504 @upstream_error;
+
+location @too_many_requests {
+    # Determine response type by URI prefix.
+    # API callers get JSON; everything else gets a plain response.
+    if ($request_uri ~* "^/api/") {
+        add_header Content-Type "application/json" always;
+        add_header Retry-After  "60"               always;
+        return 429 '{"error":"Too Many Requests","detail":"Rate limit exceeded. Please wait 60 seconds before retrying."}';
+    }
+    add_header Retry-After "60" always;
+    return 429 "Rate limit exceeded. Please wait before retrying.";
+}
+
+location @upstream_error {
+    # 502/503/504: backend is down. Return a minimal JSON error for API
+    # requests; fall back to the React SPA for browser navigation.
+    if ($request_uri ~* "^/api/") {
+        add_header Content-Type "application/json" always;
+        return 503 '{"error":"Service Unavailable","detail":"The server is temporarily unavailable. Please try again shortly."}';
+    }
+    root /var/www/frontend;
+    try_files /index.html =503;
+}
+
+# ── Nginx Health Stub ──────────────────────────────────────────────────────
+# Checked by: Docker healthcheck (nginx service).
+location = /nginx-health {
+    access_log off;
+    add_header Content-Type text/plain;
+    return 200 "ok";
+}
+
+# ── Django Health Check Proxy ─────────────────────────────────────────────
+location = /health/ {
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+    proxy_read_timeout 5s;
+    access_log off;
+}
+
+# ── Django API ────────────────────────────────────────────────────────────
+location /api/ {
+    limit_req zone=api burst=60 nodelay;
+
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    # CRITICAL: required for CSRF_COOKIE_SECURE, SESSION_COOKIE_SECURE,
+    # SameSite=None cookies, and request.is_secure() to work correctly.
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+
+    proxy_read_timeout    90s;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout    60s;
+}
+
+# ── Login / 2FA / TOTP — strict brute-force protection ─────────────────────
+# Regex locations take priority over prefix locations in Nginx.
+# These paths get 5 req/min instead of the 30 req/s api zone. Covers
+# login, both email-2FA endpoints, and every TOTP endpoint (enroll,
+# verify, disable, recover) — a narrower regex here would silently miss
+# verify-2fa, resend-2fa, and all totp/* paths.
+location ~ ^/api/auth/(login|verify-2fa|resend-2fa|totp/) {
+    limit_req zone=auth burst=10 nodelay;
+
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+    proxy_read_timeout 30s;
+}
+
+location /grafana/ {
+    proxy_pass         http://grafana_backend/;
+    proxy_http_version 1.1;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+    proxy_set_header   Cookie            "${grafana_session_cookie}; ${grafana_session_expiry_cookie}";
+
+    # Grafana Live (websocket streaming panels).
+    proxy_set_header   Upgrade    $http_upgrade;
+    proxy_set_header   Connection $connection_upgrade;
+
+    proxy_read_timeout 90s;
+}
+
+# ── Django Admin ──────────────────────────────────────────────────────────
+location /admin/ {
+    # Restricted to the internal network / VPN range for this environment.
+    # Requires the realip module (nginx/templates/00-trust.conf.template) to
+    # correctly recover the true client IP in proxy mode — without it every
+    # request would appear to come from the edge proxy's own IP.
+    allow  ${ADMIN_ALLOWED_CIDR};
+    deny   all;
+
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+}
+
+# ── Biometric ADMS ────────────────────────────────────────────────────────
+location /iclock/ {
+    limit_req zone=iclock burst=20 nodelay;
+
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+    proxy_read_timeout 120s;
+}
+
+# ── API Docs (rate-limited — bots hammer these) ───────────────────────────
+location ~ ^/(swagger|redoc)/ {
+    limit_req zone=docs burst=10 nodelay;
+
+    proxy_pass         http://django_backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+}
+
+# ── Django Static Files ───────────────────────────────────────────────────
+location /static/ {
+    alias   /var/www/static/;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+    access_log off;
+    gzip_static on;
+}
+
+# ── Media Files ───────────────────────────────────────────────────────────
+location /media/ {
+    limit_req zone=media burst=40 nodelay;
+
+    alias /var/www/media/;
+    expires 7d;
+    add_header Cache-Control "public";
+
+    # Prevent script execution inside /media/.
+    location ~* \.(php|py|pl|sh|cgi|exe)$ {
+        deny all;
+    }
+}
+
+# ── React SPA ─────────────────────────────────────────────────────────────
+root  /var/www/frontend;
+index index.html;
+
+location = /index.html {
+    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate";
+    expires -1;
+}
+
+location /assets/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+    access_log off;
+}
+
+location / {
+    try_files $uri $uri/ /index.html;
+    expires -1;
+    add_header Cache-Control "no-store";
+}

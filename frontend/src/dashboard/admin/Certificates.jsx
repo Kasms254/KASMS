@@ -136,7 +136,7 @@ export default function Certificates() {
                         a.remove()
                         URL.revokeObjectURL(url)
                       } catch (err) {
-                        console.error(err)
+                        toast.error(err?.message || 'Failed to download certificate')
                       }
                     }}
                     className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
@@ -187,7 +187,7 @@ export default function Certificates() {
                               a.remove()
                               URL.revokeObjectURL(url)
                             } catch (err) {
-                              console.error(err)
+                              toast.error(err?.message || 'Failed to download certificate')
                             }
                           }}
                           className="px-2 py-1 rounded text-xs bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition"

@@ -39,25 +39,27 @@ const RANK_OPTIONS = [
   { value: 'major', label: 'Major' },
   { value: 'captain', label: 'Captain' },
   { value: 'lieutenant', label: 'Lieutenant' },
+  { value: '2nd_lieutenant', label: '2nd Lieutenant' },
   { value: 'warrant_officer_i', label: 'Warrant Officer I' },
+  { value: 'HCI', label: 'HCI' },
   { value: 'warrant_officer_ii', label: 'Warrant Officer II' },
+  { value: 'HCII', label: 'HCII' },
   { value: 'senior_sergeant', label: 'Senior Sergeant' },
   { value: 'sergeant', label: 'Sergeant' },
+  { value: 'CI', label: 'CI' },
   { value: 'corporal', label: 'Corporal' },
+  { value: 'CII', label: 'CII' },
   { value: 'lance_corporal', label: 'Lance Corporal' },
+  { value: 'CIII', label: 'Constable' },
   { value: 'private', label: 'Private' },
-  { value: 'head_constable_i', label: 'Head Constable I' },
-  { value: 'head_constable_ii', label: 'Head Constable II' },
-  { value: 'constable_i', label: 'Constable I' },
-  { value: 'constable_ii', label: 'Constable II' },
-  { value: 'constable_iii', label: 'Constable III' },
-  { value: 'civilian', label: 'Civilian' },
+  { value: 'civ', label: 'Civilian' },
 ]
 
 const RANK_LABEL_TO_VALUE = {}
 for (const r of RANK_OPTIONS) {
   RANK_LABEL_TO_VALUE[r.label.toLowerCase()] = r.value
   RANK_LABEL_TO_VALUE[r.value] = r.value
+  RANK_LABEL_TO_VALUE[r.value.toLowerCase()] = r.value // handles uppercase values like CIII
 }
 
 function normalizeRank(raw) {
@@ -100,6 +102,8 @@ export default function AdminLeadershipUsers() {
   const [editError, setEditError] = useState('')
   const [enrollmentsList, setEnrollmentsList] = useState([])
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const { data, isPending, error } = useQuery({
     queryKey: ['leadership-users', searchTerm],
@@ -185,6 +189,29 @@ export default function AdminLeadershipUsers() {
     })
   }
 
+  function handleDelete(user) {
+    setConfirmDelete(user)
+  }
+
+  async function performDelete(user) {
+    if (!user) return
+    setDeletingId(user.id)
+    try {
+      await api.deleteUser(user.id)
+      await queryClient.invalidateQueries({ queryKey: ['leadership-users'] })
+      setConfirmDelete(null)
+      if (editingUser?.id === user.id) closeEdit()
+      if (toast?.success) toast.success('User deleted successfully')
+      else if (toast?.showToast) toast.showToast('User deleted successfully', { type: 'success' })
+    } catch (err) {
+      const message = err?.data?.detail || err?.message || 'Failed to delete user'
+      if (toast?.error) toast.error(message)
+      else if (toast?.showToast) toast.showToast(message, { type: 'error' })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   function closeEdit() {
     setEditingUser(null)
     setEditError('')
@@ -194,7 +221,7 @@ export default function AdminLeadershipUsers() {
 
   function handleEditChange(key, value) {
     let nextValue = value
-    if (key === 'svc_number') nextValue = String(value).replace(/\D/g, '').slice(0, 7)
+    if (key === 'svc_number') nextValue = String(value).replace(/\D/g, '').slice(0, 14)
     if (key === 'phone_number') nextValue = String(value).replace(/\D/g, '')
     if (key === 'role' && value !== 'student') {
       setEditForm((form) => ({ ...form, [key]: nextValue, class_obj: '' }))
@@ -356,6 +383,9 @@ export default function AdminLeadershipUsers() {
                       <button onClick={() => openEdit(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">
                         Edit
                       </button>
+                      <button onClick={() => handleDelete(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 transition">
+                        Delete
+                      </button>
                     </div>
                   </div>
                 )
@@ -399,9 +429,14 @@ export default function AdminLeadershipUsers() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button onClick={() => openEdit(user)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition">
-                            Edit
-                          </button>
+                          <div className="inline-flex items-center gap-2">
+                            <button onClick={() => openEdit(user)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition">
+                              Edit
+                            </button>
+                            <button onClick={() => handleDelete(user)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition">
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -475,7 +510,7 @@ export default function AdminLeadershipUsers() {
                 </div>
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={7} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={14} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
                 </div>
                 <div>
                   <label className="text-sm text-neutral-600 mb-1 block">Role</label>
@@ -548,6 +583,38 @@ export default function AdminLeadershipUsers() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {confirmDelete && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
+          <div className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
+              <p className="text-sm text-neutral-600 mt-2">
+                Are you sure you want to delete{' '}
+                <strong>
+                  {confirmDelete.first_name
+                    ? `${confirmDelete.first_name} ${confirmDelete.last_name}`
+                    : (confirmDelete.full_name || confirmDelete.svc_number || confirmDelete.id)}
+                </strong>
+                ? This action cannot be undone.
+              </p>
+
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
+                <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button
+                  onClick={() => performDelete(confirmDelete)}
+                  disabled={deletingId === confirmDelete.id}
+                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>,
         document.body
