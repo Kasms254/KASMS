@@ -135,6 +135,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
   }
   const [deletingId, setDeletingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [deleteBlockedReason, setDeleteBlockedReason] = useState(null)
   const [classesList, setClassesList] = useState([])
   const [currentEnrollment, setCurrentEnrollment] = useState(null)
   const [enrollmentsList, setEnrollmentsList] = useState([])
@@ -443,12 +444,14 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
 
   // show confirm modal (instead of window.confirm)
   function handleDelete(st) {
+    setDeleteBlockedReason(null)
     setConfirmDelete(st)
   }
 
   async function performDelete(st) {
     if (!st) return
     setDeletingId(st.id)
+    setDeleteBlockedReason(null)
     try {
       await api.deleteUser(st.id)
       queryClient.invalidateQueries({ queryKey: ['students'] })
@@ -457,10 +460,22 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       closeEdit()
       toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
-      reportError('Failed to delete student: ' + (err.message || String(err)))
+      // 409 means the backend blocked the delete to protect related records
+      // (e.g. course reports) — offer deactivation instead of a dead-end error.
+      if (err.status === 409) {
+        setDeleteBlockedReason(err.message || 'This student has related records that must be preserved.')
+      } else {
+        reportError('Failed to delete student: ' + (err.message || String(err)))
+      }
     } finally {
       setDeletingId(null)
     }
+  }
+
+  async function deactivateInsteadOfDelete(st) {
+    setConfirmDelete(null)
+    setDeleteBlockedReason(null)
+    await toggleActivation(st)
   }
 
   // Toggle user activation status
@@ -907,7 +922,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       {/* Confirm delete modal */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setConfirmDelete(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} />
           <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
             <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
               <div className="flex items-start justify-between mb-4">
@@ -915,18 +930,30 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
                     <LucideIcons.AlertTriangle className="w-5 h-5 text-red-600" />
                   </div>
-                  <h4 className="text-lg font-medium text-black">Confirm delete</h4>
+                  <h4 className="text-lg font-medium text-black">{deleteBlockedReason ? 'Cannot delete student' : 'Confirm delete'}</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                <button type="button" aria-label="Close" onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
-              <p className="text-sm text-neutral-600 ml-13">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
 
-              <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
-              </div>
+              {deleteBlockedReason ? (
+                <>
+                  <p className="text-sm text-neutral-600 ml-13">{deleteBlockedReason}</p>
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => { setConfirmDelete(null); setDeleteBlockedReason(null) }} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                    <button onClick={() => deactivateInsteadOfDelete(confirmDelete)} disabled={togglingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{togglingId === confirmDelete.id ? 'Deactivating...' : 'Deactivate instead'}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-neutral-600 ml-13">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.svc_number || confirmDelete.id}</strong>? This action cannot be undone.</p>
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                    <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

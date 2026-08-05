@@ -15,7 +15,7 @@ from .serializers import (
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS
-from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F
+from django.db.models import Q, Count, Avg, Case, When, IntegerField, FloatField, Value, Subquery, OuterRef, Prefetch, ExpressionWrapper, F, ProtectedError
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -593,7 +593,18 @@ class UserViewSet(viewsets.ModelViewSet):
             ).distinct().prefetch_related(*_user_prefetches)
 
         return queryset.none()
-    
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+        except ProtectedError:
+            return Response(
+                {'error': 'This user cannot be deleted because they have course reports or other records that must be preserved. Deactivate the user instead.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor, IsAdmin])
     def my_students(self, request):
         if request.user.role != 'instructor':
