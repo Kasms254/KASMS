@@ -2230,6 +2230,10 @@ class InstructorMarksSerializer(serializers.ModelSerializer):
 
     def get_index_number(self, obj):
 
+        student_index_map = self.context.get('student_index_map')
+        if student_index_map is not None:
+            return student_index_map.get(obj.student_id)
+
         try:
             from .models import StudentIndex
             index = StudentIndex.all_objects.filter(
@@ -2346,6 +2350,10 @@ class AdminMarksSerializer(serializers.ModelSerializer):
         return obj.graded_by.get_full_name() if obj.graded_by else None
 
     def get_index_number(self, obj):
+        student_index_map = self.context.get('student_index_map')
+        if student_index_map is not None:
+            return student_index_map.get(obj.student_id)
+
         try:
             from .models import StudentIndex
             index = StudentIndex.all_objects.filter(
