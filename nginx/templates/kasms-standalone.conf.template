@@ -27,16 +27,6 @@ server {
         return 200 "ok";
     }
 
-    # ── Biometric ADMS (plain HTTP) ───────────────────────────────────────────
-    # ZKTeco device firmware (ADMS/"Cloud Server" client) commonly cannot do
-    # TLS and does not follow redirects — it expects a plain-text "OK" body,
-    # not a 301. Without this, a 301-to-HTTPS here silently breaks every
-    # push from the device. Proxied directly instead of redirected.
-    #
-    # (NGINX_TLS_MODE=proxy doesn't need this: kasms-proxy.conf.template has
-    # no HTTP->HTTPS redirect at all — the edge proxy in front of it owns
-    # that decision — so /iclock/ already reaches kasms-locations.conf
-    # directly there.)
     location /iclock/ {
         limit_req zone=iclock burst=20 nodelay;
 
