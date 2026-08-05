@@ -7,6 +7,7 @@ import RoleProtectedLayout from './components/RoleProtectedLayout'
 import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import CommandantOrCILayout from './components/CommandantOrCILayout'
+import ChiefOfTrainingLayout from './components/ChiefOfTrainingLayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
@@ -65,6 +66,15 @@ const EditRequestsReview = lazy(() => import('./dashboard/hod/EditRequestsReview
 
 // Commandant / Chief Instructor components
 const CommandantDashboard = lazy(() => import('./dashboard/commandants/CommandantDashboard'))
+const CommandantReports = lazy(() => import('./dashboard/commandants/CommandantReports'))
+const CommandantReportForm = lazy(() => import('./dashboard/commandants/CommandantReportForm'))
+const CommandantReportDetail = lazy(() => import('./dashboard/commandants/CommandantReportDetail'))
+
+// Chief of Training components
+const COTDashboard = lazy(() => import('./dashboard/chief_of_training/COTDashboard'))
+const COTAnalytics = lazy(() => import('./dashboard/chief_of_training/COTAnalytics'))
+const COTReports = lazy(() => import('./dashboard/chief_of_training/COTReports'))
+const COTReportDetail = lazy(() => import('./dashboard/chief_of_training/COTReportDetail'))
 const CommandantDepartments = lazy(() => import('./dashboard/commandants/CommandantDepartments'))
 const CommandantDepartmentDetail = lazy(() => import('./dashboard/commandants/CommandantDepartmentDetail'))
 const CommandantClasses = lazy(() => import('./dashboard/commandants/CommandantClasses'))
@@ -98,6 +108,7 @@ const SchoolsPage = lazy(() => import('./dashboard/superadmin/SchoolsPage'))
 const SchoolForm = lazy(() => import('./dashboard/superadmin/SchoolForm'))
 const AdminsPage = lazy(() => import('./dashboard/superadmin/AdminsPage'))
 const SystemStats = lazy(() => import('./dashboard/superadmin/SystemStats'))
+const COTOfficersPage = lazy(() => import('./dashboard/superadmin/COTOfficersPage'))
 
 // Loading component for code-split routes
 const LoadingFallback = () => (
@@ -378,6 +389,23 @@ const App = () => {
 				<Route path="attendance" element={<CommandantAttendance />} />
 				<Route path="certificates" element={<CommandantCertificates />} />
 				<Route path="notices" element={<CommandantNotices />} />
+				{/* Commandant school reports (commandant role only, enforced server-side) */}
+				<Route path="reports" element={<CommandantReports />} />
+				<Route path="reports/new" element={<CommandantReportForm />} />
+				<Route path="reports/:id" element={<CommandantReportDetail />} />
+				<Route path="reports/:id/edit" element={<CommandantReportForm />} />
+			</Route>
+
+			{/* Chief of Training dashboard */}
+			<Route path="/dashboard/cot" element={<RoleProtectedLayout role="chief_of_training" />}>
+				<Route index element={<COTDashboard />} />
+			</Route>
+
+			{/* Chief of Training sub-routes */}
+			<Route path="/cot" element={<ChiefOfTrainingLayout />}>
+				<Route path="analytics" element={<COTAnalytics />} />
+				<Route path="reports" element={<COTReports />} />
+				<Route path="reports/:id" element={<COTReportDetail />} />
 			</Route>
 
 			{/* OIC Assignments — admin & commandant */}
@@ -417,6 +445,7 @@ const App = () => {
 				<Route path="schools/:id" element={<SchoolForm />} />
 				<Route path="schools/:id/edit" element={<SchoolForm />} />
 				<Route path="admins" element={<AdminsPage />} />
+				<Route path="cot-officers" element={<COTOfficersPage />} />
 				<Route path="themes" element={<SchoolsPage />} />
 				<Route path="users" element={<AdminStudents />} />
 			  <Route path="stats" element={<SystemStats />} />

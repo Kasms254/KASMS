@@ -491,3 +491,26 @@ def RequiresCertificateCapability(capability: CertificateCapability):
     return _RequiresCertificateCapability
 
         
+
+
+
+class IsChiefOfTraining(BasePermission):
+
+    message = 'Only the Chief of Training can perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == 'chief_of_training'
+        )
+
+
+class IsChiefOfTrainingOrSuperAdmin(BasePermission):
+
+    message = 'Only the Chief of Training or a Super Admin can perform this action.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ('chief_of_training', 'superadmin')
+        )

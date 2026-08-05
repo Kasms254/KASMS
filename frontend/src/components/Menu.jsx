@@ -13,7 +13,7 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'chief_of_training', 'oic'],
       },
       // Superadmin-only items
       {
@@ -26,6 +26,12 @@ const menuItems = [
         icon: 'UserCog',
         label: 'Admins',
         href: '/superadmin/admins',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'Star',
+        label: 'COT Officers',
+        href: '/superadmin/cot-officers',
         visible: ['superadmin'],
       },
       {
@@ -233,10 +239,35 @@ const menuItems = [
         visible: ['commandant', 'chief_instructor'],
       },
       {
+        icon: 'ClipboardList',
+        label: 'School Reports',
+        href: '/commandant/reports',
+        visible: ['commandant'],
+      },
+      {
         icon: 'UserCheck',
         label: 'OIC Assignments',
         href: '/commandant/oic-assignments',
         visible: ['commandant'],
+      },
+      // Chief of Training items
+      {
+        icon: 'LayoutDashboard',
+        label: 'Overview',
+        href: '/dashboard/cot',
+        visible: ['chief_of_training'],
+      },
+      {
+        icon: 'BarChart3',
+        label: 'Analytics',
+        href: '/cot/analytics',
+        visible: ['chief_of_training'],
+      },
+      {
+        icon: 'FileText',
+        label: 'School Reports',
+        href: '/cot/reports',
+        visible: ['chief_of_training'],
       },
       {
         icon: 'UserCheck',

@@ -44,6 +44,10 @@ from .commandant_views import (
     CommandantEnrollmentViewSet,
     CommandantNoticeViewSet,
 )
+from .chief_of_training_views import (
+    CommandantReportViewSet,
+    ChiefOfTrainingViewSet,
+)
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
 from .course_report_views import CourseReportViewSet
@@ -122,6 +126,11 @@ commandant_router.register(r'exam-reports',   CommandantExamReportViewSet,   bas
 commandant_router.register(r'exam-results',   CommandantExamResultViewSet,   basename='commandant-exam-results')
 commandant_router.register(r'enrollments',    CommandantEnrollmentViewSet,   basename='commandant-enrollments')
 commandant_router.register(r'notices',        CommandantNoticeViewSet,       basename='commandant-notices')
+commandant_router.register(r'reports',        CommandantReportViewSet,        basename='commandant-reports')
+
+# Chief of Training router (global — not school-scoped)
+cot_router = DefaultRouter()
+cot_router.register(r'reports', ChiefOfTrainingViewSet, basename='cot-reports')
 
 # HOD routers
 hod_router = DefaultRouter()
@@ -153,6 +162,7 @@ urlpatterns = [
     path('commandant/', include(commandant_router.urls)),
     path('oic/', include(oic_router.urls)),
     path('hod/', include(hod_router.urls)),
+    path('cot/', include(cot_router.urls)),
     path("", home),
     path(
         'profile/me/',
