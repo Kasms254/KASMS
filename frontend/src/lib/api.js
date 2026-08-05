@@ -2256,6 +2256,88 @@ export async function getCourseReportAuditLog(id) {
   return request(`/api/course-reports/${encodeURIComponent(id)}/audit-log/`)
 }
 
+// ── Commandant School Reports ────────────────────────────────────────────────
+
+export async function getCommandantReports(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/commandant/reports/${qs}`)
+}
+
+export async function getCommandantReportDetail(id) {
+  return request(`/api/commandant/reports/${encodeURIComponent(id)}/`)
+}
+
+export async function createCommandantReport(payload) {
+  return request('/api/commandant/reports/', { method: 'POST', body: payload })
+}
+
+export async function updateCommandantReport(id, payload) {
+  return request(`/api/commandant/reports/${encodeURIComponent(id)}/`, { method: 'PATCH', body: payload })
+}
+
+export async function deleteCommandantReport(id) {
+  return request(`/api/commandant/reports/${encodeURIComponent(id)}/`, { method: 'DELETE' })
+}
+
+export async function submitCommandantReport(id) {
+  return request(`/api/commandant/reports/${encodeURIComponent(id)}/submit/`, { method: 'POST', body: {} })
+}
+
+export async function getCommandantReportStatistics(id) {
+  return request(`/api/commandant/reports/${encodeURIComponent(id)}/statistics/`)
+}
+
+export async function downloadCommandantReportPdf(id) {
+  const url = `${API_BASE}/api/commandant/reports/${encodeURIComponent(id)}/pdf/`
+  const csrf = getCsrfToken()
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRFToken': csrf } : {},
+  })
+  if (!res.ok) {
+    let msg = 'Failed to download report'
+    try { const e = await res.json(); msg = e.detail || msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
+  return res.blob()
+}
+
+// ── Chief of Training ─────────────────────────────────────────────────────────
+
+export async function getCOTDashboard() {
+  return request('/api/cot/reports/dashboard/')
+}
+
+export async function getCOTAnalytics() {
+  return request('/api/cot/reports/analytics/')
+}
+
+export async function getCOTReports(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`/api/cot/reports/${qs}`)
+}
+
+export async function getCOTReportDetail(id) {
+  return request(`/api/cot/reports/${encodeURIComponent(id)}/`)
+}
+
+export async function downloadCOTReportPdf(id) {
+  const url = `${API_BASE}/api/cot/reports/${encodeURIComponent(id)}/pdf/`
+  const csrf = getCsrfToken()
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRFToken': csrf } : {},
+  })
+  if (!res.ok) {
+    let msg = 'Failed to download report'
+    try { const e = await res.json(); msg = e.detail || msg } catch { /* ignore */ }
+    throw new Error(msg)
+  }
+  return res.blob()
+}
+
 export default {
   login,
   ensureCsrfCookie,
