@@ -2724,6 +2724,108 @@ class CourseReportAuditLog(models.Model):
         raise ValueError("Audit logs cannot be deleted.")
 
 
+# commandant school reports (submitted by a school's Commandant to the
+# Chief of Training — distinct from the per-enrollment CourseReport above)
+class CommandantSchoolReport(models.Model):
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        SUBMITTED = 'submitted', 'Submitted'
+        REVIEWED = 'reviewed', 'Reviewed'
+        ARCHIVED = 'archived', 'Archived'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='commandant_reports',
+    )
+    commandant = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='authored_commandant_reports',
+    )
+    title = models.CharField(max_length=300, blank=True)
+    reporting_period_start = models.DateField()
+    reporting_period_end = models.DateField()
+    report_date = models.DateField(default=date.today)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT,
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='submitted_commandant_reports',
+    )
+    observations = models.TextField(blank=True)
+    challenges = models.TextField(blank=True)
+    achievements = models.TextField(blank=True)
+    recommendations = models.TextField(blank=True)
+    overall_remarks = models.TextField(blank=True)
+    statistics_snapshot = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = SimpleTenantAwareManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'commandant_school_reports'
+        ordering = ['-report_date', '-created_at']
+        indexes = [
+            models.Index(fields=['school', 'status']),
+            models.Index(fields=['commandant', 'status']),
+            models.Index(fields=['school', 'report_date']),
+            models.Index(fields=['status', 'submitted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.school.code} report — {self.reporting_period_start} to {self.reporting_period_end} [{self.status}]"
+
+
+class CommandantReportAuditLog(models.Model):
+
+    ACTION_CHOICES = [
+        ('created', 'Created'),
+        ('updated', 'Updated'),
+        ('submitted', 'Submitted'),
+        ('reviewed', 'Reviewed'),
+        ('archived', 'Archived'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        CommandantSchoolReport, on_delete=models.CASCADE,
+        related_name='audit_logs',
+    )
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='commandant_report_audit_logs',
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='commandant_report_audit_logs',
+    )
+    notes = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    all_objects = models.Manager()
+
+    class Meta:
+        db_table = 'commandant_report_audit_logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['report', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['school', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} on {self.report_id} by {self.performed_by}"
+
+
 class UserImportAuditLog(models.Model):
 
     ACTION_CHOICES = [
