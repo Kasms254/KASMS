@@ -460,8 +460,7 @@ export default function AdminStudents({ hideActions = false, source = 'admin' })
       closeEdit()
       toast?.success?.('Student deleted successfully') || toast?.showToast?.('Student deleted successfully', { type: 'success' })
     } catch (err) {
-      // 409 means the backend blocked the delete to protect related records
-      // (e.g. course reports) — offer deactivation instead of a dead-end error.
+
       if (err.status === 409) {
         setDeleteBlockedReason(err.message || 'This student has related records that must be preserved.')
       } else {

@@ -661,8 +661,8 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def instructors(self, request):
-        queryset = self.get_queryset().filter(role='instructor', is_active=True)
-        
+        queryset = self.get_queryset().filter(role='instructor', is_active=True).prefetch_related('groups', 'user_permissions')
+
         class_obj_id  = request.query_params.get('class_obj', '').strip()
         if class_obj_id:
             queryset = queryset.filter(
@@ -1534,7 +1534,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Subject.all_objects.select_related('class_obj', 'instructor').all()
+        queryset = Subject.all_objects.select_related('class_obj__course', 'instructor').all()
         
         user = self.request.user
         
@@ -2324,32 +2324,47 @@ class ExamViewSet(viewsets.ModelViewSet):
             is_active =True
         ).select_related('student')
 
-        created_count = 0
-
-        for enrollment in enrollments:
-            result, created = ExamResult.objects.get_or_create(
+        existing_result_student_ids = set(
+            ExamResult.objects.filter(
                 exam=exam,
-                student=enrollment.student,
-                defaults={'is_submitted': False}
-            )
-            if created:
-                created_count += 1
+                student__in=[enrollment.student_id for enrollment in enrollments]
+            ).values_list('student_id', flat=True)
+        )
 
-       
+        new_results = [
+            ExamResult(exam=exam, student=enrollment.student, school=exam.school, is_submitted=False)
+            for enrollment in enrollments
+            if enrollment.student_id not in existing_result_student_ids
+        ]
+        if new_results:
+            ExamResult.objects.bulk_create(new_results, ignore_conflicts=True)
+        created_count = len(new_results)
+
+
         component_created = 0
         if exam.component:
-            for enrollment in enrollments:
-                _, comp_created = StudentComponentResult.all_objects.get_or_create(
+            existing_component_student_ids = set(
+                StudentComponentResult.all_objects.filter(
+                    component=exam.component,
+                    attempt_number=1,
+                    student__in=[enrollment.student_id for enrollment in enrollments]
+                ).values_list('student_id', flat=True)
+            )
+
+            new_component_results = [
+                StudentComponentResult(
                     component=exam.component,
                     student=enrollment.student,
                     attempt_number=1,
-                    defaults={
-                        'school': exam.school,
-                        'is_retake': False,
-                    },
+                    school=exam.school,
+                    is_retake=False,
                 )
-                if comp_created:
-                    component_created += 1
+                for enrollment in enrollments
+                if enrollment.student_id not in existing_component_student_ids
+            ]
+            if new_component_results:
+                StudentComponentResult.all_objects.bulk_create(new_component_results, ignore_conflicts=True)
+            component_created = len(new_component_results)
 
         return Response({
             'status': 'success',
@@ -5971,8 +5986,18 @@ class MarksEntryViewSet(viewsets.ViewSet):
             "student", "graded_by",
         ).order_by("id")
 
+        student_index_map = {
+            si.enrollment.student_id: si.class_obj.format_index(int(si.index_number))
+            for si in StudentIndex.all_objects.filter(
+                class_obj=exam.subject.class_obj
+            ).select_related("class_obj", "enrollment")
+        }
+
         serializer_class = self._get_serializer_class(request)
-        serializer = serializer_class(results, many=True, context={"request": request})
+        serializer = serializer_class(
+            results, many=True,
+            context={"request": request, "student_index_map": student_index_map},
+        )
 
         return Response({
             "exam_id": exam.id,
@@ -6039,6 +6064,13 @@ class MarksEntryViewSet(viewsets.ViewSet):
         updated = []
         errors = []
 
+        student_index_map = {
+            si.enrollment.student_id: si.class_obj.format_index(int(si.index_number))
+            for si in StudentIndex.all_objects.filter(
+                class_obj=exam.subject.class_obj
+            ).select_related("class_obj", "enrollment")
+        }
+
         with transaction.atomic():
             for item in results_data:
                 result_id = item.get("id")
@@ -6066,7 +6098,10 @@ class MarksEntryViewSet(viewsets.ViewSet):
                         graded_at=timezone.now(),
                     )
                     updated.append(
-                        serializer_class(instance, context={"request": request}).data
+                        serializer_class(
+                            instance,
+                            context={"request": request, "student_index_map": student_index_map},
+                        ).data
                     )
                 else:
                     errors.append({"id": result_id, "errors": serializer.errors})
