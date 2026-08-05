@@ -6064,6 +6064,13 @@ class MarksEntryViewSet(viewsets.ViewSet):
         updated = []
         errors = []
 
+        student_index_map = {
+            si.enrollment.student_id: si.class_obj.format_index(int(si.index_number))
+            for si in StudentIndex.all_objects.filter(
+                class_obj=exam.subject.class_obj
+            ).select_related("class_obj", "enrollment")
+        }
+
         with transaction.atomic():
             for item in results_data:
                 result_id = item.get("id")
@@ -6091,7 +6098,10 @@ class MarksEntryViewSet(viewsets.ViewSet):
                         graded_at=timezone.now(),
                     )
                     updated.append(
-                        serializer_class(instance, context={"request": request}).data
+                        serializer_class(
+                            instance,
+                            context={"request": request, "student_index_map": student_index_map},
+                        ).data
                     )
                 else:
                     errors.append({"id": result_id, "errors": serializer.errors})
