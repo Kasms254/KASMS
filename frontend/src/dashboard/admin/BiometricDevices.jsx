@@ -225,7 +225,11 @@ export default function BiometricDevices() {
       let result
       if (action === 'sync_now') {
         result = await syncBiometricDeviceNow(deviceId)
-        reportSuccess(`Sync complete — ${result?.records_synced ?? 0} records synced`)
+        if (result?.status === 'success') {
+          reportSuccess(`Sync complete — ${result?.created ?? 0} records synced`)
+        } else {
+          reportError(result?.message || 'Sync failed — check device connectivity')
+        }
       } else if (action === 'trigger_sync') {
         await triggerBiometricDeviceSync(deviceId)
         reportSuccess('Background sync queued successfully')

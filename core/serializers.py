@@ -2926,8 +2926,26 @@ class BiometricDeviceSerializer(serializers.ModelSerializer):
             'school',
             'last_sync_at', 'last_sync_status',
             'last_sync_records', 'total_synced_records',
-            'serial_number', 'firmware_version'
+            'firmware_version'
         )
+
+    def validate_serial_number(self, value):
+        # Writable so a device can be registered from the admin UI (the ADMS
+        # push endpoint looks devices up by serial_number — see
+        # core.adms_views._get_device_by_sn). Once set, it can't be silently
+        # changed to a different value via a later PATCH, so one device's
+        # attendance data can't get reassigned to another by mistake.
+        if (
+            self.instance
+            and self.instance.serial_number
+            and value
+            and value != self.instance.serial_number
+        ):
+            raise serializers.ValidationError(
+                'serial_number is already set for this device and cannot be '
+                'changed. Delete and recreate the device if it was physically replaced.'
+            )
+        return value
 
     def get_sync_status_display(self, obj):
         if not obj.last_sync_at:
