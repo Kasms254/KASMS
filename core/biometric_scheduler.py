@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+from contextlib import contextmanager
 
 from django.core.cache import cache
 from django.db import close_old_connections
@@ -25,6 +26,32 @@ SYNC_LOCK_TIMEOUT = 120
 # again automatically. A manual "sync now" click always bypasses this.
 BACKOFF_KEY = 'biometric_sync_backoff:{device_id}'
 BACKOFF_SECONDS = 300
+
+
+@contextmanager
+def device_lock(device, timeout=SYNC_LOCK_TIMEOUT):
+    """
+    Same per-device lock as sync_device_once, for any other code path that
+    talks to the physical device directly (fetch_device_users,
+    sync_device_time, ...). Without this, those endpoints can open a second
+    session on the device while the scheduler thread already has one open
+    — ZKTeco devices only support one session, so the loser gets its
+    socket killed by the device ("Broken pipe"), not a clean timeout.
+
+    Usage:
+        with device_lock(device) as acquired:
+            if not acquired:
+                ...another sync is in progress...
+            else:
+                ...safe to talk to the device...
+    """
+    lock_key = SYNC_LOCK_KEY.format(device_id=device.id)
+    acquired = cache.add(lock_key, True, timeout=timeout)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            cache.delete(lock_key)
 
 
 def sync_device_once(device, bypass_backoff=False):

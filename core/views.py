@@ -6630,31 +6630,54 @@ class BiometricDeviceViewSet(TenantFilterMixin, viewsets.ModelViewSet):
                 {'status': 'skipped', 'message': 'Sync already in progress for this device'},
                 status=status.HTTP_409_CONFLICT,
             )
+        if result.get('status') == 'error':
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
-    
+
     @action(detail=True, methods=['get'])
     def device_users(self, request, pk=None):
 
         device = self.get_object()
-        service = ZKTecoSyncService(device)
-        users = service.fetch_device_users()
+        from core.biometric_scheduler import device_lock
+        with device_lock(device) as acquired:
+            if not acquired:
+                return Response(
+                    {'status': 'error', 'message': 'Sync already in progress for this device'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            service = ZKTecoSyncService(device)
+            users = service.fetch_device_users()
         return Response({'users': users, 'count': len(users)})
 
     @action(detail=True, methods=['post'])
     def sync_clock(self, request, pk=None):
 
         device = self.get_object()
-        service = ZKTecoSyncService(device)
-        success = service.sync_device_time()
+        from core.biometric_scheduler import device_lock
+        with device_lock(device) as acquired:
+            if not acquired:
+                return Response(
+                    {'status': 'error', 'message': 'Sync already in progress for this device'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            service = ZKTecoSyncService(device)
+            success = service.sync_device_time()
         return Response({
             'status': 'success' if success else 'failed'
         })
-    
+
     @action(detail=True, methods=['post'])
     def auto_map_users(self, request, pk=None):
         device = self.get_object()
-        service = ZKTecoSyncService(device)
-        device_users = service.fetch_device_users()
+        from core.biometric_scheduler import device_lock
+        with device_lock(device) as acquired:
+            if not acquired:
+                return Response(
+                    {'status': 'error', 'message': 'Sync already in progress for this device'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            service = ZKTecoSyncService(device)
+            device_users = service.fetch_device_users()
 
         if device_users is None or (isinstance(device_users, list) and len(device_users) == 0):
             return Response({
