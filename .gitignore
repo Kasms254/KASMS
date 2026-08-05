@@ -46,10 +46,21 @@ monitoring/.env
 
 # Database dumps
 *.dump
+*.dump.age
 *.sql
 *.sql.gz
+*.sql.gz.age
 backup.json
 datadump.json
+
+# age encryption keys (NEVER commit — the real key lives outside the repo
+# at /etc/kasms/age/backup-key.txt, but these patterns are a safety net in
+# case anyone generates or copies one into the project directory)
+age-key.txt
+*.agekey
+backup-key.txt
+identity.txt
+age/
 
 # SSL certificates (server-specific, generated on server)
 certbot/
@@ -120,3 +131,4 @@ backup/
 certbot/
 logs/
 certificate_verification.log
+BACKUP_ENCRYPTION.md

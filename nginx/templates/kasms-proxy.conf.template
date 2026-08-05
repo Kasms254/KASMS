@@ -1,0 +1,22 @@
+# =============================================================================
+# KASMS Nginx Server Configuration — NGINX_TLS_MODE=proxy
+#
+# ${DOMAIN} is substituted at container startup by scripts/nginx-entrypoint.sh.
+#
+# TLS is terminated at the edge proxy (Caddy, TRUSTED_PROXY_IP in .env), NOT
+# here. This container only ever receives plain HTTP from that proxy over the
+# internal network, so there is a single server block (port 80) and no
+# ssl_certificate directives. See nginx/templates/00-trust.conf.template for
+# how X-Forwarded-Proto is validated before being trusted below.
+# =============================================================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN} www.${DOMAIN};
+
+    set $forwarded_proto $trusted_forwarded_proto;
+    set $forwarded_for   $remote_addr;
+
+    include /etc/nginx/includes/kasms-locations.conf;
+}

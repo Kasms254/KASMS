@@ -508,6 +508,10 @@ class User(AbstractUser):
     totp_enabled = models.BooleanField(default=False)
     totp_confirmed_at = models.DateTimeField(null=True, blank=True)
     last_totp_verified_at = models.DateTimeField(null=True, blank=True)
+    last_totp_step = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="30s time-step of the last accepted TOTP code, so the same code can't be replayed within its valid_window.",
+    )
     totp_pending_secret_encrypted = models.TextField(blank=True, default='')
     totp_pending_expires_at = models.DateTimeField(null=True, blank=True)
 

@@ -1,26 +1,8 @@
 #!/bin/bash
-# =============================================================================
-# Freeze Writes + Final Backup – KASMS
-#
-# Use this for the FINAL backup immediately before DNS cutover.
-# It quiesces the application (stops Django + Celery), waits for any
-# in-flight tasks to drain, then takes a backup of the fully quiet database.
-#
-# This guarantees the backup contains EVERY write that was committed before
-# the migration — zero data loss.
-#
-# Usage:
-#   chmod +x scripts/freeze_backup.sh
-#   ./scripts/freeze_backup.sh
-#
-# After this script completes:
-#   1. Review the backup file path printed at the end.
-#   2. Transfer the backup to the new server.
-#   3. Point DNS to the new server.
-#   4. The old server's services are STOPPED — do not restart them.
-#      If you need to rollback, run: docker compose up -d backend celery_worker celery_beat
-# =============================================================================
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/backup_encryption.sh"
 
 # Load .env for DB credentials
 if [ -f .env ]; then
@@ -30,8 +12,10 @@ fi
 DB_NAME="${DB_NAME:-kasms_db}"
 DB_USER="${DB_USER:-kasms_user}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="kasms_FINAL_backup_${TIMESTAMP}.sql.gz"
+BACKUP_FILE="kasms_FINAL_backup_${TIMESTAMP}.dump.age"
 TASK_DRAIN_TIMEOUT=60   # seconds to wait for Celery tasks to finish
+
+require_age_encryption
 
 echo "============================================================"
 echo "  KASMS Write Freeze + Final Backup"
@@ -95,17 +79,28 @@ echo "[freeze] Step 3: Stopping Celery worker and beat..."
 docker compose stop celery_worker celery_beat
 echo "[freeze]   Celery stopped. Database is now fully quiescent."
 
-# ── Step 4: Take the backup ───────────────────────────────────────────────────
+# ── Step 4: Take the backup (custom format — required by restore_db.sh's ────
+#            pg_restore step below — encrypted and streamed, so no ─────────
+#            plaintext dump is ever written to disk) ────────────────────────
 echo ""
 echo "[freeze] Step 4: Taking final backup..."
+set +e
 docker compose exec -T db \
     pg_dump \
         --username="${DB_USER}" \
         --dbname="${DB_NAME}" \
-        --format=plain \
+        --format=custom \
         --no-owner \
         --no-acl \
-| gzip -6 > "${BACKUP_FILE}"
+| age -R "${AGE_RECIPIENTS_FILE}" -o "${BACKUP_FILE}"
+
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+set -e
+if ! check_pipeline_status "${BACKUP_FILE}" "${PIPE_STATUSES[@]}"; then
+    echo "[freeze] Restarting services for safety..."
+    docker compose start backend celery_worker celery_beat
+    exit 1
+fi
 
 # Verify
 if [ ! -f "${BACKUP_FILE}" ] || [ ! -s "${BACKUP_FILE}" ]; then
@@ -117,14 +112,21 @@ fi
 
 BACKUP_SIZE=$(du -sh "${BACKUP_FILE}" | cut -f1)
 
-# ── Step 5: Verify the backup SQL is parseable ────────────────────────────────
+# ── Step 5: Verify the backup archive is parseable ────────────────────────────
 echo ""
 echo "[freeze] Step 5: Verifying backup integrity..."
-TABLE_COUNT=$(gunzip -c "${BACKUP_FILE}" | grep -c "^CREATE TABLE" || true)
-echo "[freeze]   Tables found in backup: ${TABLE_COUNT}"
-if [ "${TABLE_COUNT}" -lt 5 ]; then
-    echo "[freeze]   WARNING: Fewer tables than expected. Verify the backup manually:"
-    echo "[freeze]   gunzip -c ${BACKUP_FILE} | head -100"
+if age_key_available; then
+    TABLE_COUNT=$(age -d -i "${AGE_KEY_FILE}" "${BACKUP_FILE}" 2>/dev/null \
+        | docker compose exec -T db pg_restore --list 2>/dev/null \
+        | grep -c "TABLE DATA" || true)
+    echo "[freeze]   Tables found in backup: ${TABLE_COUNT}"
+    if [ "${TABLE_COUNT}" -lt 5 ]; then
+        echo "[freeze]   WARNING: Fewer tables than expected. Verify the backup manually:"
+        echo "[freeze]   age -d -i ${AGE_KEY_FILE} ${BACKUP_FILE} | docker compose exec -T db pg_restore --list | head -100"
+    fi
+else
+    echo "[freeze]   Private key not present locally — skipping decrypt-verify (expected once the key has been moved offline)."
+    TABLE_COUNT="unverified"
 fi
 
 echo ""
@@ -140,7 +142,9 @@ echo "  Next steps:"
 echo "  1. Transfer backup to new server:"
 echo "     scp ${BACKUP_FILE} user@NEW_IP:/home/user/kasms/"
 echo ""
-echo "  2. On new server, restore:"
+echo "  2. On new server, restore (scripts/restore_db.sh, called by deploy.sh"
+echo "     below, decrypts .age backups automatically — it needs the age"
+echo "     private key copied to the new server, see BACKUP_ENCRYPTION.md):"
 echo "     ./scripts/deploy.sh --restore=${BACKUP_FILE}"
 echo ""
 echo "  3. Verify new server is healthy:"
