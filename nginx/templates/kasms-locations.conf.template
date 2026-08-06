@@ -126,19 +126,43 @@ location ~ ^/api/auth/(login|verify-2fa|resend-2fa|totp/) {
 }
 
 location /grafana/ {
-    proxy_pass         http://grafana_backend/;
-    proxy_http_version 1.1;
-    proxy_set_header   Host              $host;
-    proxy_set_header   X-Real-IP         $remote_addr;
-    proxy_set_header   X-Forwarded-For   $forwarded_for;
-    proxy_set_header   X-Forwarded-Proto $forwarded_proto;
-    proxy_set_header   Cookie            "${grafana_session_cookie}; ${grafana_session_expiry_cookie}";
+# Restricted to the internal network / VPN range for this environment,
+# same as /admin/ below. Requires the realip module
+# (nginx/templates/00-trust.conf.template) to correctly recover the true
+# client IP in proxy mode.
+allow ${ADMIN_ALLOWED_CIDR};
+deny all;
 
-    # Grafana Live (websocket streaming panels).
-    proxy_set_header   Upgrade    $http_upgrade;
-    proxy_set_header   Connection $connection_upgrade;
+# add_header in a location replaces (not merges with) headers inherited
+# from outside any location, so the SPA's strict CSP above must be
+# redeclared here relaxed enough for Grafana: it injects an inline
+# `<script>window.grafanaBootData = ...</script>` boot payload that
+# 'self'-only script-src silently blocks, leaving the loading screen
+# spinning forever with no visible error except in the browser console.
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';" always;
 
-    proxy_read_timeout 90s;
+# No trailing slash on grafana_backend below: Grafana runs with
+# GF_SERVER_SERVE_FROM_SUB_PATH=true, so it expects the /grafana/
+# prefix preserved on the forwarded request, not stripped. Stripping
+# it (i.e. adding a trailing slash here) makes Grafana see a bare "/"
+# and 301-redirect back to its root_url — nginx strips it again on
+# the retry, producing an infinite redirect loop.
+proxy_pass http://grafana_backend;
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $forwarded_for;
+proxy_set_header X-Forwarded-Proto $forwarded_proto;
+proxy_set_header Cookie "${grafana_session_cookie}; ${grafana_session_expiry_cookie}";
+
+# Grafana Live (websocket streaming panels).
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;
+
+proxy_read_timeout 90s;
 }
 
 # ── Django Admin ──────────────────────────────────────────────────────────
