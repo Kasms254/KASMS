@@ -90,10 +90,7 @@ export default function COTDashboard() {
             Overview of school reports across all institutions
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400 bg-white border border-gray-200 rounded-lg px-3 py-2">
-          <Calendar size={13} />
-          <span>All time</span>
-        </div>
+        
       </div>
 
       {/* Stat cards */}

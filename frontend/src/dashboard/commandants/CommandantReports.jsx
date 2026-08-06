@@ -101,7 +101,17 @@ export default function CommandantReports() {
       ) : (
         <div className="space-y-3">
           {reports.map((report) => (
-            <div key={report.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition">
+            <div
+              key={report.id}
+              className="relative bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition"
+            >
+              {/* Overlay link makes the whole card clickable without nesting
+                  the action buttons inside an anchor. */}
+              <Link
+                to={`/commandant/reports/${report.id}`}
+                className="absolute inset-0 rounded-xl"
+                aria-label={`View report: ${report.title || 'Untitled'}`}
+              />
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -119,7 +129,7 @@ export default function CommandantReports() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="relative z-10 flex items-center gap-1 shrink-0">
                   <Link
                     to={`/commandant/reports/${report.id}`}
                     className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
@@ -139,7 +149,9 @@ export default function CommandantReports() {
                   )}
 
                   <button
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
                       try {
                         const blob = await downloadCommandantReportPdf(report.id)
                         const url = URL.createObjectURL(blob)
@@ -158,7 +170,11 @@ export default function CommandantReports() {
 
                   {report.status === 'draft' && (
                     <button
-                      onClick={() => setDeleteTarget(report)}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setDeleteTarget(report)
+                      }}
                       className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                       title="Delete draft"
                     >

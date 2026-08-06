@@ -924,7 +924,7 @@ class CommandantReportPDFGenerator:
         rank_display = cdt.get_rank_display() if cdt.rank else ''
         commandant_display = f"{rank_display} {cdt.get_full_name()}".strip()
         if cdt.svc_number:
-            commandant_display = f"{cdt.svc_number} {commandant_display}"
+            commandant_display = f"{commandant_display} ({cdt.svc_number})"
 
         # Submitted line
         submitted_line = ''

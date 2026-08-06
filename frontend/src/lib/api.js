@@ -37,6 +37,13 @@ const SENTENCE_CASE_CONFIG = {
     'id', // Preserve ID fields
     'logo', // Preserve file paths (e.g., school_logos/...)
     'logo_url', // Preserve logo URL paths
+    // School identity is typed by the superadmin and must render exactly as
+    // entered — including inside nested payloads such as user.school_theme,
+    // which is what the sidebar reads.
+    'school_name',
+    'school_short_name',
+    'school_code',
+    'short_name',
     'file', // Preserve file paths
     'file_url', // Preserve file URL paths
     'image', // Preserve image paths
@@ -128,7 +135,10 @@ function sanitizeInput(value) {
     .trim()
 }
 
-async function request(path, { method = 'GET', body, headers = {} } = {}) {
+// `raw: true` returns the response exactly as the server sent it, skipping the
+// global sentence-case transform. Use it wherever the stored text is
+// user-authored and must round-trip unchanged (e.g. school names in forms).
+async function request(path, { method = 'GET', body, headers = {}, raw = false } = {}) {
   const url = `${API_BASE}${path}`
   const h = {
     'Content-Type': 'application/json',
@@ -243,7 +253,7 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   }
 
   // Apply sentence case transformation to successful responses
-  if (SENTENCE_CASE_CONFIG.enabled && data) {
+  if (!raw && SENTENCE_CASE_CONFIG.enabled && data) {
     return transformToSentenceCase(data, {
       preserveAcronyms: SENTENCE_CASE_CONFIG.preserveAcronyms,
       excludeKeys: SENTENCE_CASE_CONFIG.excludeKeys
@@ -1374,26 +1384,28 @@ export async function downloadStudentImportTemplate() {
 // =====================
 
 // Get all schools (paginated)
+// School names, short names and addresses are typed by the superadmin and must
+// come back exactly as entered — hence `raw` on every school read/write.
 export async function getSchools(params = '') {
   const qs = params ? `?${params}` : ''
-  return request(`/api/schools/${qs}`)
+  return request(`/api/schools/${qs}`, { raw: true })
 }
 
 // Get a single school by ID
 export async function getSchool(id) {
   if (!id) throw new Error('id is required')
-  return request(`/api/schools/${id}/`)
+  return request(`/api/schools/${id}/`, { raw: true })
 }
 
 // Create a new school
 export async function createSchool(payload) {
-  return request('/api/schools/', { method: 'POST', body: payload })
+  return request('/api/schools/', { method: 'POST', body: payload, raw: true })
 }
 
 // Update a school
 export async function updateSchool(id, payload) {
   if (!id) throw new Error('id is required')
-  return request(`/api/schools/${id}/`, { method: 'PATCH', body: payload })
+  return request(`/api/schools/${id}/`, { method: 'PATCH', body: payload, raw: true })
 }
 
 // Delete a school
@@ -1403,14 +1415,16 @@ export async function deleteSchool(id) {
 }
 
 // Get school theme (public endpoint for login page theming)
+// `raw` — the school/short name here is rendered in the sidebar and headers,
+// so it must match exactly what the superadmin typed.
 export async function getSchoolTheme(schoolCode) {
   if (!schoolCode) throw new Error('schoolCode is required')
-  return request(`/api/schools/theme/?code=${encodeURIComponent(schoolCode)}`)
+  return request(`/api/schools/theme/?code=${encodeURIComponent(schoolCode)}`, { raw: true })
 }
 
 // Get current user's school theme
 export async function getMySchoolTheme() {
-  return request('/api/schools/my-theme/')
+  return request('/api/schools/my-theme/', { raw: true })
 }
 
 // Upload school logo (multipart/form-data)
@@ -1447,13 +1461,13 @@ export async function getSchoolStats(schoolId) {
   return request(`/api/schools/${schoolId}/stats/`)
 }
 
-// Activate/Deactivate school
+// Activate/Deactivate school — both echo the school back, so keep it raw too
 export async function activateSchool(id) {
-  return request(`/api/schools/${id}/activate/`, { method: 'POST' })
+  return request(`/api/schools/${id}/activate/`, { method: 'POST', raw: true })
 }
 
 export async function deactivateSchool(id) {
-  return request(`/api/schools/${id}/deactivate/`, { method: 'POST' })
+  return request(`/api/schools/${id}/deactivate/`, { method: 'POST', raw: true })
 }
 
 // =====================
@@ -1510,7 +1524,7 @@ export async function addAdminToSchool(schoolId, userId) {
 
 // Create school with admin (combined endpoint)
 export async function createSchoolWithAdmin(payload) {
-  return request('/api/schools/create_with_admin/', { method: 'POST', body: payload })
+  return request('/api/schools/create_with_admin/', { method: 'POST', body: payload, raw: true })
 }
 
 // Get all admin users (role=admin) across all schools - for superadmin

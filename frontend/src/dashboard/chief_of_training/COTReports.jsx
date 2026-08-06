@@ -96,7 +96,17 @@ export default function COTReports() {
         <>
           <div className="space-y-3">
             {reports.map((report) => (
-              <div key={report.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition">
+              <div
+                key={report.id}
+                className="relative bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition"
+              >
+                {/* Overlay link makes the whole card clickable without nesting
+                    the action buttons inside an anchor. */}
+                <Link
+                  to={`/cot/reports/${report.id}`}
+                  className="absolute inset-0 rounded-xl"
+                  aria-label={`View report: ${report.title}`}
+                />
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -111,8 +121,7 @@ export default function COTReports() {
                       <span className="text-gray-400 ml-1">({report.school_code})</span>
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Commandant: {report.commandant_name}
-                      {report.commandant_rank && ` · ${report.commandant_rank}`}
+                      Commandant: {[report.commandant_rank_display, report.commandant_name].filter(Boolean).join(' ') || '—'}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       Period: {formatDate(report.reporting_period_start)} — {formatDate(report.reporting_period_end)}
@@ -122,7 +131,7 @@ export default function COTReports() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="relative z-10 flex items-center gap-1 shrink-0">
                     <Link
                       to={`/cot/reports/${report.id}`}
                       className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
@@ -131,7 +140,9 @@ export default function COTReports() {
                       <Eye size={16} />
                     </Link>
                     <button
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
                         try {
                           const blob = await downloadCOTReportPdf(report.id)
                           const url = URL.createObjectURL(blob)

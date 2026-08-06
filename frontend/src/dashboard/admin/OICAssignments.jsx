@@ -10,6 +10,7 @@ import {
   getAllClasses,
 } from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import useAuth from '../../hooks/useAuth'
 import EmptyState from '../../components/EmptyState'
 
 function formatDate(str) {
@@ -21,6 +22,10 @@ const EMPTY_FORM = { oic: '', class_obj: '', notes: '' }
 
 export default function OICAssignments() {
   const toast = useToast()
+  const { user } = useAuth()
+
+  // Commandants have read-only access — they can view assignments but not create or change them.
+  const canManage = user?.role !== 'commandant'
 
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -195,7 +200,9 @@ export default function OICAssignments() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg sm:text-xl font-semibold text-black">OIC Assignments</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Assign Officers in Charge to classes.</p>
+          <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+            {canManage ? 'Assign Officers in Charge to classes.' : 'Officers in Charge assigned to classes.'}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -214,20 +221,24 @@ export default function OICAssignments() {
             />
             Show inactive
           </label>
-          <button
-            onClick={() => setBulkModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 transition"
-          >
-            <Icons.ListPlus className="w-4 h-4" />
-            Bulk Assign
-          </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition"
-          >
-            <Icons.Plus className="w-4 h-4" />
-            Assign OIC
-          </button>
+          {canManage && (
+            <>
+              <button
+                onClick={() => setBulkModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 transition"
+              >
+                <Icons.ListPlus className="w-4 h-4" />
+                Bulk Assign
+              </button>
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition"
+              >
+                <Icons.Plus className="w-4 h-4" />
+                Assign OIC
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -247,7 +258,7 @@ export default function OICAssignments() {
           <EmptyState
             icon="UserCheck"
             title="No assignments found"
-            description="Assign an OIC to a class using the button above."
+            description={canManage ? 'Assign an OIC to a class using the button above.' : 'No OICs have been assigned to classes yet.'}
             variant="minimal"
           />
         </div>
@@ -295,7 +306,7 @@ export default function OICAssignments() {
                 )}
               </div>
 
-              {a.is_active && (
+              {a.is_active && canManage && (
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => openEdit(a)}

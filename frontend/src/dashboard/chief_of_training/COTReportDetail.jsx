@@ -41,10 +41,10 @@ function StatCard({ label, value, icon: Icon, maroon }) {
   )
 }
 
-function NarrativeSection({ title, content }) {
+function NarrativeSection({ title, content, className = '' }) {
   if (!content?.trim()) return null
   return (
-    <div className="mb-5">
+    <div className={className}>
       <div
         className="text-xs font-bold uppercase tracking-widest mb-2 px-1"
         style={{ color: MAROON }}
@@ -101,10 +101,13 @@ export default function COTReportDetail() {
   const avgPct = performance.school_average_percentage || 0
   const barWidth = Math.min(parseFloat(avgPct), 100)
   const statusCfg = STATUS_CONFIG[report.status] || { label: report.status, cls: 'bg-gray-100 text-gray-600 border border-gray-300' }
-  const commandantDisplay = [report.commandant_rank_display, report.commandant_name].filter(Boolean).join(' ')
+  const commandantName = [report.commandant_rank_display, report.commandant_name].filter(Boolean).join(' ')
+  const commandantDisplay = commandantName && report.commandant_svc_number
+    ? `${commandantName} (${report.commandant_svc_number})`
+    : commandantName
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
 
       {/* Top bar */}
       <div className="flex items-start justify-between gap-4">
@@ -164,9 +167,6 @@ export default function COTReportDetail() {
               <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Commandant</span>
             </div>
             <p className="text-sm font-bold text-gray-900">{commandantDisplay || '—'}</p>
-            {report.commandant_svc_number && (
-              <p className="text-xs text-gray-500 mt-0.5">Svc No: {report.commandant_svc_number}</p>
-            )}
           </div>
           <div className="p-4">
             <div className="flex items-center gap-1.5 mb-2">
@@ -199,50 +199,48 @@ export default function COTReportDetail() {
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Student & Instructor counts */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Student, instructor & course counts — one row of 8 once there's room */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-8 gap-3">
             <StatCard label="Total Students"      value={students.total ?? 0}      icon={Users}      maroon />
             <StatCard label="Active Students"     value={students.active ?? 0}     icon={Users} />
             <StatCard label="Total Instructors"   value={instructors.total ?? 0}   icon={Users}      maroon />
             <StatCard label="Active Instructors"  value={instructors.active ?? 0}  icon={Users} />
+            <StatCard label="Total Courses"       value={courses.total ?? 0}       icon={BookOpen}   maroon />
+            <StatCard label="Running"             value={courses.running ?? 0}     icon={Clock} />
+            <StatCard label="Completed"           value={courses.completed ?? 0}   icon={CheckCircle} maroon />
+            <StatCard label="Upcoming"            value={courses.upcoming ?? 0}    icon={BookOpen} />
           </div>
 
-          {/* Course counts */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Courses"   value={courses.total ?? 0}     icon={BookOpen}     maroon />
-            <StatCard label="Running"         value={courses.running ?? 0}   icon={Clock} />
-            <StatCard label="Completed"       value={courses.completed ?? 0} icon={CheckCircle}  maroon />
-            <StatCard label="Upcoming"        value={courses.upcoming ?? 0}  icon={BookOpen} />
-          </div>
-
-          {/* Ratio */}
-          <div
-            className="rounded-xl p-4 border-l-4"
-            style={{ backgroundColor: MAROON_LIGHT, borderLeftColor: MAROON }}
-          >
-            <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: MAROON }}>
-              Instructor : Student Ratio
-            </p>
-            <p className="text-xl font-bold text-gray-900">{ratio.ratio_text || 'N/A'}</p>
-            <p className="text-xs text-gray-600 mt-1">
-              {instructors.active ?? 0} active instructors · {students.active ?? 0} active students
-            </p>
-          </div>
-
-          {/* Performance bar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-gray-800">School Average Performance</p>
-              <span className="text-lg font-bold" style={{ color: MAROON }}>
-                {avgPct.toFixed ? avgPct.toFixed(1) : avgPct}%
-              </span>
+          <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
+            {/* Ratio */}
+            <div
+              className="rounded-xl p-4 border-l-4"
+              style={{ backgroundColor: MAROON_LIGHT, borderLeftColor: MAROON }}
+            >
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: MAROON }}>
+                Instructor : Student Ratio
+              </p>
+              <p className="text-xl font-bold text-gray-900">{ratio.ratio_text || 'N/A'}</p>
+              <p className="text-xs text-gray-600 mt-1">
+                {instructors.active ?? 0} active instructors · {students.active ?? 0} active students
+              </p>
             </div>
-            <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
-              <div className="h-3 rounded-full" style={{ width: `${barWidth}%`, backgroundColor: MAROON }} />
+
+            {/* Performance bar */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-800">School Average Performance</p>
+                <span className="text-lg font-bold" style={{ color: MAROON }}>
+                  {avgPct.toFixed ? avgPct.toFixed(1) : avgPct}%
+                </span>
+              </div>
+              <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div className="h-3 rounded-full" style={{ width: `${barWidth}%`, backgroundColor: MAROON }} />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Based on submitted examination results for the reporting period
+              </p>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              Based on submitted examination results for the reporting period
-            </p>
           </div>
 
           {/* Students per course */}
@@ -281,12 +279,12 @@ export default function COTReportDetail() {
             <Award size={16} style={{ color: MAROON }} />
             <h3 className="font-bold text-gray-900">Commandant's Narrative</h3>
           </div>
-          <div className="p-5">
+          <div className="p-5 grid gap-5 xl:grid-cols-2">
             <NarrativeSection title="Observations"    content={report.observations} />
             <NarrativeSection title="Challenges"      content={report.challenges} />
             <NarrativeSection title="Achievements"    content={report.achievements} />
             <NarrativeSection title="Recommendations" content={report.recommendations} />
-            <NarrativeSection title="Overall Remarks" content={report.overall_remarks} />
+            <NarrativeSection title="Overall Remarks" content={report.overall_remarks} className="xl:col-span-2" />
           </div>
         </section>
       )}
