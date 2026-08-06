@@ -237,7 +237,7 @@ def check_student_can_login(user):
 
 def _reject_if_ineligible_for_login(user):
 
-    if user.role != 'superadmin':
+    if user.role not in ('superadmin', 'chief_of_training'):
         has_active_membership = SchoolMembership.all_objects.filter(
             user=user, status='active',
         ).exists()
