@@ -221,6 +221,12 @@ const menuItems = [
         visible: ['commandant', 'chief_instructor'],
       },
       {
+        icon: 'ClipboardList',
+        label: 'School Reports',
+        href: '/commandant/reports',
+        visible: ['commandant'],
+      },
+      {
         icon: 'UserCheck',
         label: 'Attendance',
         href: '/commandant/attendance',
@@ -237,12 +243,6 @@ const menuItems = [
         label: 'Notices',
         href: '/commandant/notices',
         visible: ['commandant', 'chief_instructor'],
-      },
-      {
-        icon: 'ClipboardList',
-        label: 'School Reports',
-        href: '/commandant/reports',
-        visible: ['commandant'],
       },
       {
         icon: 'UserCheck',

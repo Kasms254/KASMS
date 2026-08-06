@@ -173,6 +173,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
         />
         {value && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
               clearDate()
@@ -235,6 +236,7 @@ export default function ModernDatePicker({ value, onChange, label, placeholder =
               return (
                 <button
                   key={date.toISOString()}
+                  type="button"
                   onClick={() => !disabled && handleDateClick(date)}
                   disabled={disabled}
                   className={`
