@@ -133,6 +133,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+STUDENT_IMPORT_DEFAULT_PASSWORD = os.getenv("STUDENT_IMPORT_DEFAULT_PASSWORD", "elimuka@2026")
+
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 

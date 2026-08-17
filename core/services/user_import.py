@@ -3,10 +3,9 @@ import csv
 import io
 import logging
 import re
-import secrets
-import string
 import uuid
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.contrib.auth.password_validation import validate_password
@@ -50,8 +49,6 @@ CHUNK_SIZE = 200
 
 CSV_FORMULA_PREFIXES = ('=', '+', '-', '@')
 
-PASSWORD_ALPHABET = string.ascii_letters + string.digits
-
 BLANK_GUARD_FIELDS = ('svc_number', 'first_name', 'last_name')
 
 
@@ -59,30 +56,22 @@ class UserImportError(Exception):
     """Fatal, whole-file import error (bad columns, bad encoding, empty file, etc)."""
 
 
-class _PasswordCheckUser:
+def get_default_password():
+    """Shared initial password assigned to every student created via CSV import.
 
-
-    def __init__(self, attrs):
-        self.username = attrs.get('username', '') or ''
-        self.first_name = attrs.get('first_name', '') or ''
-        self.last_name = attrs.get('last_name', '') or ''
-        self.email = attrs.get('email', '') or ''
-
-    def get_username(self):
-        return self.username
-
-
-def generate_password(attrs=None, max_attempts=10):
-
-    fake_user = _PasswordCheckUser(attrs or {})
-    for _ in range(max_attempts):
-        candidate = ''.join(secrets.choice(PASSWORD_ALPHABET) for _ in range(16))
-        try:
-            validate_password(candidate, user=fake_user)
-        except DjangoValidationError:
-            continue
-        return candidate
-    raise UserImportError("Unable to generate a valid password. Please try again.")
+    Every imported student gets the same value (settings.STUDENT_IMPORT_DEFAULT_PASSWORD);
+    they're forced onto the change-password flow on first login via
+    User.must_change_password + ForcePasswordChangePermission.
+    """
+    password = settings.STUDENT_IMPORT_DEFAULT_PASSWORD
+    try:
+        validate_password(password)
+    except DjangoValidationError as exc:
+        raise UserImportError(
+            "The configured default student password does not meet the password "
+            "policy: " + " ".join(exc.messages)
+        )
+    return password
 
 
 def _normalize_header_text(value):
@@ -223,8 +212,8 @@ def _check_in_file_duplicate(row, field_name, seen_keys, errors):
         seen_keys[key] = row['_line_number']
 
 
-def _validate_row(row, class_map, ambiguous_names, request, seen_keys, password=None):
-  
+def _validate_row(row, class_map, ambiguous_names, request, seen_keys, password):
+
     errors = {}
 
     if row.get('_overflow'):
@@ -253,14 +242,6 @@ def _validate_row(row, class_map, ambiguous_names, request, seen_keys, password=
     for field_name in BLANK_GUARD_FIELDS:
         if not (row.get(field_name) or '').strip():
             errors.setdefault(field_name, []).append('This field may not be blank.')
-
-    if password is None:
-        password = generate_password({
-            'username': row.get('username', ''),
-            'first_name': row.get('first_name', ''),
-            'last_name': row.get('last_name', ''),
-            'email': row.get('email', ''),
-        })
 
     payload = {
         'username': row.get('username', ''),
@@ -301,11 +282,14 @@ def build_preview(uploaded_file, request):
     rows = parse_csv_file(uploaded_file)
 
     class_map, ambiguous_names = _build_class_name_map(school)
+    default_password = get_default_password()
 
     seen_keys = {}
     row_results = []
     for row in rows:
-        result, _serializer = _validate_row(row, class_map, ambiguous_names, request, seen_keys)
+        result, _serializer = _validate_row(
+            row, class_map, ambiguous_names, request, seen_keys, password=default_password,
+        )
         row_results.append(result)
 
     valid_rows = [r for r in row_results if r['is_valid']]
@@ -364,6 +348,7 @@ def commit_import(import_id, request):
     skipped_rows = [r for r in staged['rows'] if not r['is_valid']]
 
     class_map, ambiguous_names = _build_class_name_map(school)
+    default_password = get_default_password()
     seen_keys = {}
 
     created = []
@@ -376,16 +361,9 @@ def commit_import(import_id, request):
                 raw_row['_line_number'] = cached_row['line_number']
                 raw_row['_overflow'] = False
 
-                real_password = generate_password({
-                    'username': raw_row.get('username', ''),
-                    'first_name': raw_row.get('first_name', ''),
-                    'last_name': raw_row.get('last_name', ''),
-                    'email': raw_row.get('email', ''),
-                })
-
                 result, serializer = _validate_row(
                     raw_row, class_map, ambiguous_names, request, seen_keys,
-                    password=real_password,
+                    password=default_password,
                 )
 
                 if not result['is_valid']:
@@ -417,7 +395,7 @@ def commit_import(import_id, request):
                     'username': user.username,
                     'full_name': f"{user.first_name} {user.last_name}".strip(),
                     'class_name': cached_row.get('class_name'),
-                    'password': real_password,
+                    'password': default_password,
                 })
 
     cache.delete(f'{IMPORT_CACHE_PREFIX}{import_id}')
