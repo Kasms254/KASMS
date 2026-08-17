@@ -37,6 +37,8 @@ const SENTENCE_CASE_CONFIG = {
     'id', // Preserve ID fields
     'logo', // Preserve file paths (e.g., school_logos/...)
     'logo_url', // Preserve logo URL paths
+    'photo', // Preserve file paths (e.g., course_reports/photos/...)
+    'photo_url', // Preserve photo URL paths
     // School identity is typed by the superadmin and must render exactly as
     // entered — including inside nested payloads such as user.school_theme,
     // which is what the sidebar reads.
@@ -2270,6 +2272,38 @@ export async function getCourseReportAuditLog(id) {
   return request(`/api/course-reports/${encodeURIComponent(id)}/audit-log/`)
 }
 
+// Upload/replace a student's passport photo for a course report (multipart/form-data)
+export async function uploadCourseReportPhoto(id, file) {
+  const url = `${API_BASE}/api/course-reports/${encodeURIComponent(id)}/photo/`
+  const form = new FormData()
+  form.append('photo', file)
+
+  const headers = {}
+  const csrf = getCsrfToken()
+  if (csrf) headers['X-CSRFToken'] = csrf
+
+  const res = await fetch(url, { method: 'POST', headers, body: form, credentials: 'include' })
+
+  if (!res.ok) {
+    let text = await res.text()
+    try {
+      text = JSON.parse(text)
+    } catch (e) {
+      if (import.meta.env.DEV) console.debug('upload parse error', e)
+    }
+    const err = new Error((text && text.detail) || res.statusText || 'Upload failed')
+    err.status = res.status
+    err.data = text
+    throw err
+  }
+
+  return res.json()
+}
+
+export async function removeCourseReportPhoto(id) {
+  return request(`/api/course-reports/${encodeURIComponent(id)}/remove-photo/`, { method: 'POST', body: {} })
+}
+
 // ── Commandant School Reports ────────────────────────────────────────────────
 
 export async function getCommandantReports(params = '') {
@@ -2643,6 +2677,8 @@ export default {
   bulkAdvanceCourseReports,
   downloadCourseReport,
   getCourseReportAuditLog,
+  uploadCourseReportPhoto,
+  removeCourseReportPhoto,
   getComponentChoices,
   getAssessmentComponents,
   getComponentsBySubject,

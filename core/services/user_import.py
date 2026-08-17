@@ -57,12 +57,7 @@ class UserImportError(Exception):
 
 
 def get_default_password():
-    """Shared initial password assigned to every student created via CSV import.
 
-    Every imported student gets the same value (settings.STUDENT_IMPORT_DEFAULT_PASSWORD);
-    they're forced onto the change-password flow on first login via
-    User.must_change_password + ForcePasswordChangePermission.
-    """
     password = settings.STUDENT_IMPORT_DEFAULT_PASSWORD
     try:
         validate_password(password)

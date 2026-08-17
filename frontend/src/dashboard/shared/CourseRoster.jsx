@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
@@ -68,7 +68,7 @@ const PIPELINE = [
 
 /* ── Small display components ───────────────────────────── */
 
-function Avatar({ first = '', last = '', size = 'md' }) {
+function Avatar({ first = '', last = '', size = 'md', photoUrl = null }) {
   const letters = `${first[0] || ''}${last[0] || ''}`.toUpperCase() || '?'
   const cls = size === 'xl'
     ? 'w-24 h-24 text-3xl font-bold'
@@ -77,6 +77,15 @@ function Avatar({ first = '', last = '', size = 'md' }) {
       : size === 'sm'
         ? 'w-8 h-8 text-xs font-semibold'
         : 'w-10 h-10 text-sm font-semibold'
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt={`${first} ${last}`.trim() || 'Student photo'}
+        className={`${cls} rounded-full object-cover flex-shrink-0 border border-neutral-200`}
+      />
+    )
+  }
   return (
     <div className={`${cls} rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0`}>
       {letters}
@@ -233,7 +242,7 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
               >
                 <div className="px-3 py-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <Avatar first={r.student?.first_name} last={r.student?.last_name} size="sm" />
+                    <Avatar first={r.student?.first_name} last={r.student?.last_name} size="sm" photoUrl={r.photo_url} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className={`text-sm font-semibold truncate ${isSelected ? 'text-indigo-700' : 'text-black'}`}>
@@ -303,6 +312,8 @@ function ReportPanel({ reportId, user, onReportChange }) {
   const [submitting, setSubmitting]   = useState(false)
   const [advancing, setAdvancing]     = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [photoBusy, setPhotoBusy]     = useState(false)
+  const photoInputRef = useRef(null)
 
   const loadReport = useCallback(async () => {
     if (!reportId) return
@@ -424,6 +435,54 @@ function ReportPanel({ reportId, user, onReportChange }) {
     }
   }
 
+  const PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+  const PHOTO_MAX_SIZE = 2 * 1024 * 1024 // 2 MB
+
+  function handlePhotoPick() {
+    photoInputRef.current?.click()
+  }
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+
+    if (!PHOTO_ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Only JPG, PNG, and WEBP images are allowed')
+      return
+    }
+    if (file.size > PHOTO_MAX_SIZE) {
+      toast.error('Photo must be 2 MB or smaller')
+      return
+    }
+
+    setPhotoBusy(true)
+    try {
+      const updated = await api.uploadCourseReportPhoto(reportId, file)
+      setReport(updated)
+      toast.success('Photo saved')
+      onReportChange?.()
+    } catch (err) {
+      toast.error(err.message || 'Failed to upload photo')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function handlePhotoRemove() {
+    setPhotoBusy(true)
+    try {
+      const updated = await api.removeCourseReportPhoto(reportId)
+      setReport(updated)
+      toast.success('Photo removed')
+      onReportChange?.()
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove photo')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
   if (!reportId) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 bg-neutral-50">
@@ -445,7 +504,8 @@ function ReportPanel({ reportId, user, onReportChange }) {
   if (!report) return null
 
   const { student, status, visible_remarks = [],
-      can_edit, can_submit, can_advance, can_download, academic_data, course_name } = report
+      can_edit, can_submit, can_advance, can_download, can_edit_photo,
+      photo_url, academic_data, course_name } = report
 
   const fullName = formatStudentName(student)
   const rankName = formatWordCase(student?.rank)
@@ -526,9 +586,50 @@ function ReportPanel({ reportId, user, onReportChange }) {
           <SectionHeader num="1" title="Particulars of the Student" tag="From student record" />
           <div className="p-5">
             <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)] items-start">
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 min-h-[148px] flex flex-col items-center justify-center gap-2">
-                <Avatar first={student?.first_name} last={student?.last_name} size="xl" />
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">No photo on file</span>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-[132px] h-[148px] rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden flex flex-col items-center justify-center gap-2 flex-shrink-0">
+                  {photo_url ? (
+                    <img
+                      src={photo_url}
+                      alt={`${fullName} passport photo`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <Avatar first={student?.first_name} last={student?.last_name} size="xl" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">No photo on file</span>
+                    </>
+                  )}
+                </div>
+                {can_edit_photo && (
+                  <div className="flex flex-col items-center gap-1.5 w-[132px]">
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                    <button
+                      onClick={handlePhotoPick}
+                      disabled={photoBusy}
+                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-neutral-200 text-xs font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
+                    >
+                      <LucideIcons.Upload className="w-3 h-3" />
+                      {photoBusy ? '…' : photo_url ? 'Replace' : 'Upload'}
+                    </button>
+                    {photo_url && (
+                      <button
+                        onClick={handlePhotoRemove}
+                        disabled={photoBusy}
+                        className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 transition"
+                      >
+                        <LucideIcons.Trash2 className="w-3 h-3" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">

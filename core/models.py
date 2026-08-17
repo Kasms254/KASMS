@@ -2500,6 +2500,12 @@ class CourseReport(models.Model):
         null=True, blank=True,
         help_text='Generated PDF after final approval.',
     )
+    photo = models.ImageField(
+        upload_to='course_reports/photos/',
+        null=True, blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
+        help_text='Student passport photo for this report, supplied by the instructor.',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2679,6 +2685,8 @@ class CourseReportAuditLog(models.Model):
         ('approved', 'Report Approved'),
         ('pdf_generated', 'PDF Generated'),
         ('pdf_downloaded', 'PDF Downloaded'),
+        ('photo_uploaded', 'Student Photo Uploaded'),
+        ('photo_removed', 'Student Photo Removed'),
     ]
  
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

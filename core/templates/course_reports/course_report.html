@@ -3,19 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <style>
+      @font-face {
+        font-family: 'Times New Roman';
+        src: url('{{ fonts_base_url }}/Times New Roman.ttf');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Times New Roman';
+        src: url('{{ fonts_base_url }}/Times New Roman Bold.ttf');
+        font-weight: bold;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Times New Roman';
+        src: url('{{ fonts_base_url }}/Times New Roman Italic.ttf');
+        font-weight: normal;
+        font-style: italic;
+      }
+      @font-face {
+        font-family: 'Times New Roman';
+        src: url('{{ fonts_base_url }}/Times New Roman Bold Italic.ttf');
+        font-weight: bold;
+        font-style: italic;
+      }
+
+      /*
+        The official template (a Word export) is US Letter with a hand-drawn
+        page border sitting ~1.4cm/1.1cm/1.9cm/0.9cm inside the page edge on
+        each side, and CONFIDENTIAL/page-number text living outside that
+        border in the page margin. Measured directly off the reference PDF
+        at 150dpi so this reproduces it pixel-for-pixel rather than
+        approximating it.
+      */
       @page {
-        size: A4;
-        margin: 1.8cm 1.5cm 2cm 1.5cm;
+        size: letter;
+        margin: 1.42cm 1.1cm 1.86cm 0.91cm;
+        border: 1pt solid #000;
+        padding: 0.65cm;
         @top-center {
           content: "CONFIDENTIAL";
-          font-family: Arial, sans-serif;
+          font-family: 'Times New Roman', serif;
           font-weight: bold;
           font-size: 10pt;
           letter-spacing: 2px;
         }
         @bottom-center {
           content: counter(page) " of " counter(pages) "\A CONFIDENTIAL";
-          font-family: Arial, sans-serif;
+          font-family: 'Times New Roman', serif;
           font-size: 9pt;
           white-space: pre;
           text-align: center;
@@ -27,8 +62,8 @@
       }
 
       body {
-        font-family: Arial, sans-serif;
-        font-size: 10.5pt;
+        font-family: 'Times New Roman', serif;
+        font-size: 11pt;
         color: #000;
         line-height: 1.4;
       }
@@ -113,6 +148,14 @@
         text-align: center;
         margin-bottom: 12px;
       }
+      .school-header .school-logo {
+        display: block;
+        max-width: 3.7cm;
+        max-height: 3.7cm;
+        width: auto;
+        height: auto;
+        margin: 6px auto;
+      }
 
       .total-row td {
         font-weight: bold;
@@ -130,15 +173,36 @@
       .no-border {
         border: none;
       }
+
+      .photo-box {
+        width: 7cm;
+        height: 5cm;
+        margin: 4px auto 10px auto;
+        border: 1px solid #000;
+        overflow: hidden;
+      }
+      .photo-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
     </style>
   </head>
   <body>
     <div class="school-header">
       <h1>{{ school_name }}</h1>
+      {% if logo_data_uri %}
+        <img class="school-logo" src="{{ logo_data_uri }}" alt="{{ school_name }} crest">
+      {% endif %}
       <h2>COURSE REPORT</h2>
     </div>
 
     <div class="section-num">1. PARTICULARS OF THE STUDENT</div>
+    <div class="photo-box">
+      {% if photo_data_uri %}
+        <img src="{{ photo_data_uri }}" alt="Student passport photo">
+      {% endif %}
+    </div>
     <table>
       <thead>
         <tr>

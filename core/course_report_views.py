@@ -1,11 +1,13 @@
 
 import logging
+import os
 from django.db import transaction
 from django.db.models import Prefetch, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import (
     CourseReport, CourseReportStageRemark, CourseReportAuditLog,
@@ -21,6 +23,10 @@ from .permissions import IsCourseReportParticipant, CanWriteCourseReportRemark
 from .course_report_pdf import _build_academic_rows, _compute_totals, _compute_class_position
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+_ALLOWED_PHOTO_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+_MAX_PHOTO_SIZE = 2 * 1024 * 1024  # 2 MB
 
 
 class CourseReportViewSet(viewsets.ModelViewSet):
@@ -128,6 +134,11 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             role == 'instructor' and
             report.class_obj.instructor_id == request.user.id
         )
+        can_edit_photo = (
+            report.status != 'approved' and
+            role == 'instructor' and
+            report.class_obj.instructor_id == request.user.id
+        )
 
         serializer = self.get_serializer(report)
         data = serializer.data
@@ -138,6 +149,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         data['can_submit'] = can_submit
         data['can_advance'] = can_advance
         data['can_download'] = bool(can_download)
+        data['can_edit_photo'] = bool(can_edit_photo)
 
         class_obj = report.class_obj
         student = report.enrollment.student
@@ -225,6 +237,93 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    def _check_can_manage_photo(self, request, report):
+
+        role = self._get_role()
+        if role != 'instructor' or report.class_obj.instructor_id != request.user.id:
+            return Response(
+                {'detail': 'Only the class instructor may manage this report photo.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if report.status == 'approved':
+            return Response(
+                {'detail': 'Cannot change the photo after the report has been approved.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return None
+
+    @action(
+        detail=True, methods=['post'], url_path='photo',
+        permission_classes=[IsAuthenticated, IsCourseReportParticipant],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_photo(self, request, pk=None):
+        report = self.get_object()
+        self._check_school(report)
+
+        denied = self._check_can_manage_photo(request, report)
+        if denied:
+            return denied
+
+        photo = request.FILES.get('photo')
+        if not photo:
+            return Response({'detail': 'No photo file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(photo.name)[1].lower()
+        if ext not in _ALLOWED_PHOTO_EXTENSIONS or photo.content_type not in _ALLOWED_PHOTO_MIME_TYPES:
+            return Response(
+                {'detail': 'Invalid file type. Only JPG, PNG, and WEBP images are allowed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if photo.size > _MAX_PHOTO_SIZE:
+            return Response(
+                {'detail': 'File too large. Maximum photo size is 2 MB.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from PIL import Image, UnidentifiedImageError
+        try:
+            with Image.open(photo) as img:
+                img.verify()
+        except (UnidentifiedImageError, OSError, ValueError):
+            return Response(
+                {'detail': 'Invalid or corrupt image file.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        photo.seek(0)
+
+        if report.photo:
+            report.photo.delete(save=False)
+        report.photo = photo
+        report.save(update_fields=['photo'])
+
+        self._log_audit(report=report, action='photo_uploaded', user=request.user, metadata={})
+
+        return Response(CourseReportDetailSerializer(report, context={'request': request}).data)
+
+    @action(
+        detail=True, methods=['post'], url_path='remove-photo',
+        permission_classes=[IsAuthenticated, IsCourseReportParticipant],
+    )
+    def remove_photo(self, request, pk=None):
+        report = self.get_object()
+        self._check_school(report)
+
+        denied = self._check_can_manage_photo(request, report)
+        if denied:
+            return denied
+
+        if not report.photo:
+            return Response({'detail': 'This report has no photo to remove.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        report.photo.delete(save=False)
+        report.photo = None
+        report.save(update_fields=['photo'])
+
+        self._log_audit(report=report, action='photo_removed', user=request.user, metadata={})
+
+        return Response(CourseReportDetailSerializer(report, context={'request': request}).data)
 
     @action(
         detail=True, methods=['post'], url_path='save-remark',

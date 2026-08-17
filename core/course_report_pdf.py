@@ -1,14 +1,35 @@
 
+import base64
 import io
 import logging
 import os
 from decimal import Decimal
+from pathlib import Path
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db.models import Sum, Count, Q
 from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
+
+
+def _image_field_to_data_uri(image_field):
+
+    if not image_field:
+        return ''
+    try:
+        path = os.path.join(settings.MEDIA_ROOT, str(image_field))
+        if not os.path.exists(path):
+            return ''
+        with open(path, 'rb') as f:
+            data = base64.b64encode(f.read()).decode()
+        ext = os.path.splitext(path)[1].lstrip('.').lower()
+        mime = 'image/png' if ext == 'png' else 'image/webp' if ext == 'webp' else 'image/jpeg'
+        return f'data:{mime};base64,{data}'
+    except Exception:
+        logger.warning("Could not embed image %r for PDF", str(image_field), exc_info=True)
+        return ''
 
 
 PAD_PDF_ORDER = [
@@ -174,6 +195,9 @@ def generate_course_report_pdf(report):
 
     context = {
         'school_name': school.name,
+        'photo_data_uri': _image_field_to_data_uri(report.photo),
+        'logo_data_uri': _image_field_to_data_uri(school.logo),
+        'fonts_base_url': (Path(settings.BASE_DIR) / 'fonts').as_uri(),
         'svc_number': student.svc_number or '',
         'rank': student.get_rank_display() if student.rank else '',
         'full_name': student.get_full_name().upper(),

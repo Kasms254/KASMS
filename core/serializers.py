@@ -3048,16 +3048,24 @@ class CourseReportListSerializer(serializers.ModelSerializer):
     student = CourseReportStudentInfoSerializer(source='*', read_only=True)
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
- 
+    photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = CourseReport
         fields = [
             'id', 'status', 'is_active',
             'student', 'class_name', 'course_name',
             'class_obj', 'enrollment',
+            'photo_url',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
+
+    def get_photo_url(self, obj):
+        if not obj.photo:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
 
 class CourseReportDetailSerializer(serializers.ModelSerializer):
 
@@ -3069,7 +3077,8 @@ class CourseReportDetailSerializer(serializers.ModelSerializer):
     can_submit = serializers.BooleanField(read_only=True, default=False)
     can_advance = serializers.BooleanField(read_only=True, default=False)
     can_download = serializers.BooleanField(read_only=True, default=False)
- 
+    photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = CourseReport
         fields = [
@@ -3078,10 +3087,16 @@ class CourseReportDetailSerializer(serializers.ModelSerializer):
             'class_obj', 'enrollment',
             'visible_remarks',
             'can_edit', 'can_submit', 'can_advance', 'can_download',
-            'report_file',
+            'report_file', 'photo_url',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
+
+    def get_photo_url(self, obj):
+        if not obj.photo:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
  
 class CourseReportBulkCreateSerializer(serializers.Serializer):
 
