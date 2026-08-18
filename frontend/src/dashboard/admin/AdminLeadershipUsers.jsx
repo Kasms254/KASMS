@@ -105,6 +105,15 @@ export default function AdminLeadershipUsers() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
+  // Password reset modal state
+  const [resetPasswordUser, setResetPasswordUser] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] })
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
   const { data, isPending, error } = useQuery({
     queryKey: ['leadership-users', searchTerm],
     queryFn: async () => {
@@ -294,6 +303,97 @@ export default function AdminLeadershipUsers() {
       setEditError(message)
     } finally {
       setEditLoading(false)
+    }
+  }
+
+  // Password strength checker
+  function checkPasswordStrength(password) {
+    const feedback = []
+    let score = 0
+
+    if (password.length >= 8) {
+      score += 1
+      feedback.push({ met: true, text: 'At least 8 characters' })
+    } else {
+      feedback.push({ met: false, text: 'At least 8 characters' })
+    }
+
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains uppercase and lowercase' })
+    } else {
+      feedback.push({ met: false, text: 'Contains uppercase and lowercase' })
+    }
+
+    if (/\d/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains numbers' })
+    } else {
+      feedback.push({ met: false, text: 'Contains numbers' })
+    }
+
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      score += 1
+      feedback.push({ met: true, text: 'Contains special characters' })
+    } else {
+      feedback.push({ met: false, text: 'Contains special characters' })
+    }
+
+    return { score, feedback }
+  }
+
+  // Password reset handlers
+  function openResetPassword(user) {
+    setResetPasswordUser(user)
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordStrength({ score: 0, feedback: [] })
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  function closeResetPassword() {
+    setResetPasswordUser(null)
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordStrength({ score: 0, feedback: [] })
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  function handleNewPasswordChange(e) {
+    const value = e.target.value
+    setNewPassword(value)
+    setPasswordStrength(checkPasswordStrength(value))
+  }
+
+  function reportResetError(message) {
+    if (toast?.error) toast.error(message)
+    else if (toast?.showToast) toast.showToast(message, { type: 'error' })
+  }
+
+  async function submitResetPassword(e) {
+    e.preventDefault()
+    if (!resetPasswordUser) return
+    if (passwordStrength.score < 4) {
+      reportResetError('Password does not meet all requirements')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      reportResetError('Passwords do not match')
+      return
+    }
+    setResetLoading(true)
+    try {
+      await api.resetUserPassword(resetPasswordUser.id, newPassword)
+      if (toast?.success) toast.success('Password reset successfully')
+      else if (toast?.showToast) toast.showToast('Password reset successfully', { type: 'success' })
+      closeResetPassword()
+    } catch (err) {
+      const raw = err?.data?.error || err?.data?.detail
+      reportResetError('Failed to reset password: ' + (Array.isArray(raw) ? raw.join(' ') : (raw || err?.message || 'Unknown error')))
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -573,7 +673,9 @@ export default function AdminLeadershipUsers() {
 
               <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
                 <div className="flex items-center gap-2">
-                  {/* no left-side actions for leadership modal currently */}
+                  <button type="button" onClick={() => openResetPassword(editingUser)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                    <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
@@ -581,6 +683,109 @@ export default function AdminLeadershipUsers() {
                     {editLoading ? 'Saving...' : 'Save changes'}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Password Reset Modal */}
+      {resetPasswordUser && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeResetPassword} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
+            <form onSubmit={submitResetPassword} className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100">
+                    <LucideIcons.Key className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-medium text-black">Reset Password</h4>
+                    <p className="text-sm text-neutral-500">
+                      {resetPasswordUser.full_name
+                        || `${resetPasswordUser.first_name || ''} ${resetPasswordUser.last_name || ''}`.trim()
+                        || resetPasswordUser.svc_number}
+                    </p>
+                  </div>
+                </div>
+                <button type="button" aria-label="Close" onClick={closeResetPassword} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="text-sm text-neutral-600 mb-1 block">New Password</span>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={handleNewPasswordChange}
+                      className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      placeholder="Enter new password"
+                      required
+                      minLength={8}
+                    />
+                    <button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                      {showNewPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password Requirements */}
+                {newPassword && (
+                  <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-neutral-500 mb-2">Password Requirements:</p>
+                    {passwordStrength.feedback.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        {item.met ? (
+                          <LucideIcons.Check className="w-3.5 h-3.5 text-green-600" />
+                        ) : (
+                          <LucideIcons.X className="w-3.5 h-3.5 text-red-500" />
+                        )}
+                        <span className={item.met ? 'text-green-700' : 'text-neutral-600'}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <span className="text-sm text-neutral-600 mb-1 block">Confirm Password</span>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      placeholder="Confirm new password"
+                      required
+                      minLength={8}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                      {showConfirmPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <LucideIcons.AlertCircle className="w-4 h-4" />
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-6">
+                <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword || passwordStrength.score < 4}
+                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {resetLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
               </div>
             </form>
           </div>
