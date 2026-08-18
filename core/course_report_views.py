@@ -21,6 +21,7 @@ from .serializers import (
 )
 from .permissions import IsCourseReportParticipant, CanWriteCourseReportRemark
 from .course_report_pdf import _build_academic_rows, _compute_totals, _compute_class_position
+from .views import PageSizeAwarePagination
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated, IsCourseReportParticipant]
     http_method_names = ['get', 'post', 'head', 'options']
+    pagination_class = PageSizeAwarePagination
 
     def _get_role(self):
         user = self.request.user
