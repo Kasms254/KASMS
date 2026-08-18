@@ -297,8 +297,9 @@ const App = () => {
 				<Route index element={<ExamReports />} />
 			</Route>
 
-			{/* Course Reports (admins & instructors) */}
-			<Route path="/list/course-reports" element={<AdminOrInstructorLayout />}>
+			{/* Course Reports (instructor only — not admin: admin isn't part of the
+			    instructor -> OIC -> chief instructor -> commandant review chain) */}
+			<Route path="/list/course-reports" element={<RoleProtectedLayout role="instructor" />}>
 				<Route index element={<CourseReports />} />
 				<Route path="class/:classId" element={<CourseRoster />} />
 				<Route path=":id" element={<CourseReportDetail />} />

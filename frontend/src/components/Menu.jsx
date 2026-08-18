@@ -303,7 +303,7 @@ const menuItems = [
         icon: 'BookOpen',
         label: 'Course Reports',
         href: '/list/course-reports',
-        visible: ['admin', 'instructor'],
+        visible: ['instructor'],
       },
       
        {

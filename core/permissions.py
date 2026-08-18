@@ -404,7 +404,7 @@ class ReadOnlyForOIC(BasePermission):
 class IsCourseReportParticipant(BasePermission):
 
     ALLOWED_ROLES={
-        'instructor', 'oic', 'chief_instructor', 'commandant', 'admin', 'superadmin',
+        'instructor', 'oic', 'chief_instructor', 'commandant',
     }
 
     def has_permission(self, request, view):

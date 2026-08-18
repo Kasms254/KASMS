@@ -2565,8 +2565,6 @@ class CourseReport(models.Model):
                 'oic':              ['instructor', 'oic'],
                 'chief_instructor': ['instructor', 'oic', 'chief_instructor'],
                 'commandant':       all_stages,
-                'admin':            all_stages,
-                'superadmin':       all_stages,
             }
             return visibility.get(role, [])
 

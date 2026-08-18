@@ -673,7 +673,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='audit-log')
     def audit_log(self, request, pk=None):
         role = self._get_role()
-        if role not in ('admin', 'superadmin', 'commandant', 'chief_instructor'):
+        if role not in ('commandant', 'chief_instructor'):
             return Response(
                 {'detail': 'You do not have permission to view audit logs.'},
                 status=status.HTTP_403_FORBIDDEN,
