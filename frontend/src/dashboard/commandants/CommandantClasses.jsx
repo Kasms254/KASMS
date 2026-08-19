@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router'
 import * as LucideIcons from 'lucide-react'
 import Card from '../../components/Card'
 import { getCommandantClasses } from '../../lib/api'

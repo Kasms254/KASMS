@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'

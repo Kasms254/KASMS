@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import Card from '../../components/Card'
 import { Building2, Users, Palette, BarChart3, School, Activity, UserCog } from 'lucide-react'
 import * as api from '../../lib/api'

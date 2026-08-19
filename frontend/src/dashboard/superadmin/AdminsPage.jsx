@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import {
   Users, Plus, Search, Edit2, Trash2, MoreVertical,
   UserPlus, Shield, ShieldCheck, ChevronLeft, ChevronRight,

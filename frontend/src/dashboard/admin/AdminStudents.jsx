@@ -5,7 +5,7 @@ import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 function initials(name = '') {
   return name

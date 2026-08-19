@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Plus, Eye, Trash2, Send, BarChart2, Download } from 'lucide-react'
 import { getCommandantReports, deleteCommandantReport, downloadCommandantReportPdf } from '../../lib/api'

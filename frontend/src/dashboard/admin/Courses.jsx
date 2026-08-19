@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Card from '../../components/Card'
 import { getCoursesPaginated, addCourse, updateCourse, deleteCourse, getClasses, getDepartments } from '../../lib/api'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import useToast from '../../hooks/useToast'
 
 // Sanitize text input by removing script tags, HTML tags, and control characters

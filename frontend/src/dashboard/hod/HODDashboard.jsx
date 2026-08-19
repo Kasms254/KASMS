@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Card from '../../components/Card'
 import { getDepartments, getDepartmentCourses, getDepartmentClasses, getDepartmentStudents, getDepartmentPendingEditRequests } from '../../lib/api'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import useToast from '../../hooks/useToast'
 
 export default function HODDashboard() {

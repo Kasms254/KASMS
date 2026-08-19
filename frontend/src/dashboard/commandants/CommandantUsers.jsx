@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { getCommandantUsers, getCommandantUsersSummary } from '../../lib/api'

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import * as LucideIcons from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 
 export default function TOTPVerifyLogin() {

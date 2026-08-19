@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router'
 import * as Icons from 'lucide-react'
 import { shortRank } from '../../lib/rankUtils'
 import {

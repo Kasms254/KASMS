@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import * as api from '../../lib/api'
 import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'

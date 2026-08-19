@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import {
   ArrowLeft, Users, Clock, Calendar, CheckCircle, AlertCircle,
   RefreshCw, Download, Search, ChevronLeft, ChevronRight, X, Fingerprint

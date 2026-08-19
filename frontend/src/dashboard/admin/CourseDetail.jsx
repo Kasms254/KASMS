@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import { getCourses, getClassesPaginated, getAllClasses, addClass, updateClass, deleteClass, getAllInstructors, getClassEnrolledStudents } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import Card from '../../components/Card'

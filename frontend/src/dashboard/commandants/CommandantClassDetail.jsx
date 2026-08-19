@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import * as LucideIcons from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { getCommandantClassStudents, getCommandantClassSubjects } from '../../lib/api'

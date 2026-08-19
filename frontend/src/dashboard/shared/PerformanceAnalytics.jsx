@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import Card from '../../components/Card'

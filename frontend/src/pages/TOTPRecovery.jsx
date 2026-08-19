@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import * as LucideIcons from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import * as api from '../lib/api'
 
 const renderIcon = (name, props = {}) => {

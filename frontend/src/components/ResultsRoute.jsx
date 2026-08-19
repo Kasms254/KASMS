@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 import AddResults from '../dashboard/instructors/AddResults'
 import StudentResults from '../dashboard/students/StudentResults'
