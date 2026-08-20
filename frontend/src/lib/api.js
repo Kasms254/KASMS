@@ -1551,6 +1551,12 @@ export async function getCertificate(id) {
   return request(`/api/certificates/${id}/`)
 }
 
+// Certificate counts grouped by class — the entry point for the certificates
+// screen, which drills into one class rather than listing every certificate.
+export async function getCertificatesByClass() {
+  return request('/api/certificates/by_class/')
+}
+
 // Get completion status for all students in a class
 export async function getClassCompletionStatus(classId) {
   if (!classId) throw new Error('classId is required')
@@ -1691,9 +1697,17 @@ export async function setCertificateTemplateDefault(id) {
   return request(`/api/certificate_templates/${id}/set_default/`, { method: 'POST' })
 }
 
-export async function previewCertificateTemplate(id) {
+// Preview a template as the certificate it will actually produce. The server
+// renders it through the same generator issuance uses, so what you see here is
+// the issued document — 'pdf' is byte-identical to it, 'html' is a fallback
+// for clients that cannot embed a PDF.
+export async function previewCertificateTemplate(id, format = 'pdf') {
   if (!id) throw new Error('id is required')
-  return request(`/api/certificate_templates/${id}/preview/`)
+  // `output`, not `format` — DRF claims `format` for content negotiation.
+  const url = `${API_BASE}/api/certificate_templates/${id}/preview/?output=${format}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to load preview.'))
+  return res.blob()
 }
 
 // Certificate stats (dashboard)
@@ -1933,6 +1947,10 @@ export async function getCommandantCertificates(params = '') {
 
 export async function getCommandantCertificatesSummary() {
   return request('/api/commandant/certificates/summary/')
+}
+
+export async function getCommandantCertificatesByClass() {
+  return request('/api/commandant/certificates/by_class/')
 }
 
 export async function getCommandantExamReports(params = '') {
@@ -2585,6 +2603,7 @@ export default {
   // Certificates
   getCertificates,
   getCertificate,
+  getCertificatesByClass,
   getClassCompletionStatus,
   issueCertificates,
   issueCertificateSingle,
@@ -2629,6 +2648,7 @@ export default {
   getCommandantAttendanceClassSummary,
   getCommandantCertificates,
   getCommandantCertificatesSummary,
+  getCommandantCertificatesByClass,
   getCommandantExamReports,
   getCommandantExamReportDetail,
   addCommandantExamReportRemark,
