@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "preinstall": "node -e \"const v = process.versions.node.split('.')[0]; if (v < 22) { console.error('🚫 Node 22+ is required'); process.exit(1); }\"",
-    "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('npx husky install', { stdio: 'inherit' })\""
+    "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('node frontend/node_modules/husky/bin.js frontend/.husky', { stdio: 'inherit', cwd: '..' })\""
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.11",
-    "exceljs": "^3.4.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.40.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
