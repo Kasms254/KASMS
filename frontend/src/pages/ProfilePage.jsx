@@ -5,6 +5,43 @@ import useAuth from '../hooks/useAuth'
 import * as api from '../lib/api'
 import TOTPSettings from '../components/TOTPSettings'
 
+const TABS = [
+  { id: 'overview', label: 'Overview', icon: 'User' },
+  { id: 'account', label: 'Account', icon: 'Clock' },
+  { id: 'security', label: 'Security', icon: 'ShieldCheck' },
+]
+
+function InfoRow({ label, value }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-neutral-100 last:border-b-0">
+      <span className="text-sm text-neutral-500 shrink-0">{label}</span>
+      <span className="text-sm font-medium text-black text-right break-words min-w-0">{value || 'N/A'}</span>
+    </div>
+  )
+}
+
+function Card({ icon, title, children, className = '' }) {
+  const Icon = Icons[icon]
+  return (
+    <section className={`bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 ${className}`}>
+      <div className="flex items-center gap-2 mb-3">
+        {Icon && <Icon className="w-5 h-5 text-neutral-500" />}
+        <h3 className="font-semibold text-black">{title}</h3>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Stat({ label, value }) {
+  return (
+    <div>
+      <p className="text-xs text-neutral-500 mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-black">{value || 'N/A'}</p>
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -12,8 +49,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [activeTab, setActiveTab] = useState('overview')
 
-  // Edit state
+  // Edit state — username/bio are edited in place in the identity band
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({ username: '', bio: '' })
   const [formErrors, setFormErrors] = useState({})
@@ -153,30 +191,8 @@ export default function ProfilePage() {
     )
   }
 
-  // Info row helper
-  const InfoRow = ({ label, value }) => (
-    <div className="flex items-center justify-between py-2.5 border-b border-neutral-100 last:border-b-0">
-      <span className="text-sm text-neutral-500">{label}</span>
-      <span className="text-sm font-medium text-black">{value || 'N/A'}</span>
-    </div>
-  )
-
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-black">My Profile</h2>
-        {!editing && (
-          <button
-            onClick={startEditing}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
-          >
-            <Icons.Pencil className="w-4 h-4" />
-            Edit Profile
-          </button>
-        )}
-      </div>
-
+    <div className="w-full space-y-6">
       {/* Success banner */}
       {saveSuccess && (
         <div className="flex items-center gap-2 text-sm text-green-800 bg-green-50 border border-green-200 rounded-xl p-3">
@@ -185,18 +201,52 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Profile card — identity */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-5 sm:p-6">
-        <div className="flex items-start gap-4 sm:gap-5">
-          {/* Avatar */}
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xl sm:text-2xl font-bold shrink-0">
-            {initials}
-          </div>
+      {/* Identity band — spans the full content width. Scoped <form> so the
+          inline username/bio fields submit on Enter without wrapping the whole
+          page (TOTPSettings renders its own form). */}
+      <form onSubmit={handleSave} className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 lg:p-6">
+        {/* Actions drop below the identity block until lg, so the avatar and
+            name keep a usable width on phones and tablets */}
+        <div className="flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-5">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            {/* Avatar */}
+            <div className="w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg sm:text-2xl lg:text-3xl font-bold shrink-0">
+              {initials}
+            </div>
 
-          {/* Name & badges */}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg sm:text-xl font-semibold text-black truncate">{fullName}</h3>
-            <p className="text-sm text-neutral-500 mt-0.5">@{profile.username}</p>
+            {/* Name, badges, bio */}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-black break-words">{fullName}</h2>
+
+            {editing ? (
+              <div className="mt-2 max-w-sm">
+                <label htmlFor="username" className="block text-xs font-medium text-neutral-500 mb-1">
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">@</span>
+                  <input
+                    id="username"
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleChange}
+                    className={`w-full pl-7 pr-3 py-2 border rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+                      formErrors.username ? 'border-red-500' : 'border-neutral-200'
+                    }`}
+                    placeholder="Enter username"
+                    minLength={3}
+                    maxLength={150}
+                  />
+                </div>
+                {formErrors.username && (
+                  <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-500 mt-0.5">@{profile.username}</p>
+            )}
+
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100">
                 {profile.role_display || profile.role}
@@ -213,192 +263,177 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Bio */}
-            {!editing && profile.bio && (
-              <p className="mt-3 text-sm text-neutral-600 leading-relaxed">{profile.bio}</p>
-            )}
-            {!editing && !profile.bio && (
+            {/* Bio — edited in place, no separate form card */}
+            {editing ? (
+              <div className="mt-3 max-w-2xl">
+                <label htmlFor="bio" className="block text-xs font-medium text-neutral-500 mb-1">
+                  Bio
+                </label>
+                <textarea
+                  id="bio"
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+                  placeholder="Write a short bio about yourself..."
+                  rows={3}
+                  maxLength={500}
+                />
+                <p className="text-neutral-500 text-xs mt-1">{formData.bio.length}/500 characters</p>
+              </div>
+            ) : profile.bio ? (
+              <p className="mt-3 text-sm text-neutral-600 leading-relaxed max-w-2xl">{profile.bio}</p>
+            ) : (
               <p className="mt-3 text-sm text-neutral-400 italic">No bio added yet.</p>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Edit form */}
-      {editing && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Icons.Pencil className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">Edit Profile</h3>
-          </div>
-
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
-                Username
-              </label>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                  formErrors.username ? 'border-red-500' : 'border-neutral-200'
-                }`}
-                placeholder="Enter username"
-                minLength={3}
-                maxLength={150}
-              />
-              {formErrors.username && (
-                <p className="text-red-500 text-sm mt-1">{formErrors.username}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
-                Bio
-              </label>
-              <textarea
-                name="bio"
-                value={formData.bio}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
-                placeholder="Write a short bio about yourself..."
-                rows={3}
-                maxLength={500}
-              />
-              <p className="text-neutral-500 text-xs mt-1">{formData.bio.length}/500 characters</p>
-            </div>
 
             {saveError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 max-w-2xl">
                 <div className="flex items-start gap-2">
                   <Icons.AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-red-700">{saveError}</p>
                 </div>
               </div>
-            )}
+              )}
+            </div>
+          </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+          {/* Actions — full-width tap targets on phone/tablet, inline from lg */}
+          <div className="flex items-center gap-2 lg:shrink-0">
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  className="flex-1 lg:flex-none px-4 py-2.5 lg:py-2 text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Save className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={cancelEditing}
-                className="px-4 py-2 text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition text-sm"
+                onClick={startEditing}
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
               >
-                Cancel
+                <Icons.Pencil className="w-4 h-4" />
+                Edit Profile
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50"
-              >
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Icons.Save className="w-4 h-4" />
-                    Save Changes
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Details grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Personal Information */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Icons.User className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">Personal Information</h3>
+            )}
           </div>
-          <div>
+        </div>
+      </form>
+
+      {/* Tabs */}
+      <div className="border-b border-neutral-200">
+        <div className="flex gap-1 -mb-px overflow-x-auto" role="tablist">
+          {TABS.map((t) => {
+            const Icon = Icons[t.icon]
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+                  activeTab === t.id
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                }`}
+              >
+                {Icon && <Icon className="w-4 h-4" />}
+                {t.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Overview */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+          <Card icon="User" title="Personal Information">
             <InfoRow label="Full Name" value={fullName} />
             <InfoRow label="Username" value={profile.username} />
             <InfoRow label="Service Number" value={profile.service_number} />
             <InfoRow label="Email" value={profile.email} />
             <InfoRow label="Phone" value={profile.phone_number} />
             {profile.unit && <InfoRow label="Unit" value={profile.unit} />}
-          </div>
-        </div>
+          </Card>
 
-        {/* School & Role */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Icons.Building2 className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">School & Role</h3>
-          </div>
-          <div>
+          <Card icon="Building2" title="School & Role">
             <InfoRow label="School" value={profile.school_name} />
             {profile.school_code && <InfoRow label="School Code" value={profile.school_code} />}
             <InfoRow label="Role" value={profile.role_display || profile.role} />
             {profile.rank_display && <InfoRow label="Rank" value={profile.rank_display} />}
-          </div>
-        </div>
-      </div>
+          </Card>
 
-      {/* Enrollment (students only) */}
-      {profile.enrollment && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Icons.GraduationCap className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">Current Enrollment</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-neutral-500 mb-0.5">Course</p>
-              <p className="text-sm font-medium text-black">
-                {profile.enrollment.course_name}
-                {profile.enrollment.course_code && (
-                  <span className="text-neutral-400 ml-1">({profile.enrollment.course_code})</span>
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-neutral-500 mb-0.5">Class</p>
-              <p className="text-sm font-medium text-black">{profile.enrollment.class_name}</p>
-            </div>
-            <div>
-              <p className="text-xs text-neutral-500 mb-0.5">Enrolled</p>
-              <p className="text-sm font-medium text-black">
-                {profile.enrollment.enrollment_date
-                  ? new Date(profile.enrollment.enrollment_date).toLocaleDateString()
-                  : 'N/A'}
-              </p>
-            </div>
-          </div>
+          {profile.enrollment && (
+            <Card icon="GraduationCap" title="Current Enrollment">
+              <InfoRow
+                label="Course"
+                value={
+                  profile.enrollment.course_code
+                    ? `${profile.enrollment.course_name} (${profile.enrollment.course_code})`
+                    : profile.enrollment.course_name
+                }
+              />
+              <InfoRow label="Class" value={profile.enrollment.class_name} />
+              <InfoRow
+                label="Enrolled"
+                value={
+                  profile.enrollment.enrollment_date
+                    ? new Date(profile.enrollment.enrollment_date).toLocaleDateString()
+                    : null
+                }
+              />
+            </Card>
+          )}
         </div>
       )}
 
       {/* Account */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Icons.Clock className="w-5 h-5 text-neutral-500" />
-          <h3 className="font-semibold text-black">Account</h3>
+      {activeTab === 'account' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          <Card icon="Clock" title="Account">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Stat
+                label="Member Since"
+                value={profile.created_at ? new Date(profile.created_at).toLocaleDateString() : null}
+              />
+              <Stat
+                label="Last Updated"
+                value={profile.updated_at ? new Date(profile.updated_at).toLocaleDateString() : null}
+              />
+            </div>
+          </Card>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-neutral-500 mb-0.5">Member Since</p>
-            <p className="text-sm font-medium text-black">
-              {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-neutral-500 mb-0.5">Last Updated</p>
-            <p className="text-sm font-medium text-black">
-              {profile.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Two-factor authentication */}
-      <TOTPSettings user={user} />
+      {/* Security */}
+      {activeTab === 'security' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          <TOTPSettings user={user} />
+        </div>
+      )}
     </div>
   )
 }

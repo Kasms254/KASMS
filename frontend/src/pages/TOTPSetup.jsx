@@ -14,6 +14,7 @@ const renderIcon = (name, props = {}) => {
 export default function TOTPSetup() {
   const [step, setStep] = useState('password') // 'password' | 'scan' | 'done'
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [secret, setSecret] = useState(null)
   const [provisioningUri, setProvisioningUri] = useState(null)
   const [digits, setDigits] = useState(['', '', '', '', '', ''])
@@ -125,16 +126,27 @@ export default function TOTPSetup() {
             <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
               <label className="block">
                 <span className="text-sm font-medium text-gray-700">Password</span>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1.5 w-full px-3 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  autoFocus
-                />
+                <div className="mt-1.5 relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-3 pr-10 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? renderIcon('EyeOff', { className: 'w-4 h-4' }) : renderIcon('Eye', { className: 'w-4 h-4' })}
+                  </button>
+                </div>
               </label>
 
               <button
