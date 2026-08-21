@@ -1909,6 +1909,33 @@ class CertificateTemplate(models.Model):
             'accent_color': '#FFC107',
         }
 
+class CertificateSequence(models.Model):
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE,
+        related_name='certificate_sequences',
+        null=True, blank=True,
+    )
+    year = models.PositiveIntegerField()
+    next_number = models.PositiveIntegerField(default=1)
+
+    all_objects = models.Manager()
+    objects = TenantAwareManager()
+
+    class Meta:
+        db_table = 'certificate_sequences'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['school', 'year'],
+                name='unique_certificate_sequence_per_school_year',
+            ),
+        ]
+
+    def __str__(self):
+        school_code = self.school.code if self.school else 'GEN'
+        return f"{school_code}/{self.year} -> next {self.next_number}"
+
+
 class Certificate(models.Model):
 
     STATUS_CHOICES = [
@@ -2025,8 +2052,14 @@ class Certificate(models.Model):
             self.school = self.class_obj.school
 
         if not self.certificate_number:
-            self.certificate_number = self._generate_number()
+            with transaction.atomic():
+                self.certificate_number = self._generate_number()
+                self._finish_save(*args, **kwargs)
+            return
 
+        self._finish_save(*args, **kwargs)
+
+    def _finish_save(self, *args, **kwargs):
         if not self.verification_code:
             self.verification_code = self._generate_verification_code()
 
@@ -2044,14 +2077,24 @@ class Certificate(models.Model):
         super().save(*args, **kwargs)
 
     def _generate_number(self):
-        import datetime as _dt
-        year = _dt.date.today().year
-        school_code = self.school.code if self.school else 'GEN'
-        count = Certificate.all_objects.filter(
-            school=self.school,
-            issued_at__year=year,
-        ).count() + 1
-        return f"{school_code}/{year}/{count:04d}"
+        return self.__class__.allocate_number(self.school, timezone.localtime().year)
+
+    @classmethod
+    def allocate_number(cls, school, year):
+
+        if not transaction.get_connection().in_atomic_block:
+            raise RuntimeError(
+                'Certificate.allocate_number() must be called inside '
+                'transaction.atomic(); the CertificateSequence lock cannot '
+                'be held safely otherwise.'
+            )
+        school_code = school.code if school else 'GEN'
+        seq, _ = CertificateSequence.all_objects.get_or_create(school=school, year=year)
+        seq = CertificateSequence.all_objects.select_for_update().get(pk=seq.pk)
+        number = seq.next_number
+        seq.next_number = number + 1
+        seq.save(update_fields=['next_number'])
+        return f"{school_code}/{year}/{number:04d}"
 
     def _generate_verification_code(self):
 
