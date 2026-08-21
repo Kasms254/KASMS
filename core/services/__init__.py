@@ -1,5 +1,5 @@
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Q, Exists, OuterRef, Subquery, Avg
 from core.models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
@@ -415,18 +415,29 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
     )
     attendance_pct = calculate_attendance_percentage(class_obj, enrollment.student)
 
-    certificate = Certificate.objects.create(
-        student=enrollment.student,
-        enrollment=enrollment,
-        class_obj=class_obj,
-        school=enrollment.school,
-        template=template,
-        issued_by=issued_by,
-        completion_date=timezone.now().date(),
-        final_grade=grade_data.get('grade', ''),
-        final_percentage=grade_data.get('percentage'),
-        attendance_percentage=attendance_pct,
-    )
+    try:
+        with transaction.atomic():
+            certificate_number = Certificate.allocate_number(
+                enrollment.school, timezone.localtime().year,
+            )
+            certificate = Certificate.objects.create(
+                student=enrollment.student,
+                enrollment=enrollment,
+                class_obj=class_obj,
+                school=enrollment.school,
+                template=template,
+                issued_by=issued_by,
+                completion_date=timezone.now().date(),
+                final_grade=grade_data.get('grade', ''),
+                final_percentage=grade_data.get('percentage'),
+                attendance_percentage=attendance_pct,
+                certificate_number=certificate_number,
+            )
+    except IntegrityError:
+
+        if hasattr(enrollment, 'certificate'):
+            return None, 'Certificate already issued for this enrollment.'
+        raise
 
 
     if requires_grades:
