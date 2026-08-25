@@ -438,15 +438,7 @@ def verify_2fa_view(request):
         )
 
     if user.totp_enabled:
-        # Email-OTP login must never complete for a TOTP-enabled account,
-        # regardless of whether a matching TwoFactorCode exists. Without
-        # this, the "forgot authenticator" recovery flow's own code
-        # (created by totp_recover_start_view, which only requires a
-        # correct password — proving TOTP possession is the whole thing
-        # recovery exists to skip) sits in the same TwoFactorCode pool
-        # verify_2fa_view reads from, and could be submitted here to
-        # obtain a full session without ever providing a TOTP code or
-        # completing the reset flow.
+
         return Response(
             {'error': 'This account requires authenticator app verification.'},
             status=status.HTTP_400_BAD_REQUEST,

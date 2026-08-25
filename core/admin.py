@@ -117,10 +117,6 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
     
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
 
-    # Fields that gate real Django-level privilege (Admin login + full
-    # superuser bypass of every permission check) — protected below,
-    # independent of the app's own `role` field, which is not the
-    # authorization boundary here.
     privilege_fields = ('is_staff', 'is_superuser')
 
     def get_school(self, obj):
@@ -133,12 +129,7 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if not request.user.is_superuser:
-            # Excluding these from the ModelForm's fields (not just hiding
-            # the widget) means a crafted POST with is_staff/is_superuser
-            # in the body is never bound onto the form in the first place —
-            # form.cleaned_data won't contain them, so save_model() below
-            # sees the object exactly as it was loaded from the DB for
-            # these two fields, regardless of what was submitted.
+
             readonly += [f for f in self.privilege_fields if f not in readonly]
         return readonly
 
