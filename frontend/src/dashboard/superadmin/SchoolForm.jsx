@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Upload, Save, Building2, Palette, X, UserCog, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import * as api from '../../lib/api'
 import {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
 import useAuth from '../../hooks/useAuth'

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'

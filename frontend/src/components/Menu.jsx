@@ -1,6 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 import * as LucideIcons from 'lucide-react'
 import Tooltip from './Tooltip'

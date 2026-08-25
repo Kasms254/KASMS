@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, Search, Download, Eye, ChevronLeft, ChevronRight, Loader } from 'lucide-react'
 import { getCOTReports, downloadCOTReportPdf } from '../../lib/api'

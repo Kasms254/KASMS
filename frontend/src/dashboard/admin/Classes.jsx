@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { getClasses, getClassesPaginated, getAllInstructors, addSubject, getClassEnrolledStudents, updateClass, addClass, deleteClass, getAllCourses } from '../../lib/api'
 import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'

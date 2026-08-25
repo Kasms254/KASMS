@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
 import * as Icons from 'lucide-react'

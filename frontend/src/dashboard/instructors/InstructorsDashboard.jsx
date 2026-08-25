@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import api from '../../lib/api'

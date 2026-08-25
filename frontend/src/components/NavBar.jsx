@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import * as LucideIcons from "lucide-react"
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 import api from '../lib/api'
 import {

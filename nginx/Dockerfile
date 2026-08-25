@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # =============================================================================
 # Stage 1: Build the React frontend
-# Node 20 LTS – matches engines.node requirement in package.json.
+# Node 24 LTS – satisfies the engines.node requirement in package.json.
 # =============================================================================
-FROM node:20-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 
 WORKDIR /frontend
 

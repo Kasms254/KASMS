@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 import CertificateVerificationForm from '../components/CertificateVerificationForm'
 
 export default function VerifyCertificate() {

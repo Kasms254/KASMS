@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import { getCommandantDepartmentDetails } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import { shortRank } from '../../lib/rankUtils'

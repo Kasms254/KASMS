@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import {
   Building2, Plus, Search, Edit2, Trash2, MoreVertical,
   Eye, Power, PowerOff, Upload, School, ChevronLeft, ChevronRight

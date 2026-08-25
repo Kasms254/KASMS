@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, Link } from 'react-router-dom'
+import { Outlet, Link } from 'react-router'
 import Menu from './Menu'
 import NavBar from './NavBar'
 import useAuth from '../hooks/useAuth'

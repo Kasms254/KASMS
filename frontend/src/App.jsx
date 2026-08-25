@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useLayoutEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
