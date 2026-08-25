@@ -114,7 +114,7 @@ export default function StudentCertificates() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-neutral-500">Issued by</span>
-                    <span className="text-black">{cert.issued_by_name || '—'}</span>
+                    <span className="text-black">{cert.issued_by_role || '—'}</span>
                   </div>
                 </div>
               </div>
