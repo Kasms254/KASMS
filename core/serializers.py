@@ -1813,6 +1813,7 @@ class CertificateSerializer(serializers.ModelSerializer):
         source='template.name', read_only=True, allow_null=True,
     )
     issued_by_name = serializers.SerializerMethodField(read_only=True)
+    issued_by_role = serializers.SerializerMethodField(read_only=True)
     revoked_by_name = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_valid = serializers.BooleanField(read_only=True)
@@ -1835,6 +1836,9 @@ class CertificateSerializer(serializers.ModelSerializer):
     def get_issued_by_name(self, obj):
         return obj.issued_by.get_full_name() if obj.issued_by else None
 
+    def get_issued_by_role(self, obj):
+        return obj.issued_by.get_role_display() if obj.issued_by else None
+
     def get_revoked_by_name(self, obj):
         return obj.revoked_by.get_full_name() if obj.revoked_by else None
 
@@ -1852,6 +1856,7 @@ class CertificateListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_valid = serializers.BooleanField(read_only=True)
     issued_by_name = serializers.SerializerMethodField(read_only=True)
+    issued_by_role = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Certificate
@@ -1863,12 +1868,15 @@ class CertificateListSerializer(serializers.ModelSerializer):
             'issued_at', 'completion_date',
             'status', 'status_display', 'is_valid',
             'school', 'school_name',
-            'issued_by_name',
+            'issued_by_name', 'issued_by_role',
             'download_count', 'view_count',
         ]
 
     def get_issued_by_name(self, obj):
         return obj.issued_by.get_full_name() if obj.issued_by else None
+
+    def get_issued_by_role(self, obj):
+        return obj.issued_by.get_role_display() if obj.issued_by else None
 
 class CertificateTemplateSerializer(serializers.ModelSerializer):
     class Meta:
