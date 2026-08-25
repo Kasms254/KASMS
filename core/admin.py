@@ -9,6 +9,9 @@ from .models import (
 from django.utils import timezone
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import OICAssignment, OICRemark
+from audit.admin import AuditedAdminDeleteMixin
+from audit.constants import AuditAction
+from audit.services import audit_event
 
 class SchoolAdminFilter(admin.SimpleListFilter):
     title = 'school'
@@ -43,8 +46,9 @@ class TenantAdminMixin:
         super().save_model(request, obj, form, change)
 
 @admin.register(School)
-class SchoolAdmin(admin.ModelAdmin):
-    
+class SchoolAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+
+    audit_delete_action = AuditAction.DELETE
     list_display = ['name', 'code', 'email', 'city', 'is_active', 'student_count', 'instructor_count']
     list_filter = ['is_active', 'city']
     search_fields = ['name', 'code', 'email']
@@ -84,7 +88,8 @@ class SchoolMembershipInline(admin.TabularInline):
     readonly_fields = ['started_at', 'ended_at']
 
 @admin.register(User)
-class UserAdmin(TenantAdminMixin, BaseUserAdmin):
+class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
+    audit_delete_action = AuditAction.DELETE_USER
     list_display = ['id','username', 'email', 'get_full_name', 'role', 'get_school', 'is_active']
     list_filter = [SchoolAdminFilter, 'role', 'is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name', 'svc_number']
@@ -112,6 +117,12 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     
     readonly_fields = ['created_at', 'updated_at', 'last_login', 'date_joined']
 
+    # Fields that gate real Django-level privilege (Admin login + full
+    # superuser bypass of every permission check) — protected below,
+    # independent of the app's own `role` field, which is not the
+    # authorization boundary here.
+    privilege_fields = ('is_staff', 'is_superuser')
+
     def get_school(self, obj):
         return obj.school.name if obj.school else 'Unaffiliated'
     get_school.short_description = 'Current School'
@@ -119,9 +130,39 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
     def get_queryset(self, request):
         return User.all_objects.all()
 
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if not request.user.is_superuser:
+            # Excluding these from the ModelForm's fields (not just hiding
+            # the widget) means a crafted POST with is_staff/is_superuser
+            # in the body is never bound onto the form in the first place —
+            # form.cleaned_data won't contain them, so save_model() below
+            # sees the object exactly as it was loaded from the DB for
+            # these two fields, regardless of what was submitted.
+            readonly += [f for f in self.privilege_fields if f not in readonly]
+        return readonly
+
     def save_model(self, request, obj, form, change):
+        previous = None
+        if change:
+            previous = {
+                field: getattr(User.all_objects.get(pk=obj.pk), field)
+                for field in self.privilege_fields
+            }
 
         obj.save()
+
+        if previous:
+            changes = {
+                field: {'old': previous[field], 'new': getattr(obj, field)}
+                for field in self.privilege_fields
+                if previous[field] != getattr(obj, field)
+            }
+            if changes:
+                audit_event(
+                    AuditAction.PRIVILEGE_CHANGED, request=request, target=obj,
+                    changes=changes,
+                )
 
     def response_add(self, request, obj, post_url_continue=None):
 
@@ -129,7 +170,8 @@ class UserAdmin(TenantAdminMixin, BaseUserAdmin):
         return super().response_add(request, obj, post_url_continue)
 
 @admin.register(Course)
-class CourseAdmin(admin.ModelAdmin):
+class CourseAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE_COURSE
     list_display = ('name', 'code', 'created_at', 'updated_at')
     list_filter = ('created_at',)
     search_fields = ('name', 'code')
@@ -142,7 +184,8 @@ class CourseAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         
 @admin.register(Class)
-class ClassAdmin(admin.ModelAdmin):
+class ClassAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE_CLASS
     list_display = ('id','name', 'course', 'instructor', 'start_date', 'end_date', 'capacity', 'is_active','is_closed', 'current_enrollment', 'enrollment_status')
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
@@ -168,7 +211,8 @@ class EnrollmentAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(Subject)
-class SubjectAdmin(admin.ModelAdmin):
+class SubjectAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = ('name', 'created_at', 'updated_at', 'subject_code', 'instructor')
     list_filter = ('created_at',)
     search_fields = ['name']
@@ -195,7 +239,8 @@ class NoticeAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(Exam)
-class ExamAdmin(admin.ModelAdmin):
+class ExamAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE_EXAM
     list_display = ('id', 'title', 'subject', 'exam_date', 'created_at', 'exam_type')
     list_filter = ('subject', 'exam_date', 'created_at')
     search_fields = ('name', 'subject__name')
@@ -222,7 +267,8 @@ class AttendanceAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(ExamResult)
-class ExamResultAdmin(TenantAdminMixin, admin.ModelAdmin):
+class ExamResultAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = ['exam', 'student', 'marks_obtained', 'grade', 'is_submitted', 'school']
     list_filter = [SchoolAdminFilter, 'is_submitted']
     search_fields = ['exam__title', 'student__username']
@@ -298,7 +344,8 @@ class ExamReportAdmin(TenantAdminMixin, admin.ModelAdmin):
         return ExamReport.all_objects.select_related('subject', 'class_obj', 'school')
 
 @admin.register(Certificate)
-class CertificateAdmin(TenantAdminMixin, admin.ModelAdmin):
+class CertificateAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE_CERTIFICATE
     list_display = ['id', 'school', 'student', 'certificate_number', 'issued_by']
     search_fields = ['school__name', 'student__first_name', 'student__last_name', 'certificate_number', 'student__svc_number']
     list_filter = ['issued_by', 'school']
@@ -336,13 +383,15 @@ class DepartmentAdmin(admin.ModelAdmin):
     search_fields = ['name', 'code', 'school__code']
 
 @admin.register(DepartmentMembership)
-class DepartmentMembershipAdmin(admin.ModelAdmin):
+class DepartmentMembershipAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = ['user', 'department', 'role', 'is_active', 'assigned_at']
     list_filter = ['role', 'is_active', 'department__school']
     search_fields = ['user__svc_number', 'department__name']
 
 @admin.register(ResultEditRequest)
-class ResultEditRequestAdmin(admin.ModelAdmin):
+class ResultEditRequestAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = ['requested_by', 'exam_result', 'status', 'reviewed_by', 'created_at']
     list_filter = ['status', 'school']
     search_fields = ['requested_by__svc_number', 'exam_result__id']
@@ -357,7 +406,8 @@ class TwoFactorCodeAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
 
 # oic
-class OICAssignmentAdmin(TenantAdminMixin, admin.ModelAdmin):
+class OICAssignmentAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = ('oic', 'class_obj', 'is_active', 'assigned_by', 'assigned_at')
     list_filter = ('is_active', 'school')
     search_fields = (
@@ -414,7 +464,8 @@ class AssessmentComponentAdmin(admin.ModelAdmin):
     )
 
 @admin.register(StudentComponentResult)
-class StudentComponentResultAdmin(admin.ModelAdmin):
+class StudentComponentResultAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
+    audit_delete_action = AuditAction.DELETE
     list_display = [
         'student', 'component', 'attempt_number', 'marks_obtained',
         'percentage', 'status', 'is_retake', 'is_submitted',

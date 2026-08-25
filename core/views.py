@@ -55,6 +55,10 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, Bl
 from datetime import datetime
 from django.db.models import Sum
 import logging
+from django.contrib.contenttypes.models import ContentType
+from audit.services import audit_event
+from audit.constants import AuditAction
+from audit.mixins import AuditedDestroyMixin, AuditedUpdateMixin
 logger = logging.getLogger(__name__)
 
 class PageSizeAwarePagination(PageNumberPagination):
@@ -135,6 +139,25 @@ class SchoolViewSet(viewsets.ModelViewSet):
         elif self.action == 'create_with_admin':
             return SchoolCreateWithAdminSerializer
         return SchoolSerializer
+
+    def perform_update(self, serializer):
+        tracked_fields = (
+            'is_active', 'max_students', 'max_instructors',
+            'subscription_start', 'subscription_end',
+        )
+        previous = {f: getattr(serializer.instance, f) for f in tracked_fields}
+
+        updated = serializer.save()
+
+        changes = {
+            f: {'old': previous[f], 'new': getattr(updated, f)}
+            for f in tracked_fields if previous[f] != getattr(updated, f)
+        }
+        if changes:
+            audit_event(
+                AuditAction.UPDATE, request=self.request, target=updated,
+                changes=changes, school=updated,
+            )
 
     def get_permissions(self):
         if self.action in ['create', 'create_with_admin', 'destroy']:
@@ -381,6 +404,15 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
         if submitted_school and submitted_school != school:
             raise ValidationError({"school": "You can only create memberships for your own school."})
         serializer.save(school=school)
+
+    def perform_update(self, serializer):
+        previous_role = serializer.instance.role
+        membership = serializer.save()
+        if membership.role != previous_role:
+            audit_event(
+                AuditAction.MEMBERSHIP_ROLE_CHANGED, request=self.request, target=membership,
+                changes={'role': {'old': previous_role, 'new': membership.role}},
+            )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['status', 'role']
     search_fields = [
@@ -596,6 +628,15 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        content_type = ContentType.objects.get_for_model(instance)
+        object_id = str(instance.pk)
+        repr_ = str(instance)
+        school = instance.school
+        metadata = {
+            'role': instance.get_role_display(),
+            'rank': instance.get_rank_display() if instance.rank else '',
+            'svc_number': instance.svc_number or '',
+        }
         try:
             self.perform_destroy(instance)
         except ProtectedError:
@@ -603,7 +644,25 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'error': 'This user cannot be deleted because they have course reports or other records that must be preserved. Deactivate the user instead.'},
                 status=status.HTTP_409_CONFLICT
             )
+        audit_event(
+            AuditAction.DELETE_USER, request=request,
+            target_content_type=content_type, target_object_id=object_id, target_repr=repr_,
+            school=school, metadata=metadata,
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def perform_update(self, serializer):
+        previous_role = serializer.instance.role
+        previous_is_active = serializer.instance.is_active
+        user = serializer.save()
+        if user.role != previous_role:
+            audit_event(
+                AuditAction.ROLE_CHANGED, request=self.request, target=user,
+                changes={'role': {'old': previous_role, 'new': user.role}},
+            )
+        if user.is_active != previous_is_active:
+            action = AuditAction.USER_ACTIVATED if user.is_active else AuditAction.USER_DEACTIVATED
+            audit_event(action, request=self.request, target=user)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsInstructor, IsAdmin])
     def my_students(self, request):
@@ -656,12 +715,17 @@ class UserViewSet(viewsets.ModelViewSet):
 
         # Global roles — no school affiliation
         if role in ('superadmin', 'chief_of_training'):
-            serializer.save()
+            instance = serializer.save()
         else:
             if not school:
                 raise ValidationError({"school": "School is required for non-superadmin users"})
 
-            serializer.save(school=school)
+            instance = serializer.save(school=school)
+
+        audit_event(
+            AuditAction.CREATE_USER, request=self.request, target=instance,
+            metadata={'role': instance.get_role_display()},
+        )
     
     @action(detail=False, methods=['get'])
     def instructors(self, request):
@@ -864,6 +928,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         user.is_active = False
         user.save()
+        audit_event(AuditAction.USER_DEACTIVATED, request=request, target=user)
         return Response({
             'status': 'success',
             'message': f'User {user.username} has been deactivated'
@@ -971,6 +1036,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 output.truncate(0)
 
         timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        audit_event(
+            AuditAction.EXPORT, request=request,
+            metadata={
+                'resource': 'students_csv', 'row_count': queryset.count(),
+                'search': search_query, 'class_obj': class_obj_id,
+            },
+        )
         response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="students_export_{timestamp}.csv"'
         return response
@@ -1030,6 +1102,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 output.truncate(0)
 
         timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        audit_event(
+            AuditAction.EXPORT, request=request,
+            metadata={
+                'resource': 'instructors_csv', 'row_count': queryset.count(),
+                'search': search_query, 'class_obj': class_obj_id,
+            },
+        )
         response = StreamingHttpResponse(csv_rows(), content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="instructors_export_{timestamp}.csv"'
         return response
@@ -1070,8 +1149,11 @@ class ProfileViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
         read_serializer = ProfileReadSerializer(instance)
         return Response(read_serializer.data)
 
-class CourseViewSet(viewsets.ModelViewSet):
+class CourseViewSet(AuditedDestroyMixin, AuditedUpdateMixin, viewsets.ModelViewSet):
 
+    audit_delete_action = AuditAction.DELETE_COURSE
+    audit_update_action = AuditAction.UPDATE
+    audit_tracked_fields = ('name', 'code')
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
@@ -1091,11 +1173,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         if not school:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'school': 'Unable to determine school for this request.'})
-        
-        serializer.save(school=school)
-    
+
+        instance = serializer.save(school=school)
+        audit_event(AuditAction.CREATE, request=self.request, target=instance)
+
     def get_queryset(self):
-  
+
         queryset = Course.all_objects.all()
         
         user = self.request.user
@@ -1168,8 +1251,9 @@ def _log_certificate_audit(
     except Exception:
         logger.exception(f"Failed to write certificate audit log: {action}")
 
-class ClassViewSet(viewsets.ModelViewSet):
+class ClassViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
 
+    audit_delete_action = AuditAction.DELETE_CLASS
     queryset = Class.objects.select_related('course', 'instructor').all()
     permission_classes = [IsAuthenticated]
     pagination_class = PageSizeAwarePagination
@@ -1199,22 +1283,33 @@ class ClassViewSet(viewsets.ModelViewSet):
             raise ValidationError({'school': 'Unable to determine school for this request.'})
 
         try:
-            serializer.save(school=school)
+            instance = serializer.save(school=school)
         except IntegrityError:
             raise ValidationError(
                 {'class_code': 'A class with this code already exists for the selected course.'}
             )
+        audit_event(AuditAction.CREATE, request=self.request, target=instance)
 
     def perform_update(self, serializer):
         from django.db import IntegrityError
         from rest_framework.exceptions import ValidationError
 
+        instance = serializer.instance
+        previous = {'name': instance.name, 'is_active': instance.is_active}
+
         try:
-            serializer.save()
+            updated = serializer.save()
         except IntegrityError:
             raise ValidationError(
                 {'class_code': 'A class with this code already exists for the selected course.'}
             )
+
+        changes = {
+            field: {'old': previous[field], 'new': getattr(updated, field)}
+            for field in previous if previous[field] != getattr(updated, field)
+        }
+        if changes:
+            audit_event(AuditAction.UPDATE, request=self.request, target=updated, changes=changes)
 
     def get_serializer_class(self):
 
@@ -1525,8 +1620,10 @@ class ClassViewSet(viewsets.ModelViewSet):
             'student': enrollment.student.svc_number,
         }, status=status.HTTP_201_CREATED)
     
-class SubjectViewSet(viewsets.ModelViewSet):
+class SubjectViewSet(AuditedUpdateMixin, viewsets.ModelViewSet):
 
+    audit_update_action = AuditAction.UPDATE
+    audit_tracked_fields = ('grading_mode', 'pass_mark')
     queryset = Subject.objects.select_related('class_obj', 'instructor').all()
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated, IsAdmin, ReadOnlyForCommandantOrChiefInstructor]
@@ -1568,8 +1665,9 @@ class SubjectViewSet(viewsets.ModelViewSet):
         if not school:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'school': 'Unable to determine school for this request.'})
-        
-        serializer.save(school=school)
+
+        instance = serializer.save(school=school)
+        audit_event(AuditAction.CREATE, request=self.request, target=instance)
 
     @action(detail=True, methods=['post'])
     def assign_instructor(self, request, pk=None):
@@ -2113,8 +2211,9 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
         return Response(status_data)
 # instructor
-class ExamViewSet(viewsets.ModelViewSet):
+class ExamViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
 
+    audit_delete_action = AuditAction.DELETE_EXAM
     queryset = Exam.objects.select_related('subject', 'created_by').prefetch_related('attachments').all()
     serializer_class = ExamSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
@@ -2243,7 +2342,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         ):
             save_kwargs['total_marks'] = component.total_marks
 
-        serializer.save(**save_kwargs)
+        instance = serializer.save(**save_kwargs)
+        audit_event(AuditAction.CREATE, request=self.request, target=instance)
 
     def perform_update(self, serializer):
         subject = serializer.validated_data.get('subject', serializer.instance.subject)
@@ -2256,8 +2356,18 @@ class ExamViewSet(viewsets.ModelViewSet):
                 subject, component=component, instance=serializer.instance
             )
 
-        serializer.save()
-        
+        tracked_fields = ('title', 'exam_date', 'total_marks', 'is_active')
+        previous = {f: getattr(serializer.instance, f) for f in tracked_fields}
+
+        updated = serializer.save()
+
+        changes = {
+            f: {'old': previous[f], 'new': getattr(updated, f)}
+            for f in tracked_fields if previous[f] != getattr(updated, f)
+        }
+        if changes:
+            audit_event(AuditAction.UPDATE, request=self.request, target=updated, changes=changes)
+
 
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
@@ -2726,6 +2836,11 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     errors.append(f"Error processing result {result_data.get('id')}: {str(e)}")
 
+        audit_event(
+            AuditAction.BULK_MARKS_CHANGED, request=request, school=request.user.school,
+            metadata={'model': 'ExamResult', 'updated_count': updated_count, 'error_count': len(errors)},
+        )
+
         return Response({
             'status': 'success',
             'updated': updated_count,
@@ -2773,6 +2888,8 @@ class ExamResultViewSet(viewsets.ModelViewSet):
                 'error': f'marks obtained must be between 0 and {result.exam.total_marks}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        previous_marks = result.marks_obtained
+
         with transaction.atomic():
 
             result.marks_obtained = marks_obtained
@@ -2785,6 +2902,10 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
             notification_created = self._create_grade_notification(result)
 
+        audit_event(
+            AuditAction.MARKS_CHANGED, request=request, target=result,
+            changes={'marks_obtained': {'old': previous_marks, 'new': marks_obtained}},
+        )
 
         serializer = self.get_serializer(result)
 
@@ -4467,6 +4588,10 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             ])
 
         output.seek(0)
+        audit_event(
+            AuditAction.EXPORT, request=request, target=session,
+            metadata={'resource': 'attendance_csv', 'row_count': attendances.count()},
+        )
         response = HttpResponse(output.getvalue(), content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="attendance_{session.session_id}.csv"'
 
@@ -6035,10 +6160,18 @@ class MarksEntryViewSet(viewsets.ViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
+        previous_marks = result.marks_obtained
+
         instance = serializer.save(
             graded_by=request.user,
             graded_at=timezone.now(),
         )
+
+        if instance.marks_obtained != previous_marks:
+            audit_event(
+                AuditAction.MARKS_CHANGED, request=request, target=instance,
+                changes={'marks_obtained': {'old': previous_marks, 'new': instance.marks_obtained}},
+            )
 
         return Response(
             serializer_class(instance, context={"request": request}).data
@@ -6109,6 +6242,11 @@ class MarksEntryViewSet(viewsets.ViewSet):
                     )
                 else:
                     errors.append({"id": result_id, "errors": serializer.errors})
+
+        audit_event(
+            AuditAction.BULK_MARKS_CHANGED, request=request, school=request.user.school,
+            metadata={'model': 'ExamResult', 'exam_id': str(exam.id), 'updated_count': len(updated), 'error_count': len(errors)},
+        )
 
         return Response({
             "updated_count": len(updated),
@@ -6450,6 +6588,16 @@ class DepartmentMembershipViewSet(viewsets.ModelViewSet):
 
         serializer.save(assigned_by=user)
 
+    def perform_update(self, serializer):
+        previous_role = serializer.instance.role
+        membership = serializer.save()
+        if membership.role != previous_role:
+            audit_event(
+                AuditAction.DEPARTMENT_ROLE_CHANGED, request=self.request, target=membership,
+                changes={'role': {'old': previous_role, 'new': membership.role}},
+                school=membership.department.school,
+            )
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.is_active = False
@@ -6545,9 +6693,13 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
             if action_choice == 'approve':
                 edit_request.approve(hod_user=request.user, note=note)
                 msg = 'Request approved. The result is now unlocked for editing.'
+                audit_action = AuditAction.RESULT_EDIT_APPROVED
             else:
                 edit_request.reject(hod_user=request.user, note=note)
                 msg = 'Request rejected.'
+                audit_action = AuditAction.RESULT_EDIT_REJECTED
+
+        audit_event(audit_action, request=request, target=edit_request, description=note)
 
         return Response(
             {
@@ -6778,8 +6930,10 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOnly]
     filterset_fields = ['device', 'student', 'is_active']
 
-class AssessmentComponentViewSet(viewsets.ModelViewSet):
+class AssessmentComponentViewSet(AuditedUpdateMixin, viewsets.ModelViewSet):
 
+    audit_update_action = AuditAction.UPDATE
+    audit_tracked_fields = ('weight', 'pass_mark', 'is_critical')
     queryset = AssessmentComponent.objects.select_related(
         'subject', 'subject__class_obj'
     ).all()
@@ -6837,9 +6991,10 @@ class AssessmentComponentViewSet(viewsets.ModelViewSet):
             raise ValidationError({
                 'subject': 'Subject does not belong to your school.'
             })
- 
-        serializer.save(school=school)
- 
+
+        instance = serializer.save(school=school)
+        audit_event(AuditAction.CREATE, request=self.request, target=instance)
+
     @action(detail=False, methods=['get'])
     def by_subject(self, request):
         subject_id = request.query_params.get('subject_id')
@@ -7164,7 +7319,16 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
                         submitted_at=timezone.now(),
                     )
                     created_count += 1
- 
+
+        audit_event(
+            AuditAction.BULK_MARKS_CHANGED, request=request, school=request.user.school,
+            metadata={
+                'model': 'StudentComponentResult', 'component_id': str(comp.id),
+                'created_count': created_count, 'updated_count': updated_count,
+                'error_count': len(errors),
+            },
+        )
+
         return Response({
             'status': 'success',
             'created': created_count,

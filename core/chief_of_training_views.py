@@ -36,6 +36,9 @@ from .report_serializers import (
 )
 from .services.report_service import CommandantReportService
 from .views import PageSizeAwarePagination
+
+from audit.mixins import AuditedDestroyMixin
+from audit.constants import AuditAction
 from .managers import get_current_school
 
 logger = logging.getLogger(__name__)
@@ -118,8 +121,9 @@ def _notify_cot_users(report):
     PersonalNotification.all_objects.bulk_create(notifications)
 
 
-class CommandantReportViewSet(viewsets.ModelViewSet):
+class CommandantReportViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
 
+    audit_delete_action = AuditAction.DELETE
     pagination_class = PageSizeAwarePagination
     permission_classes = [IsAuthenticated, IsCommandant]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -245,6 +249,7 @@ class CommandantReportViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         safe_title = report.title.replace(' ', '_').replace('/', '_')[:50]
+        _audit(report, 'pdf_downloaded', request.user)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = (
             f'attachment; filename="report_{safe_title}.pdf"'
@@ -479,6 +484,7 @@ class ChiefOfTrainingViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         safe_title = report.title.replace(' ', '_').replace('/', '_')[:50]
+        _audit(report, 'pdf_downloaded', request.user)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = (
             f'attachment; filename="report_{safe_title}.pdf"'

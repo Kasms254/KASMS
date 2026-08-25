@@ -119,7 +119,7 @@ export default function Certificates() {
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Certificate #:</span><span className="text-black font-mono">{cert.certificate_number}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Class:</span><span className="text-black">{cert.class_name || '—'}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued:</span><span className="text-black">{formatDate(cert.issued_at)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_name || '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_role || '—'}</span></div>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button
@@ -170,7 +170,7 @@ export default function Certificates() {
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{cert.student_svc_number || '—'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">{cert.class_name || '—'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{formatDate(cert.issued_at)}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{cert.issued_by_name || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-700">{cert.issued_by_role || '—'}</td>
                     <td className="px-4 py-3 text-sm text-neutral-700">
                       <div className="flex gap-2">
                         <button

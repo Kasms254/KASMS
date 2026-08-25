@@ -16,6 +16,8 @@ from .encryption import encrypt_value, decrypt_value
 from .models import SchoolMembership, TwoFactorCode
 from .serializers import UserListSerializer
 from .rate_limiting import LockoutGuard, get_client_ip
+from audit.services import audit_event
+from audit.constants import AuditAction
 from .auth_views import (
     _login_guard,
     _get_tokens_for_user,
@@ -337,12 +339,21 @@ def totp_verify_login_view(request):
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active or not user.totp_enabled:
         _record_totp_failed(svc_number, ip_address)
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request,
+            metadata={'svc_number': svc_number, 'reason': 'invalid_credentials'},
+        )
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
     secret_plain = decrypt_value(user.totp_secret_encrypted)
     matched_step = _verify_totp_code(secret_plain, code, last_step=user.last_totp_step)
     if matched_step is None:
         is_now_locked, remaining = _record_totp_failed(svc_number, ip_address)
+        # Identity was already confirmed by the correct password above.
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request, actor=user,
+            metadata={'svc_number': svc_number, 'reason': 'invalid_totp_code'},
+        )
         if is_now_locked:
             return Response(
                 {'error': 'Too many failed attempts. Account temporarily locked.', 'locked': True},
@@ -367,6 +378,7 @@ def totp_verify_login_view(request):
 
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)
+    audit_event(AuditAction.LOGIN, request=request, actor=user, metadata={'method': 'totp'})
 
     response_data = {
         'message': 'Login successful',
