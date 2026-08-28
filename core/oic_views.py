@@ -38,6 +38,9 @@ from .managers import get_current_school
 from django.db.models import ExpressionWrapper
 from collections import defaultdict
 
+from audit.services import audit_event
+from audit.constants import AuditAction
+
 
 def _get_school(user):
     school = get_current_school()
@@ -115,12 +118,24 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
 
         user = self.request.user
         school = _get_school(user)
-        serializer.save(school=school, assigned_by=user)
+        instance = serializer.save(school=school, assigned_by=user)
+        audit_event(AuditAction.OIC_ASSIGNED, request=self.request, target=instance)
 
     def perform_update(self, serializer):
         if self.request.user.role == 'oic':
             raise PermissionDenied("OIC users cannot modify assignments.")
-        serializer.save()
+
+        tracked_fields = ('oic_id', 'class_obj_id', 'is_active')
+        previous = {f: getattr(serializer.instance, f) for f in tracked_fields}
+
+        updated = serializer.save()
+
+        changes = {
+            f: {'old': previous[f], 'new': getattr(updated, f)}
+            for f in tracked_fields if previous[f] != getattr(updated, f)
+        }
+        if changes:
+            audit_event(AuditAction.UPDATE, request=self.request, target=updated, changes=changes)
 
     def destroy(self, request, *args, **kwargs):
         if self.request.user.role == 'oic':
@@ -129,6 +144,7 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
+        audit_event(AuditAction.OIC_UNASSIGNED, request=request, target=instance)
         return Response(
             {'message': 'OIC assignment deactivated successfully.'},
             status=status.HTTP_200_OK,
@@ -208,6 +224,14 @@ class OICAssignmentViewSet(viewsets.ModelViewSet):
                     assigned_by=request.user,
                 )
                 created.append(str(cls.id))
+
+        audit_event(
+            AuditAction.OIC_ASSIGNED, request=request, school=school,
+            metadata={
+                'bulk': True, 'oic_id': str(oic_user.id),
+                'created_count': len(created), 'skipped_count': len(skipped),
+            },
+        )
 
         return Response({
             'message': f'{len(created)} created, {len(skipped)} skipped',

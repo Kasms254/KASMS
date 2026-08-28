@@ -2839,6 +2839,8 @@ class CommandantReportAuditLog(models.Model):
         ('submitted', 'Submitted'),
         ('reviewed', 'Reviewed'),
         ('archived', 'Archived'),
+        ('deleted', 'Deleted'),
+        ('pdf_downloaded', 'PDF Downloaded'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

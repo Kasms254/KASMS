@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "core.apps.CoreConfig",
+    "audit.apps.AuditConfig",
     # 'rest_framework.authtoken',
     "rest_framework",
     "django_filters",
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "audit.middleware.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

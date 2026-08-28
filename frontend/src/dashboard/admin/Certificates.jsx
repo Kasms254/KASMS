@@ -349,7 +349,7 @@ export default function Certificates() {
                 <div className="space-y-1 text-xs sm:text-sm">
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Certificate #:</span><span className="text-black font-mono">{cert.certificate_number}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued:</span><span className="text-black">{formatDate(cert.issued_at)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_name || '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_role || '—'}</span></div>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button

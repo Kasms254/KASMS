@@ -21,6 +21,8 @@ from .rate_limiting import LockoutGuard, get_client_ip
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
+from audit.services import audit_event
+from audit.constants import AuditAction
 logger = logging.getLogger(__name__)
 
 LOGIN_MAX_ATTEMPTS = getattr(settings, 'LOGIN_MAX_ATTEMPTS', 5)
@@ -284,6 +286,10 @@ def login_view(request):
             svc_number, ip_address,
             extra={'event': 'login_blocked'},
         )
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request,
+            metadata={'svc_number': svc_number, 'reason': 'locked_out'},
+        )
         return Response(
             {
                 'error': lockout_msg,
@@ -300,7 +306,11 @@ def login_view(request):
             'Failed login attempt | svc=%s | ip=%s | remaining=%d',
             svc_number, ip_address, remaining,
         )
- 
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request,
+            metadata={'svc_number': svc_number, 'reason': 'invalid_credentials'},
+        )
+
         error_msg = 'Invalid credentials.'
         if is_now_locked:
             minutes = LOGIN_LOCKOUT_DURATION // 60
@@ -418,21 +428,17 @@ def verify_2fa_view(request):
     user = authenticate(request, svc_number=svc_number, password=password)
     if user is None or not user.is_active:
         _record_failed_login(svc_number, ip_address)
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request,
+            metadata={'svc_number': svc_number, 'reason': 'invalid_credentials'},
+        )
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
     if user.totp_enabled:
-        # Email-OTP login must never complete for a TOTP-enabled account,
-        # regardless of whether a matching TwoFactorCode exists. Without
-        # this, the "forgot authenticator" recovery flow's own code
-        # (created by totp_recover_start_view, which only requires a
-        # correct password — proving TOTP possession is the whole thing
-        # recovery exists to skip) sits in the same TwoFactorCode pool
-        # verify_2fa_view reads from, and could be submitted here to
-        # obtain a full session without ever providing a TOTP code or
-        # completing the reset flow.
+
         return Response(
             {'error': 'This account requires authenticator app verification.'},
             status=status.HTTP_400_BAD_REQUEST,
@@ -468,6 +474,11 @@ def verify_2fa_view(request):
         two_fa.save(update_fields=['attempts'])
         remaining = max_attempts - two_fa.attempts
         is_now_otp_locked, _ = _otp_guard.record_failure(svc_number, ip_address)
+
+        audit_event(
+            AuditAction.LOGIN_FAILED, request=request, actor=user,
+            metadata={'svc_number': svc_number, 'reason': 'invalid_2fa_code'},
+        )
         if is_now_otp_locked:
             return Response(
                 {'error': 'Too many failed attempts. Account temporarily locked.', 'locked': True},
@@ -490,9 +501,10 @@ def verify_2fa_view(request):
 
     access, refresh, session_id = _get_tokens_for_user(user)
     _stamp_initial_activity(user, session_id)
+    audit_event(AuditAction.LOGIN, request=request, actor=user, metadata={'method': '2fa_email'})
 
     user_data = UserListSerializer(user).data
- 
+
     memberships = SchoolMembership.all_objects.filter(
         user=user, status='active',
     ).select_related('school')
@@ -578,6 +590,7 @@ def resend_2fa_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
+    audit_event(AuditAction.LOGOUT, request=request)
     refresh_name = getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'refresh_token')
     raw_refresh = request.COOKIES.get(refresh_name)
 
