@@ -521,8 +521,7 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def by_class(self, request):
-        # Same visibility rules as list(): reuse get_queryset() rather than
-        # re-deriving school scoping here.
+
         results = get_certificates_grouped_by_class(self.get_queryset())
         return Response({'results': results})
 

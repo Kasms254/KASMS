@@ -103,10 +103,7 @@ def check_class_completion_for_all_students(class_obj):
         is_active=True
     ).select_related('student')
 
-    # Certificate issuance is independent of academic completion (e.g.
-    # participation/achievement/excellence certificates don't require grades),
-    # so it's fetched here as its own single query rather than re-derived from
-    # is_academically_complete, and rather than querying per student below.
+  
     certificate_status_by_student = dict(
         Certificate.all_objects.filter(class_obj=class_obj).values_list(
             'student_id', 'status',
@@ -130,13 +127,7 @@ def check_class_completion_for_all_students(class_obj):
     return results
 
 def get_certificates_grouped_by_class(queryset):
-    """
-    Aggregate an already tenant/role-scoped Certificate queryset into
-    per-class totals, using the denormalized class_obj_id/class_name/
-    course_name columns already on Certificate (no join to Class needed).
-    Single query; callers are responsible for scoping `queryset` (see
-    CertificateViewSet.get_queryset / CommandantCertificateViewSet.get_queryset).
-    """
+
     grouped = (
         queryset
         .values('class_obj_id', 'class_name', 'course_name')
