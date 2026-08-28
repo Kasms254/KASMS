@@ -11,7 +11,8 @@ from .serializers import (
     ExamReportSerializer, ExamReportRemarkSerializer, AddRemarkSerializer, ExamResultSerializer, AttendanceSerializer, ExamSerializer, QRAttendanceMarkSerializer,SchoolSerializer,SchoolAdminSerializer,SchoolCreateWithAdminSerializer,SchoolListSerializer,SchoolThemeSerializer,
     BulkExamResultSerializer,ExamAttachmentSerializer,AttendanceSessionListSerializer,AttendanceSessionSerializer, AttendanceSessionLogSerializer,DepartmentSerializer, DepartmentMembershipSerializer,
     ResultEditRequestSerializer, ResultEditRequestReviewSerializer, SessionAttendanceSerializer,BiometricRecordSerializer,BulkSessionAttendanceSerializer,InstructorMarksSerializer,AdminMarksSerializer,AdminStudentIndexRosterSerializer,
-    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer, AssessmentComponentSerializer, StudentComponentResultSerializer, SubjectEvaluationSerializer)
+    DashboardExamReportSerializer, BiometricUserMappingSerializer, BiometricDeviceSerializer, AssessmentComponentSerializer, StudentComponentResultSerializer, SubjectEvaluationSerializer,
+    CertificatePreviewSerializer)
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS
@@ -34,6 +35,7 @@ import csv
 from django.http import HttpResponse, FileResponse, StreamingHttpResponse
 from django.db import transaction
 from rest_framework.permissions import BasePermission
+from rest_framework.throttling import UserRateThrottle
 from .managers import get_current_school
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password as django_validate_password
@@ -45,7 +47,7 @@ from .services import (
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
     determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
-    renumber_class_indexes, get_certificates_grouped_by_class)
+    renumber_class_indexes, get_certificates_grouped_by_class, build_certificate_preview)
 from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -1256,6 +1258,14 @@ def _log_certificate_audit(
     except Exception:
         logger.exception(f"Failed to write certificate audit log: {action}")
 
+
+class CertificatePreviewThrottle(UserRateThrottle):
+    # Preview renders a real PDF on demand — throttle it independently of
+    # the general API rate so it can't be used to hammer the PDF backend.
+    scope = 'certificate_preview'
+    rate = '30/min'
+
+
 class ClassViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
 
     audit_delete_action = AuditAction.DELETE_CLASS
@@ -1624,7 +1634,59 @@ class ClassViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
             'certificate_number': certificate.certificate_number,
             'student': enrollment.student.svc_number,
         }, status=status.HTTP_201_CREATED)
-    
+
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.ISSUE),
+    ], throttle_classes=[CertificatePreviewThrottle])
+    def preview_certificate(self, request, pk=None):
+  
+        class_obj = self.get_object()
+        enrollment_id = request.data.get('enrollment_id')
+
+        if not enrollment_id:
+            return Response(
+                {'error': 'enrollment_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            enrollment = Enrollment.all_objects.select_related(
+                'student', 'school', 'class_obj', 'class_obj__course',
+            ).get(id=enrollment_id, class_obj=class_obj)
+        except Enrollment.DoesNotExist:
+            return Response(
+                {'error': 'Enrollment not found in this class.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        template = None
+        template_id = request.data.get('template_id')
+        if template_id:
+            try:
+                template = CertificateTemplate.all_objects.get(
+                    id=template_id, is_active=True, school=class_obj.school,
+                )
+            except CertificateTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Template not found'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        preview = build_certificate_preview(enrollment, template=template)
+        preview_certificate = preview['certificate']
+
+        output = request.query_params.get('output')
+        if output in ('pdf', 'html'):
+            generator = CertificateGenerator(preview_certificate)
+            content, content_type = generator.generate(fmt=output)
+            return HttpResponse(content, content_type=content_type)
+
+        return Response({
+            'eligible': preview['eligible'],
+            'reason': preview['reason'],
+            'preview': CertificatePreviewSerializer(preview_certificate).data,
+        })
+
 class SubjectViewSet(AuditedUpdateMixin, viewsets.ModelViewSet):
 
     audit_update_action = AuditAction.UPDATE
@@ -5744,28 +5806,39 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
+        # Renders through the same CertificateGenerator issuance uses, on an
+        # unsaved sample Certificate/Class — matches the ?output=pdf/html
+        # contract the frontend already relies on (previewCertificateTemplate).
         template = self.get_object()
-        from .services import CertificateImageResolver
-        resolver = CertificateImageResolver(template.school)
-        branding = resolver.get_school_branding()
-        preview_data = {
-            **branding,
-            'certificate_number': 'SAMPLE-2024-00001',
-            'verification_code': 'SAMPLE123456789ABCDEF',
-            'student_name': 'John Doe',
-            'student_svc_number': 'SVC-12345',
-            'student_rank': 'Sergeant',
-            'course_name': 'Sample Course',
-            'class_name': 'Sample Class 2024',
-            'final_grade': 'A',
-            'final_percentage': 92.5,
-            'completion_date': timezone.now().date(),
-            'issued_at': timezone.now(),
-            'header_text': template.header_text,
-            'signatory_name': template.signatory_name,
-            'signatory_title': template.signatory_title,
-        }
-        return Response(preview_data)
+
+        sample_class = Class(
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date(),
+        )
+        sample_certificate = Certificate(
+            school=template.school,
+            template=template,
+            class_obj=sample_class,
+            certificate_number='SAMPLE-2024-00001',
+            verification_code='SAMPLE123456789ABCDEF',
+            student_name='John Doe',
+            student_svc_number='SVC-12345',
+            student_rank='Sergeant',
+            course_name='Sample Course',
+            class_name='Sample Class 2024',
+            final_grade='A',
+            final_percentage=92.5,
+            completion_date=timezone.now().date(),
+            issued_at=timezone.now(),
+        )
+
+        output = request.query_params.get('output', 'pdf')
+        if output not in ('pdf', 'html'):
+            output = 'pdf'
+
+        generator = CertificateGenerator(sample_certificate)
+        content, content_type = generator.generate(fmt=output)
+        return HttpResponse(content, content_type=content_type)
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 

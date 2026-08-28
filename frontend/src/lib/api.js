@@ -1580,6 +1580,37 @@ export async function issueCertificateSingle(classId, enrollmentId, templateId =
   return request(`/api/classes/${classId}/issue_certificate_single/`, { method: 'POST', body })
 }
 
+// Preview a certificate's data before issuing it — read-only, does not
+// create a certificate, consume a certificate number, or change any state.
+export async function previewCertificateSingle(classId, enrollmentId, templateId = null) {
+  if (!classId) throw new Error('classId is required')
+  if (!enrollmentId) throw new Error('enrollmentId is required')
+  const body = { enrollment_id: enrollmentId }
+  if (templateId) body.template_id = templateId
+  return request(`/api/classes/${classId}/preview_certificate/`, { method: 'POST', body })
+}
+
+// Preview the actual rendered certificate document (PDF by default) that
+// would be produced on issuance — same non-mutating guarantee as above.
+export async function previewCertificateDocument(classId, enrollmentId, templateId = null, format = 'pdf') {
+  if (!classId) throw new Error('classId is required')
+  if (!enrollmentId) throw new Error('enrollmentId is required')
+  const body = { enrollment_id: enrollmentId }
+  if (templateId) body.template_id = templateId
+  const csrf = getCsrfToken()
+  const res = await fetch(`${API_BASE}/api/classes/${classId}/preview_certificate/?output=${format}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to load certificate preview.'))
+  return res.blob()
+}
+
 // Close a class (sets is_closed=True, required before issuing certificates)
 export async function closeClass(classId) {
   if (!classId) throw new Error('classId is required')
@@ -2607,6 +2638,8 @@ export default {
   getClassCompletionStatus,
   issueCertificates,
   issueCertificateSingle,
+  previewCertificateSingle,
+  previewCertificateDocument,
   closeClass,
   addCertificate,
   updateCertificate,

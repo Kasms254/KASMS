@@ -425,6 +425,24 @@ def calculate_attendance_percentage(class_obj, student) -> Optional[Decimal]:
 
     return Decimal(str(round((attended / total_sessions) * 100, 2)))
 
+def check_certificate_eligibility(enrollment, template: CertificateTemplate = None):
+
+    requires_grades = not template or template.template_type == 'completion'
+
+    if not requires_grades:
+        return True, None, requires_grades
+
+    status = get_class_completion_status(enrollment.class_obj, enrollment.student)
+    if status['is_academically_complete']:
+        return True, None, requires_grades
+
+    incomplete = [
+        s['subject_name'] for s in status['subjects'] if not s['is_complete']
+    ]
+    reason = f"Student has incomplete subjects: {', '.join(incomplete)}"
+    return False, reason, requires_grades
+
+
 def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = None, generate_pdf: bool = True, ):
     if hasattr(enrollment, 'certificate'):
         return None, 'Certificate already issued for this enrollment.'
@@ -434,17 +452,9 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
     if not template:
         template = _resolve_default_template(enrollment.school)
 
-    # Only the Course Completion template requires graded final exams.
-    # Achievement/Participation/Excellence certificates can be issued without grades.
-    requires_grades = not template or template.template_type == 'completion'
-
-    if requires_grades:
-        status = get_class_completion_status(class_obj, enrollment.student)
-        if not status['is_academically_complete']:
-            incomplete = [
-                s['subject_name'] for s in status['subjects'] if not s['is_complete']
-            ]
-            return None, f"Student has incomplete subjects: {', '.join(incomplete)}"
+    eligible, ineligible_reason, requires_grades = check_certificate_eligibility(enrollment, template)
+    if not eligible:
+        return None, ineligible_reason
 
     grade_data = (
         calculate_student_grade(class_obj, enrollment.student)
@@ -504,6 +514,57 @@ def _resolve_default_template(school) -> Optional[CertificateTemplate]:
         return None
     qs = CertificateTemplate.objects.filter(school=school, is_active=True)
     return qs.filter(is_default=True).first() or qs.first()
+
+PREVIEW_CERTIFICATE_NUMBER = 'PREVIEW - NOT ISSUED'
+
+def build_certificate_preview(enrollment, *, template: CertificateTemplate = None) -> Dict[str, Any]:
+
+    class_obj = enrollment.class_obj
+
+    if not template:
+        template = _resolve_default_template(enrollment.school)
+
+    already_issued = hasattr(enrollment, 'certificate')
+    if already_issued:
+        eligible, reason = False, 'already_issued'
+        requires_grades = not template or template.template_type == 'completion'
+    else:
+        eligible, reason, requires_grades = check_certificate_eligibility(enrollment, template)
+
+    grade_data = (
+        calculate_student_grade(class_obj, enrollment.student)
+        if requires_grades else {'grade': '', 'percentage': None}
+    )
+    attendance_pct = calculate_attendance_percentage(class_obj, enrollment.student)
+    student = enrollment.student
+
+    preview_certificate = Certificate(
+        student=student,
+        enrollment=enrollment,
+        class_obj=class_obj,
+        school=enrollment.school,
+        template=template,
+        completion_date=timezone.now().date(),
+        final_grade=grade_data.get('grade', ''),
+        final_percentage=grade_data.get('percentage'),
+        attendance_percentage=attendance_pct,
+        certificate_number=PREVIEW_CERTIFICATE_NUMBER,
+        verification_code='',
+        student_name=student.get_full_name(),
+        student_svc_number=student.svc_number or '',
+        student_rank=student.get_rank_display() if student.rank else '',
+        course_name=class_obj.course.name,
+        class_name=class_obj.name,
+        issued_at=timezone.now(),
+    )
+
+    return {
+        'certificate': preview_certificate,
+        'eligible': eligible,
+        'reason': reason,
+        'already_issued': already_issued,
+        'requires_grades': requires_grades,
+    }
 
 def _build_closure_snapshot(class_obj):
 

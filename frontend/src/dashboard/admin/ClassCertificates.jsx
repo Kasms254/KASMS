@@ -20,6 +20,7 @@ export default function ClassCertificates() {
   const [issueReport, setIssueReport] = useState(null)
   const [closing, setClosing] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [previewModal, setPreviewModal] = useState(null)
   const [templates, setTemplates] = useState([])
   const [selectedTemplateId, setSelectedTemplateId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -87,6 +88,7 @@ export default function ClassCertificates() {
     try {
       const result = await api.issueCertificateSingle(classId, enrollmentId, selectedTemplateId)
       reportSuccess(`Certificate issued for ${studentName}: ${result.certificate_number}`)
+      setPreviewModal(null)
       await loadCompletionStatus()
     } catch (err) {
       reportError(extractError(err, `Failed to issue certificate for ${studentName}`))
@@ -94,6 +96,45 @@ export default function ClassCertificates() {
       setIssuingSingle(null)
     }
   }
+
+  // Preview is read-only: it never issues anything, so a failed or abandoned
+  // preview leaves no trace. The PDF is fetched separately from the JSON
+  // details and is allowed to fail quietly — the backend PDF library may not
+  // be configured in every environment, and the JSON preview still stands
+  // on its own.
+  async function openPreview(enrollmentId, studentName) {
+    setPreviewModal({ enrollmentId, studentName, data: null, pdfUrl: null, loading: true })
+    let data
+    try {
+      data = await api.previewCertificateSingle(classId, enrollmentId, selectedTemplateId)
+    } catch (err) {
+      reportError(extractError(err, `Failed to load certificate preview for ${studentName}`))
+      setPreviewModal(null)
+      return
+    }
+    setPreviewModal((prev) => (
+      prev && prev.enrollmentId === enrollmentId ? { ...prev, data, loading: false } : prev
+    ))
+    try {
+      const blob = await api.previewCertificateDocument(classId, enrollmentId, selectedTemplateId, 'pdf')
+      const pdfUrl = URL.createObjectURL(blob)
+      setPreviewModal((prev) => {
+        if (!prev || prev.enrollmentId !== enrollmentId) {
+          URL.revokeObjectURL(pdfUrl)
+          return prev
+        }
+        return { ...prev, pdfUrl }
+      })
+    } catch {
+      // Document preview unavailable — the JSON details above still render.
+    }
+  }
+
+  // Revoke whichever blob URL is current whenever the modal changes or the
+  // component unmounts, so preview PDFs never linger in memory.
+  useEffect(() => {
+    return () => { if (previewModal?.pdfUrl) URL.revokeObjectURL(previewModal.pdfUrl) }
+  }, [previewModal])
 
   async function handleDownload(certificate) {
     setDownloading(certificate.id)
@@ -414,16 +455,16 @@ export default function ClassCertificates() {
                     </>
                   ) : (requiresGrades ? st.is_academically_complete : true) ? (
                     <button
-                      onClick={() => handleSingleIssue(st.enrollment_id, st.student_name)}
+                      onClick={() => openPreview(st.enrollment_id, st.student_name)}
                       disabled={issuingSingle === st.enrollment_id}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
                       {issuingSingle === st.enrollment_id ? (
                         <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <LucideIcons.Award className="w-3 h-3" />
+                        <LucideIcons.Eye className="w-3 h-3" />
                       )}
-                      {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Issue'}
+                      {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Preview'}
                     </button>
                   ) : (
                     <span className="text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-500 font-medium">
@@ -528,6 +569,120 @@ export default function ClassCertificates() {
                 <button onClick={handleCloseClass} disabled={closing} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                   {closing ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Lock className="w-4 h-4" />}
                   {closing ? 'Closing...' : 'Close Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Preview Modal — read-only. Issuing happens from here,
+          via the existing issue_certificate_single flow, which re-validates
+          eligibility on its own rather than trusting this preview. */}
+      {previewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPreviewModal(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl">
+            <div className="bg-white rounded-xl shadow-2xl ring-1 ring-black/5 flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-4 border-b border-neutral-100 flex-shrink-0">
+                <div>
+                  <h4 className="text-lg font-semibold text-black">Certificate Preview</h4>
+                  <p className="text-sm text-neutral-500">{previewModal.studentName}</p>
+                </div>
+                <button onClick={() => setPreviewModal(null)} className="p-1 rounded-md hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5 text-neutral-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4">
+                {previewModal.loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <LucideIcons.Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+                  </div>
+                ) : (
+                  <>
+                    {previewModal.data && (
+                      <div className={`rounded-lg p-3 mb-4 text-sm flex items-start gap-2 border ${previewModal.data.eligible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                        {previewModal.data.eligible ? (
+                          <LucideIcons.CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <LucideIcons.AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <div className="font-medium">
+                            {previewModal.data.eligible ? 'Eligible for issuance' : 'Not currently eligible'}
+                          </div>
+                          {!previewModal.data.eligible && (
+                            <div className="text-xs mt-0.5">
+                              {previewModal.data.reason === 'already_issued'
+                                ? 'A certificate has already been issued for this enrollment.'
+                                : previewModal.data.reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {previewModal.data?.preview && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 text-xs">
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Certificate type</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.certificate_type_display}</div>
+                        </div>
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Course</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.course_name}</div>
+                        </div>
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Class</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.class_name}</div>
+                        </div>
+                        {previewModal.data.preview.final_grade && (
+                          <div className="bg-neutral-50 rounded-lg p-2">
+                            <div className="text-neutral-400">Grade</div>
+                            <div className="text-black font-medium">{previewModal.data.preview.final_grade}</div>
+                          </div>
+                        )}
+                        {previewModal.data.preview.attendance_percentage != null && (
+                          <div className="bg-neutral-50 rounded-lg p-2">
+                            <div className="text-neutral-400">Attendance</div>
+                            <div className="text-black font-medium">{previewModal.data.preview.attendance_percentage}%</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {previewModal.pdfUrl ? (
+                      <iframe
+                        src={previewModal.pdfUrl}
+                        title="Certificate document preview"
+                        className="w-full h-[55vh] rounded-lg border border-neutral-200"
+                      />
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-400">
+                        Document preview unavailable — showing details only.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 p-4 border-t border-neutral-100 flex-shrink-0">
+                <button onClick={() => setPreviewModal(null)} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSingleIssue(previewModal.enrollmentId, previewModal.studentName)}
+                  disabled={!previewModal.data?.eligible || issuingSingle === previewModal.enrollmentId}
+                  title={!previewModal.data?.eligible ? 'This certificate is not currently eligible for issuance' : undefined}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {issuingSingle === previewModal.enrollmentId ? (
+                    <LucideIcons.Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LucideIcons.Award className="w-4 h-4" />
+                  )}
+                  {issuingSingle === previewModal.enrollmentId ? 'Issuing...' : 'Issue Certificate'}
                 </button>
               </div>
             </div>
