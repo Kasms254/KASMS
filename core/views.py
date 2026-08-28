@@ -45,7 +45,7 @@ from .services import (
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
     determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
-    renumber_class_indexes)
+    renumber_class_indexes, get_certificates_grouped_by_class)
 from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -65,6 +65,11 @@ class PageSizeAwarePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 1000
+
+class CertificatePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class TenantFilterMixin:
 
@@ -5765,6 +5770,7 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     permission_classes = [IsAuthenticated]
+    pagination_class = CertificatePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'student', 'class_obj']
     search_fields = ['certificate_number', 'student_name', 'course_name', 'class_name']
@@ -5933,6 +5939,13 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             'results': serializer.data,
         })
 
+
+    @action(detail=False, methods=['get'])
+    def by_class(self, request):
+        # Same visibility rules as list(): reuse get_queryset() rather than
+        # re-deriving tenant/role scoping here.
+        results = get_certificates_grouped_by_class(self.get_queryset())
+        return Response({'results': results})
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

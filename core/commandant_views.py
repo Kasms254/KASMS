@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status, filters
-from .views import PageSizeAwarePagination
+from .views import PageSizeAwarePagination, CertificatePagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -38,6 +38,7 @@ from .permissions import (
     IsCommandantOrChiefInstructor, CertificateCapability, RequiresCertificateCapability,
 )
 from .managers import get_current_school
+from .services import get_certificates_grouped_by_class
 
 def _get_school(user):
     school = get_current_school()
@@ -471,6 +472,7 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [
         IsAuthenticated, RequiresCertificateCapability(CertificateCapability.VIEW),
     ]
+    pagination_class = CertificatePagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'class_obj']
     search_fields = ['certificate_number', 'student_name', 'student_svc_number', 'course_name']
@@ -488,26 +490,41 @@ class CommandantCertificateViewSet(viewsets.ReadOnlyModelViewSet):
     def summary(self, request):
         qs = self.get_queryset()
 
-      
+
         counts = qs.aggregate(
             total=Count('id'),
             issued=Count('id', filter=Q(status='issued')),
             revoked=Count('id', filter=Q(status='revoked')),
         )
 
-        by_class = (
+        by_class_rows = (
             qs.filter(status='issued')
-            .values('class_name')
+            .values('class_obj_id', 'class_name')
             .annotate(count=Count('id'))
             .order_by('-count')
         )
+        by_class = [
+            {
+                'class_id': row['class_obj_id'],
+                'class_name': row['class_name'],
+                'count': row['count'],
+            }
+            for row in by_class_rows
+        ]
 
         return Response({
             'total': counts['total'] or 0,
             'issued': counts['issued'] or 0,
             'revoked': counts['revoked'] or 0,
-            'by_class': list(by_class),
+            'by_class': by_class,
         })
+
+    @action(detail=False, methods=['get'])
+    def by_class(self, request):
+        # Same visibility rules as list(): reuse get_queryset() rather than
+        # re-deriving school scoping here.
+        results = get_certificates_grouped_by_class(self.get_queryset())
+        return Response({'results': results})
 
 class CommandantExamReportViewSet(viewsets.ReadOnlyModelViewSet):
 

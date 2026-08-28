@@ -1857,13 +1857,14 @@ class CertificateListSerializer(serializers.ModelSerializer):
     is_valid = serializers.BooleanField(read_only=True)
     issued_by_name = serializers.SerializerMethodField(read_only=True)
     issued_by_role = serializers.SerializerMethodField(read_only=True)
+    class_id = serializers.IntegerField(source='class_obj_id', read_only=True)
 
     class Meta:
         model = Certificate
         fields = [
             'id', 'certificate_number', 'verification_code',
             'student_name', 'student_svc_number', 'student_rank',
-            'course_name', 'class_name',
+            'course_name', 'class_id', 'class_name',
             'final_grade', 'final_percentage',
             'issued_at', 'completion_date',
             'status', 'status_display', 'is_valid',
@@ -2601,11 +2602,13 @@ class DashboardDepartmentSerializer(serializers.ModelSerializer):
 
 class DashboardCertificateSerializer(serializers.ModelSerializer):
 
+    class_id = serializers.IntegerField(source='class_obj_id', read_only=True)
+
     class Meta:
         model = Certificate
         fields = [
             'id', 'certificate_number', 'student_name', 'student_svc_number',
-            'student_rank', 'course_name', 'class_name', 'final_grade',
+            'student_rank', 'course_name', 'class_id', 'class_name', 'final_grade',
             'final_percentage', 'attendance_percentage', 'status',
             'issued_at', 'completion_date',
         ]

@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.db import transaction, IntegrityError
-from django.db.models import Q, Exists, OuterRef, Subquery, Avg
+from django.db.models import Q, Exists, OuterRef, Subquery, Avg, Count, Max
 from core.models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
@@ -103,6 +103,16 @@ def check_class_completion_for_all_students(class_obj):
         is_active=True
     ).select_related('student')
 
+    # Certificate issuance is independent of academic completion (e.g.
+    # participation/achievement/excellence certificates don't require grades),
+    # so it's fetched here as its own single query rather than re-derived from
+    # is_academically_complete, and rather than querying per student below.
+    certificate_status_by_student = dict(
+        Certificate.all_objects.filter(class_obj=class_obj).values_list(
+            'student_id', 'status',
+        )
+    )
+
     results = []
 
     for enrollment in enrollments:
@@ -111,10 +121,46 @@ def check_class_completion_for_all_students(class_obj):
         status['student_name'] = enrollment.student.get_full_name()
         status['svc_number'] = enrollment.student.svc_number
         status['enrollment_id'] = enrollment.id
+        status['certificate_status'] = certificate_status_by_student.get(
+            enrollment.student.id, 'not_issued',
+        )
         results.append(status)
 
 
     return results
+
+def get_certificates_grouped_by_class(queryset):
+    """
+    Aggregate an already tenant/role-scoped Certificate queryset into
+    per-class totals, using the denormalized class_obj_id/class_name/
+    course_name columns already on Certificate (no join to Class needed).
+    Single query; callers are responsible for scoping `queryset` (see
+    CertificateViewSet.get_queryset / CommandantCertificateViewSet.get_queryset).
+    """
+    grouped = (
+        queryset
+        .values('class_obj_id', 'class_name', 'course_name')
+        .annotate(
+            total=Count('id'),
+            issued=Count('id', filter=Q(status='issued')),
+            revoked=Count('id', filter=Q(status='revoked')),
+            last_issued_at=Max('issued_at'),
+        )
+        .order_by('-last_issued_at')
+    )
+
+    return [
+        {
+            'class_id': row['class_obj_id'],
+            'class_name': row['class_name'],
+            'course_name': row['course_name'],
+            'total': row['total'],
+            'issued': row['issued'],
+            'revoked': row['revoked'],
+            'last_issued_at': row['last_issued_at'],
+        }
+        for row in grouped
+    ]
 
 def _get_effective_result(component, student):
     attempts  = StudentComponentResult.all_objects.filter(
