@@ -161,6 +161,10 @@ export default function ClassesList(){
 
   useEffect(()=>{ loadClasses() }, [loadClasses])
 
+  // Currently unreachable: nothing calls this, so the subject modal it opens
+  // (and the `modalOpen` block below) is dead UI. Left in place pending a
+  // decision to either wire up an "Add Subject" entry point or delete it.
+  // eslint-disable-next-line no-unused-vars
   async function openAddSubjectModal(classId = ''){
     try{
       const ins = await getAllInstructors()
@@ -252,7 +256,7 @@ export default function ClassesList(){
   }
 
   return (
-    <div>
+    <div className="pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-black">Classes</h2>
@@ -264,8 +268,8 @@ export default function ClassesList(){
               setShowOnlyActive((s) => !s)
               setCurrentPage(1)
             }} />
-            <span className="hidden sm:inline">Show Only Inactive Classes</span>
-            <span className="sm:hidden">Only Inactive</span>
+            <span className="hidden sm:inline">Show Only Closed Classes</span>
+            <span className="sm:hidden">Only Closed</span>
           </label>
             {user && user.role === 'admin' && (
               <button onClick={() => openAddClassModal()} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add Class</button>
