@@ -234,7 +234,7 @@ const menuItems = [
       },
       {
         icon: 'Award',
-        label: 'Certificates',
+        label: 'Certificates Issued',
         href: '/commandant/certificates',
         visible: ['commandant', 'chief_instructor'],
       },
@@ -344,7 +344,7 @@ const menuItems = [
         children: [
           {
             icon: 'Award',
-            label: 'Certificates',
+            label: 'Certificates Issued',
             href: '/list/certificates',
             visible: ['admin'],
           },

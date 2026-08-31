@@ -228,7 +228,7 @@ export default function CourseDetail() {
   }
 
   return (
-    <div>
+    <div className="pb-10">
       {/* Header — same layout as Classes.jsx */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
@@ -240,8 +240,8 @@ export default function CourseDetail() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-black">
             <input type="checkbox" checked={!showOnlyActive} onChange={() => { setShowOnlyActive(s => !s); setCurrentPage(1) }} />
-            <span className="hidden sm:inline">Show Only Inactive Classes</span>
-            <span className="sm:hidden">Only Inactive</span>
+            <span className="hidden sm:inline">Show Only Closed Classes</span>
+            <span className="sm:hidden">Only Closed</span>
           </label>
           <button onClick={() => navigate('/list/courses')} className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Back</button>
           <button onClick={openAddModal} className="flex-1 sm:flex-none bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">Add Class</button>

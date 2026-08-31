@@ -1857,13 +1857,14 @@ class CertificateListSerializer(serializers.ModelSerializer):
     is_valid = serializers.BooleanField(read_only=True)
     issued_by_name = serializers.SerializerMethodField(read_only=True)
     issued_by_role = serializers.SerializerMethodField(read_only=True)
+    class_id = serializers.IntegerField(source='class_obj_id', read_only=True)
 
     class Meta:
         model = Certificate
         fields = [
             'id', 'certificate_number', 'verification_code',
             'student_name', 'student_svc_number', 'student_rank',
-            'course_name', 'class_name',
+            'course_name', 'class_id', 'class_name',
             'final_grade', 'final_percentage',
             'issued_at', 'completion_date',
             'status', 'status_display', 'is_valid',
@@ -1882,7 +1883,50 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CertificateTemplate
         fields = "__all__"
-        
+
+
+class CertificatePreviewSerializer(serializers.Serializer):
+
+    student_name = serializers.CharField(read_only=True)
+    student_svc_number = serializers.CharField(read_only=True)
+    student_rank = serializers.CharField(read_only=True)
+    course_name = serializers.CharField(read_only=True)
+    class_name = serializers.CharField(read_only=True)
+    school_name = serializers.CharField(source='school.name', read_only=True, default='')
+    certificate_type = serializers.CharField(source='template.template_type', read_only=True, default='completion')
+    certificate_type_display = serializers.SerializerMethodField()
+    template_name = serializers.CharField(source='template.name', read_only=True, default='')
+    header_text = serializers.SerializerMethodField()
+    footer_text = serializers.SerializerMethodField()
+    signatory_name = serializers.SerializerMethodField()
+    signatory_title = serializers.SerializerMethodField()
+    final_grade = serializers.CharField(read_only=True)
+    final_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    attendance_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    completion_date = serializers.DateField(read_only=True)
+    issue_date = serializers.SerializerMethodField()
+
+    def get_certificate_type_display(self, obj):
+        if obj.template:
+            return obj.template.get_template_type_display()
+        return dict(CertificateTemplate.TEMPLATE_TYPE_CHOICES).get('completion', 'Course Completion')
+
+    def get_header_text(self, obj):
+        return obj.template.header_text if obj.template else 'Certificate of Completion'
+
+    def get_footer_text(self, obj):
+        return obj.template.footer_text if obj.template else ''
+
+    def get_signatory_name(self, obj):
+        return obj.template.signatory_name if obj.template else 'Director'
+
+    def get_signatory_title(self, obj):
+        return obj.template.signatory_title if obj.template else 'Director of Training'
+
+    def get_issue_date(self, obj):
+        return obj.issued_at.date() if obj.issued_at else None
+
+
 class CertificateVerificationSerializer(serializers.Serializer):
 
     is_valid = serializers.BooleanField()
@@ -2601,11 +2645,13 @@ class DashboardDepartmentSerializer(serializers.ModelSerializer):
 
 class DashboardCertificateSerializer(serializers.ModelSerializer):
 
+    class_id = serializers.IntegerField(source='class_obj_id', read_only=True)
+
     class Meta:
         model = Certificate
         fields = [
             'id', 'certificate_number', 'student_name', 'student_svc_number',
-            'student_rank', 'course_name', 'class_name', 'final_grade',
+            'student_rank', 'course_name', 'class_id', 'class_name', 'final_grade',
             'final_percentage', 'attendance_percentage', 'status',
             'issued_at', 'completion_date',
         ]

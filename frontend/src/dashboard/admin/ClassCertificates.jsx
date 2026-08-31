@@ -20,9 +20,12 @@ export default function ClassCertificates() {
   const [issueReport, setIssueReport] = useState(null)
   const [closing, setClosing] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [previewModal, setPreviewModal] = useState(null)
   const [templates, setTemplates] = useState([])
   const [selectedTemplateId, setSelectedTemplateId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [downloading, setDownloading] = useState(null)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
 
@@ -85,11 +88,70 @@ export default function ClassCertificates() {
     try {
       const result = await api.issueCertificateSingle(classId, enrollmentId, selectedTemplateId)
       reportSuccess(`Certificate issued for ${studentName}: ${result.certificate_number}`)
+      setPreviewModal(null)
       await loadCompletionStatus()
     } catch (err) {
       reportError(extractError(err, `Failed to issue certificate for ${studentName}`))
     } finally {
       setIssuingSingle(null)
+    }
+  }
+
+  // Preview is read-only: it never issues anything, so a failed or abandoned
+  // preview leaves no trace. The PDF is fetched separately from the JSON
+  // details and is allowed to fail quietly — the backend PDF library may not
+  // be configured in every environment, and the JSON preview still stands
+  // on its own.
+  async function openPreview(enrollmentId, studentName) {
+    setPreviewModal({ enrollmentId, studentName, data: null, pdfUrl: null, loading: true })
+    let data
+    try {
+      data = await api.previewCertificateSingle(classId, enrollmentId, selectedTemplateId)
+    } catch (err) {
+      reportError(extractError(err, `Failed to load certificate preview for ${studentName}`))
+      setPreviewModal(null)
+      return
+    }
+    setPreviewModal((prev) => (
+      prev && prev.enrollmentId === enrollmentId ? { ...prev, data, loading: false } : prev
+    ))
+    try {
+      const blob = await api.previewCertificateDocument(classId, enrollmentId, selectedTemplateId, 'pdf')
+      const pdfUrl = URL.createObjectURL(blob)
+      setPreviewModal((prev) => {
+        if (!prev || prev.enrollmentId !== enrollmentId) {
+          URL.revokeObjectURL(pdfUrl)
+          return prev
+        }
+        return { ...prev, pdfUrl }
+      })
+    } catch {
+      // Document preview unavailable — the JSON details above still render.
+    }
+  }
+
+  // Revoke whichever blob URL is current whenever the modal changes or the
+  // component unmounts, so preview PDFs never linger in memory.
+  useEffect(() => {
+    return () => { if (previewModal?.pdfUrl) URL.revokeObjectURL(previewModal.pdfUrl) }
+  }, [previewModal])
+
+  async function handleDownload(certificate) {
+    setDownloading(certificate.id)
+    try {
+      const blob = await api.downloadCertificatePdf(certificate.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `certificate_${String(certificate.certificate_number || certificate.id).replace(/\//g, '_')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      reportError(extractError(err, 'Failed to download certificate'))
+    } finally {
+      setDownloading(null)
     }
   }
 
@@ -112,15 +174,22 @@ export default function ClassCertificates() {
   const students = completionData?.students || []
   const totalStudents = completionData?.total_students || 0
   const academicallyComplete = completionData?.academically_complete || 0
+  const certificatesIssued = completionData?.certificates_issued || 0
 
 // for issuance of excellence and participation certificates
   const selectedTemplate = templates.find((t) => String(t.id) === String(selectedTemplateId))
     || templates.find((t) => t.is_default)
   const requiresGrades = !selectedTemplate || selectedTemplate.template_type === 'completion'
   const eligibleCount = requiresGrades ? academicallyComplete : totalStudents
+  // Bulk issue only has work to do for eligible students who hold no certificate yet.
+  const awaitingIssue = students.filter(
+    (st) => !st.has_certificate && (requiresGrades ? st.is_academically_complete : true),
+  ).length
 
-  // Search & pagination
+  // Search, filter & pagination
   const filtered = students.filter((st) => {
+    if (statusFilter === 'issued' && !st.has_certificate) return false
+    if (statusFilter === 'not_issued' && st.has_certificate) return false
     if (!searchTerm.trim()) return true
     const term = searchTerm.toLowerCase()
     return (
@@ -132,10 +201,10 @@ export default function ClassCertificates() {
   const totalPages = Math.ceil(totalCount / pageSize)
   const paginatedStudents = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  useEffect(() => { setPage(1) }, [searchTerm])
+  useEffect(() => { setPage(1) }, [searchTerm, statusFilter])
 
   return (
-    <div className="w-full px-3 sm:px-4 md:px-6">
+    <div className="w-full px-3 sm:px-4 md:px-6 pb-8 shrink-0">
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
@@ -164,11 +233,16 @@ export default function ClassCertificates() {
             </select>
             <button
               onClick={handleBulkIssue}
-              disabled={issuingAll || eligibleCount === 0}
+              disabled={issuingAll || eligibleCount === 0 || awaitingIssue === 0}
+              title={awaitingIssue === 0 && eligibleCount > 0 ? 'Every eligible student already has a certificate' : undefined}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap"
             >
               {issuingAll ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Award className="w-4 h-4" />}
-              {issuingAll ? 'Issuing...' : 'Issue All Certificates'}
+              {issuingAll
+                ? 'Issuing...'
+                : awaitingIssue === 0 && eligibleCount > 0
+                  ? 'All Certificates Issued'
+                  : `Issue All Certificates${awaitingIssue ? ` (${awaitingIssue})` : ''}`}
             </button>
           </div>
         )}
@@ -196,9 +270,10 @@ export default function ClassCertificates() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm flex-wrap">
-              <span className="text-neutral-600">Total: <strong className="text-black">{totalStudents}</strong></span>
-              <span className="text-emerald-600">Complete: <strong>{academicallyComplete}</strong></span>
-              <span className="text-amber-600">Pending: <strong>{totalStudents - academicallyComplete}</strong></span>
+              <span className="text-neutral-600">Students: <strong className="text-black">{totalStudents}</strong></span>
+              <span className="text-emerald-600">Coursework complete: <strong>{academicallyComplete}</strong></span>
+              <span className="text-indigo-600">Certificates issued: <strong>{certificatesIssued}</strong></span>
+              <span className="text-amber-600">Awaiting issue: <strong>{totalStudents - certificatesIssued}</strong></span>
               {!classInfo.is_closed && (
                 <button
                   onClick={() => setConfirmClose(true)}
@@ -282,8 +357,17 @@ export default function ClassCertificates() {
                 className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
               />
             </div>
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All students</option>
+              <option value="issued">Certificate issued</option>
+              <option value="not_issued">Not issued</option>
+            </select>
+            {(searchTerm || statusFilter !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setStatusFilter('all') }} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap">
                 Clear
               </button>
             )}
@@ -306,7 +390,13 @@ export default function ClassCertificates() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-neutral-200">
-          <EmptyState icon="Search" title="No students match" description={`No students match "${searchTerm}". Try adjusting your search.`} />
+          <EmptyState
+            icon="Search"
+            title="No students match"
+            description={searchTerm
+              ? `No students match "${searchTerm}". Try adjusting your search or filter.`
+              : 'No students match the selected filter.'}
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -315,8 +405,12 @@ export default function ClassCertificates() {
               {/* Student Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 border-b border-neutral-100">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${st.is_academically_complete ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                    {st.is_academically_complete ? <LucideIcons.Check className="w-5 h-5" /> : <LucideIcons.Clock className="w-5 h-5" />}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${st.has_certificate ? 'bg-indigo-500' : st.is_academically_complete ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                    {st.has_certificate
+                      ? <LucideIcons.Award className="w-5 h-5" />
+                      : st.is_academically_complete
+                        ? <LucideIcons.Check className="w-5 h-5" />
+                        : <LucideIcons.Clock className="w-5 h-5" />}
                   </div>
                   <div>
                     <div className="font-medium text-black text-sm">{st.student_name || '—'}</div>
@@ -325,26 +419,57 @@ export default function ClassCertificates() {
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
+                  {/* Coursework status — separate from whether a certificate exists */}
                   <span className="text-xs text-neutral-600">
                     {st.completed_subjects}/{st.total_subjects} subjects
                   </span>
                   <span className={`text-xs px-2 py-1 rounded-full font-medium ${st.is_academically_complete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {st.is_academically_complete ? 'Complete' : 'Pending'}
+                    {st.is_academically_complete ? 'Coursework complete' : 'Coursework pending'}
                   </span>
 
-                  {(requiresGrades ? st.is_academically_complete : true) && (
+                  {/* Certificate status */}
+                  {st.has_certificate ? (
+                    <>
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium ${st.certificate?.status === 'revoked' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}
+                        title={st.certificate?.certificate_number || ''}
+                      >
+                        <LucideIcons.Award className="w-3 h-3" />
+                        {st.certificate?.status === 'revoked' ? 'Certificate revoked' : 'Certificate issued'}
+                        {st.certificate?.certificate_number && (
+                          <span className="font-mono font-normal">· {st.certificate.certificate_number}</span>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => handleDownload(st.certificate)}
+                        disabled={downloading === st.certificate?.id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        {downloading === st.certificate?.id ? (
+                          <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <LucideIcons.Download className="w-3 h-3" />
+                        )}
+                        {downloading === st.certificate?.id ? 'Preparing...' : 'Download'}
+                      </button>
+                    </>
+                  ) : (requiresGrades ? st.is_academically_complete : true) ? (
                     <button
-                      onClick={() => handleSingleIssue(st.enrollment_id, st.student_name)}
+                      onClick={() => openPreview(st.enrollment_id, st.student_name)}
                       disabled={issuingSingle === st.enrollment_id}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
                       {issuingSingle === st.enrollment_id ? (
                         <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <LucideIcons.Award className="w-3 h-3" />
+                        <LucideIcons.Eye className="w-3 h-3" />
                       )}
-                      {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Issue'}
+                      {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Preview'}
                     </button>
+                  ) : (
+                    <span className="text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-500 font-medium">
+                      Not issued
+                    </span>
                   )}
                 </div>
               </div>
@@ -444,6 +569,120 @@ export default function ClassCertificates() {
                 <button onClick={handleCloseClass} disabled={closing} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                   {closing ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Lock className="w-4 h-4" />}
                   {closing ? 'Closing...' : 'Close Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Preview Modal — read-only. Issuing happens from here,
+          via the existing issue_certificate_single flow, which re-validates
+          eligibility on its own rather than trusting this preview. */}
+      {previewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPreviewModal(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl">
+            <div className="bg-white rounded-xl shadow-2xl ring-1 ring-black/5 flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-4 border-b border-neutral-100 flex-shrink-0">
+                <div>
+                  <h4 className="text-lg font-semibold text-black">Certificate Preview</h4>
+                  <p className="text-sm text-neutral-500">{previewModal.studentName}</p>
+                </div>
+                <button onClick={() => setPreviewModal(null)} className="p-1 rounded-md hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5 text-neutral-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4">
+                {previewModal.loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <LucideIcons.Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+                  </div>
+                ) : (
+                  <>
+                    {previewModal.data && (
+                      <div className={`rounded-lg p-3 mb-4 text-sm flex items-start gap-2 border ${previewModal.data.eligible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                        {previewModal.data.eligible ? (
+                          <LucideIcons.CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <LucideIcons.AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <div className="font-medium">
+                            {previewModal.data.eligible ? 'Eligible for issuance' : 'Not currently eligible'}
+                          </div>
+                          {!previewModal.data.eligible && (
+                            <div className="text-xs mt-0.5">
+                              {previewModal.data.reason === 'already_issued'
+                                ? 'A certificate has already been issued for this enrollment.'
+                                : previewModal.data.reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {previewModal.data?.preview && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 text-xs">
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Certificate type</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.certificate_type_display}</div>
+                        </div>
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Course</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.course_name}</div>
+                        </div>
+                        <div className="bg-neutral-50 rounded-lg p-2">
+                          <div className="text-neutral-400">Class</div>
+                          <div className="text-black font-medium">{previewModal.data.preview.class_name}</div>
+                        </div>
+                        {previewModal.data.preview.final_grade && (
+                          <div className="bg-neutral-50 rounded-lg p-2">
+                            <div className="text-neutral-400">Grade</div>
+                            <div className="text-black font-medium">{previewModal.data.preview.final_grade}</div>
+                          </div>
+                        )}
+                        {previewModal.data.preview.attendance_percentage != null && (
+                          <div className="bg-neutral-50 rounded-lg p-2">
+                            <div className="text-neutral-400">Attendance</div>
+                            <div className="text-black font-medium">{previewModal.data.preview.attendance_percentage}%</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {previewModal.pdfUrl ? (
+                      <iframe
+                        src={previewModal.pdfUrl}
+                        title="Certificate document preview"
+                        className="w-full h-[55vh] rounded-lg border border-neutral-200"
+                      />
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-400">
+                        Document preview unavailable — showing details only.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 p-4 border-t border-neutral-100 flex-shrink-0">
+                <button onClick={() => setPreviewModal(null)} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSingleIssue(previewModal.enrollmentId, previewModal.studentName)}
+                  disabled={!previewModal.data?.eligible || issuingSingle === previewModal.enrollmentId}
+                  title={!previewModal.data?.eligible ? 'This certificate is not currently eligible for issuance' : undefined}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {issuingSingle === previewModal.enrollmentId ? (
+                    <LucideIcons.Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LucideIcons.Award className="w-4 h-4" />
+                  )}
+                  {issuingSingle === previewModal.enrollmentId ? 'Issuing...' : 'Issue Certificate'}
                 </button>
               </div>
             </div>

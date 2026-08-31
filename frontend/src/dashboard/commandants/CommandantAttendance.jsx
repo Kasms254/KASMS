@@ -74,7 +74,7 @@ export default function CommandantAttendance() {
   }, [search, page, reportError])
 
   return (
-    <div className="w-full px-3 sm:px-4 md:px-6">
+    <div className="w-full px-3 sm:px-4 md:px-6 pb-10">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-black">Attendance</h2>

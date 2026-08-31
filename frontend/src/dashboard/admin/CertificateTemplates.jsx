@@ -54,6 +54,7 @@ export default function CertificateTemplates() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showPreview, setShowPreview] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -78,6 +79,13 @@ export default function CertificateTemplates() {
   }, [searchTerm, filterType])
 
   useEffect(() => { load() }, [load])
+
+  // Release the blob URL when the preview is replaced or closed.
+  useEffect(() => {
+    const url = showPreview?.url
+    if (!url) return
+    return () => URL.revokeObjectURL(url)
+  }, [showPreview?.url])
 
   function resetForm() {
     setForm(INITIAL_FORM)
@@ -170,13 +178,36 @@ export default function CertificateTemplates() {
     }
   }
 
-  async function handlePreview(id) {
+  // The preview is rendered server-side by the same generator that issues
+  // certificates, so it is the real document — not a lookalike rebuilt here.
+  // PDF is the exact output; HTML is the fallback if PDF generation fails.
+  async function handlePreview(template) {
+    setPreviewLoading(true)
+    setShowPreview({ template, url: null, kind: null })
     try {
-      const data = await api.previewCertificateTemplate(id)
-      setShowPreview(data)
+      const blob = await api.previewCertificateTemplate(template.id, 'pdf')
+      setShowPreview({ template, url: URL.createObjectURL(blob), kind: 'pdf' })
     } catch {
-      toast?.error?.('Failed to load preview')
+      try {
+        const blob = await api.previewCertificateTemplate(template.id, 'html')
+        setShowPreview({ template, url: URL.createObjectURL(blob), kind: 'html' })
+      } catch {
+        toast?.error?.('Failed to load preview')
+        setShowPreview(null)
+      }
+    } finally {
+      setPreviewLoading(false)
     }
+  }
+
+  function handleDownloadPreview() {
+    if (!showPreview?.url) return
+    const a = document.createElement('a')
+    a.href = showPreview.url
+    a.download = `preview_${(showPreview.template?.name || 'template').replace(/\s+/g, '_')}.${showPreview.kind}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
   }
 
   function getTypeLabel(value) {
@@ -299,7 +330,7 @@ export default function CertificateTemplates() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handlePreview(t.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">
+                  <button onClick={() => handlePreview(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">
                     <LucideIcons.Eye className="w-3 h-3" /> Preview
                   </button>
                   <button onClick={() => handleEdit(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">
@@ -392,7 +423,7 @@ export default function CertificateTemplates() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handlePreview(t.id)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition" title="Preview">
+                          <button onClick={() => handlePreview(t)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition" title="Preview">
                             <LucideIcons.Eye className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleEdit(t)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition" title="Edit">
@@ -643,86 +674,52 @@ export default function CertificateTemplates() {
         </div>
       )}
 
-      {/* Preview Modal */}
+      {/* Preview Modal — shows the certificate the server actually generates */}
       {showPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowPreview(null)} />
-          <div className="relative z-10 max-w-3xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-              <h3 className="text-lg font-semibold text-black">Certificate Preview</h3>
-              <button onClick={() => setShowPreview(null)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
-                <LucideIcons.X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[75vh]">
-              <div className="border-2 border-neutral-200 rounded-lg p-8 bg-white" style={{ borderColor: showPreview.primary_color || '#e5e5e5' }}>
-                {/* Certificate Header */}
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold" style={{ color: showPreview.primary_color || '#000' }}>
-                      {showPreview.school_name || 'Training Institution'}
-                    </h3>
-                  </div>
-                  {showPreview.logo_base64 && (
-                    <img src={showPreview.logo_base64} alt="School logo" className="h-16 w-16 object-contain" />
-                  )}
-                </div>
-
-                {/* Certificate Body */}
-                <div className="text-center my-8">
-                  <div className="inline-block px-6 py-2 mb-4 border-b-2" style={{ borderColor: showPreview.accent_color || '#FFC107' }}>
-                    <h2 className="text-2xl font-bold" style={{ color: showPreview.primary_color || '#000' }}>
-                      {showPreview.header_text || 'Certificate'}
-                    </h2>
-                  </div>
-                  <p className="text-sm text-neutral-500 mt-4">This is to certify that</p>
-                  <div className="text-2xl font-bold text-black mt-2">{showPreview.student_name}</div>
-                  <div className="text-sm text-neutral-600 mt-1">{showPreview.student_rank} — {showPreview.student_svc_number}</div>
-                  <p className="text-sm text-neutral-500 mt-4">has successfully completed</p>
-                  <div className="text-lg font-semibold text-black mt-2">{showPreview.course_name}</div>
-                  <div className="text-sm text-neutral-600">{showPreview.class_name}</div>
-                  {showPreview.final_grade && (
-                    <div className="mt-3 text-sm text-neutral-700">
-                      Grade: <span className="font-semibold text-black">{showPreview.final_grade}</span>
-                      {showPreview.final_percentage && <span className="ml-2">({showPreview.final_percentage}%)</span>}
-                    </div>
-                  )}
-                  <div className="text-sm text-neutral-500 mt-4">
-                    Date: {showPreview.completion_date ? new Date(showPreview.completion_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                  </div>
-                </div>
-
-                {/* Signatures */}
-                <div className="mt-12 flex items-end justify-around">
-                  <div className="text-center">
-                    {showPreview.signature_image ? (
-                      <img src={showPreview.signature_image} alt="Primary signature" className="h-14 object-contain mx-auto" />
-                    ) : (
-                      <div className="h-14 w-32 border-b border-neutral-300" />
-                    )}
-                    <div className="mt-2 font-semibold text-sm text-black">{showPreview.signatory_name}</div>
-                    <div className="text-xs text-neutral-500">{showPreview.signatory_title}</div>
-                  </div>
-                  {(showPreview.secondary_signatory_name || showPreview.secondary_signature_image) && (
-                    <div className="text-center">
-                      {showPreview.secondary_signature_image ? (
-                        <img src={showPreview.secondary_signature_image} alt="Secondary signature" className="h-14 object-contain mx-auto" />
-                      ) : (
-                        <div className="h-14 w-32 border-b border-neutral-300" />
-                      )}
-                      <div className="mt-2 font-semibold text-sm text-black">{showPreview.secondary_signatory_name}</div>
-                      <div className="text-xs text-neutral-500">{showPreview.secondary_signatory_title}</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Certificate Footer */}
-                <div className="mt-8 pt-4 border-t border-neutral-200 flex items-center justify-between text-[11px] text-neutral-400">
-                  <span>Certificate No: {showPreview.certificate_number}</span>
-                  <span>Verification: {showPreview.verification_code}</span>
-                </div>
+          <div className="relative z-10 max-w-4xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-neutral-200">
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-black truncate">
+                  Certificate Preview{showPreview.template?.name ? ` — ${showPreview.template.name}` : ''}
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Rendered with sample student data by the same generator used when issuing.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {showPreview.url && (
+                  <button
+                    onClick={handleDownloadPreview}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition"
+                  >
+                    <LucideIcons.Download className="w-3 h-3" /> Download sample
+                  </button>
+                )}
+                <button onClick={() => setShowPreview(null)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                  <LucideIcons.X className="w-5 h-5" />
+                </button>
               </div>
             </div>
+            <div className="bg-neutral-100 p-4">
+              {previewLoading || !showPreview.url ? (
+                <div className="h-[70vh] flex items-center justify-center bg-white rounded-lg border border-neutral-200">
+                  <EmptyState icon="Loader2" title="Rendering certificate..." variant="minimal" />
+                </div>
+              ) : (
+                <iframe
+                  title="Certificate preview"
+                  src={showPreview.kind === 'pdf' ? `${showPreview.url}#view=FitH` : showPreview.url}
+                  className="w-full h-[70vh] bg-white rounded-lg border border-neutral-200"
+                />
+              )}
+            </div>
+            {showPreview.kind === 'html' && (
+              <div className="px-6 py-3 border-t border-neutral-200 bg-amber-50 text-xs text-amber-700">
+                PDF rendering is unavailable on the server, so this HTML preview is shown instead. Fonts and page margins may differ slightly from the issued PDF.
+              </div>
+            )}
           </div>
         </div>
       )}

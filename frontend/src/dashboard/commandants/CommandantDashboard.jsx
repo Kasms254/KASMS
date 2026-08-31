@@ -74,7 +74,7 @@ export default function CommandantDashboard() {
   const roleLabel = user?.role === 'chief_instructor' ? 'Chief Instructor' : 'Commandant'
 
   return (
-    <div>
+    <div className="pb-10">
       {/* Header */}
       <header className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-black">{roleLabel} Dashboard</h2>
@@ -95,18 +95,18 @@ export default function CommandantDashboard() {
         <>
           {/* Pending remark banner */}
           {data?.pending_actions?.reports_awaiting_your_remarks > 0 && (
-            <Link
+              <Link
               to="/commandant/exam-reports"
               className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 no-underline hover:bg-amber-100 transition"
-            >
-              <Icons.AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-              <span className="text-sm text-amber-800 font-medium">
+              >
+                <Icons.AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <span className="text-sm text-amber-800 font-medium">
                 {data.pending_actions.reports_awaiting_your_remarks} exam{' '}
                 {data.pending_actions.reports_awaiting_your_remarks === 1 ? 'report' : 'reports'} awaiting your remark
-              </span>
+                </span>
               <span className="ml-auto text-xs text-amber-700 underline">Review now →</span>
-            </Link>
-          )}
+              </Link>
+            )}
 
           {/* Top stat cards — row 1 */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -222,7 +222,7 @@ export default function CommandantDashboard() {
                   style={{ width: `${Math.min(data?.attendance_summary?.overall_attendance_rate || 0, 100)}%` }}
                 />
               </div>
-              <Link to="/commandant/attendance" className="mt-3 block text-xs text-indigo-600 hover:underline">
+              <Link to="/commandant/attendance" className="mt-5 inline-block text-xs text-indigo-600 hover:underline">
                 View attendance →
               </Link>
             </div>
@@ -257,7 +257,7 @@ export default function CommandantDashboard() {
                   style={{ width: `${Math.min(data?.exam_performance?.pass_rate || 0, 100)}%` }}
                 />
               </div>
-              <Link to="/commandant/exam-reports" className="mt-3 block text-xs text-indigo-600 hover:underline">
+              <Link to="/commandant/exam-reports" className="mt-5 inline-block text-xs text-indigo-600 hover:underline">
                 View exam reports →
               </Link>
             </div>

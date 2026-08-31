@@ -1551,6 +1551,12 @@ export async function getCertificate(id) {
   return request(`/api/certificates/${id}/`)
 }
 
+// Certificate counts grouped by class — the entry point for the certificates
+// screen, which drills into one class rather than listing every certificate.
+export async function getCertificatesByClass() {
+  return request('/api/certificates/by_class/')
+}
+
 // Get completion status for all students in a class
 export async function getClassCompletionStatus(classId) {
   if (!classId) throw new Error('classId is required')
@@ -1572,6 +1578,37 @@ export async function issueCertificateSingle(classId, enrollmentId, templateId =
   const body = { enrollment_id: enrollmentId }
   if (templateId) body.template_id = templateId
   return request(`/api/classes/${classId}/issue_certificate_single/`, { method: 'POST', body })
+}
+
+// Preview a certificate's data before issuing it — read-only, does not
+// create a certificate, consume a certificate number, or change any state.
+export async function previewCertificateSingle(classId, enrollmentId, templateId = null) {
+  if (!classId) throw new Error('classId is required')
+  if (!enrollmentId) throw new Error('enrollmentId is required')
+  const body = { enrollment_id: enrollmentId }
+  if (templateId) body.template_id = templateId
+  return request(`/api/classes/${classId}/preview_certificate/`, { method: 'POST', body })
+}
+
+// Preview the actual rendered certificate document (PDF by default) that
+// would be produced on issuance — same non-mutating guarantee as above.
+export async function previewCertificateDocument(classId, enrollmentId, templateId = null, format = 'pdf') {
+  if (!classId) throw new Error('classId is required')
+  if (!enrollmentId) throw new Error('enrollmentId is required')
+  const body = { enrollment_id: enrollmentId }
+  if (templateId) body.template_id = templateId
+  const csrf = getCsrfToken()
+  const res = await fetch(`${API_BASE}/api/classes/${classId}/preview_certificate/?output=${format}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to load certificate preview.'))
+  return res.blob()
 }
 
 // Close a class (sets is_closed=True, required before issuing certificates)
@@ -1691,9 +1728,17 @@ export async function setCertificateTemplateDefault(id) {
   return request(`/api/certificate_templates/${id}/set_default/`, { method: 'POST' })
 }
 
-export async function previewCertificateTemplate(id) {
+// Preview a template as the certificate it will actually produce. The server
+// renders it through the same generator issuance uses, so what you see here is
+// the issued document — 'pdf' is byte-identical to it, 'html' is a fallback
+// for clients that cannot embed a PDF.
+export async function previewCertificateTemplate(id, format = 'pdf') {
   if (!id) throw new Error('id is required')
-  return request(`/api/certificate_templates/${id}/preview/`)
+  // `output`, not `format` — DRF claims `format` for content negotiation.
+  const url = `${API_BASE}/api/certificate_templates/${id}/preview/?output=${format}`
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error(await blobErrorMessage(res, 'Failed to load preview.'))
+  return res.blob()
 }
 
 // Certificate stats (dashboard)
@@ -1933,6 +1978,10 @@ export async function getCommandantCertificates(params = '') {
 
 export async function getCommandantCertificatesSummary() {
   return request('/api/commandant/certificates/summary/')
+}
+
+export async function getCommandantCertificatesByClass() {
+  return request('/api/commandant/certificates/by_class/')
 }
 
 export async function getCommandantExamReports(params = '') {
@@ -2585,9 +2634,12 @@ export default {
   // Certificates
   getCertificates,
   getCertificate,
+  getCertificatesByClass,
   getClassCompletionStatus,
   issueCertificates,
   issueCertificateSingle,
+  previewCertificateSingle,
+  previewCertificateDocument,
   closeClass,
   addCertificate,
   updateCertificate,
@@ -2629,6 +2681,7 @@ export default {
   getCommandantAttendanceClassSummary,
   getCommandantCertificates,
   getCommandantCertificatesSummary,
+  getCommandantCertificatesByClass,
   getCommandantExamReports,
   getCommandantExamReportDetail,
   addCommandantExamReportRemark,
