@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import * as Icons from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 import * as api from '../lib/api'
 import TOTPSettings from '../components/TOTPSettings'
@@ -60,6 +60,11 @@ export default function ProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
+    // Alumni have no profile endpoint access (see core/middleware.py's
+    // alumni allowlist — /api/profile/me/ isn't in it, and never will be:
+    // the Alumni Dashboard is intentionally certificates-only) — skip the
+    // doomed request entirely rather than firing it and rendering an error.
+    if (user?.is_alumni) return
     let mounted = true
     async function fetchProfile() {
       setLoading(true)
@@ -78,7 +83,7 @@ export default function ProfilePage() {
     }
     fetchProfile()
     return () => { mounted = false }
-  }, [])
+  }, [user])
 
   const initials = useMemo(() => {
     if (!profile) return 'U'
@@ -158,6 +163,12 @@ export default function ProfilePage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Alumni have no profile page — send them back to the one thing they do
+  // have (see the effect above for why the fetch is skipped too).
+  if (user?.is_alumni) {
+    return <Navigate to="/dashboard/alumni" replace />
   }
 
   // Loading state
