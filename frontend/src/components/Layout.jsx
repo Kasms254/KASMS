@@ -10,7 +10,8 @@ export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user } = useAuth()
   const { theme } = useTheme()
-  const role = user?.role || 'student'
+ 
+  const role = user?.is_alumni ? 'alumni' : (user?.role || 'student')
 
   // COT uses maroon; all other roles use their school theme
   const sidebarStyle = role === 'chief_of_training'

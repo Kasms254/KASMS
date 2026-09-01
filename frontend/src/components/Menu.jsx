@@ -13,7 +13,7 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'chief_of_training', 'oic'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'chief_of_training', 'oic', 'alumni'],
       },
       // Superadmin-only items
       {
@@ -328,7 +328,7 @@ const menuItems = [
         icon: 'Award',
         label: 'My Certificates',
         href: '/list/my-certificates',
-        visible: ['student'],
+        visible: ['student', 'alumni'],
       },
       {
         icon: 'BarChart',
@@ -428,7 +428,7 @@ const menuItems = [
         icon: 'LogOut',
         label: 'Logout',
         href: '/logout',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'oic', 'alumni'],
       },
     ],
   },

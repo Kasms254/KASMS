@@ -72,6 +72,8 @@ export default function NavBar({
 
   // fetch notifications when opening bell
   async function fetchNotifications() {
+
+    if (user?.is_alumni) return
     const userRole = user?.role || 'student'
 
     setNotifsLoading(true)
@@ -515,22 +517,26 @@ export default function NavBar({
               "
               role="menu"
             >
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false)
-                  navigate('/profile')
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
-              >
-                Profile
-              </button>
-              <button
-                role="menuitem"
-                className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
-              >
-                Settings
-              </button>
+              {!user?.is_alumni && (
+                <>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      navigate('/profile')
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
+                  >
+                    Profile
+                  </button>
+                  <button
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
+                  >
+                    Settings
+                  </button>
+                </>
+              )}
 
               <div className="border-t border-neutral-200" />
 

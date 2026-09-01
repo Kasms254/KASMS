@@ -1658,6 +1658,17 @@ export async function downloadCertificatePdf(id) {
   return res.blob()
 }
 
+export async function previewIssuedCertificate(id) {
+  if (!id) throw new Error('id is required')
+  const res = await fetch(`${API_BASE}/api/certificates/${id}/preview/`, { method: 'GET', credentials: 'include' })
+  if (!res.ok) {
+    const err = new Error('Failed to load certificate preview')
+    err.status = res.status
+    throw err
+  }
+  return res.blob()
+}
+
 // Get certificates for current user (student)
 export async function getMyCertificates() {
   return request('/api/certificates/my_certificates/')
@@ -2647,6 +2658,7 @@ export default {
   revokeCertificate,
   regenerateCertificate,
   downloadCertificatePdf,
+  previewIssuedCertificate,
   getMyCertificates,
   getCertificateStats,
   getCertificateTemplates,

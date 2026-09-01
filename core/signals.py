@@ -6,8 +6,6 @@ from .services import get_class_completion_status
 from .models import (
     PersonalNotification, User, Enrollment, School, SchoolMembership,
     )
-from core.models import Enrollment as Enroll, StudentIndex
-from django.db import transaction as tx
 import logging
 from django.db.models.signals import post_save, post_delete 
 from django.core.cache import cache 
@@ -102,59 +100,8 @@ def check_academic_completion_on_grade(sender, instance, **kwargs):
                 )
 
     transaction.on_commit(_check)
-    
-@receiver(post_save, sender=Enrollment)
-def auto_assign_student_index(sender, instance, created, **kwargs):
 
-    if not created:
-        return
 
-    def _assign():
-
-        try:
-            enrollment = Enroll.all_objects.select_related(
-                'class_obj', 'school'
-            ).get(pk=instance.pk)
-        except Enroll.DoesNotExist:
-            return
-
-        if StudentIndex.all_objects.filter(enrollment=enrollment).exists():
-            return
-
-        class_obj = enrollment.class_obj
-
-        try:
-            with tx.atomic():
-                existing = (
-                    StudentIndex.all_objects
-                    .select_for_update()
-                    .filter(class_obj=class_obj)
-                    .order_by("-index_number")
-                )
-                if existing.exists():
-                    last_num = int(existing.first().index_number)
-                    next_number = last_num + 1
-                else:
-                    next_number = class_obj.index_start_from
-
-                index_str = str(next_number).zfill(3)
-
-                StudentIndex.objects.create(
-                    enrollment=enrollment,
-                    class_obj=class_obj,
-                    index_number=index_str,
-                    school=enrollment.school,
-                )
-                logger.info(                                  
-                    "StudentIndex '%s' assigned to enrollment %s in class '%s'",
-                    class_obj.format_index(next_number), enrollment.id, class_obj.name,
-                )
-        except Exception as e:
-            logger.error(
-                "Failed to assign StudentIndex for enrollment %s: %s",
-                instance.pk, e, exc_info=True,
-            )
-    transaction.on_commit(_assign)
 
 
 

@@ -24,7 +24,9 @@ export default function DashboardIndex() {
   if (user.role === 'superadmin') return <Navigate to="/superadmin" replace />
   if (user.role === 'admin') return <Navigate to="/dashboard/admin" replace />
   if (user.role === 'instructor') return <Navigate to="/dashboard/instructors" replace />
-  if (user.role === 'student') return <Navigate to="/dashboard/students" replace />
+  if (user.role === 'student') {
+    return <Navigate to={user.is_alumni ? '/dashboard/alumni' : '/dashboard/students'} replace />
+  }
   if (user.role === 'commandant') return <Navigate to="/dashboard/commandant" replace />
   if (user.role === 'chief_instructor') return <Navigate to="/dashboard/ci" replace />
   if (user.role === 'oic') return <Navigate to="/dashboard/oic" replace />

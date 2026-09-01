@@ -45,7 +45,7 @@ from rest_framework.viewsets import GenericViewSet
 from .services import (
     close_class,issue_certificate, CertificateGenerator, CertificateDownloadLog,
     check_class_completion_for_all_students,get_class_completion_status,
-    bulk_issue_certificates, bulk_assign_indexes, assign_student_index, evaluate_subject_pass_fail,
+    bulk_issue_certificates, bulk_assign_indexes, evaluate_subject_pass_fail,
     determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
     renumber_class_indexes, get_certificates_grouped_by_class, build_certificate_preview)
 from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
@@ -440,9 +440,17 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
             SchoolMembershipSerializer(membership).data
         )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdmin])
     def transfer(self, request, pk=None):
+
         membership = self.get_object()
+
+        if membership.status != SchoolMembership.Status.ACTIVE:
+            return Response(
+                {'error': 'Only an active membership can be transferred.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         to_school_id = request.data.get('to_school_id')
         try:
             to_school = School.objects.get(
@@ -453,7 +461,30 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
                 {'error': 'Destination school not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        source_school = membership.school
+        student = membership.user
         new_membership = membership.transfer(to_school)
+
+        audit_event(
+            AuditAction.MEMBERSHIP_TRANSFERRED, request=request, target=new_membership,
+            school=source_school,
+            description=(
+                f"{student.get_full_name() or student.svc_number} transferred from "
+                f"{source_school.name if source_school else 'unknown school'} to {to_school.name}"
+            ),
+            changes={
+                'source_school': {
+                    'id': str(source_school.id) if source_school else None,
+                    'name': source_school.name if source_school else None,
+                },
+                'destination_school': {'id': str(to_school.id), 'name': to_school.name},
+                'old_membership_id': str(membership.id),
+                'new_membership_id': str(new_membership.id),
+            },
+            metadata={'student_id': str(student.id), 'student_svc_number': student.svc_number},
+        )
+
         return Response(
             SchoolMembershipSerializer(new_membership).data,
             status=status.HTTP_201_CREATED
@@ -2200,6 +2231,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
         enrollment.is_active =True
         enrollment.save()
+
+        bulk_assign_indexes(enrollment.class_obj)
 
         return Response({
             'status': 'success',
@@ -5925,7 +5958,9 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         certificate.record_view()
         return HttpResponse(html_bytes, content_type='text/html')
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.ISSUE),
+    ])
     def regenerate(self, request, pk=None):
         certificate = self.get_object()
         try:
@@ -5942,7 +5977,9 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.REVOKE),
+    ])
     def revoke(self, request, pk=None):
         certificate = self.get_object()
         if certificate.status == 'revoked':

@@ -184,14 +184,16 @@ class SchoolMembership(models.Model):
         ).update(is_active=False, completion_date=timezone.now().date())
 
     def transfer(self, to_school):
-        self.status = self.Status.TRANSFERRED
-        self.ended_at = timezone.now()
-        self.transfer_to = to_school
-        self.save()
-        return SchoolMembership.objects.create(
-            user=self.user, school=to_school,
-            role=self.role, status=self.Status.ACTIVE
-        )
+
+        with transaction.atomic():
+            self.status = self.Status.TRANSFERRED
+            self.ended_at = timezone.now()
+            self.transfer_to = to_school
+            self.save()
+            return SchoolMembership.objects.create(
+                user=self.user, school=to_school,
+                role=self.role, status=self.Status.ACTIVE
+            )
 
     def reactivate(self):
         if SchoolMembership.all_objects.filter(
@@ -558,6 +560,17 @@ class User(AbstractUser):
 
         membership = self.active_membership
         return membership.role if membership else self.role
+
+    @property
+    def is_alumni(self):
+
+        if self.role != 'student':
+            return False
+        if self.active_membership is not None:
+            return False
+        return self.school_memberships.filter(
+            status=SchoolMembership.Status.COMPLETED,
+        ).exists()
 
     def get_membership_for_school(self, school):
         return self.school_memberships.filter(
@@ -2015,6 +2028,10 @@ class Certificate(models.Model):
         null=True, blank=True,
     )
     file_generated_at = models.DateTimeField(null=True, blank=True)
+    certificate_emailed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Set atomically by the delivery task to claim the send and prevent duplicates.',
+    )
 
     download_count = models.IntegerField(default=0)
     last_downloaded_at = models.DateTimeField(null=True, blank=True)
@@ -2181,6 +2198,8 @@ class CertificateAuditLog(models.Model):
         ('template_updated', 'Template Updated'),
         ('template_deleted', 'Template Deleted'),
         ('template_set_default', 'Template Set Default'),
+        ('email_sent', 'Certificate Emailed'),
+        ('email_failed', 'Certificate Email Failed'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

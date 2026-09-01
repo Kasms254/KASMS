@@ -364,6 +364,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'certificate.email': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'biometric.scheduler': {
             'handlers': ['console', 'biometric_file'],
             'level': 'INFO',

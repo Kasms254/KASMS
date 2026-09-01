@@ -8,6 +8,7 @@ import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import CommandantOrCILayout from './components/CommandantOrCILayout'
 import ChiefOfTrainingLayout from './components/ChiefOfTrainingLayout'
+import AlumniLayout from './components/AlumniLayout'
 import DashboardIndex from './components/DashboardIndex'
 import Login from './pages/Login'
 import Verify2FA from './pages/Verify2FA'
@@ -326,6 +327,13 @@ const App = () => {
 
 			{/* Student Certificates */}
 			<Route path="/list/my-certificates" element={<RoleProtectedLayout role="student" />}>
+				<Route index element={<StudentCertificates />} />
+			</Route>
+
+			{/* Alumni Dashboard — certificates-only landing for graduated
+			    students (role stays 'student'; see User.is_alumni). Backend
+			    enforcement lives in core/middleware.py, not here. */}
+			<Route path="/dashboard/alumni" element={<AlumniLayout />}>
 				<Route index element={<StudentCertificates />} />
 			</Route>
 

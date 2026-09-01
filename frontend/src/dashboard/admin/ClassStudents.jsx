@@ -118,8 +118,7 @@ export default function ClassStudents() {
     setLoading(true)
     setError(null)
     async function load() {
-      // Assign indexes to any un-indexed students first, then fetch roster
-      try { await api.assignClassIndexes(id) } catch {}
+
       const data = await api.getClassRoster(id)
       if (!mounted) return
       setStudents(mapRoster(data))

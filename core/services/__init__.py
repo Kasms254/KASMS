@@ -507,6 +507,19 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
                 exc_info=True,
             )
 
+    def _queue_certificate_email():
+
+        try:
+            from core.tasks import send_certificate_email
+            send_certificate_email.delay(str(certificate.id))
+        except Exception as e:
+            logger.error(
+                f"Failed to queue delivery email for {certificate.certificate_number}: {e}",
+                exc_info=True,
+            )
+
+    transaction.on_commit(_queue_certificate_email)
+
     return certificate, None
 
 def _resolve_default_template(school) -> Optional[CertificateTemplate]:
@@ -702,47 +715,25 @@ def _try_complete_membership(enrollment):
             if active_membership:
                 active_membership.complete()
 
-def assign_student_index(enrollment: Enrollment) -> StudentIndex:
-
-    if hasattr(enrollment, "student_index"):
-        raise ValueError(
-            f"Enrollment {enrollment.id} already has an index"
-            f"{enrollment.student_index.index_number}"
-        )
-
-    with transaction.atomic():
-        existing = (
-            StudentIndex.all_objects.select_for_update().filter(class_obj=enrollment.class_obj).order_by("-index_number")
-        )
-        if existing.exists():
-            last_num = int(existing.first().index_number)
-            next_num = last_num + 1
-        else:
-            next_num = enrollment.class_obj.index_start_from
-
-        index_str =  str(next_num).zfill(3)
-
-        student_index = StudentIndex.objects.create(
-            enrollment = enrollment,
-            class_obj = enrollment.class_obj,
-            index_number = index_str,
-            school = enrollment.school,
-        )
-    return student_index
-
 def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
-    
+
     with transaction.atomic():
+        class_obj = Class.all_objects.select_for_update().get(pk=class_obj.pk)
+
         existing_enrollment_ids = StudentIndex.all_objects.filter(
-            class_obj = class_obj
+            class_obj=class_obj
         ).values_list("enrollment_id", flat=True)
 
-        un_indexed = Enrollment.all_objects.filter(
-            class_obj=class_obj,
-            is_active=True,
-        ).exclude(
-            id__in=existing_enrollment_ids
-        ).select_for_update().order_by("enrollment_date", "id")
+        un_indexed = list(
+            Enrollment.all_objects.filter(
+                class_obj=class_obj,
+                is_active=True,
+            ).exclude(
+                id__in=existing_enrollment_ids
+            ).select_for_update().order_by("enrollment_date", "id")
+        )
+        if not un_indexed:
+            return []
 
         last = (
             StudentIndex.all_objects
@@ -769,6 +760,11 @@ def bulk_assign_indexes(class_obj) -> list[StudentIndex]:
 def renumber_class_indexes(class_obj) -> list[StudentIndex]:
 
     with transaction.atomic():
+ 
+        StudentIndex.all_objects.filter(
+            class_obj=class_obj,
+        ).exclude(enrollment__is_active=True).delete()
+
         indexes = list(
             StudentIndex.all_objects.select_for_update()
             .filter(class_obj=class_obj, enrollment__is_active=True)
