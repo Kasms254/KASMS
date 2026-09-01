@@ -72,6 +72,8 @@ export default function NavBar({
 
   // fetch notifications when opening bell
   async function fetchNotifications() {
+
+    if (user?.is_alumni) return
     const userRole = user?.role || 'student'
 
     setNotifsLoading(true)

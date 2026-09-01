@@ -12,6 +12,7 @@ from .models import (
     PAD_SUBJECT_KEYS,
 )
 from django.contrib.auth.password_validation import validate_password
+from django.urls import reverse
 import uuid
 from django.utils import timezone
 from django.db import transaction
@@ -548,6 +549,7 @@ class UserListSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     class_name = serializers.SerializerMethodField()
     has_active_enrollment = serializers.SerializerMethodField(read_only=True)
+    is_alumni = serializers.SerializerMethodField(read_only=True)
 
     is_hod = serializers.SerializerMethodField(read_only=True)
     hod_department = serializers.SerializerMethodField(read_only=True)
@@ -564,9 +566,13 @@ class UserListSerializer(serializers.ModelSerializer):
         if obj.role != 'student':
             return None
         return Enrollment.all_objects.filter(
-            student=obj, 
+            student=obj,
             is_active=True
         ).exists()
+
+    def get_is_alumni(self, obj):
+ 
+        return obj.is_alumni
 
     def get_school_name(self, obj):
         m = obj.active_membership
@@ -1843,12 +1849,14 @@ class CertificateSerializer(serializers.ModelSerializer):
         return obj.revoked_by.get_full_name() if obj.revoked_by else None
 
     def get_download_url(self, obj):
-        if obj.certificate_file:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.certificate_file.url)
-            return obj.certificate_file.url
-        return None
+        if not obj.certificate_file:
+            return None
+
+        path = reverse('core:certificate-download', kwargs={'pk': obj.pk})
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(path)
+        return path
 
 class CertificateListSerializer(serializers.ModelSerializer):
 

@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
-from django.conf.urls.static import static
 from django.views.static import serve
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -59,10 +58,13 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("core.urls")),
     path('iclock/', include('core.adms_urls')),
-    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+
+    re_path(r'^media/(?!certificates/)(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# No DEBUG-mode static() fallback for MEDIA_URL: the re_path above already
+# serves all non-certificate media unconditionally, and appending the
+# unfiltered static() helper here would re-expose certificate PDFs in
+# development, bypassing the exclusion above.

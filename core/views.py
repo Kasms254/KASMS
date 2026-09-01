@@ -5925,7 +5925,9 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         certificate.record_view()
         return HttpResponse(html_bytes, content_type='text/html')
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.ISSUE),
+    ])
     def regenerate(self, request, pk=None):
         certificate = self.get_object()
         try:
@@ -5942,7 +5944,9 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, RequiresCertificateCapability(CertificateCapability.REVOKE),
+    ])
     def revoke(self, request, pk=None):
         certificate = self.get_object()
         if certificate.status == 'revoked':

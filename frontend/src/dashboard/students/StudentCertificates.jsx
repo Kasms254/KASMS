@@ -77,6 +77,21 @@ export default function StudentCertificates() {
                   <button
                     onClick={async () => {
                       try {
+                        const blob = await api.previewIssuedCertificate(cert.id)
+                        const url = URL.createObjectURL(blob)
+                        window.open(url, '_blank', 'noopener,noreferrer')
+                        setTimeout(() => URL.revokeObjectURL(url), 60000)
+                      } catch (err) {
+                        toast?.error?.(err?.message || 'Failed to preview certificate')
+                      }
+                    }}
+                    className="px-3 py-1 rounded-md border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 transition"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
                         const blob = await api.downloadCertificatePdf(cert.id)
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')

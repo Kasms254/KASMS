@@ -218,6 +218,10 @@ class SchoolAccessMiddleware(MiddlewareMixin):
         '/api/schools/',
     ]
 
+    ALUMNI_ALLOWED_PATHS = [
+        '/api/certificates/',
+    ]
+
     def process_request(self, request):
 
         for path in self.EXEMPT_PATHS:
@@ -227,6 +231,16 @@ class SchoolAccessMiddleware(MiddlewareMixin):
         user = getattr(request, '_jwt_user', None)
         if not user or user.role in ('superadmin', 'chief_of_training'):
             return None
+
+        if user.role == 'student' and user.is_alumni:
+            request.is_alumni = True
+            for path in self.ALUMNI_ALLOWED_PATHS:
+                if request.path.startswith(path):
+                    return None
+            return JsonResponse({
+                'error': 'Access Denied',
+                'detail': 'Alumni accounts can only access certificates.',
+            }, status=403)
 
         current_school = get_current_school()
         if not current_school:

@@ -559,6 +559,17 @@ class User(AbstractUser):
         membership = self.active_membership
         return membership.role if membership else self.role
 
+    @property
+    def is_alumni(self):
+
+        if self.role != 'student':
+            return False
+        if self.active_membership is not None:
+            return False
+        return self.school_memberships.filter(
+            status=SchoolMembership.Status.COMPLETED,
+        ).exists()
+
     def get_membership_for_school(self, school):
         return self.school_memberships.filter(
             school=school
@@ -2015,6 +2026,10 @@ class Certificate(models.Model):
         null=True, blank=True,
     )
     file_generated_at = models.DateTimeField(null=True, blank=True)
+    certificate_emailed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Set atomically by the delivery task to claim the send and prevent duplicates.',
+    )
 
     download_count = models.IntegerField(default=0)
     last_downloaded_at = models.DateTimeField(null=True, blank=True)
@@ -2181,6 +2196,8 @@ class CertificateAuditLog(models.Model):
         ('template_updated', 'Template Updated'),
         ('template_deleted', 'Template Deleted'),
         ('template_set_default', 'Template Set Default'),
+        ('email_sent', 'Certificate Emailed'),
+        ('email_failed', 'Certificate Email Failed'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

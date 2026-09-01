@@ -230,12 +230,13 @@ def check_student_can_login(user):
         class_obj__is_active=True,
     ).exists()
 
-    if not has_active_enrollment:
-        return False, (
-            'Your enrollment is not active. '
-            'Please contact your school administrator.'
-        )
-    return True, None
+    if has_active_enrollment or user.is_alumni:
+        return True, None
+
+    return False, (
+        'Your enrollment is not active. '
+        'Please contact your school administrator.'
+    )
 
 def _reject_if_ineligible_for_login(user):
 
@@ -243,7 +244,8 @@ def _reject_if_ineligible_for_login(user):
         has_active_membership = SchoolMembership.all_objects.filter(
             user=user, status='active',
         ).exists()
-        if not has_active_membership:
+
+        if not has_active_membership and not user.is_alumni:
             history = SchoolMembership.all_objects.filter(
                 user=user,
             ).select_related('school').order_by('-ended_at')

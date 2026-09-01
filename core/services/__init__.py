@@ -507,6 +507,19 @@ def issue_certificate(enrollment, issued_by, *, template: CertificateTemplate = 
                 exc_info=True,
             )
 
+    def _queue_certificate_email():
+
+        try:
+            from core.tasks import send_certificate_email
+            send_certificate_email.delay(str(certificate.id))
+        except Exception as e:
+            logger.error(
+                f"Failed to queue delivery email for {certificate.certificate_number}: {e}",
+                exc_info=True,
+            )
+
+    transaction.on_commit(_queue_certificate_email)
+
     return certificate, None
 
 def _resolve_default_template(school) -> Optional[CertificateTemplate]:
