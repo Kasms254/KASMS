@@ -21,6 +21,7 @@ class AuditAction(models.TextChoices):
     PRIVILEGE_CHANGED = 'privilege_changed', 'Privilege Changed'
 
     MEMBERSHIP_ROLE_CHANGED = 'membership_role_changed', 'School Membership Role Changed'
+    MEMBERSHIP_TRANSFERRED = 'membership_transferred', 'School Membership Transferred'
     DEPARTMENT_ROLE_CHANGED = 'department_role_changed', 'Department Membership Role Changed'
     OIC_ASSIGNED = 'oic_assigned', 'OIC Assigned'
     OIC_UNASSIGNED = 'oic_unassigned', 'OIC Unassigned'

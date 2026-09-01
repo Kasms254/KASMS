@@ -217,6 +217,8 @@ class SchoolEnrollmentSerializer(serializers.Serializer):
                 membership=membership,
                 is_active=True,
             )
+            from .services import bulk_assign_indexes
+            bulk_assign_indexes(class_obj)
 
         return membership
 
@@ -519,6 +521,9 @@ class UserSerializer(serializers.ModelSerializer):
                     enrolled_by=enrolled_by,
                     is_active=True,
                 )
+
+                from .services import bulk_assign_indexes
+                bulk_assign_indexes(class_obj)
         return user
 
     def update(self, instance, validated_data):
@@ -964,8 +969,15 @@ class EnrollmentSerializer(serializers.ModelSerializer):
                           f"{active_enrollment.school.name if active_enrollment.school else 'another school'}. "
                           "They must complete or withdraw from that enrollment first."
             })
-        
+
         return attrs
+
+    def create(self, validated_data):
+        enrollment = super().create(validated_data)
+        if enrollment.is_active:
+            from .services import bulk_assign_indexes
+            bulk_assign_indexes(enrollment.class_obj)
+        return enrollment
 
 class SafeDateTimeField(serializers.DateTimeField):
     def to_representation(self, value):

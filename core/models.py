@@ -184,14 +184,16 @@ class SchoolMembership(models.Model):
         ).update(is_active=False, completion_date=timezone.now().date())
 
     def transfer(self, to_school):
-        self.status = self.Status.TRANSFERRED
-        self.ended_at = timezone.now()
-        self.transfer_to = to_school
-        self.save()
-        return SchoolMembership.objects.create(
-            user=self.user, school=to_school,
-            role=self.role, status=self.Status.ACTIVE
-        )
+
+        with transaction.atomic():
+            self.status = self.Status.TRANSFERRED
+            self.ended_at = timezone.now()
+            self.transfer_to = to_school
+            self.save()
+            return SchoolMembership.objects.create(
+                user=self.user, school=to_school,
+                role=self.role, status=self.Status.ACTIVE
+            )
 
     def reactivate(self):
         if SchoolMembership.all_objects.filter(
