@@ -20,6 +20,7 @@ export default function ClassCertificates() {
   const [issueReport, setIssueReport] = useState(null)
   const [closing, setClosing] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [confirmIssue, setConfirmIssue] = useState(null)
   const [previewModal, setPreviewModal] = useState(null)
   const [templates, setTemplates] = useState([])
   const [selectedTemplateId, setSelectedTemplateId] = useState(null)
@@ -88,10 +89,11 @@ export default function ClassCertificates() {
     try {
       const result = await api.issueCertificateSingle(classId, enrollmentId, selectedTemplateId)
       reportSuccess(`Certificate issued for ${studentName}: ${result.certificate_number}`)
-      setPreviewModal(null)
+      setConfirmIssue(null)
       await loadCompletionStatus()
     } catch (err) {
       reportError(extractError(err, `Failed to issue certificate for ${studentName}`))
+      setConfirmIssue(null)
     } finally {
       setIssuingSingle(null)
     }
@@ -175,6 +177,7 @@ export default function ClassCertificates() {
   const totalStudents = completionData?.total_students || 0
   const academicallyComplete = completionData?.academically_complete || 0
   const certificatesIssued = completionData?.certificates_issued || 0
+  const certificatesRevoked = completionData?.certificates_revoked || 0
 
 // for issuance of excellence and participation certificates
   const selectedTemplate = templates.find((t) => String(t.id) === String(selectedTemplateId))
@@ -185,6 +188,9 @@ export default function ClassCertificates() {
   const awaitingIssue = students.filter(
     (st) => !st.has_certificate && (requiresGrades ? st.is_academically_complete : true),
   ).length
+  // The banner counts every student still without a certificate, eligible or not.
+  const awaitingAny = completionData?.awaiting_issue
+    ?? students.filter((st) => !st.has_certificate).length
 
   // Search, filter & pagination
   const filtered = students.filter((st) => {
@@ -273,7 +279,10 @@ export default function ClassCertificates() {
               <span className="text-neutral-600">Students: <strong className="text-black">{totalStudents}</strong></span>
               <span className="text-emerald-600">Coursework complete: <strong>{academicallyComplete}</strong></span>
               <span className="text-indigo-600">Certificates issued: <strong>{certificatesIssued}</strong></span>
-              <span className="text-amber-600">Awaiting issue: <strong>{totalStudents - certificatesIssued}</strong></span>
+              {certificatesRevoked > 0 && (
+                <span className="text-red-600">Revoked: <strong>{certificatesRevoked}</strong></span>
+              )}
+              <span className="text-amber-600">Awaiting issue: <strong>{awaitingAny}</strong></span>
               {!classInfo.is_closed && (
                 <button
                   onClick={() => setConfirmClose(true)}
@@ -454,18 +463,31 @@ export default function ClassCertificates() {
                       </button>
                     </>
                   ) : (requiresGrades ? st.is_academically_complete : true) ? (
-                    <button
-                      onClick={() => openPreview(st.enrollment_id, st.student_name)}
-                      disabled={issuingSingle === st.enrollment_id}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                    >
-                      {issuingSingle === st.enrollment_id ? (
-                        <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <LucideIcons.Eye className="w-3 h-3" />
-                      )}
-                      {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Preview'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openPreview(st.enrollment_id, st.student_name)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200 transition"
+                      >
+                        {previewModal?.enrollmentId === st.enrollment_id && previewModal.loading ? (
+                          <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <LucideIcons.Eye className="w-3 h-3" />
+                        )}
+                        Preview
+                      </button>
+                      <button
+                        onClick={() => setConfirmIssue({ enrollmentId: st.enrollment_id, studentName: st.student_name })}
+                        disabled={issuingSingle === st.enrollment_id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        {issuingSingle === st.enrollment_id ? (
+                          <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <LucideIcons.Award className="w-3 h-3" />
+                        )}
+                        {issuingSingle === st.enrollment_id ? 'Issuing...' : 'Issue'}
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-500 font-medium">
                       Not issued
@@ -576,9 +598,55 @@ export default function ClassCertificates() {
         </div>
       )}
 
-      {/* Certificate Preview Modal — read-only. Issuing happens from here,
-          via the existing issue_certificate_single flow, which re-validates
-          eligibility on its own rather than trusting this preview. */}
+      {/* Confirm Single Issue Modal — issuance mints a certificate number, so
+          it is confirmed on its own rather than triggered from a preview. */}
+      {confirmIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmIssue(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.Award className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-black">Issue Certificate</h4>
+                  <p className="text-sm text-neutral-500">A certificate number will be assigned.</p>
+                </div>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4">
+                Issue a certificate for <strong className="text-black">{confirmIssue.studentName}</strong> using{' '}
+                <strong className="text-black">{selectedTemplate?.name || 'the default template'}</strong>?
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setConfirmIssue(null)}
+                  disabled={issuingSingle === confirmIssue.enrollmentId}
+                  className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSingleIssue(confirmIssue.enrollmentId, confirmIssue.studentName)}
+                  disabled={issuingSingle === confirmIssue.enrollmentId}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {issuingSingle === confirmIssue.enrollmentId ? (
+                    <LucideIcons.Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LucideIcons.Award className="w-4 h-4" />
+                  )}
+                  {issuingSingle === confirmIssue.enrollmentId ? 'Issuing...' : 'Issue Certificate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Preview Modal — strictly read-only. Issuing is a separate
+          action on the student row, so opening a preview can never create a
+          certificate or consume a certificate number. */}
       {previewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPreviewModal(null)} />
@@ -667,22 +735,9 @@ export default function ClassCertificates() {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 p-4 border-t border-neutral-100 flex-shrink-0">
+              <div className="flex justify-end p-4 border-t border-neutral-100 flex-shrink-0">
                 <button onClick={() => setPreviewModal(null)} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition">
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSingleIssue(previewModal.enrollmentId, previewModal.studentName)}
-                  disabled={!previewModal.data?.eligible || issuingSingle === previewModal.enrollmentId}
-                  title={!previewModal.data?.eligible ? 'This certificate is not currently eligible for issuance' : undefined}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {issuingSingle === previewModal.enrollmentId ? (
-                    <LucideIcons.Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <LucideIcons.Award className="w-4 h-4" />
-                  )}
-                  {issuingSingle === previewModal.enrollmentId ? 'Issuing...' : 'Issue Certificate'}
+                  Close
                 </button>
               </div>
             </div>
