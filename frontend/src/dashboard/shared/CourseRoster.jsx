@@ -22,10 +22,7 @@ const PAD_SUBJECTS = [
 
 const DEPLOYMENT_OPTIONS = [
   'Strongly recommended for Classroom-based Instructional roles',
-  'Recommended for Field Deployment',
-  'Recommended for Logistical Support roles',
-  'Recommended with reservations',
-  'Not recommended at this time – requires further development',
+  'Not recommended at this time,requires further development',
 ]
 
 const INSTRUCTOR_FIELDS_DEFAULT = {
