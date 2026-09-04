@@ -21,6 +21,7 @@ export default function ClassCertificates() {
   const [closing, setClosing] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [confirmIssue, setConfirmIssue] = useState(null)
+  const [confirmBulk, setConfirmBulk] = useState(false)
   const [previewModal, setPreviewModal] = useState(null)
   const [templates, setTemplates] = useState([])
   const [selectedTemplateId, setSelectedTemplateId] = useState(null)
@@ -68,6 +69,7 @@ export default function ClassCertificates() {
     try {
       const report = await api.issueCertificates(classId, selectedTemplateId)
       setIssueReport(report)
+      setConfirmBulk(false)
       if (report.issued_count > 0) {
         reportSuccess(`${report.issued_count} certificate(s) issued successfully`)
       }
@@ -79,6 +81,7 @@ export default function ClassCertificates() {
       await loadCompletionStatus()
     } catch (err) {
       reportError(extractError(err, 'Failed to issue certificates'))
+      setConfirmBulk(false)
     } finally {
       setIssuingAll(false)
     }
@@ -238,7 +241,7 @@ export default function ClassCertificates() {
               ))}
             </select>
             <button
-              onClick={handleBulkIssue}
+              onClick={() => setConfirmBulk(true)}
               disabled={issuingAll || eligibleCount === 0 || awaitingIssue === 0}
               title={awaitingIssue === 0 && eligibleCount > 0 ? 'Every eligible student already has a certificate' : undefined}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap"
@@ -591,6 +594,55 @@ export default function ClassCertificates() {
                 <button onClick={handleCloseClass} disabled={closing} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                   {closing ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Lock className="w-4 h-4" />}
                   {closing ? 'Closing...' : 'Close Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Bulk Issue Modal — bulk issue mints a certificate number for
+          every eligible student in one go, so it is confirmed the same way a
+          single issue is. */}
+      {confirmBulk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmBulk(false)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
+            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.Award className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-black">Issue All Certificates</h4>
+                  <p className="text-sm text-neutral-500">A certificate number will be assigned to each student.</p>
+                </div>
+              </div>
+              <p className="text-sm text-neutral-600 mb-2">
+                Issue certificates for <strong className="text-black">{awaitingIssue}</strong>{' '}
+                {awaitingIssue === 1 ? 'student' : 'students'} in{' '}
+                <strong className="text-black">{classInfo.name || `Class ${classId}`}</strong> using{' '}
+                <strong className="text-black">{selectedTemplate?.name || 'the default template'}</strong>?
+              </p>
+              <div className="text-xs text-neutral-500 bg-neutral-50 rounded-lg p-3 mb-4 space-y-1">
+                <p>Students who already hold a certificate are skipped.</p>
+                
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setConfirmBulk(false)}
+                  disabled={issuingAll}
+                  className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkIssue}
+                  disabled={issuingAll}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {issuingAll ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Award className="w-4 h-4" />}
+                  {issuingAll ? 'Issuing...' : `Issue ${awaitingIssue} Certificate${awaitingIssue === 1 ? '' : 's'}`}
                 </button>
               </div>
             </div>
