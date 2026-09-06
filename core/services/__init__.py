@@ -4,7 +4,8 @@ from django.db.models import Q, Exists, OuterRef, Subquery, Avg, Count, Max
 from core.models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
-    AttendanceSession, SessionAttendance, StudentIndex, AssessmentComponent, StudentComponentResult)
+    AttendanceSession, SessionAttendance, StudentIndex, AssessmentComponent, StudentComponentResult,
+    CourseReport)
 from django.conf import settings
 import io
 import os
@@ -642,6 +643,134 @@ def close_class(class_obj, closed_by):
 
     class_obj.closure_snapshot = _build_closure_snapshot(class_obj)
     class_obj.save(update_fields=['closure_snapshot'])
+
+    return True, None
+
+def _delete_course_report_files(report):
+
+    for field_name in ('report_file', 'photo'):
+        field = getattr(report, field_name)
+        if not field:
+            continue
+        try:
+            field.delete(save=False)
+        except Exception:
+            logger.exception(
+                "Failed to delete stored '%s' for CourseReport %s during deletion",
+                field_name, report.pk,
+            )
+
+
+def delete_course_report(report, deleted_by, *, reason):
+    """Deletes a single CourseReport as a deliberate, audited operation —
+    the one place both the DRF path and Django admin route CourseReport
+    deletion through, so neither can silently skip the file cleanup or the
+    audit write.
+
+    Must only be called on a report that is NOT 'approved' — callers are
+    responsible for that check. CourseReportStageRemark rows cascade with
+    the report. CourseReportAuditLog rows also cascade (bypassing that
+    model's own delete() guard, since Django's cascade collector issues a
+    bulk SQL delete rather than calling per-instance .delete()) — the
+    durable record of this deletion is therefore written to the generic
+    audit.AuditLog *before* the row is removed, not left to CourseReportAuditLog.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from audit.services import audit_event
+    from audit.constants import AuditAction
+
+    audit_event(
+        AuditAction.DELETE_COURSE_REPORT,
+        actor=deleted_by,
+        target_content_type=ContentType.objects.get_for_model(report),
+        target_object_id=str(report.pk),
+        target_repr=str(report),
+        school=report.school,
+        metadata={
+            'student_id': str(report.enrollment.student_id),
+            'student_name': report.enrollment.student.get_full_name(),
+            'enrollment_id': str(report.enrollment_id),
+            'class_id': str(report.class_obj_id),
+            'class_name': str(report.class_obj),
+            'previous_status': report.status,
+            'reason': reason,
+        },
+    )
+
+    _delete_course_report_files(report)
+    report.delete()
+
+
+def student_deletion_block_reason(student):
+    """Returns an error message if `student` cannot be deleted right now
+    (an approved CourseReport or an issued Certificate exists), or None if
+    deletion is currently permitted. Shared by the DRF service function
+    below and by UserAdmin.has_delete_permission, so both surfaces agree
+    on exactly the same rule instead of drifting apart.
+
+    NOT locked — callers that are about to actually delete must re-check
+    under a lock (see delete_student_with_reports) rather than trusting a
+    bare call to this function, which is only a point-in-time read.
+    """
+    if CourseReport.objects.filter(enrollment__student=student, status='approved').exists():
+        return (
+            'This student cannot be deleted because they have an approved '
+            'course report. Deactivate the user instead.'
+        )
+
+    if Certificate.objects.filter(student=student).exists():
+        return (
+            'This student cannot be deleted because they have an issued '
+            'certificate that must be preserved. Deactivate the user instead.'
+        )
+
+    return None
+
+
+def delete_student_with_reports(student, deleted_by):
+    """Deletes a student, first explicitly deleting any non-approved
+    CourseReports (which otherwise PROTECT the Enrollment they belong to).
+
+    Rejects the ENTIRE operation — no partial deletion — if the student has
+    any 'approved' CourseReport (a signed institutional record) or any
+    issued Certificate, since both must be preserved rather than silently
+    cascade-deleted. Callers should present the returned error to the user
+    and offer deactivation instead.
+
+    The whole check-then-delete sequence runs inside one transaction with
+    the student's CourseReport rows locked via select_for_update(): a
+    concurrent submit()/advance() trying to approve one of those reports
+    blocks on that lock until this transaction finishes, so a report can't
+    be approved out from under a deletion that already decided to proceed
+    (closes the TOCTOU window between the approved-report check and the
+    delete). Certificate issuance is not locked — a concurrent certificate
+    issue racing an in-flight deletion is a separate, much narrower window
+    not addressed here.
+
+    Returns (True, None) on success, or (False, error_message) if blocked.
+    """
+    with transaction.atomic():
+        reports = list(
+            CourseReport.objects.select_for_update()
+            .filter(enrollment__student=student)
+            .select_related('enrollment__student', 'class_obj', 'school')
+        )
+
+        if any(r.status == 'approved' for r in reports):
+            return False, (
+                'This student cannot be deleted because they have an approved '
+                'course report. Deactivate the user instead.'
+            )
+
+        if Certificate.objects.filter(student=student).exists():
+            return False, (
+                'This student cannot be deleted because they have an issued '
+                'certificate that must be preserved. Deactivate the user instead.'
+            )
+
+        for report in reports:
+            delete_course_report(report, deleted_by, reason='student_deleted')
+        student.delete()
 
     return True, None
 

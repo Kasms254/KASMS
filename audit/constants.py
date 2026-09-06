@@ -13,6 +13,7 @@ class AuditAction(models.TextChoices):
     DELETE_COURSE = 'delete_course', 'Course Deleted'
     DELETE_CLASS = 'delete_class', 'Class Deleted'
     DELETE_CERTIFICATE = 'delete_certificate', 'Certificate Deleted'
+    DELETE_COURSE_REPORT = 'delete_course_report', 'Course Report Deleted'
 
     CREATE_USER = 'create_user', 'User Created'
     ROLE_CHANGED = 'role_changed', 'Role Changed'

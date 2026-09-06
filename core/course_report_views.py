@@ -50,10 +50,10 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             raise Http404
 
     def _get_instructor_class_ids(self):
+
         return Class.objects.filter(
             school=self._get_school(),
             instructor=self.request.user,
-            is_active=True,
         ).values_list('id', flat=True)
 
     def _get_oic_class_ids(self):
