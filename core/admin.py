@@ -163,33 +163,13 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
         return super().response_add(request, obj, post_url_continue)
 
     def has_delete_permission(self, request, obj=None):
-        # A student with an approved course report or an issued certificate
-        # must never be deletable — not even through Django admin. This
-        # mirrors UserViewSet.destroy()'s student-deletion rule exactly
-        # (same shared helper) rather than reimplementing it, and it is
-        # enforced by Django itself for both the single-object delete view
-        # and the bulk "delete selected" action (both consult
-        # has_delete_permission per object before allowing anything to be
-        # deleted — see contrib.admin.utils.get_deleted_objects).
+
         if obj is not None and obj.role == 'student' and student_deletion_block_reason(obj) is not None:
             return False
         return super().has_delete_permission(request, obj)
 
     def get_deleted_objects(self, objs, request):
-        # Django's own delete confirmation page pre-computes what deleting
-        # `objs` would cascade into via a generic Collector (NestedObjects),
-        # and if that collector hits ANY on_delete=PROTECT relation it
-        # marks the whole deletion "protected" and refuses to proceed —
-        # unconditionally, before has_delete_permission's actual rule or
-        # delete_model ever run. CourseReport.enrollment is PROTECT, so a
-        # student with only DRAFT reports (which has_delete_permission
-        # above correctly allows) would still get blocked here by the
-        # generic collector, which has no concept of "draft vs approved".
-        #
-        # Only intervene for the single-object case where we've already
-        # confirmed (via the same rule has_delete_permission uses) that
-        # deletion is genuinely permitted and reports actually exist —
-        # otherwise defer entirely to Django's real, accurate collector.
+
         if len(objs) == 1:
             obj = objs[0]
             if getattr(obj, 'role', None) == 'student' and student_deletion_block_reason(obj) is None:
@@ -205,15 +185,11 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
 
     def delete_model(self, request, obj):
         if obj.role == 'student':
-            # Capture the audit snapshot before deletion — delete_student_
-            # with_reports() mutates obj.pk to None once student.delete()
-            # runs, same reason the base AuditedAdminDeleteMixin captures
-            # identity before deleting.
+
             self._audit_single_delete(request, obj)
             success, error = delete_student_with_reports(obj, request.user)
             if not success:
-                # has_delete_permission should already have prevented
-                # reaching this point — only a genuine race gets here.
+
                 raise PermissionDenied(error)
             return
         super().delete_model(request, obj)
@@ -223,11 +199,7 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
         others = [u for u in queryset if u.role != 'student']
 
         if students:
-            # has_delete_permission already refused the whole bulk action
-            # if any selected student were blocked, so every student here
-            # is known-deletable — but delete_student_with_reports is still
-            # called per-student (rather than a bare bulk cascade) so each
-            # one gets its non-approved-report file cleanup and audit trail.
+ 
             self._audit_bulk_delete(request, students)
             for student in students:
                 success, error = delete_student_with_reports(student, request.user)
@@ -261,14 +233,7 @@ class ClassAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
     ordering = ['-created_at']
 
     def has_delete_permission(self, request, obj=None):
-        # Mirrors ClassViewSet.destroy()'s hard-delete guard exactly — a
-        # class with any CourseReport or Certificate must never be
-        # deletable through admin either. Checked explicitly here (not left
-        # to the accidental protection CourseReport.enrollment=PROTECT
-        # happens to provide during cascade collection), so it stays
-        # correct even if that FK's on_delete ever changes for unrelated
-        # reasons. Django enforces this for both the single-object delete
-        # view and the bulk "delete selected" action.
+
         if obj is not None and (
             CourseReport.objects.filter(class_obj=obj).exists()
             or Certificate.objects.filter(class_obj=obj).exists()
@@ -438,18 +403,7 @@ class CertificateAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, admin.ModelAdm
     raw_id_fields = ['school', 'student', 'issued_by']
 
     def has_delete_permission(self, request, obj=None):
-        # Certificates are permanent institutional records — never
-        # admin-deletable, full stop. This is deliberately unconditional
-        # (not just "not revoked") because there is no supported "undo an
-        # issued certificate" flow other than the existing revoke action,
-        # which changes status rather than removing the row.
-        #
-        # This also acts as a project-wide backstop for every OTHER admin
-        # deletion path whose cascade could reach a Certificate (Class,
-        # User, Enrollment, and anything above them) — Django's own
-        # get_deleted_objects() checks has_delete_permission() on every
-        # object collected into a cascade, not just the one being directly
-        # deleted, so a single guard here protects all of them at once.
+
         if obj is not None:
             return False
         return super().has_delete_permission(request, obj)
@@ -621,14 +575,7 @@ class CourseReportAuditLogInline(admin.TabularInline):
  
 @admin.register(CourseReport)
 class CourseReportAdmin(admin.ModelAdmin):
-    # Deletion is NOT routed through AuditedAdminDeleteMixin here: it would
-    # only call obj.delete()/queryset.delete() directly, skipping file
-    # cleanup and writing a thinner audit event than the shared service
-    # produces. delete_model/delete_queryset below call
-    # core.services.delete_course_report() instead — the same function the
-    # DRF-adjacent student-deletion path uses — so there is exactly one
-    # audit event and one file-cleanup implementation for a CourseReport
-    # deletion, not two.
+
     list_display = (
         'id', 'get_student_name', 'get_class_name',
         'status', 'is_active', 'created_at',
@@ -647,8 +594,7 @@ class CourseReportAdmin(admin.ModelAdmin):
     inlines = [CourseReportStageRemarkInline, CourseReportAuditLogInline]
 
     def has_delete_permission(self, request, obj=None):
-        # An approved report is a signed institutional record — it must
-        # never be deletable through admin, even by staff with delete perms.
+
         if obj is not None and obj.status == 'approved':
             return False
         return super().has_delete_permission(request, obj)
@@ -657,9 +603,7 @@ class CourseReportAdmin(admin.ModelAdmin):
         delete_course_report(obj, request.user, reason='admin_deleted')
 
     def delete_queryset(self, request, queryset):
-        # has_delete_permission already refused the whole bulk action if
-        # any selected report were approved, so every report here is
-        # known-deletable.
+
         for report in queryset:
             delete_course_report(report, request.user, reason='admin_deleted')
 
