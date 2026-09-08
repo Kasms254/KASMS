@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
+from .services import delete_student_with_reports, student_deletion_block_reason, delete_course_report
 from .models import (
     User,StudentIndex, Course, Class, Enrollment, Subject, Notice, Exam, 
     ExamReport, Attendance, ExamResult, ClassNotice, School, PersonalNotification, NoticeReadStatus, ClassNoticeReadStatus,
@@ -160,6 +162,54 @@ class UserAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, BaseUserAdmin):
         obj.clear_membership_cache()
         return super().response_add(request, obj, post_url_continue)
 
+    def has_delete_permission(self, request, obj=None):
+
+        if obj is not None and obj.role == 'student' and student_deletion_block_reason(obj) is not None:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_deleted_objects(self, objs, request):
+
+        if len(objs) == 1:
+            obj = objs[0]
+            if getattr(obj, 'role', None) == 'student' and student_deletion_block_reason(obj) is None:
+                reports = list(
+                    CourseReport.objects.filter(enrollment__student=obj)
+                    .select_related('class_obj')
+                )
+                if reports:
+                    to_delete = [str(obj)] + [f'Course report: {r}' for r in reports]
+                    model_count = {'users': 1, 'course reports': len(reports)}
+                    return to_delete, model_count, set(), []
+        return super().get_deleted_objects(objs, request)
+
+    def delete_model(self, request, obj):
+        if obj.role == 'student':
+
+            self._audit_single_delete(request, obj)
+            success, error = delete_student_with_reports(obj, request.user)
+            if not success:
+
+                raise PermissionDenied(error)
+            return
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        students = [u for u in queryset if u.role == 'student']
+        others = [u for u in queryset if u.role != 'student']
+
+        if students:
+ 
+            self._audit_bulk_delete(request, students)
+            for student in students:
+                success, error = delete_student_with_reports(student, request.user)
+                if not success:
+                    raise PermissionDenied(error)
+
+        if others:
+            self._audit_bulk_delete(request, others)
+            User.all_objects.filter(pk__in=[u.pk for u in others]).delete()
+
 @admin.register(Course)
 class CourseAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
     audit_delete_action = AuditAction.DELETE_COURSE
@@ -181,6 +231,15 @@ class ClassAdmin(AuditedAdminDeleteMixin, admin.ModelAdmin):
     list_filter = ('course', 'instructor', 'is_active', 'start_date')
     search_fields = ('name', 'course__name', 'instructor__username')
     ordering = ['-created_at']
+
+    def has_delete_permission(self, request, obj=None):
+
+        if obj is not None and (
+            CourseReport.objects.filter(class_obj=obj).exists()
+            or Certificate.objects.filter(class_obj=obj).exists()
+        ):
+            return False
+        return super().has_delete_permission(request, obj)
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -342,6 +401,12 @@ class CertificateAdmin(AuditedAdminDeleteMixin, TenantAdminMixin, admin.ModelAdm
     list_filter = ['issued_by', 'school']
     ordering = ['-school', 'certificate_number']
     raw_id_fields = ['school', 'student', 'issued_by']
+
+    def has_delete_permission(self, request, obj=None):
+
+        if obj is not None:
+            return False
+        return super().has_delete_permission(request, obj)
 
 @admin.register(StudentIndex)
 class StudentIndexAdmin(admin.ModelAdmin):
@@ -510,6 +575,7 @@ class CourseReportAuditLogInline(admin.TabularInline):
  
 @admin.register(CourseReport)
 class CourseReportAdmin(admin.ModelAdmin):
+
     list_display = (
         'id', 'get_student_name', 'get_class_name',
         'status', 'is_active', 'created_at',
@@ -526,7 +592,21 @@ class CourseReportAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'created_at', 'updated_at')
     raw_id_fields = ('enrollment', 'class_obj', 'school', 'created_by')
     inlines = [CourseReportStageRemarkInline, CourseReportAuditLogInline]
- 
+
+    def has_delete_permission(self, request, obj=None):
+
+        if obj is not None and obj.status == 'approved':
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def delete_model(self, request, obj):
+        delete_course_report(obj, request.user, reason='admin_deleted')
+
+    def delete_queryset(self, request, queryset):
+
+        for report in queryset:
+            delete_course_report(report, request.user, reason='admin_deleted')
+
     def get_student_name(self, obj):
         student = obj.enrollment.student
         return f"{student.first_name} {student.last_name}".strip() or student.username

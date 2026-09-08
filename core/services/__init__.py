@@ -4,7 +4,8 @@ from django.db.models import Q, Exists, OuterRef, Subquery, Avg, Count, Max
 from core.models import (
     Subject, Enrollment, Exam, ExamResult, Class, Certificate,
     CertificateTemplate, CertificateDownloadLog, SchoolMembership,
-    AttendanceSession, SessionAttendance, StudentIndex, AssessmentComponent, StudentComponentResult)
+    AttendanceSession, SessionAttendance, StudentIndex, AssessmentComponent, StudentComponentResult,
+    CourseReport)
 from django.conf import settings
 import io
 import os
@@ -642,6 +643,93 @@ def close_class(class_obj, closed_by):
 
     class_obj.closure_snapshot = _build_closure_snapshot(class_obj)
     class_obj.save(update_fields=['closure_snapshot'])
+
+    return True, None
+
+def _delete_course_report_files(report):
+
+    for field_name in ('report_file', 'photo'):
+        field = getattr(report, field_name)
+        if not field:
+            continue
+        try:
+            field.delete(save=False)
+        except Exception:
+            logger.exception(
+                "Failed to delete stored '%s' for CourseReport %s during deletion",
+                field_name, report.pk,
+            )
+
+
+def delete_course_report(report, deleted_by, *, reason):
+
+    from django.contrib.contenttypes.models import ContentType
+    from audit.services import audit_event
+    from audit.constants import AuditAction
+
+    audit_event(
+        AuditAction.DELETE_COURSE_REPORT,
+        actor=deleted_by,
+        target_content_type=ContentType.objects.get_for_model(report),
+        target_object_id=str(report.pk),
+        target_repr=str(report),
+        school=report.school,
+        metadata={
+            'student_id': str(report.enrollment.student_id),
+            'student_name': report.enrollment.student.get_full_name(),
+            'enrollment_id': str(report.enrollment_id),
+            'class_id': str(report.class_obj_id),
+            'class_name': str(report.class_obj),
+            'previous_status': report.status,
+            'reason': reason,
+        },
+    )
+
+    _delete_course_report_files(report)
+    report.delete()
+
+
+def student_deletion_block_reason(student):
+
+    if CourseReport.objects.filter(enrollment__student=student, status='approved').exists():
+        return (
+            'This student cannot be deleted because they have an approved '
+            'course report. Deactivate the user instead.'
+        )
+
+    if Certificate.objects.filter(student=student).exists():
+        return (
+            'This student cannot be deleted because they have an issued '
+            'certificate that must be preserved. Deactivate the user instead.'
+        )
+
+    return None
+
+
+def delete_student_with_reports(student, deleted_by):
+
+    with transaction.atomic():
+        reports = list(
+            CourseReport.objects.select_for_update()
+            .filter(enrollment__student=student)
+            .select_related('enrollment__student', 'class_obj', 'school')
+        )
+
+        if any(r.status == 'approved' for r in reports):
+            return False, (
+                'This student cannot be deleted because they have an approved '
+                'course report. Deactivate the user instead.'
+            )
+
+        if Certificate.objects.filter(student=student).exists():
+            return False, (
+                'This student cannot be deleted because they have an issued '
+                'certificate that must be preserved. Deactivate the user instead.'
+            )
+
+        for report in reports:
+            delete_course_report(report, deleted_by, reason='student_deleted')
+        student.delete()
 
     return True, None
 

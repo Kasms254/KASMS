@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.pagination import PageNumberPagination
 from .models import (User, StudentIndex, Profile, Course, Class, Enrollment, Subject, Notice, Exam, ExamReport, ExamReportRemark, PersonalNotification, School, SchoolAdmin, Certificate, CertificateDownloadLog, CertificateTemplate,
  SchoolMembership,Attendance, ExamResult, ClassNotice, ExamAttachment, NoticeReadStatus, ClassNoticeReadStatus, AttendanceSessionLog,AttendanceSession, SessionAttendance,BiometricRecord,ExamResultNotificationReadStatus,
- Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult, CertificateAuditLog)
+ Department, DepartmentMembership, ResultEditRequest, BiometricUserMapping, BiometricDevice, AssessmentComponent, StudentComponentResult, CertificateAuditLog, CourseReport)
 from .serializers import (
 
     CertificateDownloadLogSerializer,CertificateTemplateSerializer,BiometricSyncSerializer,CertificateSerializer,CertificateListSerializer,SchoolEnrollmentSerializer,SchoolMembershipSerializer,UserSerializer, ProfileReadSerializer, ProfileUpdateSerializer, CourseSerializer, ClassSerializer, EnrollmentSerializer, SubjectSerializer,PersonalNotificationSerializer,
@@ -47,7 +47,8 @@ from .services import (
     check_class_completion_for_all_students,get_class_completion_status,
     bulk_issue_certificates, bulk_assign_indexes, evaluate_subject_pass_fail,
     determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
-    renumber_class_indexes, get_certificates_grouped_by_class, build_certificate_preview)
+    renumber_class_indexes, get_certificates_grouped_by_class, build_certificate_preview,
+    delete_student_with_reports)
 from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -675,13 +676,19 @@ class UserViewSet(viewsets.ModelViewSet):
             'rank': instance.get_rank_display() if instance.rank else '',
             'svc_number': instance.svc_number or '',
         }
-        try:
-            self.perform_destroy(instance)
-        except ProtectedError:
-            return Response(
-                {'error': 'This user cannot be deleted because they have course reports or other records that must be preserved. Deactivate the user instead.'},
-                status=status.HTTP_409_CONFLICT
-            )
+        if instance.role == 'student':
+
+            success, error = delete_student_with_reports(instance, request.user)
+            if not success:
+                return Response({'error': error}, status=status.HTTP_409_CONFLICT)
+        else:
+            try:
+                self.perform_destroy(instance)
+            except ProtectedError:
+                return Response(
+                    {'error': 'This user cannot be deleted because they have course reports or other records that must be preserved. Deactivate the user instead.'},
+                    status=status.HTTP_409_CONFLICT
+                )
         audit_event(
             AuditAction.DELETE_USER, request=request,
             target_content_type=content_type, target_object_id=object_id, target_repr=repr_,
@@ -1356,6 +1363,30 @@ class ClassViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
         }
         if changes:
             audit_event(AuditAction.UPDATE, request=self.request, target=updated, changes=changes)
+
+    def destroy(self, request, *args, **kwargs):
+
+        instance = self.get_object()
+
+        report_count = CourseReport.objects.filter(class_obj=instance).count()
+        certificate_count = Certificate.objects.filter(class_obj=instance).count()
+
+        if report_count or certificate_count:
+            return Response(
+                {
+                    'error': (
+                        'This class cannot be deleted because it has course reports '
+                        'and/or certificates that must be preserved. Close the class '
+                        'instead of deleting it.'
+                    ),
+                    'course_reports': report_count,
+                    'certificates': certificate_count,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_serializer_class(self):
 
