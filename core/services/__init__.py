@@ -662,19 +662,7 @@ def _delete_course_report_files(report):
 
 
 def delete_course_report(report, deleted_by, *, reason):
-    """Deletes a single CourseReport as a deliberate, audited operation —
-    the one place both the DRF path and Django admin route CourseReport
-    deletion through, so neither can silently skip the file cleanup or the
-    audit write.
 
-    Must only be called on a report that is NOT 'approved' — callers are
-    responsible for that check. CourseReportStageRemark rows cascade with
-    the report. CourseReportAuditLog rows also cascade (bypassing that
-    model's own delete() guard, since Django's cascade collector issues a
-    bulk SQL delete rather than calling per-instance .delete()) — the
-    durable record of this deletion is therefore written to the generic
-    audit.AuditLog *before* the row is removed, not left to CourseReportAuditLog.
-    """
     from django.contrib.contenttypes.models import ContentType
     from audit.services import audit_event
     from audit.constants import AuditAction
@@ -702,16 +690,7 @@ def delete_course_report(report, deleted_by, *, reason):
 
 
 def student_deletion_block_reason(student):
-    """Returns an error message if `student` cannot be deleted right now
-    (an approved CourseReport or an issued Certificate exists), or None if
-    deletion is currently permitted. Shared by the DRF service function
-    below and by UserAdmin.has_delete_permission, so both surfaces agree
-    on exactly the same rule instead of drifting apart.
 
-    NOT locked — callers that are about to actually delete must re-check
-    under a lock (see delete_student_with_reports) rather than trusting a
-    bare call to this function, which is only a point-in-time read.
-    """
     if CourseReport.objects.filter(enrollment__student=student, status='approved').exists():
         return (
             'This student cannot be deleted because they have an approved '
@@ -728,27 +707,7 @@ def student_deletion_block_reason(student):
 
 
 def delete_student_with_reports(student, deleted_by):
-    """Deletes a student, first explicitly deleting any non-approved
-    CourseReports (which otherwise PROTECT the Enrollment they belong to).
 
-    Rejects the ENTIRE operation — no partial deletion — if the student has
-    any 'approved' CourseReport (a signed institutional record) or any
-    issued Certificate, since both must be preserved rather than silently
-    cascade-deleted. Callers should present the returned error to the user
-    and offer deactivation instead.
-
-    The whole check-then-delete sequence runs inside one transaction with
-    the student's CourseReport rows locked via select_for_update(): a
-    concurrent submit()/advance() trying to approve one of those reports
-    blocks on that lock until this transaction finishes, so a report can't
-    be approved out from under a deletion that already decided to proceed
-    (closes the TOCTOU window between the approved-report check and the
-    delete). Certificate issuance is not locked — a concurrent certificate
-    issue racing an in-flight deletion is a separate, much narrower window
-    not addressed here.
-
-    Returns (True, None) on success, or (False, error_message) if blocked.
-    """
     with transaction.atomic():
         reports = list(
             CourseReport.objects.select_for_update()
