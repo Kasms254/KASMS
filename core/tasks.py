@@ -5,7 +5,6 @@ from django.core.cache import cache
 logger = logging.getLogger('biometric.sync')
 cert_email_logger = logging.getLogger('certificate.email')
 
-
 def _record_certificate_email_audit(certificate, action, metadata):
 
     from core.models import CertificateAuditLog
@@ -23,7 +22,6 @@ def _record_certificate_email_audit(certificate, action, metadata):
             'Failed to write certificate email audit log for certificate %s',
             certificate.id, exc_info=True,
         )
-
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_certificate_email(self, certificate_id):
@@ -131,7 +129,6 @@ def send_certificate_email(self, certificate_id):
     _record_certificate_email_audit(certificate, 'email_sent', {})
     return {'status': 'sent'}
 
-
 @shared_task(bind=True, max_retries=0)
 def sync_all_devices(self):
     from core.models import BiometricDevice
@@ -152,7 +149,6 @@ def sync_all_devices(self):
 
     return results
 
-
 @shared_task
 def sync_single_device(device_id):
     from core.models import BiometricDevice
@@ -167,7 +163,6 @@ def sync_single_device(device_id):
     if result is None:
         return {'status': 'skipped', 'message': 'Sync already in progress'}
     return result
-
 
 @shared_task
 def process_pending_records():
@@ -191,7 +186,6 @@ def process_pending_records():
             logger.error(f'Error processing record {record.id}: {e}')
 
     return {'processed': processed, 'total_pending': pending.count()}
-
 
 @shared_task
 def sync_device_clocks():
