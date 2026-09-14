@@ -12,10 +12,10 @@ import {
 } from '../../lib/api'
 
 const STATUS_BADGE = {
-  draft: 'bg-yellow-100 text-yellow-700 border border-yellow-300',
-  submitted: 'bg-blue-100 text-blue-700 border border-blue-300',
-  reviewed: 'bg-green-100 text-green-700 border border-green-300',
-  archived: 'bg-gray-100 text-gray-600 border border-gray-300',
+  draft: 'bg-fill-yellow-100 text-mark-yellow-700 border border-edge-yellow-300',
+  submitted: 'bg-fill-blue-100 text-mark-blue-700 border border-edge-blue-300',
+  reviewed: 'bg-fill-green-100 text-mark-green-700 border border-edge-green-300',
+  archived: 'bg-surface-2 text-fg-muted border border-line-strong',
 }
 
 function formatDate(d) {
@@ -25,17 +25,17 @@ function formatDate(d) {
 
 function StatCard({ label, value, icon: Icon, color = 'blue' }) {
   const colors = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    blue: 'bg-fill-blue-50 text-mark-blue-700 border-edge-blue-200',
+    green: 'bg-fill-green-50 text-mark-green-700 border-edge-green-200',
+    yellow: 'bg-fill-yellow-50 text-mark-yellow-700 border-edge-yellow-200',
+    purple: 'bg-fill-purple-50 text-mark-purple-700 border-edge-purple-200',
   }
   return (
     <div className={`rounded-xl border p-4 flex items-center gap-3 ${colors[color]}`}>
       {Icon && <Icon size={22} className="shrink-0" />}
       <div>
-        <div className="text-2xl font-bold text-gray-900">{value ?? '—'}</div>
-        <div className="text-xs font-medium uppercase tracking-wide text-gray-900">{label}</div>
+        <div className="text-2xl font-bold text-fg">{value ?? '—'}</div>
+        <div className="text-xs font-medium uppercase tracking-wide text-fg">{label}</div>
       </div>
     </div>
   )
@@ -45,8 +45,8 @@ function NarrativeSection({ title, content, className = '' }) {
   if (!content?.trim()) return null
   return (
     <div className={className}>
-      <h4 className="text-sm font-semibold text-gray-900 mb-1">{title}</h4>
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-900 whitespace-pre-wrap">
+      <h4 className="text-sm font-semibold text-fg mb-1">{title}</h4>
+      <div className="bg-canvas border border-line rounded-lg p-3 text-sm text-fg whitespace-pre-wrap">
         {content}
       </div>
     </div>
@@ -80,12 +80,12 @@ export default function CommandantReportDetail() {
 
   if (isPending) return (
     <div className="flex items-center justify-center py-20">
-      <Loader className="animate-spin text-blue-600" size={28} />
+      <Loader className="animate-spin text-mark-blue-600" size={28} />
     </div>
   )
 
   if (error) return (
-    <div className="p-6 text-red-600">Failed to load report: {error.message}</div>
+    <div className="p-6 text-mark-red-600">Failed to load report: {error.message}</div>
   )
 
   const stats = report?.statistics || {}
@@ -109,17 +109,17 @@ export default function CommandantReportDetail() {
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/commandant/reports')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-900">
+          <button onClick={() => navigate('/commandant/reports')} className="p-2 rounded-lg hover:bg-surface-2 text-fg">
             <ArrowLeft size={18} />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-semibold text-gray-900">{report.title}</h2>
+              <h2 className="text-xl font-semibold text-fg">{report.title}</h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[report.status]}`}>
                 {report.status?.charAt(0).toUpperCase() + report.status?.slice(1)}
               </span>
             </div>
-            <p className="text-sm text-gray-900">
+            <p className="text-sm text-fg">
               Period: {formatDate(report.reporting_period_start)} — {formatDate(report.reporting_period_end)}
             </p>
           </div>
@@ -129,7 +129,7 @@ export default function CommandantReportDetail() {
           {isDraft && (
             <Link
               to={`/commandant/reports/${id}/edit`}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-line-strong rounded-lg hover:bg-canvas text-fg"
             >
               <Edit size={14} /> Edit
             </Link>
@@ -146,14 +146,14 @@ export default function CommandantReportDetail() {
                 URL.revokeObjectURL(url)
               } catch { /* silently ignore */ }
             }}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-line-strong rounded-lg hover:bg-canvas text-fg"
           >
             <Download size={14} /> PDF
           </button>
           {isDraft && (
             <button
               onClick={() => setConfirmSubmit(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-700 text-white rounded-lg hover:bg-blue-800"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-fill-blue-700 text-white rounded-lg hover:bg-fill-blue-800"
             >
               <Send size={14} /> Submit Report
             </button>
@@ -162,7 +162,7 @@ export default function CommandantReportDetail() {
       </div>
 
       {/* Info block */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm text-gray-900">
+      <div className="bg-surface border border-line rounded-xl p-5 mb-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm text-fg">
         <div><span className="block font-semibold">School</span><span className="font-medium">{report.school_name} ({report.school_code})</span></div>
         <div><span className="block font-semibold">Commandant</span><span className="font-medium">{commandantDisplay || '—'}</span></div>
         <div><span className="block font-semibold">Report Date</span><span className="font-medium">{formatDate(report.report_date)}</span></div>
@@ -170,11 +170,11 @@ export default function CommandantReportDetail() {
       </div>
 
       {/* Statistics */}
-      <section className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+      <section className="bg-surface border border-line rounded-xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-          <TrendingUp size={18} className="text-blue-600" />
-          <h3 className="font-semibold text-gray-900">School Statistics</h3>
-          {isDraft && <span className="ml-auto text-xs text-gray-900 italic">Computed live — will be frozen on submission</span>}
+          <TrendingUp size={18} className="text-mark-blue-600" />
+          <h3 className="font-semibold text-fg">School Statistics</h3>
+          {isDraft && <span className="ml-auto text-xs text-fg italic">Computed live — will be frozen on submission</span>}
         </div>
 
         {/* Student, instructor & course counts — one row of 8 once there's room */}
@@ -191,37 +191,37 @@ export default function CommandantReportDetail() {
 
         <div className="grid gap-3 mb-4 lg:grid-cols-2">
           {/* Ratio */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <p className="text-sm font-medium text-gray-900 mb-1">Instructor : Student Ratio</p>
-            <p className="text-xl font-bold text-gray-900">{ratio.ratio_text || 'N/A'}</p>
-            <p className="text-xs text-gray-900 mt-1">
+          <div className="bg-fill-blue-50 border border-edge-blue-200 rounded-xl p-4">
+            <p className="text-sm font-medium text-fg mb-1">Instructor : Student Ratio</p>
+            <p className="text-xl font-bold text-fg">{ratio.ratio_text || 'N/A'}</p>
+            <p className="text-xs text-fg mt-1">
               {instructors.active ?? 0} active instructors · {students.active ?? 0} active students
             </p>
           </div>
 
           {/* Performance */}
-          <div className="border border-gray-200 bg-gray-50 rounded-xl p-4">
+          <div className="border border-line bg-canvas rounded-xl p-4">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-medium text-gray-900">School Average Performance</p>
-              <span className="text-lg font-bold text-gray-900">{avgPct.toFixed(1)}%</span>
+              <p className="text-sm font-medium text-fg">School Average Performance</p>
+              <span className="text-lg font-bold text-fg">{avgPct.toFixed(1)}%</span>
             </div>
-            <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div className="bg-surface-3 rounded-full h-3 overflow-hidden">
               <div
-                className="bg-blue-600 h-3 rounded-full transition-all"
+                className="bg-fill-blue-600 h-3 rounded-full transition-all"
                 style={{ width: `${barWidth}%` }}
               />
             </div>
-            <p className="text-xs text-gray-900 mt-1">Based on submitted exam results within the reporting period.</p>
+            <p className="text-xs text-fg mt-1">Based on submitted exam results within the reporting period.</p>
           </div>
         </div>
 
         {/* Students per course */}
         {(students.per_course ?? []).length > 0 && (
           <div className="mt-4">
-            <p className="text-sm font-semibold text-gray-900 mb-2">Students by Course</p>
-            <div className="border border-gray-200 rounded-lg overflow-x-auto text-sm text-gray-900">
+            <p className="text-sm font-semibold text-fg mb-2">Students by Course</p>
+            <div className="border border-line rounded-lg overflow-x-auto text-sm text-fg">
               <table className="w-full">
-                <thead className="bg-gray-50 text-xs text-gray-900 uppercase">
+                <thead className="bg-canvas text-xs text-fg uppercase">
                   <tr>
                     <th className="text-left px-4 py-2">Course</th>
                     <th className="text-left px-4 py-2">Code</th>
@@ -230,7 +230,7 @@ export default function CommandantReportDetail() {
                 </thead>
                 <tbody>
                   {students.per_course.map((c, i) => (
-                    <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                    <tr key={i} className="border-t border-hair hover:bg-canvas">
                       <td className="px-4 py-2">{c.course_name}</td>
                       <td className="px-4 py-2">{c.course_code}</td>
                       <td className="px-4 py-2 text-right font-medium">{c.student_count}</td>
@@ -245,10 +245,10 @@ export default function CommandantReportDetail() {
 
       {/* Narrative */}
       {(report.observations || report.challenges || report.achievements || report.recommendations || report.overall_remarks) && (
-        <section className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
+        <section className="bg-surface border border-line rounded-xl p-5 mb-5">
           <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-            <Award size={18} className="text-blue-600" />
-            <h3 className="font-semibold text-gray-900">Commandant's Narrative</h3>
+            <Award size={18} className="text-mark-blue-600" />
+            <h3 className="font-semibold text-fg">Commandant's Narrative</h3>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <NarrativeSection title="Observations" content={report.observations} />
@@ -262,12 +262,12 @@ export default function CommandantReportDetail() {
 
       {/* Audit log */}
       {(report.audit_logs ?? []).length > 0 && (
-        <section className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b">Audit Trail</h3>
+        <section className="bg-surface border border-line rounded-xl p-5">
+          <h3 className="font-semibold text-fg mb-3 pb-2 border-b">Audit Trail</h3>
           <ul className="space-y-2">
             {report.audit_logs.map((log, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-gray-900">
-                <span className="mt-0.5 w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+              <li key={i} className="flex items-start gap-3 text-sm text-fg">
+                <span className="mt-0.5 w-2 h-2 rounded-full bg-fill-blue-400 shrink-0" />
                 <div>
                   <span className="font-medium capitalize">{log.action}</span>
                   {log.performed_by && <span> by {log.performed_by}</span>}
@@ -283,27 +283,27 @@ export default function CommandantReportDetail() {
       {/* Submit confirmation modal */}
       {confirmSubmit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <h3 className="font-semibold text-gray-900 mb-2 text-lg">Submit Report?</h3>
-            <p className="text-sm text-gray-900 mb-2">
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="font-semibold text-fg mb-2 text-lg">Submit Report?</h3>
+            <p className="text-sm text-fg mb-2">
               Once submitted, this report will be locked and made available to the Chief of Training.
               You will not be able to edit it afterwards.
             </p>
-            <p className="text-sm text-gray-900 mb-4">
+            <p className="text-sm text-fg mb-4">
               School statistics will be computed and frozen at the time of submission.
             </p>
-            {submitError && <p className="text-sm text-red-600 mb-3">{submitError}</p>}
+            {submitError && <p className="text-sm text-mark-red-600 mb-3">{submitError}</p>}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => { setConfirmSubmit(false); setSubmitError(null) }}
-                className="px-4 py-2 text-sm text-gray-900 border rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm text-fg border rounded-lg hover:bg-canvas"
               >
                 Cancel
               </button>
               <button
                 onClick={() => submitMutation.mutate()}
                 disabled={submitMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-fill-blue-700 text-white rounded-lg hover:bg-fill-blue-800 disabled:opacity-50"
               >
                 {submitMutation.isPending ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
                 Confirm Submission

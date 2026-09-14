@@ -53,16 +53,16 @@ function groupByDate(items) {
 // Skeleton Loader Component
 function NotificationSkeleton() {
   return (
-    <div className="flex items-start gap-3 p-3 rounded-md bg-white animate-pulse">
-      <div className="shrink-0 mt-1 w-6 h-6 bg-neutral-200 rounded" />
+    <div className="flex items-start gap-3 p-3 rounded-md bg-surface animate-pulse">
+      <div className="shrink-0 mt-1 w-6 h-6 bg-surface-3 rounded" />
       <div className="flex-1 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="h-4 bg-neutral-200 rounded w-3/4" />
-          <div className="h-3 bg-neutral-200 rounded w-20" />
+          <div className="h-4 bg-surface-3 rounded w-3/4" />
+          <div className="h-3 bg-surface-3 rounded w-20" />
         </div>
-        <div className="h-3 bg-neutral-200 rounded w-1/2" />
+        <div className="h-3 bg-surface-3 rounded w-1/2" />
       </div>
-      <div className="h-8 w-16 bg-neutral-200 rounded-md" />
+      <div className="h-8 w-16 bg-surface-3 rounded-md" />
     </div>
   )
 }
@@ -80,9 +80,9 @@ function EmptyState({ filter }) {
 
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <Icon className="w-16 h-16 text-neutral-300 mb-4" strokeWidth={1.5} />
-      <h3 className="text-lg font-medium text-neutral-700 mb-1">{title}</h3>
-      <p className="text-sm text-neutral-500 max-w-sm">{desc}</p>
+      <Icon className="w-16 h-16 text-fg-faint mb-4" strokeWidth={1.5} />
+      <h3 className="text-lg font-medium text-fg-body mb-1">{title}</h3>
+      <p className="text-sm text-fg-soft max-w-sm">{desc}</p>
     </div>
   )
 }
@@ -95,10 +95,10 @@ function Toast({ message, onClose }) {
   }, [onClose])
 
   return (
-    <div className="fixed top-4 right-4 z-50 bg-neutral-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-top-2">
-      <Icons.Check className="w-5 h-5 text-green-400" />
+    <div className="fixed top-4 right-4 z-50 bg-inverse text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-top-2">
+      <Icons.Check className="w-5 h-5 text-mark-green-400" />
       <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="ml-2 text-neutral-400 hover:text-white">
+      <button onClick={onClose} className="ml-2 text-fg-faint hover:text-white">
         <Icons.X className="w-4 h-4" />
       </button>
     </div>
@@ -109,10 +109,10 @@ function Toast({ message, onClose }) {
 const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
   const unread = !item.read
   const iconSize = 'w-6 h-6'
-  const baseClasses = `flex items-start gap-3 p-3 rounded-md transition-all duration-200 hover:shadow-sm cursor-pointer` + (unread ? ' ring-1 ring-indigo-200 bg-indigo-50' : ' bg-white hover:bg-slate-50')
-  const iconColor = item.kind === 'notice' ? (unread ? 'text-amber-600' : 'text-amber-400') :
-                    item.kind === 'grade' ? (unread ? 'text-emerald-600' : 'text-emerald-400') :
-                    (unread ? 'text-sky-600' : 'text-sky-400')
+  const baseClasses = `flex items-start gap-3 p-3 rounded-md transition-all duration-200 hover:shadow-sm cursor-pointer` + (unread ? ' ring-1 ring-edge-indigo-200 bg-fill-indigo-50' : ' bg-surface hover:bg-canvas')
+  const iconColor = item.kind === 'notice' ? (unread ? 'text-mark-amber-600' : 'text-mark-amber-400') :
+                    item.kind === 'grade' ? (unread ? 'text-mark-emerald-600' : 'text-mark-emerald-400') :
+                    (unread ? 'text-mark-sky-600' : 'text-mark-sky-400')
 
   const handleClick = useCallback(() => {
     onDetails(item)
@@ -142,27 +142,27 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <div className={`text-sm font-medium truncate ${unread ? 'text-black' : 'text-neutral-700'}`}>
+          <div className={`text-sm font-medium truncate ${unread ? 'text-fg' : 'text-fg-body'}`}>
             {item.title}
-            {item.meta?.is_urgent && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Urgent</span>}
+            {item.meta?.is_urgent && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-fill-red-100 text-mark-red-800">Urgent</span>}
           </div>
-          <div className="text-xs text-neutral-400 whitespace-nowrap" title={item._date.toLocaleString()}>
+          <div className="text-xs text-fg-faint whitespace-nowrap" title={item._date.toLocaleString()}>
             {formatRelativeTime(item._date)}
           </div>
         </div>
         <div className="text-xs mt-1">
-          <div className={unread ? 'text-neutral-600' : 'text-neutral-500'}>
+          <div className={unread ? 'text-fg-muted' : 'text-fg-soft'}>
             {item.kind === 'exam' ? `${item.subject || ''}${item.className ? ` — ${item.className}` : ''}` : ''}
             {item.kind === 'grade' && item.meta?.exam_details && (
               <span className="flex items-center gap-2">
                 <span>{item.meta.exam_details.subject_name}</span>
                 {item.meta.exam_details.grade && (
                   <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                    item.meta.exam_details.grade === 'A' ? 'bg-emerald-100 text-emerald-700' :
-                    item.meta.exam_details.grade === 'B' ? 'bg-blue-100 text-blue-700' :
-                    item.meta.exam_details.grade === 'C' ? 'bg-amber-100 text-amber-700' :
-                    item.meta.exam_details.grade === 'D' ? 'bg-orange-100 text-orange-700' :
-                    'bg-red-100 text-red-700'
+                    item.meta.exam_details.grade === 'A' ? 'bg-fill-emerald-100 text-mark-emerald-700' :
+                    item.meta.exam_details.grade === 'B' ? 'bg-fill-blue-100 text-mark-blue-700' :
+                    item.meta.exam_details.grade === 'C' ? 'bg-fill-amber-100 text-mark-amber-700' :
+                    item.meta.exam_details.grade === 'D' ? 'bg-fill-orange-100 text-mark-orange-700' :
+                    'bg-fill-red-100 text-mark-red-700'
                   }`}>
                     Grade: {item.meta.exam_details.grade}
                   </span>
@@ -171,11 +171,11 @@ const NotificationItem = React.memo(({ item, onDetails, onMarkRead }) => {
             )}
           </div>
         </div>
-        {unread && <div className="mt-1"><span className="inline-block w-2 h-2 bg-indigo-600 rounded-full"></span></div>}
+        {unread && <div className="mt-1"><span className="inline-block w-2 h-2 bg-fill-indigo-600 rounded-full"></span></div>}
       </div>
       <div className="ml-3 flex items-start gap-2">
         <button
-          className={`text-xs px-3 py-1.5 rounded-md transition-colors ${unread ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+          className={`text-xs px-3 py-1.5 rounded-md transition-colors ${unread ? 'bg-fill-indigo-600 text-white hover:bg-fill-indigo-700' : 'bg-surface-2 text-fg-body hover:bg-surface-3'}`}
           onClick={(e) => {
             e.stopPropagation()
             handleClick()
@@ -473,11 +473,11 @@ export default function Notifications() {
       <header className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold text-black">Notifications</h2>
-            <p className="text-sm text-gray-500 mt-1">Recent notices, upcoming exams and alerts</p>
+            <h2 className="text-2xl font-semibold text-fg">Notifications</h2>
+            <p className="text-sm text-fg-soft mt-1">Recent notices, upcoming exams and alerts</p>
           </div>
           <button
-            className="text-sm bg-neutral-100 px-4 py-2 rounded-md text-neutral-700 hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="text-sm bg-surface-2 px-4 py-2 rounded-md text-fg-body hover:bg-surface-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             onClick={handleMarkAllRead}
             disabled={unreadCount === 0}
           >
@@ -502,15 +502,15 @@ export default function Notifications() {
                 onClick={() => { setFilter(tab.key); setCurrentPage(1) }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   filter === tab.key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200'
+                    ? 'bg-fill-indigo-600 text-white shadow-sm'
+                    : 'bg-surface text-fg-body hover:bg-canvas border border-line'
                 }`}
               >
                 <TabIcon className="w-4 h-4" />
                 <span>{tab.label}</span>
                 {tab.count > 0 && (
                   <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
-                    filter === tab.key ? 'bg-indigo-700' : 'bg-neutral-100'
+                    filter === tab.key ? 'bg-fill-indigo-700' : 'bg-surface-2'
                   }`}>
                     {tab.count}
                   </span>
@@ -521,7 +521,7 @@ export default function Notifications() {
         </div>
       </header>
 
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
         {loading && (
           <div className="p-4 space-y-3">
             {[...Array(5)].map((_, i) => <NotificationSkeleton key={i} />)}
@@ -530,8 +530,8 @@ export default function Notifications() {
 
         {error && (
           <div className="p-8 text-center">
-            <Icons.AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-            <div className="text-sm text-red-600">Failed to load: {error.message || String(error)}</div>
+            <Icons.AlertCircle className="w-12 h-12 text-mark-red-400 mx-auto mb-3" />
+            <div className="text-sm text-mark-red-600">Failed to load: {error.message || String(error)}</div>
           </div>
         )}
 
@@ -541,10 +541,10 @@ export default function Notifications() {
               <EmptyState filter={filter} />
             ) : (
               <>
-                <div className="divide-y divide-neutral-100">
+                <div className="divide-y divide-hair">
                   {groupedItems.map(([groupName, groupItems]) => (
                     <div key={groupName} className="p-4">
-                      <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3 px-3">
+                      <h3 className="text-xs font-semibold text-fg-soft uppercase tracking-wider mb-3 px-3">
                         {groupName}
                       </h3>
                       <div className="space-y-2">
@@ -563,16 +563,16 @@ export default function Notifications() {
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-neutral-200">
-                    <div className="text-sm text-neutral-600">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-line">
+                    <div className="text-sm text-fg-muted">
                       Showing page {currentPage} of {totalPages} ({filteredItems.length} total notifications)
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
-                      <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
-                      <div className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium">{currentPage}</div>
-                      <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
-                      <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
+                      <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+                      <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+                      <div className="px-4 py-2 bg-fill-indigo-600 text-white rounded-md text-sm font-medium">{currentPage}</div>
+                      <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+                      <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
                     </div>
                   </div>
                 )}
@@ -590,24 +590,24 @@ export default function Notifications() {
             <div
               ref={modalRef}
               tabIndex={-1}
-              className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5"
+              className="transform transition-all duration-200 bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair"
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 id="modal-title" className="text-lg text-black font-medium">{selected.title}</h4>
+                  <h4 id="modal-title" className="text-lg text-fg font-medium">{selected.title}</h4>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className="text-xs text-neutral-400" title={selected._date?.toLocaleString()}>
+                    <div className="text-xs text-fg-faint" title={selected._date?.toLocaleString()}>
                       {formatRelativeTime(selected._date)}
                     </div>
                     {selected.meta?.is_urgent && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-fill-red-100 text-mark-red-800">
                         Urgent
                       </span>
                     )}
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      selected.kind === 'notice' ? 'bg-amber-100 text-amber-800' :
-                      selected.kind === 'grade' ? 'bg-emerald-100 text-emerald-800' :
-                      'bg-sky-100 text-sky-800'
+                      selected.kind === 'notice' ? 'bg-fill-amber-100 text-mark-amber-800' :
+                      selected.kind === 'grade' ? 'bg-fill-emerald-100 text-mark-emerald-800' :
+                      'bg-fill-sky-100 text-mark-sky-800'
                     }`}>
                       {selected.kind === 'notice' ? 'Notice' : selected.kind === 'grade' ? 'Grade Result' : 'Exam'}
                     </span>
@@ -616,21 +616,21 @@ export default function Notifications() {
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition"
+                  className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition"
                   aria-label="Close"
                 >
                   <Icons.X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-6 text-sm text-neutral-700 max-h-[60vh] overflow-y-auto">
+              <div className="mt-6 text-sm text-fg-body max-h-[60vh] overflow-y-auto">
                 {selected.kind === 'notice' && (
                   <div className="space-y-3">
                     <div className="prose prose-sm max-w-none">
-                      <p className="text-neutral-600 whitespace-pre-wrap">{selected.meta?.content || selected.meta?.description || selected.meta?.body || 'No details available.'}</p>
+                      <p className="text-fg-muted whitespace-pre-wrap">{selected.meta?.content || selected.meta?.description || selected.meta?.body || 'No details available.'}</p>
                     </div>
-                    <div className="pt-3 border-t border-neutral-100">
-                      <div className="text-xs text-neutral-500 flex items-center gap-2">
+                    <div className="pt-3 border-t border-hair">
+                      <div className="text-xs text-fg-soft flex items-center gap-2">
                         <Icons.User className="w-3 h-3" />
                         <span>Posted by: {(() => {
                           const role = selected.meta?.created_by_role
@@ -651,22 +651,22 @@ export default function Notifications() {
                 {selected.kind === 'exam' && (
                   <div className="space-y-3">
                     <div className="prose prose-sm max-w-none">
-                      <p className="text-neutral-600 whitespace-pre-wrap">{selected.meta?.description || selected.meta?.notes || 'No description.'}</p>
+                      <p className="text-fg-muted whitespace-pre-wrap">{selected.meta?.description || selected.meta?.notes || 'No description.'}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-neutral-100">
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-hair">
                       <div className="text-xs">
-                        <div className="text-neutral-500 mb-1">Subject</div>
-                        <div className="font-medium text-neutral-700">{selected.subject || selected.meta?.subject_name || '—'}</div>
+                        <div className="text-fg-soft mb-1">Subject</div>
+                        <div className="font-medium text-fg-body">{selected.subject || selected.meta?.subject_name || '—'}</div>
                       </div>
                       {selected.className && (
                         <div className="text-xs">
-                          <div className="text-neutral-500 mb-1">Class</div>
-                          <div className="font-medium text-neutral-700">{selected.className}</div>
+                          <div className="text-fg-soft mb-1">Class</div>
+                          <div className="font-medium text-fg-body">{selected.className}</div>
                         </div>
                       )}
                     </div>
                     {selected.meta?.attachments && selected.meta.attachments.length > 0 && (
-                      <div className="pt-3 border-t border-neutral-100">
+                      <div className="pt-3 border-t border-hair">
                         <div className="text-sm font-medium mb-2 flex items-center gap-2">
                           <Icons.Paperclip className="w-4 h-4" />
                           Attachments
@@ -681,7 +681,7 @@ export default function Notifications() {
                             return (
                               <li key={a.id}>
                                 <a
-                                  className="text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-2 text-sm"
+                                  className="text-mark-sky-600 hover:text-mark-sky-700 hover:underline flex items-center gap-2 text-sm"
                                   href={href}
                                   target="_blank"
                                   rel="noreferrer"
@@ -700,45 +700,45 @@ export default function Notifications() {
                 {selected.kind === 'grade' && (
                   <div className="space-y-4">
                     <div className="prose prose-sm max-w-none">
-                      <p className="text-neutral-600 whitespace-pre-wrap">{selected.meta?.content || 'Your exam has been graded.'}</p>
+                      <p className="text-fg-muted whitespace-pre-wrap">{selected.meta?.content || 'Your exam has been graded.'}</p>
                     </div>
                     {selected.meta?.exam_details && (
-                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-100">
+                      <div className="bg-gradient-to-br from-fill-emerald-50 to-fill-teal-50 rounded-lg p-4 border border-edge-emerald-100">
                         <div className="flex items-center gap-2 mb-3">
-                          <Icons.Award className="w-5 h-5 text-emerald-600" />
-                          <span className="font-medium text-emerald-800">Grade Summary</span>
+                          <Icons.Award className="w-5 h-5 text-mark-emerald-600" />
+                          <span className="font-medium text-mark-emerald-800">Grade Summary</span>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           <div>
-                            <div className="text-xs text-neutral-500 mb-1">Exam</div>
-                            <div className="font-medium text-neutral-800">{selected.meta.exam_details.exam_title || '—'}</div>
+                            <div className="text-xs text-fg-soft mb-1">Exam</div>
+                            <div className="font-medium text-fg">{selected.meta.exam_details.exam_title || '—'}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500 mb-1">Subject</div>
-                            <div className="font-medium text-neutral-800">{selected.meta.exam_details.subject_name || '—'}</div>
+                            <div className="text-xs text-fg-soft mb-1">Subject</div>
+                            <div className="font-medium text-fg">{selected.meta.exam_details.subject_name || '—'}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500 mb-1">Score</div>
-                            <div className="font-medium text-neutral-800">
+                            <div className="text-xs text-fg-soft mb-1">Score</div>
+                            <div className="font-medium text-fg">
                               {selected.meta.exam_details.marks_obtained !== null ? `${selected.meta.exam_details.marks_obtained} / ${selected.meta.exam_details.total_marks}` : '—'}
                             </div>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500 mb-1">Percentage</div>
-                            <div className="font-medium text-neutral-800">
+                            <div className="text-xs text-fg-soft mb-1">Percentage</div>
+                            <div className="font-medium text-fg">
                               {selected.meta.exam_details.percentage !== null ? `${Number(selected.meta.exam_details.percentage).toFixed(1)}%` : '—'}
                             </div>
                           </div>
                         </div>
                         {selected.meta.exam_details.grade && (
-                          <div className="mt-4 pt-3 border-t border-emerald-200 flex items-center gap-3">
-                            <span className="text-sm text-neutral-600">Final Grade:</span>
+                          <div className="mt-4 pt-3 border-t border-edge-emerald-200 flex items-center gap-3">
+                            <span className="text-sm text-fg-muted">Final Grade:</span>
                             <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                              selected.meta.exam_details.grade === 'A' ? 'bg-emerald-500 text-white' :
-                              selected.meta.exam_details.grade === 'B' ? 'bg-blue-500 text-white' :
-                              selected.meta.exam_details.grade === 'C' ? 'bg-amber-500 text-white' :
-                              selected.meta.exam_details.grade === 'D' ? 'bg-orange-500 text-white' :
-                              'bg-red-500 text-white'
+                              selected.meta.exam_details.grade === 'A' ? 'bg-fill-emerald-500 text-white' :
+                              selected.meta.exam_details.grade === 'B' ? 'bg-fill-blue-500 text-white' :
+                              selected.meta.exam_details.grade === 'C' ? 'bg-fill-amber-500 text-white' :
+                              selected.meta.exam_details.grade === 'D' ? 'bg-fill-orange-500 text-white' :
+                              'bg-fill-red-500 text-white'
                             }`}>
                               {selected.meta.exam_details.grade}
                             </span>
@@ -746,8 +746,8 @@ export default function Notifications() {
                         )}
                       </div>
                     )}
-                    <div className="pt-3 border-t border-neutral-100">
-                      <div className="text-xs text-neutral-500 flex items-center gap-2">
+                    <div className="pt-3 border-t border-hair">
+                      <div className="text-xs text-fg-soft flex items-center gap-2">
                         <Icons.User className="w-3 h-3" />
                         <span>Graded by: {selected.meta?.created_by_name || 'Instructor'}</span>
                       </div>
@@ -756,14 +756,14 @@ export default function Notifications() {
                 )}
 
                 {/* Fallback raw metadata for debugging */}
-                {!selected.kind && <pre className="mt-3 text-xs text-neutral-500 bg-neutral-50 p-3 rounded overflow-auto">{JSON.stringify(selected.meta, null, 2)}</pre>}
+                {!selected.kind && <pre className="mt-3 text-xs text-fg-soft bg-canvas p-3 rounded overflow-auto">{JSON.stringify(selected.meta, null, 2)}</pre>}
               </div>
 
-              <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-neutral-100">
+              <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-hair">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                  className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition"
                 >
                   Close
                 </button>

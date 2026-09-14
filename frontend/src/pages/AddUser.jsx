@@ -75,7 +75,6 @@ export default function AddUser({ onSuccess } = {}) {
   })
   const [classes, setClasses] = useState([])
   const [loadingClasses, setLoadingClasses] = useState(false)
-  const [classesError, setClassesError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
@@ -392,40 +391,40 @@ export default function AddUser({ onSuccess } = {}) {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
+    <div className="min-h-screen w-full bg-canvas">
       <div className="w-full h-full">
-        <div className="bg-white min-h-screen p-8">
+        <div className="bg-surface min-h-screen p-8">
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-800">Add user</h1>
-              <p className="text-gray-500 mt-2">Create a new account for staff or students.</p>
+              <h1 className="text-3xl font-semibold text-fg">Add user</h1>
+              <p className="text-fg-soft mt-2">Create a new account for staff or students.</p>
             </div>
           </div>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Username</label>
-                <input name="username" value={form.username} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.username ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.username && <div className="text-xs text-rose-600 mt-1">{fieldErrors.username}</div>}
+                <label className="block text-sm font-medium text-fg-body">Username</label>
+                <input name="username" value={form.username} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.username ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.username && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.username}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Service number</label>
-                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={14} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.svc_number}</div>}
+                <label className="block text-sm font-medium text-fg-body">Service number</label>
+                <input name="svc_number" value={form.svc_number} onChange={onChange} onBlur={onBlur} maxLength={14} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.svc_number ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.svc_number && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.svc_number}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Rank</label>
+                <label className="block text-sm font-medium text-fg-body">Rank</label>
                 <select
                   name="rank"
                   value={form.rank}
                   onChange={onChange}
                   onBlur={onBlur}
                   required
-                  className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    fieldErrors.rank ? 'border-rose-500' : 'border-neutral-200'
+                  className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    fieldErrors.rank ? 'border-edge-rose-500' : 'border-line'
                   }`}
                 >
                   <option value="" disabled>-- Select a rank --</option>
@@ -433,52 +432,52 @@ export default function AddUser({ onSuccess } = {}) {
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>
-                {fieldErrors.rank && <div className="text-xs text-rose-600 mt-1">{fieldErrors.rank}</div>}
+                {fieldErrors.rank && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.rank}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">First name</label>
-                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.first_name}</div>}
+                <label className="block text-sm font-medium text-fg-body">First name</label>
+                <input name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.first_name ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.first_name && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.first_name}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Last name</label>
-                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{fieldErrors.last_name}</div>}
+                <label className="block text-sm font-medium text-fg-body">Last name</label>
+                <input name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.last_name ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.last_name && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.last_name}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input name="email" type="email" value={form.email} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.email && <div className="text-xs text-rose-600 mt-1">{fieldErrors.email}</div>}
+                <label className="block text-sm font-medium text-fg-body">Email</label>
+                <input name="email" type="email" value={form.email} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.email ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.email && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.email}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Phone number</label>
-                <input name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
-                {fieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{fieldErrors.phone_number}</div>}
+                <label className="block text-sm font-medium text-fg-body">Phone number</label>
+                <input name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.phone_number ? 'border-edge-rose-500' : 'border-line'}`} />
+                {fieldErrors.phone_number && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.phone_number}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Unit </label>
-                <input name="unit" value={form.unit} onChange={onChange} onBlur={onBlur} required maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.unit ? 'border-rose-500' : 'border-neutral-200'}`} placeholder="e.g. 21KR" />
-                {fieldErrors.unit && <div className="text-xs text-rose-600 mt-1">{fieldErrors.unit}</div>}
+                <label className="block text-sm font-medium text-fg-body">Unit </label>
+                <input name="unit" value={form.unit} onChange={onChange} onBlur={onBlur} required maxLength={50} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.unit ? 'border-edge-rose-500' : 'border-line'}`} placeholder="e.g. 21KR" />
+                {fieldErrors.unit && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.unit}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
-                <select name="role" value={form.role} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.role ? 'border-rose-500' : 'border-neutral-200'}`}>
+                <label className="block text-sm font-medium text-fg-body">Role</label>
+                <select name="role" value={form.role} onChange={onChange} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.role ? 'border-edge-rose-500' : 'border-line'}`}>
                   {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
-                {fieldErrors.role && <div className="text-xs text-rose-600 mt-1">{fieldErrors.role}</div>}
+                {fieldErrors.role && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.role}</div>}
               </div>
 
               {form.role === 'student' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Class</label>
+                  <label className="block text-sm font-medium text-fg-body">Class</label>
                   <div className="relative">
-                    <select name="class_obj" value={form.class_obj} onChange={onChange} onBlur={onBlur} required={form.role === 'student'} disabled={loadingClasses} className={`mt-1 w-full rounded-md border px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${fieldErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'}`}>
+                    <select name="class_obj" value={form.class_obj} onChange={onChange} onBlur={onBlur} required={form.role === 'student'} disabled={loadingClasses} className={`mt-1 w-full rounded-md border px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 disabled:bg-surface-2 disabled:cursor-not-allowed ${fieldErrors.class_obj ? 'border-edge-rose-500' : 'border-line'}`}>
                         <option value="" disabled>-- Select a class --</option>
                         {loadingClasses ? (
                           <option disabled>Loading classes...</option>
@@ -495,31 +494,31 @@ export default function AddUser({ onSuccess } = {}) {
                     </select>
                     {loadingClasses && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg className="w-4 h-4 animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 animate-spin text-mark-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                         </svg>
                       </div>
                     )}
                   </div>
-                  {fieldErrors.class_obj && <div className="text-xs text-rose-600 mt-1">{fieldErrors.class_obj}</div>}
+                  {fieldErrors.class_obj && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.class_obj}</div>}
                 </div>
               )}
 
               <div className="flex items-center">
                 <label className="inline-flex items-center">
                   <input type="checkbox" name="is_active" checked={form.is_active} onChange={onChange} className="mr-2" />
-                  <span className="text-sm text-gray-700">Active</span>
+                  <span className="text-sm text-fg-body">Active</span>
                 </label>
               </div>
             </div>
 
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Password Setup</h3>
+            <div className="border border-line rounded-lg p-4 bg-canvas">
+              <h3 className="text-sm font-medium text-fg-body mb-3">Password Setup</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Password</label>
+                  <label className="block text-sm font-medium text-fg-body">Password</label>
                   <div className="relative">
                     <input
                       name="password"
@@ -527,21 +526,21 @@ export default function AddUser({ onSuccess } = {}) {
                       value={form.password}
                       onChange={onChange}
                       onBlur={onBlur}
-                      className={`mt-1 w-full rounded-md border px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`mt-1 w-full rounded-md border px-3 py-2 pr-10 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.password ? 'border-edge-rose-500' : 'border-line'}`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {fieldErrors.password && <div className="text-xs text-rose-600 mt-1">{fieldErrors.password}</div>}
+                  {fieldErrors.password && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.password}</div>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Confirm password</label>
+                  <label className="block text-sm font-medium text-fg-body">Confirm password</label>
                   <div className="relative">
                     <input
                       name="password2"
@@ -549,41 +548,41 @@ export default function AddUser({ onSuccess } = {}) {
                       value={form.password2}
                       onChange={onChange}
                       onBlur={onBlur}
-                      className={`mt-1 w-full rounded-md border px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors.password2 ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`mt-1 w-full rounded-md border px-3 py-2 pr-10 text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors.password2 ? 'border-edge-rose-500' : 'border-line'}`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                     >
                       {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {fieldErrors.password2 && <div className="text-xs text-rose-600 mt-1">{fieldErrors.password2}</div>}
+                  {fieldErrors.password2 && <div className="text-xs text-mark-rose-600 mt-1">{fieldErrors.password2}</div>}
                 </div>
               </div>
 
               {form.password && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-gray-700">Password strength:</span>
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <span className="text-xs font-medium text-fg-body">Password strength:</span>
+                    <div className="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          passwordStrength.score === 0 ? 'w-0 bg-gray-300' :
-                          passwordStrength.score === 1 ? 'w-1/4 bg-red-500' :
-                          passwordStrength.score === 2 ? 'w-2/4 bg-yellow-500' :
-                          passwordStrength.score === 3 ? 'w-3/4 bg-blue-500' :
-                          'w-full bg-green-500'
+                          passwordStrength.score === 0 ? 'w-0 bg-surface-4' :
+                          passwordStrength.score === 1 ? 'w-1/4 bg-fill-red-500' :
+                          passwordStrength.score === 2 ? 'w-2/4 bg-fill-yellow-500' :
+                          passwordStrength.score === 3 ? 'w-3/4 bg-fill-blue-500' :
+                          'w-full bg-fill-green-500'
                         }`}
                       />
                     </div>
                     <span className={`text-xs font-medium ${
-                      passwordStrength.score === 0 ? 'text-gray-500' :
-                      passwordStrength.score === 1 ? 'text-red-600' :
-                      passwordStrength.score === 2 ? 'text-yellow-600' :
-                      passwordStrength.score === 3 ? 'text-blue-600' :
-                      'text-green-600'
+                      passwordStrength.score === 0 ? 'text-fg-soft' :
+                      passwordStrength.score === 1 ? 'text-mark-red-600' :
+                      passwordStrength.score === 2 ? 'text-mark-yellow-600' :
+                      passwordStrength.score === 3 ? 'text-mark-blue-600' :
+                      'text-mark-green-600'
                     }`}>
                       {passwordStrength.score === 0 ? 'Too weak' :
                        passwordStrength.score === 1 ? 'Weak' :
@@ -594,7 +593,7 @@ export default function AddUser({ onSuccess } = {}) {
                   </div>
                   <ul className="text-xs space-y-1">
                     {passwordStrength.feedback.map((item, idx) => (
-                      <li key={idx} className={`flex items-center gap-2 ${item.met ? 'text-green-600' : 'text-gray-500'}`}>
+                      <li key={idx} className={`flex items-center gap-2 ${item.met ? 'text-mark-green-600' : 'text-fg-soft'}`}>
                         <span>{item.met ? '✓' : '○'}</span>
                         <span>{item.text}</span>
                       </li>
@@ -604,11 +603,11 @@ export default function AddUser({ onSuccess } = {}) {
               )}
             </div>
 
-            {error && <div className="text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded p-2">{error}</div>}
+            {error && <div className="text-sm text-mark-rose-700 bg-fill-rose-50 border border-edge-rose-100 rounded p-2">{error}</div>}
 
             <div className="flex items-center justify-end gap-3">
-              <button type="button" onClick={() => navigate('/dashboard')} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-              <button disabled={loading || (form.role === 'student' && !form.class_obj)} type="submit" className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+              <button type="button" onClick={() => navigate('/dashboard')} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
+              <button disabled={loading || (form.role === 'student' && !form.class_obj)} type="submit" className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                 {loading ? (
                   <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

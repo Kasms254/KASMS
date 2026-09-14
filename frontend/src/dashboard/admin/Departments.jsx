@@ -153,8 +153,8 @@ export default function Departments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-black">Departments</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage departments — Create, edit, and organize school departments.</p>
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">Departments</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">Manage departments — Create, edit, and organize school departments.</p>
         </div>
         <div className="flex gap-2">
           <input
@@ -162,11 +162,11 @@ export default function Departments() {
             placeholder="Search..."
             value={search}
             onChange={(e) => { setSearch(sanitizeInput(e.target.value)); setCurrentPage(1) }}
-            className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-40 sm:w-48 p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
           <button
             onClick={() => { setErrors({}); setNewDept({ name: '', code: '', description: '' }); setAddModalOpen(true) }}
-            className="whitespace-nowrap bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition"
+            className="whitespace-nowrap bg-fill-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-fill-indigo-700 transition"
           >
             Add Department
           </button>
@@ -174,7 +174,7 @@ export default function Departments() {
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-3 text-sm text-neutral-600">
+        <div className="mb-3 text-sm text-fg-muted">
           Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} departments
         </div>
       )}
@@ -184,54 +184,54 @@ export default function Departments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Create Department</h4>
-                  <p className="text-sm text-neutral-500">Add a new department to the school</p>
+                  <h4 className="text-lg text-fg font-medium">Create Department</h4>
+                  <p className="text-sm text-fg-soft">Add a new department to the school</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
               <form onSubmit={handleAdd}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Department Name *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Department Name *</label>
                     <input
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.name ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.name ? 'border-edge-rose-500' : 'border-line'}`}
                       placeholder="e.g. Computer Science"
                       value={newDept.name}
                       maxLength={150}
                       onChange={(e) => setNewDept({ ...newDept, name: sanitizeInput(e.target.value).slice(0, 150) })}
                     />
-                    {errors.name && <div className="text-xs text-rose-600 mt-1">{errors.name}</div>}
+                    {errors.name && <div className="text-xs text-mark-rose-600 mt-1">{errors.name}</div>}
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Department Code *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Department Code *</label>
                     <input
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.code ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.code ? 'border-edge-rose-500' : 'border-line'}`}
                       placeholder="e.g. CS"
                       value={newDept.code}
                       maxLength={20}
                       onChange={(e) => setNewDept({ ...newDept, code: sanitizeInput(e.target.value).slice(0, 20) })}
                     />
-                    {errors.code && <div className="text-xs text-rose-600 mt-1">{errors.code}</div>}
+                    {errors.code && <div className="text-xs text-mark-rose-600 mt-1">{errors.code}</div>}
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-600 mb-1 block">Description</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Description</label>
                     <textarea
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.description ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.description ? 'border-edge-rose-500' : 'border-line'}`}
                       placeholder="Brief description of the department"
                       value={newDept.description}
                       rows={3}
                       maxLength={500}
                       onChange={(e) => setNewDept({ ...newDept, description: sanitizeInput(e.target.value).slice(0, 500) })}
                     />
-                    {errors.description && <div className="text-xs text-rose-600 mt-1">{errors.description}</div>}
+                    {errors.description && <div className="text-xs text-mark-rose-600 mt-1">{errors.description}</div>}
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {isSaving ? 'Creating...' : 'Create Department'}
                   </button>
                 </div>
@@ -246,46 +246,46 @@ export default function Departments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit Department</h4>
-                  <p className="text-sm text-neutral-500">Update department information</p>
+                  <h4 className="text-lg text-fg font-medium">Edit Department</h4>
+                  <p className="text-sm text-fg-soft">Update department information</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setEditModalOpen(false)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
               <form onSubmit={handleEdit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Department Name *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Department Name *</label>
                     <input
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.name ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.name ? 'border-edge-rose-500' : 'border-line'}`}
                       value={editForm.name}
                       maxLength={150}
                       onChange={(e) => setEditForm({ ...editForm, name: sanitizeInput(e.target.value).slice(0, 150) })}
                     />
-                    {errors.name && <div className="text-xs text-rose-600 mt-1">{errors.name}</div>}
+                    {errors.name && <div className="text-xs text-mark-rose-600 mt-1">{errors.name}</div>}
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Department Code *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Department Code *</label>
                     <input
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.code ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.code ? 'border-edge-rose-500' : 'border-line'}`}
                       value={editForm.code}
                       maxLength={20}
                       onChange={(e) => setEditForm({ ...editForm, code: sanitizeInput(e.target.value).slice(0, 20) })}
                     />
-                    {errors.code && <div className="text-xs text-rose-600 mt-1">{errors.code}</div>}
+                    {errors.code && <div className="text-xs text-mark-rose-600 mt-1">{errors.code}</div>}
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-600 mb-1 block">Description</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Description</label>
                     <textarea
-                      className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${errors.description ? 'border-rose-500' : 'border-neutral-200'}`}
+                      className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${errors.description ? 'border-edge-rose-500' : 'border-line'}`}
                       value={editForm.description}
                       rows={3}
                       maxLength={500}
                       onChange={(e) => setEditForm({ ...editForm, description: sanitizeInput(e.target.value).slice(0, 500) })}
                     />
-                    {errors.description && <div className="text-xs text-rose-600 mt-1">{errors.description}</div>}
+                    {errors.description && <div className="text-xs text-mark-rose-600 mt-1">{errors.description}</div>}
                   </div>
                   <div className="sm:col-span-2 flex items-center gap-2">
                     <input
@@ -293,16 +293,16 @@ export default function Departments() {
                       id="dept-active"
                       checked={editForm.is_active}
                       onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
-                      className="rounded border-neutral-300"
+                      className="rounded border-line-strong"
                     />
-                    <label htmlFor="dept-active" className="text-sm text-neutral-600">Active</label>
+                    <label htmlFor="dept-active" className="text-sm text-fg-muted">Active</label>
                   </div>
                 </div>
                 <div className="flex justify-between gap-2 mt-4">
-                  <button type="button" onClick={() => setConfirmDelete(editingDept)} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
+                  <button type="button" onClick={() => setConfirmDelete(editingDept)} className="px-4 py-2 rounded-md text-sm bg-fill-red-600 text-white hover:bg-fill-red-700 transition">Delete</button>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                       {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
                   </div>
@@ -318,23 +318,23 @@ export default function Departments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
-                    <span className="text-red-600 text-lg">!</span>
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-fill-red-100">
+                    <span className="text-mark-red-600 text-lg">!</span>
                   </div>
-                  <h4 className="text-lg font-medium text-black">Delete Department</h4>
+                  <h4 className="text-lg font-medium text-fg">Delete Department</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.code}</strong>? This action cannot be undone.</p>
+              <p className="text-sm text-fg-muted mb-4">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.code}</strong>? This action cannot be undone.</p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
@@ -347,9 +347,9 @@ export default function Departments() {
       {/* Department Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? (
-          <div className="text-sm text-neutral-500">Loading...</div>
+          <div className="text-sm text-fg-soft">Loading...</div>
         ) : departments.length === 0 ? (
-          <div className="text-sm text-neutral-400">No Departments Found</div>
+          <div className="text-sm text-fg-faint">No Departments Found</div>
         ) : (
           departments.map((dept) => (
             <div key={dept.id}>
@@ -358,20 +358,20 @@ export default function Departments() {
                 value={dept.name}
                 badge={`${dept.course_count ?? 0} Courses • ${dept.class_count ?? 0} Classes`}
                 icon="Building"
-                accent={dept.is_active ? 'bg-indigo-600' : 'bg-neutral-400'}
+                accent={dept.is_active ? 'bg-fill-indigo-600' : 'bg-surface-5'}
                 colored={true}
               >
                 <div className="space-y-1.5">
                   {dept.hod_name && (
-                    <div className="text-xs text-neutral-500 truncate">
+                    <div className="text-xs text-fg-soft truncate">
                       <span className="font-medium">HOD:</span> {dept.hod_svc_number && <span>{dept.hod_svc_number} </span>}{dept.hod_name}
                     </div>
                   )}
                   {dept.description && (
-                    <div className="line-clamp-2 text-xs text-neutral-400" title={dept.description}>{dept.description}</div>
+                    <div className="line-clamp-2 text-xs text-fg-faint" title={dept.description}>{dept.description}</div>
                   )}
                   <div className="flex items-center justify-between mt-1">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-fill-indigo-100 text-mark-indigo-700' : 'bg-surface-2 text-fg-soft'}`}>
                       {dept.is_active ? 'Active' : 'Inactive'}
                     </span>
                     <button
@@ -387,7 +387,7 @@ export default function Departments() {
                         setErrors({})
                         setEditModalOpen(true)
                       }}
-                      className="px-2 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
+                      className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 transition"
                     >
                       Edit
                     </button>
@@ -402,12 +402,12 @@ export default function Departments() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</div>
+          <div className="text-sm text-fg-muted">Page {currentPage} of {totalPages}</div>
           <div className="flex gap-2">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
           </div>
         </div>
       )}

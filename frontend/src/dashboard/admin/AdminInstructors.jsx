@@ -74,7 +74,7 @@ function getRankDisplay(raw) {
   return found ? found.label : raw
 }
 
-export default function AdminInstructors({ hideActions = false, source = 'admin' }) {
+export default function AdminInstructors({ hideActions = false }) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const reportError = (msg) => {
@@ -147,6 +147,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Toggle activation loading
+  // eslint-disable-next-line no-unused-vars -- read by toggleActivation below, which is not yet wired up
   const [togglingId, setTogglingId] = useState(null)
   const [exportLoading, setExportLoading] = useState(false)
   // Popover state for "+N more" badges
@@ -240,6 +241,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
   }
 
   // Toggle user activation status
+  // eslint-disable-next-line no-unused-vars -- written but not yet wired to a control; kept intentionally
   async function toggleActivation(it) {
     setTogglingId(it.id)
     try {
@@ -563,13 +565,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
   <div className="w-full px-4 sm:px-6 lg:px-8">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">Instructors</h2>
-          <p className="text-sm text-neutral-500">Manage instructors — quick table view</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">Instructors</h2>
+          <p className="text-sm text-fg-soft">Manage instructors — quick table view</p>
         </div>
 
         {!hideActions && (
           <div className="flex items-center gap-3">
-            <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-green-600 text-sm text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
+            <button onClick={downloadCSV} disabled={exportLoading} className="px-3 py-2 rounded-md bg-fill-green-600 text-sm text-white hover:bg-fill-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap">
               {exportLoading ? 'Exporting…' : 'Download CSV'}
             </button>
           </div>
@@ -577,7 +579,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
       </header>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
         <div className="flex flex-col gap-3">
           {/* Search input and Class filter */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -586,7 +588,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search instructors..."
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               />
             </div>
             <div className="w-full sm:w-64">
@@ -596,7 +598,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   setSelectedClass(e.target.value)
                   setPage(1)
                 }}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               >
                 <option value="all">All Classes</option>
                 {classesList.filter(c => c.is_active).map((cls) => (
@@ -610,7 +612,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
           {/* Action buttons */}
           <div className="flex gap-2">
-            <button onClick={() => setPage(1)} className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition whitespace-nowrap shadow-sm">
+            <button onClick={() => setPage(1)} className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-fill-indigo-600 text-white text-xs sm:text-sm hover:bg-fill-indigo-700 transition whitespace-nowrap shadow-sm">
               Apply Filters
             </button>
             <button
@@ -619,7 +621,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 setSelectedClass('all')
                 setPage(1)
               }}
-              className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+              className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
             >
               Clear All
             </button>
@@ -627,20 +629,20 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
           {/* Filter summary badges */}
           {(searchTerm || selectedClass !== 'all') && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
-              <span className="text-xs text-neutral-600">Active filters:</span>
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-line">
+              <span className="text-xs text-fg-muted">Active filters:</span>
               {searchTerm && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-fill-indigo-50 text-mark-indigo-700 text-xs">
                   Search: "{searchTerm}"
-                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-fill-indigo-100 rounded-full p-0.5">
                     <LucideIcons.X className="w-3 h-3" />
                   </button>
                 </span>
               )}
               {selectedClass !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-fill-indigo-50 text-mark-indigo-700 text-xs">
                   Class: {classesList.find(c => String(c.id) === String(selectedClass))?.name || 'Unknown'}
-                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-fill-indigo-100 rounded-full p-0.5">
                     <LucideIcons.X className="w-3 h-3" />
                   </button>
                 </span>
@@ -651,44 +653,44 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
       </div>
 
       {error ? (
-        <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
+        <div className="p-6 bg-surface rounded-xl border border-edge-red-200 text-mark-red-700 text-center">Error loading instructors: {error.message || String(error)}</div>
       ) : loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading instructors…</div>
+        <div className="p-6 bg-surface rounded-xl border border-line text-fg-soft text-center">Loading instructors…</div>
       ) : instructors.length === 0 ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No instructors yet.</div>
+        <div className="p-6 bg-surface rounded-xl border border-line text-fg-soft text-center">No instructors yet.</div>
       ) : (
         <>
           {/* Desktop Table View (large screens and above) */}
-          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto max-w-full">
+          <div className="hidden lg:block bg-surface rounded-xl border border-line shadow-sm overflow-x-auto max-w-full">
             <table className="w-full table-auto">
               <thead>
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Service No</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Rank</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Name</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Unit</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Phone</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Classes</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Subjects</th>
-                  {!hideActions && <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Service No</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Rank</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Name</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Unit</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Phone</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Classes</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Subjects</th>
+                  {!hideActions && <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {instructors.map((it) => (
-                  <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm text-neutral-700">{it.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank)) || '-'}</td>
+                  <tr key={it.id} className="border-t last:border-b hover:bg-canvas">
+                    <td className="px-4 py-3 text-sm text-fg-body">{it.svc_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{shortRank(getRankDisplay(it.rank)) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs flex-shrink-0">
                           {initials(it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || ''))}
                         </div>
-                        <div className="font-medium text-black">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                        <div className="font-medium text-fg">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{it.unit || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{it.phone_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">
+                    <td className="px-4 py-3 text-sm text-fg-body">{it.unit || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{it.phone_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">
                       {(() => {
                         const cls = getInstructorClasses(it.id)
                         if (!cls || cls.length === 0) return '-'
@@ -698,14 +700,14 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
                             {cls.length > 3 ? (
                               <div className="relative inline-block" data-popover>
-                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-surface-2 text-fg-body rounded-full whitespace-nowrap hover:bg-surface-3 transition">+{cls.length - 3} more</button>
                                 {openPopover === `${it.id}-cls` && (
-                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
-                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
                                   </div>
                                 )}
                               </div>
@@ -714,7 +716,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">
+                    <td className="px-4 py-3 text-sm text-fg-body">
                       {(() => {
                         const subjects = getInstructorSubjects(it.id)
                         if (!subjects || subjects.length === 0) return '-'
@@ -724,14 +726,14 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-fill-green-50 text-mark-green-700 rounded-full whitespace-nowrap">{l}</span>
                             ))}
                             {subjects.length > 3 ? (
                               <div className="relative inline-block" data-popover>
-                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full whitespace-nowrap hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-surface-2 text-fg-body rounded-full whitespace-nowrap hover:bg-surface-3 transition">+{subjects.length - 3} more</button>
                                 {openPopover === `${it.id}-sub` && (
-                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
-                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                  <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-green-50 text-mark-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
                                   </div>
                                 )}
                               </div>
@@ -742,8 +744,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                     </td>
                     <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap">Edit</button>
-                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap">Delete</button>
+                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-xs text-white hover:bg-fill-indigo-700 transition whitespace-nowrap">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-fill-red-600 text-xs text-white hover:bg-fill-red-700 transition whitespace-nowrap">Delete</button>
                         </div>
                     </td>
                   </tr>
@@ -753,30 +755,30 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
           </div>
 
           {/* Tablet Compact View (medium screens: tablets) */}
-          <div className="hidden md:block lg:hidden bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <div className="hidden md:block lg:hidden bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full table-auto">
                 <thead>
-                  <tr className="text-left bg-neutral-50">
-                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Instructor</th>
-                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Contact</th>
-                    <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">Teaching</th>
-                    {!hideActions && <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>}
+                  <tr className="text-left bg-canvas">
+                    <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">Instructor</th>
+                    <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">Contact</th>
+                    <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">Teaching</th>
+                    {!hideActions && <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {instructors.map((it) => (
-                    <tr key={it.id} className="border-t last:border-b hover:bg-neutral-50">
+                    <tr key={it.id} className="border-t last:border-b hover:bg-canvas">
                       <td className="px-3 py-3">
                         <div className="min-w-0">
-                          <div className="font-medium text-black text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                          <div className="text-xs text-neutral-500">{it.svc_number || '-'}</div>
-                          {it.rank && <div className="text-xs text-neutral-600">{shortRank(getRankDisplay(it.rank))}</div>}
-                          {it.unit && <div className="text-xs text-neutral-400">{it.unit}</div>}
+                          <div className="font-medium text-fg text-sm truncate">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                          <div className="text-xs text-fg-soft">{it.svc_number || '-'}</div>
+                          {it.rank && <div className="text-xs text-fg-muted">{shortRank(getRankDisplay(it.rank))}</div>}
+                          {it.unit && <div className="text-xs text-fg-faint">{it.unit}</div>}
                         </div>
                       </td>
                       <td className="px-3 py-3">
-                        <div className="text-sm text-neutral-700">{it.phone_number || '-'}</div>
+                        <div className="text-sm text-fg-body">{it.phone_number || '-'}</div>
                       </td>
                       <td className="px-3 py-3">
                         <div className="space-y-1">
@@ -788,14 +790,14 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                                 {cls && cls.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     {cls.slice(0, 2).map((c, idx) => (
-                                      <span key={idx} className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</span>
+                                      <span key={idx} className="text-xs px-2 py-0.5 bg-fill-indigo-50 text-mark-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</span>
                                     ))}
                                     {cls.length > 2 && (
                                       <div className="relative inline-block" data-popover>
-                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 2}</button>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-0.5 bg-surface-2 text-fg-body rounded-full hover:bg-surface-3 transition">+{cls.length - 2}</button>
                                         {openPopover === `${it.id}-cls` && (
-                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
-                                            {cls.slice(2).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {cls.slice(2).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full whitespace-nowrap">{c.name || c.class_obj_name || '-'}</div>)}
                                           </div>
                                         )}
                                       </div>
@@ -805,21 +807,21 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                                 {subjects && subjects.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     {subjects.slice(0, 2).map((s, idx) => (
-                                      <span key={idx} className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</span>
+                                      <span key={idx} className="text-xs px-2 py-0.5 bg-fill-green-50 text-mark-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</span>
                                     ))}
                                     {subjects.length > 2 && (
                                       <div className="relative inline-block" data-popover>
-                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 2}</button>
+                                        <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-0.5 bg-surface-2 text-fg-body rounded-full hover:bg-surface-3 transition">+{subjects.length - 2}</button>
                                         {openPopover === `${it.id}-sub` && (
-                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
-                                            {subjects.slice(2).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
+                                          <div data-popover className="absolute z-50 bottom-full left-0 mb-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-h-48 overflow-y-auto">
+                                            {subjects.slice(2).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-green-50 text-mark-green-700 rounded-full whitespace-nowrap">{s.name || s.subject_code || '-'}</div>)}
                                           </div>
                                         )}
                                       </div>
                                     )}
                                   </div>
                                 )}
-                                {(!cls || cls.length === 0) && (!subjects || subjects.length === 0) && <span className="text-sm text-neutral-500">-</span>}
+                                {(!cls || cls.length === 0) && (!subjects || subjects.length === 0) && <span className="text-sm text-fg-soft">-</span>}
                               </>
                             )
                           })()}
@@ -827,8 +829,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col items-stretch gap-1.5">
-                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center">Edit</button>
-                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap text-center">Delete</button>
+                          <button onClick={() => openEdit(it)} className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-xs text-white hover:bg-fill-indigo-700 transition whitespace-nowrap text-center">Edit</button>
+                          <button onClick={() => handleDelete(it)} className="px-3 py-1.5 rounded-md bg-fill-red-600 text-xs text-white hover:bg-fill-red-700 transition whitespace-nowrap text-center">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -841,54 +843,54 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
           {/* Mobile Card View (small screens) */}
           <div className="md:hidden space-y-4">
             {instructors.map((it) => (
-              <div key={it.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+              <div key={it.id} className="bg-surface rounded-xl border border-line shadow-sm p-4">
                 {/* Header with name */}
                 <div className="mb-4">
-                  <div className="font-medium text-black text-lg">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
-                  <div className="text-sm text-neutral-500">{it.svc_number || '-'}</div>
+                  <div className="font-medium text-fg text-lg">{it.first_name ? `${it.first_name} ${it.last_name}` : (it.full_name || it.svc_number || '-')}</div>
+                  <div className="text-sm text-fg-soft">{it.svc_number || '-'}</div>
                 </div>
 
                 {/* Details */}
                 <div className="space-y-2 mb-4">
                   {it.rank ? (
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{shortRank(getRankDisplay(it.rank))}</span>
+                      <span className="text-xs text-fg-soft w-20 flex-shrink-0">Rank:</span>
+                      <span className="text-sm text-fg-body">{shortRank(getRankDisplay(it.rank))}</span>
                     </div>
                   ) : null}
 
                   {it.unit ? (
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Unit:</span>
-                      <span className="text-sm text-neutral-700">{it.unit}</span>
+                      <span className="text-xs text-fg-soft w-20 flex-shrink-0">Unit:</span>
+                      <span className="text-sm text-fg-body">{it.unit}</span>
                     </div>
                   ) : null}
 
                   <div className="flex items-start">
-                    <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Phone:</span>
-                    <span className="text-sm text-neutral-700">{it.phone_number || '-'}</span>
+                    <span className="text-xs text-fg-soft w-20 flex-shrink-0">Phone:</span>
+                    <span className="text-sm text-fg-body">{it.phone_number || '-'}</span>
                   </div>
 
                   <div className="flex items-start">
-                    <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Classes:</span>
+                    <span className="text-xs text-fg-soft w-20 flex-shrink-0">Classes:</span>
                     <div className="flex-1">
                       {(() => {
                         const cls = getInstructorClasses(it.id)
-                        if (!cls || cls.length === 0) return <span className="text-sm text-neutral-700">-</span>
+                        if (!cls || cls.length === 0) return <span className="text-sm text-fg-body">-</span>
                         const labels = cls.slice(0, 3).map((c) => {
                           return c.name || c.class_obj_name || '-'
                         })
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full">{l}</span>
                             ))}
                             {cls.length > 3 ? (
                               <div className="relative inline-block" data-popover>
-                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{cls.length - 3} more</button>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-cls` ? null : `${it.id}-cls`)} className="text-xs px-2 py-1 bg-surface-2 text-fg-body rounded-full hover:bg-surface-3 transition">+{cls.length - 3} more</button>
                                 {openPopover === `${it.id}-cls` && (
-                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
-                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-indigo-50 text-indigo-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{c.name || c.class_obj_name || '-'}</div>)}
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {cls.slice(3).map((c, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{c.name || c.class_obj_name || '-'}</div>)}
                                   </div>
                                 )}
                               </div>
@@ -900,25 +902,25 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                   </div>
 
                   <div className="flex items-start">
-                    <span className="text-xs text-neutral-500 w-20 flex-shrink-0">Subjects:</span>
+                    <span className="text-xs text-fg-soft w-20 flex-shrink-0">Subjects:</span>
                     <div className="flex-1">
                       {(() => {
                         const subjects = getInstructorSubjects(it.id)
-                        if (!subjects || subjects.length === 0) return <span className="text-sm text-neutral-700">-</span>
+                        if (!subjects || subjects.length === 0) return <span className="text-sm text-fg-body">-</span>
                         const labels = subjects.slice(0, 3).map((s) => {
                           return s.name || s.subject_code || '-'
                         })
                         return (
                           <div className="flex flex-wrap gap-2">
                             {labels.map((l, idx) => (
-                              <span key={idx} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{l}</span>
+                              <span key={idx} className="text-xs px-2 py-1 bg-fill-green-50 text-mark-green-700 rounded-full">{l}</span>
                             ))}
                             {subjects.length > 3 ? (
                               <div className="relative inline-block" data-popover>
-                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-neutral-100 text-neutral-700 rounded-full hover:bg-neutral-200 transition">+{subjects.length - 3} more</button>
+                                <button onClick={() => setOpenPopover(openPopover === `${it.id}-sub` ? null : `${it.id}-sub`)} className="text-xs px-2 py-1 bg-surface-2 text-fg-body rounded-full hover:bg-surface-3 transition">+{subjects.length - 3} more</button>
                                 {openPopover === `${it.id}-sub` && (
-                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
-                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-green-50 text-green-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{s.name || s.subject_code || '-'}</div>)}
+                                  <div data-popover className="absolute z-50 top-full right-0 mt-1 bg-surface border border-line rounded-lg shadow-lg p-2 min-w-[160px] max-w-[min(220px,80vw)] max-h-48 overflow-y-auto">
+                                    {subjects.slice(3).map((s, idx) => <div key={idx} className="text-xs px-2 py-1 mb-1 bg-fill-green-50 text-mark-green-700 rounded-full whitespace-nowrap overflow-hidden text-ellipsis">{s.name || s.subject_code || '-'}</div>)}
                                   </div>
                                 )}
                               </div>
@@ -931,9 +933,9 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 </div>
 
                 {!hideActions && (
-                  <div className="flex flex-col gap-2 pt-3 border-t border-neutral-100">
-                    <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition">Edit</button>
-                    <button onClick={() => handleDelete(it)} className="w-full px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 transition">Delete</button>
+                  <div className="flex flex-col gap-2 pt-3 border-t border-hair">
+                    <button onClick={() => openEdit(it)} className="w-full px-3 py-2 rounded-md bg-fill-indigo-600 text-sm text-white hover:bg-fill-indigo-700 transition">Edit</button>
+                    <button onClick={() => handleDelete(it)} className="w-full px-3 py-2 rounded-md bg-fill-red-600 text-sm text-white hover:bg-fill-red-700 transition">Delete</button>
                   </div>
                 )}
               </div>
@@ -944,13 +946,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
       {/* Pagination Controls */}
       {!loading && totalCount > 0 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-6 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Results info */}
-            <div className="text-sm text-neutral-600">
-              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
-              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
-              <span className="font-semibold text-black">{totalCount}</span> instructors
+            <div className="text-sm text-fg-muted">
+              Showing <span className="font-semibold text-fg">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-fg">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-fg">{totalCount}</span> instructors
             </div>
 
             {/* Pagination controls */}
@@ -959,9 +961,9 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page numbers */}
@@ -979,8 +981,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                           onClick={() => setPage(i)}
                           className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                             page === i
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                              ? 'bg-fill-indigo-600 text-white shadow-sm'
+                              : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                           }`}
                         >
                           {i}
@@ -995,8 +997,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         onClick={() => setPage(1)}
                         className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                           page === 1
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                            ? 'bg-fill-indigo-600 text-white shadow-sm'
+                            : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                         }`}
                       >
                         1
@@ -1005,7 +1007,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
                     // Show ellipsis if needed
                     if (page > 3) {
-                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis1" className="px-2 text-fg-faint">...</span>)
                     }
 
                     // Show pages around current page
@@ -1018,8 +1020,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                           onClick={() => setPage(i)}
                           className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                             page === i
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                              ? 'bg-fill-indigo-600 text-white shadow-sm'
+                              : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                           }`}
                         >
                           {i}
@@ -1029,7 +1031,7 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
                     // Show ellipsis if needed
                     if (page < totalPages - 2) {
-                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis2" className="px-2 text-fg-faint">...</span>)
                     }
 
                     // Always show last page
@@ -1039,8 +1041,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                         onClick={() => setPage(totalPages)}
                         className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                           page === totalPages
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                            ? 'bg-fill-indigo-600 text-white shadow-sm'
+                            : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                         }`}
                       >
                         {totalPages}
@@ -1056,21 +1058,21 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page size selector */}
               <div className="ml-2 flex items-center gap-2">
-                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <span className="text-sm text-fg-muted hidden sm:inline">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value))
                     setPage(1)
                   }}
-                  className="border border-neutral-200 rounded-lg px-2 py-1 text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="border border-line rounded-lg px-2 py-1 text-sm text-fg bg-surface focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -1087,19 +1089,19 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeEdit} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit instructor</h4>
-                  <p className="text-sm text-neutral-500">Update instructor details.</p>
+                  <h4 className="text-lg text-fg font-medium">Edit instructor</h4>
+                  <p className="text-sm text-fg-soft">Update instructor details.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition flex-shrink-0">
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition flex-shrink-0">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
 
               {editError && (
-                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">
                   <LucideIcons.AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>{editError}</span>
                 </div>
@@ -1107,26 +1109,26 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">First name</label>
-                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} onBlur={onEditBlur} name="first_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.first_name ? 'border-rose-500' : 'border-neutral-200'}`} />
-                  {editFieldErrors.first_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.first_name}</div>}
+                  <label className="text-sm text-fg-muted mb-1 block">First name</label>
+                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} onBlur={onEditBlur} name="first_name" className={`w-full border rounded px-3 py-2 text-fg text-sm ${editFieldErrors.first_name ? 'border-edge-rose-500' : 'border-line'}`} />
+                  {editFieldErrors.first_name && <div className="text-xs text-mark-rose-600 mt-1">{editFieldErrors.first_name}</div>}
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Last name</label>
-                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} onBlur={onEditBlur} name="last_name" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.last_name ? 'border-rose-500' : 'border-neutral-200'}`} />
-                  {editFieldErrors.last_name && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.last_name}</div>}
+                  <label className="text-sm text-fg-muted mb-1 block">Last name</label>
+                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} onBlur={onEditBlur} name="last_name" className={`w-full border rounded px-3 py-2 text-fg text-sm ${editFieldErrors.last_name ? 'border-edge-rose-500' : 'border-line'}`} />
+                  {editFieldErrors.last_name && <div className="text-xs text-mark-rose-600 mt-1">{editFieldErrors.last_name}</div>}
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={14} className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.svc_number ? 'border-rose-500' : 'border-neutral-200'}`} />
-                  {editFieldErrors.svc_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
+                  <label className="text-sm text-fg-muted mb-1 block">Service No</label>
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} onBlur={onEditBlur} name="svc_number" maxLength={14} className={`w-full border rounded px-3 py-2 text-fg text-sm ${editFieldErrors.svc_number ? 'border-edge-rose-500' : 'border-line'}`} />
+                  {editFieldErrors.svc_number && <div className="text-xs text-mark-rose-600 mt-1">{editFieldErrors.svc_number}</div>}
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Rank</label>
-                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                  <label className="text-sm text-fg-muted mb-1 block">Rank</label>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm">
                     <option value="">Unassigned</option>
                     {RANK_OPTIONS.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
@@ -1135,8 +1137,8 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Role</label>
-                  <select value={editForm.role || 'instructor'} onChange={(e) => handleEditChange('role', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                  <label className="text-sm text-fg-muted mb-1 block">Role</label>
+                  <select value={editForm.role || 'instructor'} onChange={(e) => handleEditChange('role', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm">
                     {EDITABLE_ROLE_OPTIONS.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
@@ -1144,31 +1146,31 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Unit</label>
-                  <input value={editForm.unit} onChange={(e) => handleEditChange('unit', e.target.value)} maxLength={50} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" placeholder="e.g. 21KR" />
+                  <label className="text-sm text-fg-muted mb-1 block">Unit</label>
+                  <input value={editForm.unit} onChange={(e) => handleEditChange('unit', e.target.value)} maxLength={50} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" placeholder="e.g. 21KR" />
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Email</label>
-                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} onBlur={onEditBlur} name="email" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.email ? 'border-rose-500' : 'border-neutral-200'}`} />
-                  {editFieldErrors.email && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.email}</div>}
+                  <label className="text-sm text-fg-muted mb-1 block">Email</label>
+                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} onBlur={onEditBlur} name="email" className={`w-full border rounded px-3 py-2 text-fg text-sm ${editFieldErrors.email ? 'border-edge-rose-500' : 'border-line'}`} />
+                  {editFieldErrors.email && <div className="text-xs text-mark-rose-600 mt-1">{editFieldErrors.email}</div>}
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Phone</label>
-                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} onBlur={onEditBlur} name="phone_number" className={`w-full border rounded px-3 py-2 text-black text-sm ${editFieldErrors.phone_number ? 'border-rose-500' : 'border-neutral-200'}`} />
-                  {editFieldErrors.phone_number && <div className="text-xs text-rose-600 mt-1">{editFieldErrors.phone_number}</div>}
+                  <label className="text-sm text-fg-muted mb-1 block">Phone</label>
+                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} onBlur={onEditBlur} name="phone_number" className={`w-full border rounded px-3 py-2 text-fg text-sm ${editFieldErrors.phone_number ? 'border-edge-rose-500' : 'border-line'}`} />
+                  {editFieldErrors.phone_number && <div className="text-xs text-mark-rose-600 mt-1">{editFieldErrors.phone_number}</div>}
                 </div>
 
                 {editForm.role === 'student' && (
                   <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-600 mb-1 block">
-                      Class <span className="text-neutral-400 font-normal">(assign the student to a class)</span>
+                    <label className="text-sm text-fg-muted mb-1 block">
+                      Class <span className="text-fg-faint font-normal">(assign the student to a class)</span>
                     </label>
                     <select
                       value={editForm.class_obj || ''}
                       onChange={(e) => handleEditChange('class_obj', e.target.value)}
-                      className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm"
+                      className="w-full border border-line rounded px-3 py-2 text-fg text-sm"
                     >
                       <option value="">— Select a class —</option>
                       {classesList.map((c) => (
@@ -1176,28 +1178,28 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
                       ))}
                     </select>
                     {!editForm.class_obj && (
-                      <p className="text-xs text-amber-600 mt-1">No class selected — student will be unassigned.</p>
+                      <p className="text-xs text-mark-amber-600 mt-1">No class selected — student will be unassigned.</p>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
+              <div className="flex items-center mt-4 pt-4 border-t border-line">
                 <label className="inline-flex items-center gap-2">
                   <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
-                  <span className="text-sm text-neutral-600">Active</span>
+                  <span className="text-sm text-fg-muted">Active</span>
                 </label>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                  <button type="button" onClick={() => openResetPassword(editingInstructor)} className="px-3 py-2 rounded-md bg-fill-purple-600 text-sm text-white hover:bg-fill-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </div>
             </form>
@@ -1210,13 +1212,13 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
-              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
-              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.first_name ? `${confirmDelete.first_name} ${confirmDelete.last_name}` : (confirmDelete.full_name || confirmDelete.svc_number || confirmDelete.id)}</strong>? This action cannot be undone.</p>
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
+              <h4 className="text-lg font-medium text-fg">Confirm delete</h4>
+              <p className="text-sm text-fg-muted mt-2">Are you sure you want to delete <strong>{confirmDelete.first_name ? `${confirmDelete.first_name} ${confirmDelete.last_name}` : (confirmDelete.full_name || confirmDelete.svc_number || confirmDelete.id)}</strong>? This action cannot be undone.</p>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="w-full sm:w-auto px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="w-full sm:w-auto px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>
@@ -1228,25 +1230,25 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeResetPassword} />
           <div className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
-              <h4 className="text-lg font-medium text-black">Reset Password</h4>
-              <p className="text-sm text-neutral-600 mt-2">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
+              <h4 className="text-lg font-medium text-fg">Reset Password</h4>
+              <p className="text-sm text-fg-muted mt-2">
                 Set a new password for <strong>{resetPasswordUser.first_name ? `${resetPasswordUser.first_name} ${resetPasswordUser.last_name}` : (resetPasswordUser.full_name || resetPasswordUser.svc_number)}</strong>
               </p>
 
               <form onSubmit={submitResetPassword} className="mt-4 space-y-4">
                 <div>
-                  <div className="text-sm text-neutral-600 mb-1">New Password</div>
+                  <div className="text-sm text-fg-muted mb-1">New Password</div>
                   <div className="relative">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={handleNewPasswordChange}
-                      className="w-full border border-neutral-200 rounded px-3 py-2 pr-10 text-black text-sm"
+                      className="w-full border border-line rounded px-3 py-2 pr-10 text-fg text-sm"
                       required
                       minLength={8}
                     />
-                    <button type="button" onClick={() => setShowNewPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                    <button type="button" onClick={() => setShowNewPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                       {showNewPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -1254,48 +1256,48 @@ export default function AdminInstructors({ hideActions = false, source = 'admin'
 
                 {/* Password Requirements */}
                 {newPassword && (
-                  <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
-                    <p className="text-xs font-medium text-neutral-500 mb-2">Password Requirements:</p>
+                  <div className="bg-canvas rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-fg-soft mb-2">Password Requirements:</p>
                     {passwordStrength.feedback.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-xs">
                         {item.met ? (
-                          <LucideIcons.Check className="w-3.5 h-3.5 text-green-600" />
+                          <LucideIcons.Check className="w-3.5 h-3.5 text-mark-green-600" />
                         ) : (
-                          <LucideIcons.X className="w-3.5 h-3.5 text-red-500" />
+                          <LucideIcons.X className="w-3.5 h-3.5 text-mark-red-500" />
                         )}
-                        <span className={item.met ? 'text-green-700' : 'text-neutral-600'}>{item.text}</span>
+                        <span className={item.met ? 'text-mark-green-700' : 'text-fg-muted'}>{item.text}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
                 <div>
-                  <div className="text-sm text-neutral-600 mb-1">Confirm Password</div>
+                  <div className="text-sm text-fg-muted mb-1">Confirm Password</div>
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full border border-neutral-200 rounded px-3 py-2 pr-10 text-black text-sm"
+                      className="w-full border border-line rounded px-3 py-2 pr-10 text-fg text-sm"
                       required
                       minLength={8}
                     />
-                    <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                    <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                       {showConfirmPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
                 {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
+                  <p className="text-sm text-mark-red-600 flex items-center gap-1">
                     <LucideIcons.AlertCircle className="w-4 h-4" />
                     Passwords do not match
                   </p>
                 )}
 
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
-                  <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword || passwordStrength.score < 4} className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{resetLoading ? 'Resetting...' : 'Reset Password'}</button>
+                  <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword || passwordStrength.score < 4} className="w-full sm:w-auto px-4 py-2 rounded-md bg-fill-purple-600 text-white text-sm hover:bg-fill-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{resetLoading ? 'Resetting...' : 'Reset Password'}</button>
                 </div>
               </form>
             </div>

@@ -52,20 +52,20 @@ export default function CertificateVerificationForm({ initialCode = '' }) {
   return (
     <div>
       <form onSubmit={handleSubmit}>
-        <label className="text-sm text-gray-600 mb-1 block">Verification code</label>
+        <label className="text-sm text-fg-muted mb-1 block">Verification code</label>
         <input
           type="text"
           autoFocus
           value={code}
           onChange={handleCodeChange}
           placeholder="e.g. 0A77C7ACBB639989BAFA5C2AF14FD6A0"
-          className="w-full p-3 rounded-lg text-black text-sm font-mono border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-200 tracking-wide"
+          className="w-full p-3 rounded-lg text-fg text-sm font-mono border border-line focus:outline-none focus:ring-2 focus:ring-edge-red-200 tracking-wide"
           maxLength={32}
         />
         <button
           type="submit"
           disabled={loading || !code.trim()}
-          className="w-full mt-4 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-red-900 text-white text-sm font-medium hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="w-full mt-4 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-fill-red-900 text-white text-sm font-medium hover:bg-fill-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           {loading ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.ShieldCheck className="w-4 h-4" />}
           {loading ? 'Verifying...' : 'Verify Certificate'}
@@ -73,41 +73,41 @@ export default function CertificateVerificationForm({ initialCode = '' }) {
       </form>
 
       {error && (
-        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-2">
-          <LucideIcons.AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">{error}</p>
+        <div className="mt-5 rounded-lg border border-edge-amber-200 bg-fill-amber-50 p-4 flex items-start gap-2">
+          <LucideIcons.AlertTriangle className="w-5 h-5 text-mark-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-mark-amber-800">{error}</p>
         </div>
       )}
 
       {result && (
-        <div className={`mt-5 rounded-lg border p-4 ${result.is_valid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+        <div className={`mt-5 rounded-lg border p-4 ${result.is_valid ? 'border-edge-emerald-200 bg-fill-emerald-50' : 'border-edge-rose-200 bg-fill-rose-50'}`}>
           <div className="flex items-start gap-2 mb-2">
             {result.is_valid ? (
-              <LucideIcons.CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <LucideIcons.CheckCircle2 className="w-5 h-5 text-mark-emerald-600 flex-shrink-0 mt-0.5" />
             ) : (
-              <LucideIcons.XCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+              <LucideIcons.XCircle className="w-5 h-5 text-mark-rose-600 flex-shrink-0 mt-0.5" />
             )}
-            <p className={`text-sm font-medium ${result.is_valid ? 'text-emerald-800' : 'text-rose-800'}`}>
+            <p className={`text-sm font-medium ${result.is_valid ? 'text-mark-emerald-800' : 'text-mark-rose-800'}`}>
               {result.is_valid ? 'This certificate is valid.' : (result.message || 'This certificate could not be verified.')}
             </p>
           </div>
 
           {result.is_valid && (
-            <dl className="text-sm text-gray-700 space-y-1 mt-3 pl-7">
+            <dl className="text-sm text-fg-body space-y-1 mt-3 pl-7">
               {result.certificate_number && (
-                <div className="flex justify-between gap-3"><dt className="text-gray-500">Certificate No.</dt><dd className="font-medium">{result.certificate_number}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-fg-soft">Certificate No.</dt><dd className="font-medium">{result.certificate_number}</dd></div>
               )}
               {result.student_name && (
-                <div className="flex justify-between gap-3"><dt className="text-gray-500">Student</dt><dd className="font-medium">{result.student_name}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-fg-soft">Student</dt><dd className="font-medium">{result.student_name}</dd></div>
               )}
               {result.course_name && (
-                <div className="flex justify-between gap-3"><dt className="text-gray-500">Course</dt><dd className="font-medium">{result.course_name}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-fg-soft">Course</dt><dd className="font-medium">{result.course_name}</dd></div>
               )}
               {result.school_name && (
-                <div className="flex justify-between gap-3"><dt className="text-gray-500">School</dt><dd className="font-medium">{result.school_name}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-fg-soft">School</dt><dd className="font-medium">{result.school_name}</dd></div>
               )}
               {result.status_display && (
-                <div className="flex justify-between gap-3"><dt className="text-gray-500">Status</dt><dd className="font-medium">{result.status_display}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-fg-soft">Status</dt><dd className="font-medium">{result.status_display}</dd></div>
               )}
             </dl>
           )}

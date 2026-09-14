@@ -14,37 +14,37 @@ const ROLE_META = {
   student: {
     label: 'Students',
     icon: 'GraduationCap',
-    accent: 'bg-indigo-100 text-indigo-700',
-    cardAccent: 'bg-indigo-600',
-    badge: 'bg-indigo-100 text-indigo-700',
+    accent: 'bg-fill-indigo-100 text-mark-indigo-700',
+    cardAccent: 'bg-fill-indigo-600',
+    badge: 'bg-fill-indigo-100 text-mark-indigo-700',
   },
   instructor: {
     label: 'Instructors',
     icon: 'BookOpen',
-    accent: 'bg-sky-100 text-sky-700',
-    cardAccent: 'bg-sky-500',
-    badge: 'bg-sky-100 text-sky-700',
+    accent: 'bg-fill-sky-100 text-mark-sky-700',
+    cardAccent: 'bg-fill-sky-500',
+    badge: 'bg-fill-sky-100 text-mark-sky-700',
   },
   commandant: {
     label: 'Commandants',
     icon: 'Shield',
-    accent: 'bg-purple-100 text-purple-700',
-    cardAccent: 'bg-purple-500',
-    badge: 'bg-purple-100 text-purple-700',
+    accent: 'bg-fill-purple-100 text-mark-purple-700',
+    cardAccent: 'bg-fill-purple-500',
+    badge: 'bg-fill-purple-100 text-mark-purple-700',
   },
   chief_instructor: {
     label: 'Chief Instructors',
     icon: 'Star',
-    accent: 'bg-emerald-100 text-emerald-700',
-    cardAccent: 'bg-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700',
+    accent: 'bg-fill-emerald-100 text-mark-emerald-700',
+    cardAccent: 'bg-fill-emerald-500',
+    badge: 'bg-fill-emerald-100 text-mark-emerald-700',
   },
   admin: {
     label: 'Admins',
     icon: 'Settings',
-    accent: 'bg-amber-100 text-amber-700',
-    cardAccent: 'bg-amber-500',
-    badge: 'bg-amber-100 text-amber-700',
+    accent: 'bg-fill-amber-100 text-mark-amber-700',
+    cardAccent: 'bg-fill-amber-500',
+    badge: 'bg-fill-amber-100 text-mark-amber-700',
   },
 }
 
@@ -117,13 +117,13 @@ export default function CommandantUsers({ initialRole = '' }) {
     <div className="w-full px-3 sm:px-4 md:px-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">{headerTitle}</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">All active members of this school</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">{headerTitle}</h2>
+          <p className="text-xs sm:text-sm text-fg-soft">All active members of this school</p>
         </div>
         {roleFilter && (
           <button
             onClick={() => { setRoleFilter(''); setPage(1) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-surface-2 text-fg-muted hover:bg-surface-3 transition"
           >
             <LucideIcons.X className="w-3.5 h-3.5" />
             Clear filter
@@ -140,22 +140,22 @@ export default function CommandantUsers({ initialRole = '' }) {
               onClick={() => { setRoleFilter(''); setPage(1) }}
               className={`relative text-left rounded-xl border shadow-sm p-4 transition hover:shadow-md ${
                 roleFilter === ''
-                  ? 'border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50'
-                  : 'border-neutral-200 bg-white'
+                  ? 'border-edge-indigo-400 ring-2 ring-edge-indigo-200 bg-fill-indigo-50'
+                  : 'border-line bg-surface'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Total</span>
-                <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-600">
+                <span className="text-xs font-semibold text-fg-soft uppercase tracking-wider">Total</span>
+                <div className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted">
                   <LucideIcons.Users className="w-4 h-4" strokeWidth={1.5} />
                 </div>
               </div>
-              <p className="text-2xl font-semibold text-black">{summary.total ?? 0}</p>
-              <p className="text-xs text-neutral-500 mt-0.5">Members</p>
+              <p className="text-2xl font-semibold text-fg">{summary.total ?? 0}</p>
+              <p className="text-xs text-fg-soft mt-0.5">Members</p>
             </button>
 
             {roleEntries.map(([role, count]) => {
-              const meta = ROLE_META[role] || { label: role, icon: 'User', accent: 'bg-neutral-100 text-neutral-600', badge: 'bg-neutral-100 text-neutral-600' }
+              const meta = ROLE_META[role] || { label: role, icon: 'User', accent: 'bg-surface-2 text-fg-muted', badge: 'bg-surface-2 text-fg-muted' }
               const Icon = LucideIcons[meta.icon] || LucideIcons.User
               const isActive = roleFilter === role
               return (
@@ -164,20 +164,20 @@ export default function CommandantUsers({ initialRole = '' }) {
                   onClick={() => selectRole(role)}
                   className={`relative text-left rounded-xl border shadow-sm p-4 transition hover:shadow-md ${
                     isActive
-                      ? 'border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50'
-                      : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                      ? 'border-edge-indigo-400 ring-2 ring-edge-indigo-200 bg-fill-indigo-50'
+                      : 'border-line bg-surface hover:bg-canvas'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider truncate pr-1">
+                    <span className="text-xs font-semibold text-fg-soft uppercase tracking-wider truncate pr-1">
                       {meta.label}
                     </span>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${meta.accent}`}>
                       <Icon className="w-4 h-4" strokeWidth={1.5} />
                     </div>
                   </div>
-                  <p className="text-2xl font-semibold text-black">{count}</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">
+                  <p className="text-2xl font-semibold text-fg">{count}</p>
+                  <p className="text-xs text-fg-soft mt-0.5">
                     {isActive ? 'Showing ↓' : 'Click to filter'}
                   </p>
                 </button>
@@ -187,22 +187,22 @@ export default function CommandantUsers({ initialRole = '' }) {
         )}
 
         {/* Search */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="relative">
-            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
             <input
               type="text"
               placeholder={roleFilter ? `Search ${ROLE_META[roleFilter]?.label || roleFilter}...` : 'Search by name or service number...'}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
           </div>
         </div>
 
         {/* Active filter banner */}
         {roleFilter && (
-          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium ${ROLE_META[roleFilter]?.badge || 'bg-neutral-100 text-neutral-700'} border-current/20`}>
+          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium ${ROLE_META[roleFilter]?.badge || 'bg-surface-2 text-fg-body'} border-current/20`}>
             <LucideIcons.Filter className="w-4 h-4" />
             Showing {ROLE_META[roleFilter]?.label || roleFilter} only
           </div>
@@ -210,11 +210,11 @@ export default function CommandantUsers({ initialRole = '' }) {
 
         {/* Table */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <div className="bg-surface rounded-xl border border-line p-6">
             <EmptyState icon="Loader2" title="Loading users..." variant="minimal" />
           </div>
         ) : users.length === 0 ? (
-          <div className="bg-white rounded-xl border border-neutral-200">
+          <div className="bg-surface rounded-xl border border-line">
             <EmptyState
               icon="Users"
               title="No users found"
@@ -228,29 +228,29 @@ export default function CommandantUsers({ initialRole = '' }) {
             />
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             {/* Mobile card view */}
             <div className="lg:hidden p-4 space-y-3">
               {users.map((u) => {
                 const fullName = u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username
-                const meta = ROLE_META[u.role] || { badge: 'bg-neutral-100 text-neutral-600', label: u.role }
+                const meta = ROLE_META[u.role] || { badge: 'bg-surface-2 text-fg-muted', label: u.role }
                 return (
-                  <div key={u.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
+                  <div key={u.id} className="bg-canvas rounded-lg p-3 sm:p-4 border border-line">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${meta.accent || 'bg-indigo-100 text-indigo-700'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${meta.accent || 'bg-fill-indigo-100 text-mark-indigo-700'}`}>
                         {initials(fullName)}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-black truncate">{fullName}</p>
-                        <p className="text-xs text-neutral-500">{u.svc_number || '—'}</p>
+                        <p className="text-sm font-medium text-fg truncate">{fullName}</p>
+                        <p className="text-xs text-fg-soft">{u.svc_number || '—'}</p>
                       </div>
                       <span className={`ml-auto text-[10px] px-2 py-1 rounded-full font-semibold flex-shrink-0 ${meta.badge}`}>
                         {meta.label}
                       </span>
                     </div>
-                    <div className="text-xs text-neutral-500 space-y-1">
-                      <p>Rank: <span className="text-black capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</span></p>
-                      <p>Unit: <span className="text-black">{u.unit || '—'}</span></p>
+                    <div className="text-xs text-fg-soft space-y-1">
+                      <p>Rank: <span className="text-fg capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</span></p>
+                      <p>Unit: <span className="text-fg">{u.unit || '—'}</span></p>
                     </div>
                   </div>
                 )
@@ -260,34 +260,34 @@ export default function CommandantUsers({ initialRole = '' }) {
             {/* Desktop table */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full table-auto">
-                <thead className="bg-neutral-50">
+                <thead className="bg-canvas">
                   <tr className="text-left">
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Svc No.</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
-                    {!roleFilter && <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Role</th>}
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Unit</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Svc No.</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Rank</th>
+                    {!roleFilter && <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Role</th>}
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Unit</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 bg-white">
+                <tbody className="divide-y divide-line bg-surface">
                   {users.map((u) => {
                     const fullName = u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username
-                    const meta = ROLE_META[u.role] || { badge: 'bg-neutral-100 text-neutral-600', label: u.role, accent: 'bg-indigo-100 text-indigo-700' }
+                    const meta = ROLE_META[u.role] || { badge: 'bg-surface-2 text-fg-muted', label: u.role, accent: 'bg-fill-indigo-100 text-mark-indigo-700' }
                     return (
-                      <tr key={u.id} className="hover:bg-neutral-50 transition">
+                      <tr key={u.id} className="hover:bg-canvas transition">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs flex-shrink-0 ${meta.accent}`}>
                               {initials(fullName)}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-black">{fullName}</p>
-                              <p className="text-xs text-neutral-500">{u.email || ''}</p>
+                              <p className="text-sm font-medium text-fg">{fullName}</p>
+                              <p className="text-xs text-fg-soft">{u.email || ''}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">{u.svc_number || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700 capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{u.svc_number || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body capitalize">{u.rank ? shortRank(u.rank.replace(/_/g, ' ')) : '—'}</td>
                         {!roleFilter && (
                           <td className="px-4 py-3">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${meta.badge}`}>
@@ -295,7 +295,7 @@ export default function CommandantUsers({ initialRole = '' }) {
                             </span>
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-neutral-700">{u.unit || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{u.unit || '—'}</td>
                       </tr>
                     )
                   })}
@@ -305,11 +305,11 @@ export default function CommandantUsers({ initialRole = '' }) {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200">
-                <p className="text-xs text-neutral-500">Page {page} of {totalPages}</p>
+              <div className="flex items-center justify-between px-4 py-3 border-t border-line">
+                <p className="text-xs text-fg-soft">Page {page} of {totalPages}</p>
                 <div className="flex gap-2">
-                  <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 text-xs rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 disabled:opacity-40 transition">Previous</button>
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition">Next</button>
+                  <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 text-xs rounded-lg bg-surface-2 text-fg-body hover:bg-surface-3 disabled:opacity-40 transition">Previous</button>
+                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs rounded-lg bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 disabled:opacity-40 transition">Next</button>
                 </div>
               </div>
             )}

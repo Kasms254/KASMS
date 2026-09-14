@@ -75,7 +75,7 @@ export default function AdminDashboard() {
         const normalized = merged.map(i => ({ ...i, _date: i.date ? new Date(i.date) : null })).filter(i => i._date && !Number.isNaN(i._date.getTime()))
         normalized.sort((a, b) => b._date - a._date)
         if (mounted) setRecentItems(normalized.slice(0, 8))
-      } catch (err) {
+      } catch { // non-fatal: recent items stay empty
       } finally {
         if (mounted) setRecentLoading(false)
       }
@@ -116,7 +116,7 @@ export default function AdminDashboard() {
           })
         })
         if (mounted) setCalendarEvents(ev)
-      } catch (err) {
+      } catch { // non-fatal: calendar just stays empty
       }
     }
 
@@ -130,25 +130,25 @@ export default function AdminDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Admin Dashboard</h2>
-        <p className="text-sm text-gray-500">Overview of School Metrics</p>
+        <h2 className="text-2xl font-semibold text-fg">Admin Dashboard</h2>
+        <p className="text-sm text-fg-soft">Overview of School Metrics</p>
       </header>
 
       {/* Cards grid - modern layout */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Link to="/list/students" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+        <Link to="/list/students" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
           <UserCard type="students" count={metrics.students} />
         </Link>
 
-        <Link to="/list/instructors" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+        <Link to="/list/instructors" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
           <UserCard type="instructors" count={metrics.instructors} />
         </Link>
 
-        <Link to="/list/subjects" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+        <Link to="/list/subjects" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
           <UserCard type="subject" count={metrics.subjects} />
         </Link>
-        <Link to="/list/classes" className="block focus:outline-none focus:ring-2 focus:ring-pink-200 rounded-lg">
-          <Card title="Active Classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-pink-500" colored={true} />
+        <Link to="/list/classes" className="block focus:outline-none focus:ring-2 focus:ring-edge-pink-200 rounded-lg">
+          <Card title="Active Classes" value={metrics.active_classes} icon="Layers" className="" badge={null} accent="bg-fill-pink-500" colored={true} />
         </Link>
       </section>
 
@@ -162,21 +162,21 @@ export default function AdminDashboard() {
           <Calendar events={calendarEvents} />
         </div>
 
-        <div className="bg-white text-neutral-800 rounded-xl p-4 border border-neutral-200 h-full">
+        <div className="bg-surface text-fg rounded-xl p-4 border border-line h-full">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium mb-3">Latest Activity</h3>
           </div>
 
-          {recentLoading && <div className="text-sm text-neutral-500">Loading…</div>}
+          {recentLoading && <div className="text-sm text-fg-soft">Loading…</div>}
 
           {!recentLoading && (!recentItems || recentItems.length === 0) && (
-            <div className="text-sm text-neutral-500">No Recent Activity</div>
+            <div className="text-sm text-fg-soft">No Recent Activity</div>
           )}
 
           {!recentLoading && recentItems && recentItems.length > 0 && (
             <ul className="relative">
               {/* vertical line */}
-              <div className="absolute left-6 top-6 bottom-4 w-px bg-neutral-200" aria-hidden="true" />
+              <div className="absolute left-6 top-6 bottom-4 w-px bg-surface-3" aria-hidden="true" />
 
               {recentItems.slice(0, 5).map((it, idx) => {
                 const deltaS = it._date ? Math.floor((Date.now() - it._date.getTime()) / 1000) : null
@@ -184,7 +184,7 @@ export default function AdminDashboard() {
                 const fmt = (s) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s/60)}m` : s < 86400 ? `${Math.floor(s/3600)}h` : `${Math.floor(s/86400)}d`)
                 const rel = deltaS == null ? '' : (deltaS >= 0 ? `${fmt(absS)} ago` : `in ${fmt(absS)}`)
                 const IconComp = it.kind === 'notice' ? Icons.Megaphone : it.kind === 'exam' ? Icons.Clipboard : Icons.User
-                const iconBg = it.kind === 'notice' ? 'bg-amber-500' : it.kind === 'exam' ? 'bg-sky-500' : 'bg-indigo-500'
+                const iconBg = it.kind === 'notice' ? 'bg-fill-amber-500' : it.kind === 'exam' ? 'bg-fill-sky-500' : 'bg-fill-indigo-500'
                 return (
                   <li key={`${it.kind}-${it.id}-${idx}`} className="relative pl-14 pb-6">
                     <div className="absolute left-0 top-0 w-12 flex items-start justify-center">
@@ -194,10 +194,10 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="flex items-start gap-4">
-                      <div className="w-20 text-sm text-neutral-500 mt-0.5">{rel}</div>
+                      <div className="w-20 text-sm text-fg-soft mt-0.5">{rel}</div>
                       <div className="flex-1">
-                        <div className="text-neutral-800 text-sm font-medium leading-tight">{it.title}</div>
-                        <div className="mt-2 text-xs text-neutral-400">{it.kind === 'user' ? (it.meta?.role || '') : it.kind === 'exam' ? (it.meta?.subject_name || it.meta?.subject?.name || '') : ''}</div>
+                        <div className="text-fg text-sm font-medium leading-tight">{it.title}</div>
+                        <div className="mt-2 text-xs text-fg-faint">{it.kind === 'user' ? (it.meta?.role || '') : it.kind === 'exam' ? (it.meta?.subject_name || it.meta?.subject?.name || '') : ''}</div>
                       </div>
                     </div>
                   </li>

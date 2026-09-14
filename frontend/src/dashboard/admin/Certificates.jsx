@@ -9,8 +9,8 @@ import AdminPagination from '../../components/AdminPagination'
 const CLASS_PAGE_SIZE = 12
 
 const STATUS_BADGE = {
-  issued: 'bg-emerald-100 text-emerald-700',
-  revoked: 'bg-red-100 text-red-700',
+  issued: 'bg-fill-emerald-100 text-mark-emerald-700',
+  revoked: 'bg-fill-red-100 text-mark-red-700',
 }
 
 function formatDate(dateStr) {
@@ -139,26 +139,26 @@ export default function Certificates() {
       <div className="w-full px-3 sm:px-4 md:px-6 pb-8 shrink-0">
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">Certificates</h2>
-            <p className="text-xs sm:text-sm text-neutral-500">Pick a class to see the certificates issued for it</p>
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">Certificates</h2>
+            <p className="text-xs sm:text-sm text-fg-soft">Pick a class to see the certificates issued for it</p>
           </div>
         </header>
 
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
-              <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+              <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
               <input
                 value={classSearch}
                 onChange={(e) => { setClassSearch(e.target.value); setClassPage(1) }}
                 placeholder="Search by class or course..."
-                className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               />
             </div>
             {classSearch && (
               <button
                 onClick={() => { setClassSearch(''); setClassPage(1) }}
-                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+                className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
               >
                 Clear
               </button>
@@ -167,15 +167,15 @@ export default function Certificates() {
         </div>
 
         {classesError ? (
-          <div className="p-6 bg-white rounded-xl border border-red-200">
+          <div className="p-6 bg-surface rounded-xl border border-edge-red-200">
             <EmptyState icon="AlertCircle" title="Error loading certificates" description={classesError.message || String(classesError)} variant="minimal" />
           </div>
         ) : classesLoading ? (
-          <div className="p-6 bg-white rounded-xl border border-neutral-200">
+          <div className="p-6 bg-surface rounded-xl border border-line">
             <EmptyState icon="Loader2" title="Loading certificates..." variant="minimal" />
           </div>
         ) : filteredClasses.length === 0 ? (
-          <div className="bg-white rounded-xl border border-neutral-200">
+          <div className="bg-surface rounded-xl border border-line">
             <EmptyState
               icon="Award"
               title="No certificates found"
@@ -187,7 +187,7 @@ export default function Certificates() {
         ) : (
           <>
             {filteredClasses.length > 0 && (
-              <div className="mb-3 text-sm text-neutral-600">
+              <div className="mb-3 text-sm text-fg-muted">
                 Showing {((currentClassPage - 1) * CLASS_PAGE_SIZE) + 1} - {Math.min(currentClassPage * CLASS_PAGE_SIZE, filteredClasses.length)} of {filteredClasses.length} classes
               </div>
             )}
@@ -211,9 +211,9 @@ export default function Certificates() {
                   >
                     <div className="flex flex-col flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">{c.issued} Issued</span>
+                        <span className="text-xs bg-fill-emerald-50 text-mark-emerald-700 px-2 py-1 rounded-full">{c.issued} Issued</span>
                         {c.revoked > 0 && (
-                          <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded-full">{c.revoked} Revoked</span>
+                          <span className="text-xs bg-fill-red-50 text-mark-red-700 px-2 py-1 rounded-full">{c.revoked} Revoked</span>
                         )}
                       </div>
                       <div className="mt-2 text-xs">Last issued: {formatDate(c.last_issued_at)}</div>
@@ -226,35 +226,35 @@ export default function Certificates() {
             {/* Pagination Controls */}
             {classTotalPages > 1 && (
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-sm text-neutral-600">
+                <div className="text-sm text-fg-muted">
                   Page {currentClassPage} of {classTotalPages}
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setClassPage(1)}
                     disabled={currentClassPage === 1}
-                    className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     First
                   </button>
                   <button
                     onClick={() => setClassPage((p) => Math.max(1, p - 1))}
                     disabled={currentClassPage === 1}
-                    className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setClassPage((p) => Math.min(classTotalPages, p + 1))}
                     disabled={currentClassPage === classTotalPages}
-                    className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     Next
                   </button>
                   <button
                     onClick={() => setClassPage(classTotalPages)}
                     disabled={currentClassPage === classTotalPages}
-                    className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     Last
                   </button>
@@ -272,14 +272,14 @@ export default function Certificates() {
     <div className="w-full px-3 sm:px-4 md:px-6 pb-8 shrink-0">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={backToClasses} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Back to classes">
+          <button onClick={backToClasses} className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition" title="Back to classes">
             <LucideIcons.ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">
               Certificates — {selectedClass.class_name}
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-500">
+            <p className="text-xs sm:text-sm text-fg-soft">
               {selectedClass.course_name ? `${selectedClass.course_name} · ` : ''}
               {selectedClass.issued} issued{selectedClass.revoked > 0 ? ` · ${selectedClass.revoked} revoked` : ''}
             </p>
@@ -288,21 +288,21 @@ export default function Certificates() {
       </header>
 
       {/* Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <div className="relative flex-1">
-            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
             <input
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
               placeholder="Search by certificate number or student..."
-              className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
           </div>
           {searchTerm && (
             <button
               onClick={() => { setSearchTerm(''); setPage(1) }}
-              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+              className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
             >
               Clear
             </button>
@@ -311,15 +311,15 @@ export default function Certificates() {
       </div>
 
       {error ? (
-        <div className="p-6 bg-white rounded-xl border border-red-200">
+        <div className="p-6 bg-surface rounded-xl border border-edge-red-200">
           <EmptyState icon="AlertCircle" title="Error loading certificates" description={error.message || String(error)} variant="minimal" />
         </div>
       ) : loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200">
+        <div className="p-6 bg-surface rounded-xl border border-line">
           <EmptyState icon="Loader2" title="Loading certificates..." variant="minimal" />
         </div>
       ) : certificates.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="bg-surface rounded-xl border border-line">
           <EmptyState
             icon="Award"
             title="No certificates found"
@@ -327,35 +327,35 @@ export default function Certificates() {
           />
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
           {/* Mobile Card View */}
           <div className="lg:hidden p-4 space-y-3">
             {certificates.map((cert) => (
-              <div key={cert.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
+              <div key={cert.id} className="bg-canvas rounded-lg p-3 sm:p-4 border border-line">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-sm flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-fill-emerald-100 flex items-center justify-center text-mark-emerald-700 font-semibold text-sm flex-shrink-0">
                       {initials(cert.student_name || '?')}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-medium text-sm text-black truncate">{cert.student_name || '—'}</div>
-                      <div className="text-xs text-neutral-500">{cert.student_svc_number || '—'}</div>
+                      <div className="font-medium text-sm text-fg truncate">{cert.student_name || '—'}</div>
+                      <div className="text-xs text-fg-soft">{cert.student_svc_number || '—'}</div>
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full capitalize flex-shrink-0 ${STATUS_BADGE[cert.status] || 'bg-neutral-100 text-neutral-600'}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full capitalize flex-shrink-0 ${STATUS_BADGE[cert.status] || 'bg-surface-2 text-fg-muted'}`}>
                     <LucideIcons.Award className="w-3 h-3 inline mr-1" />{cert.status || 'issued'}
                   </span>
                 </div>
                 <div className="space-y-1 text-xs sm:text-sm">
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Certificate #:</span><span className="text-black font-mono">{cert.certificate_number}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued:</span><span className="text-black">{formatDate(cert.issued_at)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-neutral-600">Issued by:</span><span className="text-black">{cert.issued_by_role || '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-fg-muted">Certificate #:</span><span className="text-fg font-mono">{cert.certificate_number}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-fg-muted">Issued:</span><span className="text-fg">{formatDate(cert.issued_at)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-fg-muted">Issued by:</span><span className="text-fg">{cert.issued_by_role || '—'}</span></div>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button
                     onClick={() => handleDownload(cert)}
                     disabled={downloading === cert.id}
-                    className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 transition"
+                    className="px-3 py-1 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-50 transition"
                   >
                     {downloading === cert.id ? 'Preparing...' : 'Download'}
                   </button>
@@ -367,43 +367,43 @@ export default function Certificates() {
           {/* Desktop Table View */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full table-auto">
-              <thead className="bg-neutral-50">
+              <thead className="bg-canvas">
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Student</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Certificate #</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Issued Date</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Issued By</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Student</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Certificate #</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Issued Date</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Issued By</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200 bg-white">
+              <tbody className="divide-y divide-line bg-surface">
                 {certificates.map((cert) => (
-                  <tr key={cert.id} className="hover:bg-neutral-50 transition">
+                  <tr key={cert.id} className="hover:bg-canvas transition">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-fill-emerald-100 flex items-center justify-center text-mark-emerald-700 font-semibold text-xs flex-shrink-0">
                           {initials(cert.student_name || '?')}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-black">{cert.student_name || '—'}</p>
-                          <p className="text-xs text-neutral-500">{cert.student_svc_number || ''}</p>
+                          <p className="text-sm font-medium text-fg">{cert.student_name || '—'}</p>
+                          <p className="text-xs text-fg-soft">{cert.student_svc_number || ''}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-black font-mono whitespace-nowrap">{cert.certificate_number}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{formatDate(cert.issued_at)}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{cert.issued_by_name || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-fg font-mono whitespace-nowrap">{cert.certificate_number}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap">{formatDate(cert.issued_at)}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{cert.issued_by_name || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${STATUS_BADGE[cert.status] || 'bg-neutral-100 text-neutral-600'}`}>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${STATUS_BADGE[cert.status] || 'bg-surface-2 text-fg-muted'}`}>
                         {cert.status || 'issued'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">
+                    <td className="px-4 py-3 text-sm text-fg-body">
                       <button
                         onClick={() => handleDownload(cert)}
                         disabled={downloading === cert.id}
-                        className="px-2 py-1 rounded text-xs bg-neutral-100 text-neutral-600 hover:bg-neutral-200 disabled:opacity-50 transition"
+                        className="px-2 py-1 rounded text-xs bg-surface-2 text-fg-muted hover:bg-surface-3 disabled:opacity-50 transition"
                         title="Download"
                       >
                         {downloading === cert.id ? 'Preparing...' : 'Download'}

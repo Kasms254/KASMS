@@ -143,18 +143,18 @@ export default function Attendance() {
 
 
   return (
-    <div className="p-4 text-black">
+    <div className="p-4 text-fg">
       <h2 className="text-2xl font-semibold">Attendance</h2>
-      <p className="text-sm text-gray-600">Select a date and class, then mark students as Present / Absent / Late.</p>
+      <p className="text-sm text-fg-muted">Select a date and class, then mark students as Present / Absent / Late.</p>
 
       <div className="mt-4 flex gap-6">
         {/* Left column: calendar + class dropdown */}
         <div className="w-80">
           <Calendar selected={date} onSelect={(iso) => setDate(iso)} showEvents={false} />
 
-          <div className="mt-4 bg-white p-3 rounded shadow space-y-3">
+          <div className="mt-4 bg-surface p-3 rounded shadow space-y-3">
             <div>
-              <label className="block text-sm text-gray-700">Class</label>
+              <label className="block text-sm text-fg-body">Class</label>
               <select value={selectedClass ? (selectedClass.id || selectedClass) : ''} onChange={(e) => setSelectedClass(classes.find(c => (c.id || c) === Number(e.target.value)) || Number(e.target.value))} className="mt-1 p-2 rounded border w-full">
                 <option value="">-- select class --</option>
                 {classes.map(c => (
@@ -170,31 +170,31 @@ export default function Attendance() {
         {/* Right column: students table */}
         <div className="flex-1">
           {!selectedClass ? (
-            <div className="bg-white p-6 rounded shadow">
-              <div className="text-gray-700">Select an active class from the left to load students for attendance.</div>
+            <div className="bg-surface p-6 rounded shadow">
+              <div className="text-fg-body">Select an active class from the left to load students for attendance.</div>
             </div>
           ) : (
-            <div className="bg-white p-3 rounded shadow">
+            <div className="bg-surface p-3 rounded shadow">
               <div className="flex items-start justify-between">
               <div>
-                <div className="text-sm text-gray-600">Class: <span className="font-medium">{selectedClass && (selectedClass.name || selectedClass.class_code || selectedClass.id)}</span></div>
-                <div className="text-xs text-gray-500 mt-1">Time: 10:00 AM - 10:45 AM</div>
+                <div className="text-sm text-fg-muted">Class: <span className="font-medium">{selectedClass && (selectedClass.name || selectedClass.class_code || selectedClass.id)}</span></div>
+                <div className="text-xs text-fg-soft mt-1">Time: 10:00 AM - 10:45 AM</div>
               </div>
                 <div className="flex items-center gap-3">
-                  <button className="px-3 py-1 border rounded text-sm text-gray-600">Download Exl</button>
-                  <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  <button className="px-3 py-1 border rounded text-sm text-fg-muted">Download Exl</button>
+                  <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-fill-indigo-600 text-white rounded hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {loading ? 'Saving...' : 'Save Attendance'}
                   </button>
                 </div>
               </div>
               <h3 className="font-medium mt-4">Students</h3>
               {loading ? (
-                <p className="text-sm text-gray-500">Loading...</p>
+                <p className="text-sm text-fg-soft">Loading...</p>
               ) : (
                 <div className="overflow-auto mt-3">
                   <table className="min-w-full text-left text-sm">
                     <thead>
-                      <tr className="text-gray-600">
+                      <tr className="text-fg-muted">
                         <th className="px-2 py-2">SVC Number</th>
                         <th className="px-2 py-2">Rank</th>
                         <th className="px-2 py-2">Name</th>
@@ -204,7 +204,7 @@ export default function Attendance() {
                     <tbody>
                       {students.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-2 py-4 text-sm text-gray-500">No students loaded for this class.</td>
+                          <td colSpan={4} className="px-2 py-4 text-sm text-fg-soft">No students loaded for this class.</td>
                         </tr>
                       )}
                       {students.map((s, idx) => (
@@ -214,9 +214,9 @@ export default function Attendance() {
                           <td className="px-2 py-2 truncate max-w-[240px]">{s.name || '—'}</td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => updateStatus(idx, 'present')} className={`px-2 py-1 rounded text-sm ${s.status === 'present' ? 'bg-emerald-500 text-white' : 'border text-gray-600'}`}>Present</button>
-                              <button onClick={() => updateStatus(idx, 'absent')} className={`px-2 py-1 rounded text-sm ${s.status === 'absent' ? 'bg-rose-500 text-white' : 'border text-gray-600'}`}>Absent</button>
-                              <button onClick={() => updateStatus(idx, 'late')} className={`px-2 py-1 rounded text-sm ${s.status === 'late' ? 'bg-yellow-400 text-white' : 'border text-gray-600'}`}>Late</button>
+                              <button onClick={() => updateStatus(idx, 'present')} className={`px-2 py-1 rounded text-sm ${s.status === 'present' ? 'bg-fill-emerald-500 text-white' : 'border text-fg-muted'}`}>Present</button>
+                              <button onClick={() => updateStatus(idx, 'absent')} className={`px-2 py-1 rounded text-sm ${s.status === 'absent' ? 'bg-fill-rose-500 text-white' : 'border text-fg-muted'}`}>Absent</button>
+                              <button onClick={() => updateStatus(idx, 'late')} className={`px-2 py-1 rounded text-sm ${s.status === 'late' ? 'bg-fill-yellow-400 text-white' : 'border text-fg-muted'}`}>Late</button>
                             </div>
                           </td>
                         </tr>
@@ -227,7 +227,7 @@ export default function Attendance() {
               )}
 
               <div className="mt-4">
-                <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <button onClick={submit} disabled={loading || students.length === 0} className="px-4 py-2 bg-fill-green-600 text-white rounded hover:bg-fill-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {loading ? 'Saving...' : 'Submit Attendance'}
                 </button>
               </div>

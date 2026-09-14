@@ -77,18 +77,18 @@ export default function CommandantDashboard() {
     <div className="pb-10">
       {/* Header */}
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">{roleLabel} Dashboard</h2>
-        <p className="text-sm text-gray-500">
+        <h2 className="text-2xl font-semibold text-fg">{roleLabel} Dashboard</h2>
+        <p className="text-sm text-fg-soft">
           {data?.school?.name ? `${data.school.name} — Overview` : 'Overview of School Operations'}
         </p>
       </header>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl border border-line p-6">
           <EmptyState icon="Loader2" title="Loading dashboard..." variant="minimal" />
         </div>
       ) : error ? (
-        <div className="bg-white rounded-xl border border-red-200 p-6">
+        <div className="bg-surface rounded-xl border border-edge-red-200 p-6">
           <EmptyState icon="AlertCircle" title="Failed to load dashboard" description={error?.message || 'Something went wrong'} variant="minimal" />
         </div>
       ) : (
@@ -97,44 +97,44 @@ export default function CommandantDashboard() {
           {data?.pending_actions?.reports_awaiting_your_remarks > 0 && (
               <Link
               to="/commandant/exam-reports"
-              className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 no-underline hover:bg-amber-100 transition"
+              className="flex items-center gap-3 bg-fill-amber-50 border border-edge-amber-200 rounded-xl px-4 py-3 mb-6 no-underline hover:bg-fill-amber-100 transition"
               >
-                <Icons.AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                <span className="text-sm text-amber-800 font-medium">
+                <Icons.AlertCircle className="w-5 h-5 text-mark-amber-600 flex-shrink-0" />
+                <span className="text-sm text-mark-amber-800 font-medium">
                 {data.pending_actions.reports_awaiting_your_remarks} exam{' '}
                 {data.pending_actions.reports_awaiting_your_remarks === 1 ? 'report' : 'reports'} awaiting your remark
                 </span>
-              <span className="ml-auto text-xs text-amber-700 underline">Review now →</span>
+              <span className="ml-auto text-xs text-mark-amber-700 underline">Review now →</span>
               </Link>
             )}
 
           {/* Top stat cards — row 1 */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <Link to="/commandant/users/students" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+            <Link to="/commandant/users/students" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
               <UserCard type="students" count={data?.counts?.total_students} />
             </Link>
-            <Link to="/commandant/users/instructors" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
+            <Link to="/commandant/users/instructors" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
               <UserCard type="instructors" count={data?.counts?.total_instructors} />
             </Link>
-            <Link to="/commandant/departments" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
-              <Card title="Departments" value={data?.counts?.departments} icon="Building" accent="bg-emerald-500" colored />
+            <Link to="/commandant/departments" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
+              <Card title="Departments" value={data?.counts?.departments} icon="Building" accent="bg-fill-emerald-500" colored />
             </Link>
-            <Link to="/commandant/classes" className="block focus:outline-none focus:ring-pink-200 focus:ring-2 rounded-lg">
-              <Card title="Active Classes" value={data?.counts?.active_classes} icon="Layers" accent="bg-pink-500" colored />
+            <Link to="/commandant/classes" className="block focus:outline-none focus:ring-edge-pink-200 focus:ring-2 rounded-lg">
+              <Card title="Active Classes" value={data?.counts?.active_classes} icon="Layers" accent="bg-fill-pink-500" colored />
             </Link>
           </section>
 
           {/* Stat cards — row 2 */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Link to="/commandant/exam-reports" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
-              <Card title="Exam Reports" value={data?.counts?.exam_reports} icon="FileBarChart" accent="bg-amber-500" colored />
+            <Link to="/commandant/exam-reports" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
+              <Card title="Exam Reports" value={data?.counts?.exam_reports} icon="FileBarChart" accent="bg-fill-amber-500" colored />
             </Link>
-            <Link to="/commandant/certificates" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
-              <Card title="Certificates Issued" value={data?.counts?.certificates_issued} icon="Award" accent="bg-emerald-500" colored />
+            <Link to="/commandant/certificates" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
+              <Card title="Certificates Issued" value={data?.counts?.certificates_issued} icon="Award" accent="bg-fill-emerald-500" colored />
             </Link>
-            <Card title="Total Enrollments" value={data?.counts?.total_enrollments} icon="ClipboardList" accent="bg-indigo-500" colored />
-            <Link to="/commandant/courses" className="block focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-lg">
-              <Card title="Courses" value={data?.counts?.courses} icon="BookOpen" accent="bg-neutral-400" colored />
+            <Card title="Total Enrollments" value={data?.counts?.total_enrollments} icon="ClipboardList" accent="bg-fill-indigo-500" colored />
+            <Link to="/commandant/courses" className="block focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 rounded-lg">
+              <Card title="Courses" value={data?.counts?.courses} icon="BookOpen" accent="bg-surface-5" colored />
             </Link>
           </section>
 
@@ -144,27 +144,27 @@ export default function CommandantDashboard() {
               <Calendar events={calendarEvents} />
             </div>
 
-            <div className="bg-white text-neutral-800 rounded-xl p-4 border border-neutral-200 h-full">
+            <div className="bg-surface text-fg rounded-xl p-4 border border-line h-full">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium mb-3">Latest Activity</h3>
               </div>
 
-              {recentLoading && <div className="text-sm text-neutral-500">Loading…</div>}
+              {recentLoading && <div className="text-sm text-fg-soft">Loading…</div>}
 
               {!recentLoading && recentItems.length === 0 && (
-                <div className="text-sm text-neutral-500">No Recent Activity</div>
+                <div className="text-sm text-fg-soft">No Recent Activity</div>
               )}
 
               {!recentLoading && recentItems.length > 0 && (
                 <ul className="relative">
-                  <div className="absolute left-6 top-6 bottom-4 w-px bg-neutral-200" aria-hidden="true" />
+                  <div className="absolute left-6 top-6 bottom-4 w-px bg-surface-3" aria-hidden="true" />
                   {recentItems.slice(0, 5).map((it, idx) => {
                     const deltaS = it._date ? Math.floor((Date.now() - it._date.getTime()) / 1000) : null
                     const absS = deltaS == null ? null : Math.abs(deltaS)
                     const fmt = (s) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`)
                     const rel = deltaS == null ? '' : (deltaS >= 0 ? `${fmt(absS)} ago` : `in ${fmt(absS)}`)
                     const IconComp = it.kind === 'notice' ? Icons.Megaphone : it.kind === 'exam' ? Icons.Clipboard : Icons.User
-                    const iconBg = it.kind === 'notice' ? 'bg-amber-500' : it.kind === 'exam' ? 'bg-sky-500' : 'bg-indigo-500'
+                    const iconBg = it.kind === 'notice' ? 'bg-fill-amber-500' : it.kind === 'exam' ? 'bg-fill-sky-500' : 'bg-fill-indigo-500'
                     return (
                       <li key={`${it.kind}-${it.id}-${idx}`} className="relative pl-14 pb-6">
                         <div className="absolute left-0 top-0 w-12 flex items-start justify-center">
@@ -173,10 +173,10 @@ export default function CommandantDashboard() {
                           </div>
                         </div>
                         <div className="flex items-start gap-4">
-                          <div className="w-20 text-sm text-neutral-500 mt-0.5">{rel}</div>
+                          <div className="w-20 text-sm text-fg-soft mt-0.5">{rel}</div>
                           <div className="flex-1">
-                            <div className="text-neutral-800 text-sm font-medium leading-tight">{it.title}</div>
-                            <div className="mt-2 text-xs text-neutral-400">
+                            <div className="text-fg text-sm font-medium leading-tight">{it.title}</div>
+                            <div className="mt-2 text-xs text-fg-faint">
                               {it.kind === 'notice' ? (it.meta?.priority ? `Priority: ${it.meta.priority}` : 'Notice') : it.kind}
                             </div>
                           </div>
@@ -187,7 +187,7 @@ export default function CommandantDashboard() {
                 </ul>
               )}
 
-              <Link to="/commandant/notices" className="mt-1 block text-xs text-indigo-600 hover:underline">
+              <Link to="/commandant/notices" className="mt-1 block text-xs text-mark-indigo-600 hover:underline">
                 View all notices →
               </Link>
             </div>
@@ -195,40 +195,40 @@ export default function CommandantDashboard() {
 
           {/* Attendance + Exam Performance */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl border border-neutral-200 p-4">
-              <h3 className="text-base font-semibold text-black mb-4">Attendance — Last 30 Days</h3>
+            <div className="bg-surface rounded-xl border border-line p-4">
+              <h3 className="text-base font-semibold text-fg mb-4">Attendance — Last 30 Days</h3>
               <dl className="space-y-3">
                 {[
                   { label: 'Total Sessions', value: data?.attendance_summary?.total_sessions },
                   { label: 'Completed Sessions', value: data?.attendance_summary?.completed_sessions },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between items-center">
-                    <dt className="text-sm text-neutral-500">{label}</dt>
-                    <dd className="text-sm font-semibold text-black">{value ?? '—'}</dd>
+                    <dt className="text-sm text-fg-soft">{label}</dt>
+                    <dd className="text-sm font-semibold text-fg">{value ?? '—'}</dd>
                   </div>
                 ))}
                 <div className="flex justify-between items-center">
-                  <dt className="text-sm text-neutral-500">Attendance Rate</dt>
-                  <dd className="text-sm font-semibold text-black">
+                  <dt className="text-sm text-fg-soft">Attendance Rate</dt>
+                  <dd className="text-sm font-semibold text-fg">
                     {data?.attendance_summary?.overall_attendance_rate != null
                       ? `${data.attendance_summary.overall_attendance_rate}%`
                       : '—'}
                   </dd>
                 </div>
               </dl>
-              <div className="mt-4 w-full bg-neutral-100 rounded-full h-2">
+              <div className="mt-4 w-full bg-surface-2 rounded-full h-2">
                 <div
-                  className="bg-indigo-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-fill-indigo-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(data?.attendance_summary?.overall_attendance_rate || 0, 100)}%` }}
                 />
               </div>
-              <Link to="/commandant/attendance" className="mt-5 inline-block text-xs text-indigo-600 hover:underline">
+              <Link to="/commandant/attendance" className="mt-5 inline-block text-xs text-mark-indigo-600 hover:underline">
                 View attendance →
               </Link>
             </div>
 
-            <div className="bg-white rounded-xl border border-neutral-200 p-4">
-              <h3 className="text-base font-semibold text-black mb-4">Exam Performance</h3>
+            <div className="bg-surface rounded-xl border border-line p-4">
+              <h3 className="text-base font-semibold text-fg mb-4">Exam Performance</h3>
               <dl className="space-y-3">
                 {[
                   { label: 'Total Results', value: data?.exam_performance?.total_results },
@@ -240,24 +240,24 @@ export default function CommandantDashboard() {
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between items-center">
-                    <dt className="text-sm text-neutral-500">{label}</dt>
-                    <dd className="text-sm font-semibold text-black">{value ?? '—'}</dd>
+                    <dt className="text-sm text-fg-soft">{label}</dt>
+                    <dd className="text-sm font-semibold text-fg">{value ?? '—'}</dd>
                   </div>
                 ))}
                 <div className="flex justify-between items-center">
-                  <dt className="text-sm text-neutral-500">Pass Rate</dt>
-                  <dd className={`text-sm font-semibold ${(data?.exam_performance?.pass_rate || 0) >= 50 ? 'text-green-600' : 'text-red-600'}`}>
+                  <dt className="text-sm text-fg-soft">Pass Rate</dt>
+                  <dd className={`text-sm font-semibold ${(data?.exam_performance?.pass_rate || 0) >= 50 ? 'text-mark-green-600' : 'text-mark-red-600'}`}>
                     {data?.exam_performance?.pass_rate != null ? `${data.exam_performance.pass_rate}%` : '—'}
                   </dd>
                 </div>
               </dl>
-              <div className="mt-4 w-full bg-neutral-100 rounded-full h-2">
+              <div className="mt-4 w-full bg-surface-2 rounded-full h-2">
                 <div
-                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-fill-emerald-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(data?.exam_performance?.pass_rate || 0, 100)}%` }}
                 />
               </div>
-              <Link to="/commandant/exam-reports" className="mt-5 inline-block text-xs text-indigo-600 hover:underline">
+              <Link to="/commandant/exam-reports" className="mt-5 inline-block text-xs text-mark-indigo-600 hover:underline">
                 View exam reports →
               </Link>
             </div>

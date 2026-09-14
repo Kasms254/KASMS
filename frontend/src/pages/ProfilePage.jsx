@@ -13,9 +13,9 @@ const TABS = [
 
 function InfoRow({ label, value }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-neutral-100 last:border-b-0">
-      <span className="text-sm text-neutral-500 shrink-0">{label}</span>
-      <span className="text-sm font-medium text-black text-right break-words min-w-0">{value || 'N/A'}</span>
+    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-hair last:border-b-0">
+      <span className="text-sm text-fg-soft shrink-0">{label}</span>
+      <span className="text-sm font-medium text-fg text-right break-words min-w-0">{value || 'N/A'}</span>
     </div>
   )
 }
@@ -23,10 +23,10 @@ function InfoRow({ label, value }) {
 function Card({ icon, title, children, className = '' }) {
   const Icon = Icons[icon]
   return (
-    <section className={`bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 ${className}`}>
+    <section className={`bg-surface rounded-xl border border-line p-4 sm:p-5 ${className}`}>
       <div className="flex items-center gap-2 mb-3">
-        {Icon && <Icon className="w-5 h-5 text-neutral-500" />}
-        <h3 className="font-semibold text-black">{title}</h3>
+        {Icon && <Icon className="w-5 h-5 text-fg-soft" />}
+        <h3 className="font-semibold text-fg">{title}</h3>
       </div>
       {children}
     </section>
@@ -36,8 +36,8 @@ function Card({ icon, title, children, className = '' }) {
 function Stat({ label, value }) {
   return (
     <div>
-      <p className="text-xs text-neutral-500 mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-black">{value || 'N/A'}</p>
+      <p className="text-xs text-fg-soft mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-fg">{value || 'N/A'}</p>
     </div>
   )
 }
@@ -176,8 +176,8 @@ export default function ProfilePage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-3" />
-          <p className="text-sm text-neutral-500">Loading profile...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-edge-indigo-600 mx-auto mb-3" />
+          <p className="text-sm text-fg-soft">Loading profile...</p>
         </div>
       </div>
     )
@@ -187,13 +187,13 @@ export default function ProfilePage() {
   if (error) {
     return (
       <div className="max-w-lg mx-auto mt-12">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <Icons.AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-          <p className="text-sm font-medium text-red-800 mb-1">Failed to load profile</p>
-          <p className="text-sm text-red-600 mb-4">{error}</p>
+        <div className="bg-fill-red-50 border border-edge-red-200 rounded-xl p-6 text-center">
+          <Icons.AlertCircle className="w-10 h-10 text-mark-red-400 mx-auto mb-3" />
+          <p className="text-sm font-medium text-mark-red-800 mb-1">Failed to load profile</p>
+          <p className="text-sm text-mark-red-600 mb-4">{error}</p>
           <button
             onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 text-sm bg-neutral-100 text-neutral-700 rounded-lg hover:bg-neutral-200 transition"
+            className="px-4 py-2 text-sm bg-surface-2 text-fg-body rounded-lg hover:bg-surface-3 transition"
           >
             Back to Dashboard
           </button>
@@ -206,7 +206,7 @@ export default function ProfilePage() {
     <div className="w-full space-y-6">
       {/* Success banner */}
       {saveSuccess && (
-        <div className="flex items-center gap-2 text-sm text-green-800 bg-green-50 border border-green-200 rounded-xl p-3">
+        <div className="flex items-center gap-2 text-sm text-mark-green-800 bg-fill-green-50 border border-edge-green-200 rounded-xl p-3">
           <Icons.CheckCircle className="w-5 h-5 flex-shrink-0" />
           Profile updated successfully.
         </div>
@@ -215,35 +215,35 @@ export default function ProfilePage() {
       {/* Identity band — spans the full content width. Scoped <form> so the
           inline username/bio fields submit on Enter without wrapping the whole
           page (TOTPSettings renders its own form). */}
-      <form onSubmit={handleSave} className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 lg:p-6">
+      <form onSubmit={handleSave} className="bg-surface rounded-xl border border-line p-4 sm:p-5 lg:p-6">
         {/* Actions drop below the identity block until lg, so the avatar and
             name keep a usable width on phones and tablets */}
         <div className="flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-5">
           <div className="flex items-start gap-4 flex-1 min-w-0">
             {/* Avatar */}
-            <div className="w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg sm:text-2xl lg:text-3xl font-bold shrink-0">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-fill-indigo-600 flex items-center justify-center text-white text-lg sm:text-2xl lg:text-3xl font-bold shrink-0">
               {initials}
             </div>
 
             {/* Name, badges, bio */}
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-black break-words">{fullName}</h2>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-fg break-words">{fullName}</h2>
 
             {editing ? (
               <div className="mt-2 max-w-sm">
-                <label htmlFor="username" className="block text-xs font-medium text-neutral-500 mb-1">
+                <label htmlFor="username" className="block text-xs font-medium text-fg-soft mb-1">
                   Username
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">@</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint text-sm">@</span>
                   <input
                     id="username"
                     type="text"
                     name="username"
                     value={formData.username}
                     onChange={handleChange}
-                    className={`w-full pl-7 pr-3 py-2 border rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      formErrors.username ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full pl-7 pr-3 py-2 border rounded-lg text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      formErrors.username ? 'border-edge-red-500' : 'border-line'
                     }`}
                     placeholder="Enter username"
                     minLength={3}
@@ -251,24 +251,24 @@ export default function ProfilePage() {
                   />
                 </div>
                 {formErrors.username && (
-                  <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>
+                  <p className="text-mark-red-500 text-xs mt-1">{formErrors.username}</p>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-neutral-500 mt-0.5">@{profile.username}</p>
+              <p className="text-sm text-fg-soft mt-0.5">@{profile.username}</p>
             )}
 
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100">
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-fill-indigo-50 text-mark-indigo-800 border border-edge-indigo-100">
                 {profile.role_display || profile.role}
               </span>
               {profile.rank_display && (
-                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-fill-amber-50 text-mark-amber-800 border border-edge-amber-100">
                   {profile.rank_display}
                 </span>
               )}
               {profile.school_name && (
-                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-fill-emerald-50 text-mark-emerald-800 border border-edge-emerald-100">
                   {profile.school_name}
                 </span>
               )}
@@ -277,7 +277,7 @@ export default function ProfilePage() {
             {/* Bio — edited in place, no separate form card */}
             {editing ? (
               <div className="mt-3 max-w-2xl">
-                <label htmlFor="bio" className="block text-xs font-medium text-neutral-500 mb-1">
+                <label htmlFor="bio" className="block text-xs font-medium text-fg-soft mb-1">
                   Bio
                 </label>
                 <textarea
@@ -285,24 +285,24 @@ export default function ProfilePage() {
                   name="bio"
                   value={formData.bio}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 resize-none"
                   placeholder="Write a short bio about yourself..."
                   rows={3}
                   maxLength={500}
                 />
-                <p className="text-neutral-500 text-xs mt-1">{formData.bio.length}/500 characters</p>
+                <p className="text-fg-soft text-xs mt-1">{formData.bio.length}/500 characters</p>
               </div>
             ) : profile.bio ? (
-              <p className="mt-3 text-sm text-neutral-600 leading-relaxed max-w-2xl">{profile.bio}</p>
+              <p className="mt-3 text-sm text-fg-muted leading-relaxed max-w-2xl">{profile.bio}</p>
             ) : (
-              <p className="mt-3 text-sm text-neutral-400 italic">No bio added yet.</p>
+              <p className="mt-3 text-sm text-fg-faint italic">No bio added yet.</p>
             )}
 
             {saveError && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 max-w-2xl">
+              <div className="mt-3 bg-fill-red-50 border border-edge-red-200 rounded-xl p-3 max-w-2xl">
                 <div className="flex items-start gap-2">
-                  <Icons.AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{saveError}</p>
+                  <Icons.AlertCircle className="w-5 h-5 text-mark-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-mark-red-700">{saveError}</p>
                 </div>
               </div>
               )}
@@ -316,14 +316,14 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={cancelEditing}
-                  className="flex-1 lg:flex-none px-4 py-2.5 lg:py-2 text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition text-sm"
+                  className="flex-1 lg:flex-none px-4 py-2.5 lg:py-2 text-fg-body bg-surface-2 rounded-lg hover:bg-surface-3 transition text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50"
+                  className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition text-sm font-medium disabled:opacity-50"
                 >
                   {saving ? (
                     <>
@@ -342,7 +342,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={startEditing}
-                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 lg:py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition text-sm font-medium"
               >
                 <Icons.Pencil className="w-4 h-4" />
                 Edit Profile
@@ -353,7 +353,7 @@ export default function ProfilePage() {
       </form>
 
       {/* Tabs */}
-      <div className="border-b border-neutral-200">
+      <div className="border-b border-line">
         <div className="flex gap-1 -mb-px overflow-x-auto" role="tablist">
           {TABS.map((t) => {
             const Icon = Icons[t.icon]
@@ -366,8 +366,8 @@ export default function ProfilePage() {
                 onClick={() => setActiveTab(t.id)}
                 className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 text-sm font-medium border-b-2 transition whitespace-nowrap ${
                   activeTab === t.id
-                    ? 'border-indigo-600 text-indigo-700'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                    ? 'border-edge-indigo-600 text-mark-indigo-700'
+                    : 'border-transparent text-fg-soft hover:text-fg-body'
                 }`}
               >
                 {Icon && <Icon className="w-4 h-4" />}

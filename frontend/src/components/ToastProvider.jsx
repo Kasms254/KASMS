@@ -59,7 +59,7 @@ export default function ToastProvider({ children }) {
           <div
             key={t.id}
             className={`w-full flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg animate-in slide-in-from-right duration-300 ${
-              t.type === 'success' ? 'bg-green-600 text-white' : 'bg-rose-600 text-white'
+              t.type === 'success' ? 'bg-fill-green-600 text-white' : 'bg-fill-rose-600 text-white'
             }`}
           >
             <div className="flex-shrink-0 mt-0.5">

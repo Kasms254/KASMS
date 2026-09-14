@@ -14,15 +14,15 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 const GRADE_COLORS = {
-  'A':  { bg: 'bg-emerald-600', text: 'text-emerald-700', light: 'bg-emerald-50' },
-  'A-': { bg: 'bg-emerald-400', text: 'text-emerald-600', light: 'bg-emerald-50' },
-  'B+': { bg: 'bg-sky-600',     text: 'text-sky-700',     light: 'bg-sky-50' },
-  'B':  { bg: 'bg-sky-500',     text: 'text-sky-700',     light: 'bg-sky-50' },
-  'B-': { bg: 'bg-sky-400',     text: 'text-sky-600',     light: 'bg-sky-50' },
-  'C+': { bg: 'bg-amber-600',   text: 'text-amber-700',   light: 'bg-amber-50' },
-  'C':  { bg: 'bg-amber-500',   text: 'text-amber-700',   light: 'bg-amber-50' },
-  'C-': { bg: 'bg-amber-400',   text: 'text-amber-600',   light: 'bg-amber-50' },
-  'F':  { bg: 'bg-red-500',     text: 'text-red-700',     light: 'bg-red-50' },
+  'A':  { bg: 'bg-fill-emerald-600', text: 'text-mark-emerald-700', light: 'bg-fill-emerald-50' },
+  'A-': { bg: 'bg-fill-emerald-400', text: 'text-mark-emerald-600', light: 'bg-fill-emerald-50' },
+  'B+': { bg: 'bg-fill-sky-600',     text: 'text-mark-sky-700',     light: 'bg-fill-sky-50' },
+  'B':  { bg: 'bg-fill-sky-500',     text: 'text-mark-sky-700',     light: 'bg-fill-sky-50' },
+  'B-': { bg: 'bg-fill-sky-400',     text: 'text-mark-sky-600',     light: 'bg-fill-sky-50' },
+  'C+': { bg: 'bg-fill-amber-600',   text: 'text-mark-amber-700',   light: 'bg-fill-amber-50' },
+  'C':  { bg: 'bg-fill-amber-500',   text: 'text-mark-amber-700',   light: 'bg-fill-amber-50' },
+  'C-': { bg: 'bg-fill-amber-400',   text: 'text-mark-amber-600',   light: 'bg-fill-amber-50' },
+  'F':  { bg: 'bg-fill-red-500',     text: 'text-mark-red-700',     light: 'bg-fill-red-50' },
 }
 
 function _gradeFromPct(pct) {
@@ -79,7 +79,7 @@ export default function CommandantExamReports() {
 
   const [currentRemarksData, setCurrentRemarksData] = useState(null)
   const [newRemark,          setNewRemark]          = useState('')
-  const [remarksLoading,     setRemarksLoading]     = useState(false)
+  const [, setRemarksLoading] = useState(false)
   const [remarkSubmitting,   setRemarkSubmitting]   = useState(false)
 
   
@@ -687,17 +687,17 @@ export default function CommandantExamReports() {
     return (
       <div className="space-y-6">
         <header className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-black">Exam Reports</h2>
+          <h2 className="text-2xl font-semibold text-fg">Exam Reports</h2>
         </header>
         <div className="flex items-center gap-3">
           <button
             onClick={() => { setShowComprehensive(false); setComprehensiveData(null) }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-body rounded-lg transition"
           >
             <LucideIcons.ArrowLeft className="w-4 h-4" />Back to Reports
           </button>
         </div>
-        <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+        <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
           <StudentPerformanceTable
             students={comprehensiveData.all_students || []}
             title={classes.find(c => String(c.id) === selectedClass)?.name || 'Comprehensive Results'}
@@ -715,37 +715,37 @@ export default function CommandantExamReports() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleBack}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-body rounded-lg transition"
             >
               <LucideIcons.ArrowLeft className="w-4 h-4" />Back to Exams
             </button>
-            <h2 className="text-2xl font-semibold text-black">Exam Results</h2>
+            <h2 className="text-2xl font-semibold text-fg">Exam Results</h2>
           </div>
           <button
             onClick={exportPDF}
             disabled={!examResults.length}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-fill-indigo-700 disabled:opacity-50 transition"
           >
             <LucideIcons.FileDown className="w-4 h-4" />Export PDF
           </button>
         </header>
 
         {/* Exam header */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-6">
           <div className="flex items-center gap-3 mb-3">
             <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full capitalize ${
-              selectedExam.exam_type === 'final' ? 'bg-purple-100 text-purple-700' :
-              selectedExam.exam_type === 'cat'   ? 'bg-blue-100 text-blue-700' :
-              'bg-gray-100 text-gray-700'
+              selectedExam.exam_type === 'final' ? 'bg-fill-purple-100 text-mark-purple-700' :
+              selectedExam.exam_type === 'cat'   ? 'bg-fill-blue-100 text-mark-blue-700' :
+              'bg-surface-2 text-fg-body'
             }`}>{selectedExam.exam_type || 'Exam'}</span>
           </div>
           {selectedExam.title && (
-            <h3 className="text-lg font-bold text-black mb-1">{selectedExam.title}</h3>
+            <h3 className="text-lg font-bold text-fg mb-1">{selectedExam.title}</h3>
           )}
           {selectedExam.description && (
-            <p className="text-neutral-600 text-sm mb-3">{selectedExam.description}</p>
+            <p className="text-fg-muted text-sm mb-3">{selectedExam.description}</p>
           )}
-          <div className="flex flex-wrap gap-4 text-sm text-neutral-500">
+          <div className="flex flex-wrap gap-4 text-sm text-fg-soft">
             <span className="flex items-center gap-1"><LucideIcons.BookOpen className="w-4 h-4" />{selectedExam.subject_name || 'N/A'}</span>
             <span className="flex items-center gap-1"><LucideIcons.School className="w-4 h-4" />{selectedExam.class_name || 'N/A'}</span>
             <span className="flex items-center gap-1"><LucideIcons.Calendar className="w-4 h-4" />
@@ -759,29 +759,29 @@ export default function CommandantExamReports() {
 
         {loadingDetail ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600" />
           </div>
         ) : examStats ? (
           <>
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-              <Card title="Total"     value={examStats.total}              icon="Users"           accent="bg-indigo-500"  colored />
-              <Card title="Submitted" value={examStats.submitted}          icon="CheckCircle"     accent="bg-emerald-500" colored />
-              <Card title="Pending"   value={examStats.pending}            icon="Clock"           accent="bg-amber-500"   colored />
-              <Card title="Average"   value={`${examStats.average}%`}      icon="TrendingUp"      accent="bg-indigo-600"  colored />
-              <Card title="Highest"   value={`${examStats.highest}%`}      icon="ArrowUpCircle"   accent="bg-emerald-500" colored />
-              <Card title="Lowest"    value={`${examStats.lowest}%`}       icon="ArrowDownCircle" accent="bg-pink-500"    colored />
-              <Card title="Pass Rate" value={`${examStats.passRate}%`}     icon="Award"           accent="bg-sky-500"     colored />
+              <Card title="Total"     value={examStats.total}              icon="Users"           accent="bg-fill-indigo-500"  colored />
+              <Card title="Submitted" value={examStats.submitted}          icon="CheckCircle"     accent="bg-fill-emerald-500" colored />
+              <Card title="Pending"   value={examStats.pending}            icon="Clock"           accent="bg-fill-amber-500"   colored />
+              <Card title="Average"   value={`${examStats.average}%`}      icon="TrendingUp"      accent="bg-fill-indigo-600"  colored />
+              <Card title="Highest"   value={`${examStats.highest}%`}      icon="ArrowUpCircle"   accent="bg-fill-emerald-500" colored />
+              <Card title="Lowest"    value={`${examStats.lowest}%`}       icon="ArrowDownCircle" accent="bg-fill-pink-500"    colored />
+              <Card title="Pass Rate" value={`${examStats.passRate}%`}     icon="Award"           accent="bg-fill-sky-500"     colored />
             </div>
 
             {/* Grade distribution bar */}
-            <div className="bg-white rounded-xl border border-neutral-200 p-4 md:p-6">
-              <h3 className="text-base font-semibold text-black mb-4">Grade Distribution</h3>
+            <div className="bg-surface rounded-xl border border-line p-4 md:p-6">
+              <h3 className="text-base font-semibold text-fg mb-4">Grade Distribution</h3>
               <div className="flex h-8 rounded-lg overflow-hidden mb-4">
                 {Object.entries(examStats.grades).map(([grade, count]) => {
                   const pct = examStats.submitted > 0 ? (count / examStats.submitted) * 100 : 0
                   if (pct === 0) return null
-                  const c = GRADE_COLORS[grade] || { bg: 'bg-neutral-400' }
+                  const c = GRADE_COLORS[grade] || { bg: 'bg-surface-5' }
                   return (
                     <div key={grade} className={`${c.bg} flex items-center justify-center text-white text-xs font-bold`}
                       style={{ width: `${pct}%` }} title={`${grade}: ${count} (${pct.toFixed(1)}%)`}>
@@ -793,11 +793,11 @@ export default function CommandantExamReports() {
               <div className="grid grid-cols-5 sm:grid-cols-9 gap-1 md:gap-2">
                 {Object.entries(examStats.grades).map(([grade, count]) => {
                   const pct = examStats.submitted > 0 ? ((count / examStats.submitted) * 100).toFixed(1) : 0
-                  const c   = GRADE_COLORS[grade] || { text: 'text-neutral-700', light: 'bg-neutral-50' }
+                  const c   = GRADE_COLORS[grade] || { text: 'text-fg-body', light: 'bg-canvas' }
                   return (
                     <div key={grade} className={`${c.light} rounded-lg p-2 text-center`}>
                       <div className={`text-lg font-bold ${c.text}`}>{grade}</div>
-                      <div className="text-xs text-neutral-600 mt-0.5">{count} <span className="hidden sm:inline">({pct}%)</span></div>
+                      <div className="text-xs text-fg-muted mt-0.5">{count} <span className="hidden sm:inline">({pct}%)</span></div>
                     </div>
                   )
                 })}
@@ -805,40 +805,40 @@ export default function CommandantExamReports() {
             </div>
 
             {/* Results table */}
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="p-4 border-b border-neutral-200 flex items-center justify-between gap-4 flex-wrap">
+            <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
+              <div className="p-4 border-b border-line flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <h3 className="text-base font-semibold text-black">Student Results</h3>
-                  <p className="text-xs text-neutral-500 mt-0.5">{examStats.submitted} submitted · {examStats.pending} pending</p>
+                  <h3 className="text-base font-semibold text-fg">Student Results</h3>
+                  <p className="text-xs text-fg-soft mt-0.5">{examStats.submitted} submitted · {examStats.pending} pending</p>
                 </div>
                 <div className="relative w-64">
-                  <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
                   <input
                     type="text"
                     value={resultsSearch}
                     onChange={e => { setResultsSearch(e.target.value); setResultsPage(1) }}
                     placeholder="Search by name or SVC…"
-                    className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-4 py-2 text-sm text-fg border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500"
                   />
                 </div>
               </div>
 
               {/* Desktop table */}
               <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-neutral-200">
-                  <thead className="bg-neutral-50">
+                <table className="min-w-full divide-y divide-line">
+                  <thead className="bg-canvas">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">S/No</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">SVC Number</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Rank</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Student</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Marks</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Percentage</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Grade</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">S/No</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">SVC Number</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Rank</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Student</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Marks</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Percentage</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Grade</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200">
+                  <tbody className="divide-y divide-line">
                     {paginatedResults.map((r, idx) => {
                       const submitted = r.is_submitted && r.marks_obtained != null
                       const pct = submitted ? r._pct.toFixed(1) : null
@@ -846,36 +846,36 @@ export default function CommandantExamReports() {
                       const gradeColor = GRADE_COLORS[grade] || {}
                       const rowNum = (resultsPage - 1) * resultsPerPage + idx + 1
                       return (
-                        <tr key={idx} className={`hover:bg-neutral-50 transition ${!submitted ? 'opacity-60' : ''}`}>
-                          <td className="px-4 py-3 text-sm text-neutral-500">{submitted ? rowNum : '—'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_svc_number || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-neutral-600">{r.student_rank ? shortRank(r.student_rank) : 'N/A'}</td>
-                          <td className="px-4 py-3 font-medium text-black">{r.student_name || 'Unknown'}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-black">
+                        <tr key={idx} className={`hover:bg-canvas transition ${!submitted ? 'opacity-60' : ''}`}>
+                          <td className="px-4 py-3 text-sm text-fg-soft">{submitted ? rowNum : '—'}</td>
+                          <td className="px-4 py-3 text-sm text-fg-muted">{r.student_svc_number || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-fg-muted">{r.student_rank ? shortRank(r.student_rank) : 'N/A'}</td>
+                          <td className="px-4 py-3 font-medium text-fg">{r.student_name || 'Unknown'}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-fg">
                             {submitted ? `${parseFloat(r.marks_obtained).toFixed(1)} / ${selectedExam.total_marks || '—'}` : '—'}
                           </td>
                           <td className="px-4 py-3">
                             {submitted ? (
                               <div className="flex items-center gap-2">
-                                <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                <div className="w-20 h-2 bg-surface-3 rounded-full overflow-hidden">
                                   <div
-                                    className={`h-full rounded-full ${r._pct >= 76 ? 'bg-green-500' : r._pct >= 60 ? 'bg-blue-500' : r._pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                    className={`h-full rounded-full ${r._pct >= 76 ? 'bg-fill-green-500' : r._pct >= 60 ? 'bg-fill-blue-500' : r._pct >= 50 ? 'bg-fill-yellow-500' : 'bg-fill-red-500'}`}
                                     style={{ width: `${Math.min(r._pct, 100)}%` }}
                                   />
                                 </div>
-                                <span className="text-sm font-medium text-black">{pct}%</span>
+                                <span className="text-sm font-medium text-fg">{pct}%</span>
                               </div>
-                            ) : <span className="text-neutral-400 text-sm">—</span>}
+                            ) : <span className="text-fg-faint text-sm">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             {grade
-                              ? <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-gray-100'} ${gradeColor.text || 'text-gray-700'}`}>{grade}</span>
-                              : <span className="text-neutral-400 text-sm">—</span>}
+                              ? <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-surface-2'} ${gradeColor.text || 'text-fg-body'}`}>{grade}</span>
+                              : <span className="text-fg-faint text-sm">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             {r.is_submitted
-                              ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full"><LucideIcons.CheckCircle className="w-3 h-3" />Submitted</span>
-                              : <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full"><LucideIcons.Clock className="w-3 h-3" />Pending</span>}
+                              ? <span className="inline-flex items-center gap-1 text-xs text-mark-emerald-600 bg-fill-emerald-50 px-2 py-1 rounded-full"><LucideIcons.CheckCircle className="w-3 h-3" />Submitted</span>
+                              : <span className="inline-flex items-center gap-1 text-xs text-mark-amber-600 bg-fill-amber-50 px-2 py-1 rounded-full"><LucideIcons.Clock className="w-3 h-3" />Pending</span>}
                           </td>
                         </tr>
                       )
@@ -885,7 +885,7 @@ export default function CommandantExamReports() {
               </div>
 
               {/* Mobile cards */}
-              <div className="lg:hidden divide-y divide-neutral-200">
+              <div className="lg:hidden divide-y divide-line">
                 {paginatedResults.map((r, idx) => {
                   const submitted = r.is_submitted && r.marks_obtained != null
                   const pct = submitted ? r._pct.toFixed(1) : null
@@ -895,29 +895,29 @@ export default function CommandantExamReports() {
                     <div key={idx} className="p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <div className="font-medium text-black text-sm">{r.student_name}</div>
-                          <div className="text-xs text-neutral-500">{r.student_rank ? shortRank(r.student_rank) : ''} · {r.student_svc_number}</div>
+                          <div className="font-medium text-fg text-sm">{r.student_name}</div>
+                          <div className="text-xs text-fg-soft">{r.student_rank ? shortRank(r.student_rank) : ''} · {r.student_svc_number}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {grade && <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-gray-100'} ${gradeColor.text || 'text-gray-700'}`}>{grade}</span>}
+                          {grade && <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${gradeColor.light || 'bg-surface-2'} ${gradeColor.text || 'text-fg-body'}`}>{grade}</span>}
                           {r.is_submitted
-                            ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full"><LucideIcons.CheckCircle className="w-3 h-3" />Done</span>
-                            : <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full"><LucideIcons.Clock className="w-3 h-3" />Pending</span>}
+                            ? <span className="inline-flex items-center gap-1 text-xs text-mark-emerald-600 bg-fill-emerald-50 px-2 py-1 rounded-full"><LucideIcons.CheckCircle className="w-3 h-3" />Done</span>
+                            : <span className="inline-flex items-center gap-1 text-xs text-mark-amber-600 bg-fill-amber-50 px-2 py-1 rounded-full"><LucideIcons.Clock className="w-3 h-3" />Pending</span>}
                         </div>
                       </div>
                       {submitted ? (
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${r._pct >= 76 ? 'bg-green-500' : r._pct >= 60 ? 'bg-blue-500' : r._pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                              className={`h-full rounded-full ${r._pct >= 76 ? 'bg-fill-green-500' : r._pct >= 60 ? 'bg-fill-blue-500' : r._pct >= 50 ? 'bg-fill-yellow-500' : 'bg-fill-red-500'}`}
                               style={{ width: `${Math.min(r._pct, 100)}%` }}
                             />
                           </div>
-                          <span className="text-sm font-medium text-black w-32 text-right">
+                          <span className="text-sm font-medium text-fg w-32 text-right">
                             {parseFloat(r.marks_obtained).toFixed(1)} / {selectedExam.total_marks} ({pct}%)
                           </span>
                         </div>
-                      ) : <p className="text-xs text-neutral-400">No results recorded</p>}
+                      ) : <p className="text-xs text-fg-faint">No results recorded</p>}
                     </div>
                   )
                 })}
@@ -936,18 +936,18 @@ export default function CommandantExamReports() {
             </div>
 
             {/* Remarks Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="p-4 md:p-6 border-b border-neutral-200">
+            <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-line">
                 <div className="flex items-center gap-2">
-                  <LucideIcons.MessageSquare className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-black">Exam Remarks</h3>
+                  <LucideIcons.MessageSquare className="w-5 h-5 text-mark-indigo-600" />
+                  <h3 className="text-base font-semibold text-fg">Exam Remarks</h3>
                   {currentRemarksData?.remarks_list && currentRemarksData.remarks_list.length > 0 && (
-                    <span className="ml-auto bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
+                    <span className="ml-auto bg-fill-indigo-100 text-mark-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
                       {currentRemarksData.remarks_list.length}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-neutral-600 mt-1">
+                <p className="text-sm text-fg-muted mt-1">
                   {currentRemarksData ? 'Add remarks or view previous annotations' : 'No exam report created yet'}
                 </p>
               </div>
@@ -957,27 +957,27 @@ export default function CommandantExamReports() {
                   {/* Existing Remarks */}
                   {currentRemarksData.remarks_list && currentRemarksData.remarks_list.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold text-neutral-700 mb-3">Previous Remarks</h4>
-                      <div className="space-y-3 mb-6 max-h-64 overflow-y-auto border border-neutral-100 rounded-lg p-3 bg-neutral-50">
+                      <h4 className="text-sm font-semibold text-fg-body mb-3">Previous Remarks</h4>
+                      <div className="space-y-3 mb-6 max-h-64 overflow-y-auto border border-hair rounded-lg p-3 bg-canvas">
                         {currentRemarksData.remarks_list.map((remark, idx) => (
-                          <div key={idx} className="bg-white rounded-lg p-3 border border-neutral-200">
+                          <div key={idx} className="bg-surface rounded-lg p-3 border border-line">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <div>
-                                  <div className="font-medium text-sm text-black">{remark.author_name}</div>
-                                  {remark.author_rank && <div className="text-xs text-neutral-500">{shortRank(remark.author_rank)}</div>}
+                                  <div className="font-medium text-sm text-fg">{remark.author_name}</div>
+                                  {remark.author_rank && <div className="text-xs text-fg-soft">{shortRank(remark.author_rank)}</div>}
                                 </div>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                remark.author_role === 'commandant' ? 'bg-purple-100 text-purple-700' :
-                                remark.author_role === 'chief_instructor' ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-700'
+                                remark.author_role === 'commandant' ? 'bg-fill-purple-100 text-mark-purple-700' :
+                                remark.author_role === 'chief_instructor' ? 'bg-fill-blue-100 text-mark-blue-700' :
+                                'bg-surface-2 text-fg-body'
                               }`}>
                                 {remark.author_role_display || remark.author_role}
                               </span>
                             </div>
-                            <p className="text-sm text-neutral-600 mb-2 whitespace-pre-wrap">{remark.remark}</p>
-                            <div className="text-xs text-neutral-500">
+                            <p className="text-sm text-fg-muted mb-2 whitespace-pre-wrap">{remark.remark}</p>
+                            <div className="text-xs text-fg-soft">
                               {new Date(remark.created_at).toLocaleString()}
                             </div>
                           </div>
@@ -988,20 +988,20 @@ export default function CommandantExamReports() {
 
                   {/* Add Remark Form — hidden for archived classes */}
                   {!isArchivedClass ? (
-                    <div className="border-t border-neutral-200 pt-4">
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                    <div className="border-t border-line pt-4">
+                      <label className="block text-sm font-medium text-fg-body mb-2">Add New Remark</label>
                       <textarea
                         value={newRemark}
                         onChange={(e) => setNewRemark(e.target.value)}
                         placeholder="Enter your remark about this exam…"
                         rows={4}
-                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                        className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 resize-none text-fg"
                       />
                       <div className="flex gap-3 justify-end mt-3">
                         <button
                           onClick={handleAddRemark}
                           disabled={remarkSubmitting || !newRemark.trim() || !currentRemarksData}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white rounded-lg font-medium hover:bg-fill-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {remarkSubmitting ? (
                             <>
@@ -1018,8 +1018,8 @@ export default function CommandantExamReports() {
                       </div>
                     </div>
                   ) : (
-                    <div className="border-t border-neutral-200 pt-4">
-                      <p className="text-sm text-neutral-500 flex items-center gap-2">
+                    <div className="border-t border-line pt-4">
+                      <p className="text-sm text-fg-soft flex items-center gap-2">
                         <LucideIcons.Lock className="w-4 h-4" />
                         This class is archived — remarks are read-only.
                       </p>
@@ -1028,9 +1028,9 @@ export default function CommandantExamReports() {
                 </div>
               ) : (
                 <div className="p-4 md:p-6 text-center">
-                  <div className="bg-neutral-50 rounded-lg p-4">
-                    <LucideIcons.AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                    <p className="text-sm text-neutral-600">
+                  <div className="bg-canvas rounded-lg p-4">
+                    <LucideIcons.AlertCircle className="w-8 h-8 text-fg-faint mx-auto mb-2" />
+                    <p className="text-sm text-fg-muted">
                       A report must be created for this exam before remarks can be added.
                     </p>
                   </div>
@@ -1050,11 +1050,11 @@ export default function CommandantExamReports() {
     <div className="space-y-6">
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-semibold text-black">Exam Reports</h2>
-          <p className="text-sm text-gray-500">Comprehensive exam analysis and student performance</p>
+          <h2 className="text-2xl font-semibold text-fg">Exam Reports</h2>
+          <p className="text-sm text-fg-soft">Comprehensive exam analysis and student performance</p>
         </div>
         {selectedClass && isArchivedClass && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-fill-amber-100 text-mark-amber-800 px-3 py-1.5 rounded-full">
             <LucideIcons.Archive className="w-3.5 h-3.5" />
             Archived — Read Only
           </span>
@@ -1063,7 +1063,7 @@ export default function CommandantExamReports() {
           <button
             onClick={handleViewComprehensive}
             disabled={loadingComprehensive}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-fill-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-fill-emerald-700 disabled:opacity-50 transition"
           >
             {loadingComprehensive
               ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
@@ -1074,17 +1074,17 @@ export default function CommandantExamReports() {
       </header>
 
       {/* Filters */}
-      <div className={`bg-white rounded-xl shadow-sm border p-4 ${!selectedClass ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-neutral-200'}`}>
+      <div className={`bg-surface rounded-xl shadow-sm border p-4 ${!selectedClass ? 'border-edge-indigo-300 ring-2 ring-edge-indigo-100' : 'border-line'}`}>
         <div className="flex items-center gap-2 mb-4">
-          <LucideIcons.Filter className="w-5 h-5 text-neutral-500" />
-          <h3 className="font-medium text-black">Filters</h3>
+          <LucideIcons.Filter className="w-5 h-5 text-fg-soft" />
+          <h3 className="font-medium text-fg">Filters</h3>
           {(selectedSubject || selectedExamType || dateRange.start || dateRange.end) && (
-            <button onClick={clearFilters} className="ml-auto text-xs text-indigo-600 hover:underline">
+            <button onClick={clearFilters} className="ml-auto text-xs text-mark-indigo-600 hover:underline">
               Clear all filters
             </button>
           )}
           {!selectedClass && (
-            <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full animate-pulse">
+            <span className="ml-auto text-xs bg-fill-indigo-100 text-mark-indigo-700 px-2 py-1 rounded-full animate-pulse">
               Select a class to view exams
             </span>
           )}
@@ -1092,7 +1092,7 @@ export default function CommandantExamReports() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Class */}
           <div>
-            <label className={`flex items-center gap-1 text-sm mb-1 ${!selectedClass ? 'text-indigo-700 font-medium' : 'text-neutral-600'}`}>
+            <label className={`flex items-center gap-1 text-sm mb-1 ${!selectedClass ? 'text-mark-indigo-700 font-medium' : 'text-fg-muted'}`}>
               <LucideIcons.School className="w-4 h-4" />Class
             </label>
             <SearchableSelect
@@ -1101,19 +1101,19 @@ export default function CommandantExamReports() {
               options={classOptions}
               placeholder="Select a class…"
               searchPlaceholder="Search classes..."
-              className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+              className={!selectedClass ? 'ring-1 ring-edge-indigo-100 rounded-lg' : ''}
             />
           </div>
           {/* Subject */}
           <div>
-            <label className="flex items-center gap-1 text-sm text-neutral-600 mb-1">
+            <label className="flex items-center gap-1 text-sm text-fg-muted mb-1">
               <LucideIcons.BookOpen className="w-4 h-4" />Subject
             </label>
             <select
               value={selectedSubject}
               onChange={e => setSelectedSubject(e.target.value)}
               disabled={!selectedClass || loadingSubjects}
-              className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 ${!selectedClass ? 'bg-gray-100 cursor-not-allowed' : ''} border-neutral-200`}
+              className={`w-full border rounded-lg px-3 py-2 text-sm text-fg focus:ring-2 focus:ring-edge-indigo-500 ${!selectedClass ? 'bg-surface-2 cursor-not-allowed' : ''} border-line`}
             >
               <option value="">
                 {!selectedClass ? 'Select class first…' : loadingSubjects ? 'Loading…' : 'All Subjects'}
@@ -1125,13 +1125,13 @@ export default function CommandantExamReports() {
           </div>
           {/* Exam Type */}
           <div>
-            <label className="flex items-center gap-1 text-sm text-neutral-600 mb-1">
+            <label className="flex items-center gap-1 text-sm text-fg-muted mb-1">
               <LucideIcons.Tag className="w-4 h-4" />Exam Type
             </label>
             <select
               value={selectedExamType}
               onChange={e => setSelectedExamType(e.target.value)}
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:ring-2 focus:ring-edge-indigo-500"
             >
               <option value="">All Types</option>
               {EXAM_TYPES.map(t => (
@@ -1147,78 +1147,78 @@ export default function CommandantExamReports() {
 
       {/* Exam list */}
       {!selectedClass ? (
-        <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl border-2 border-dashed border-indigo-200 p-8 md:p-12 text-center">
+        <div className="bg-gradient-to-br from-fill-indigo-50 via-surface to-fill-purple-50 rounded-xl border-2 border-dashed border-edge-indigo-200 p-8 md:p-12 text-center">
           <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 md:w-20 md:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <LucideIcons.FileText className="w-8 h-8 md:w-10 md:h-10 text-indigo-600" />
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-fill-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <LucideIcons.FileText className="w-8 h-8 md:w-10 md:h-10 text-mark-indigo-600" />
             </div>
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">Select a Class to View Exam Reports</h3>
-            <p className="text-sm md:text-base text-gray-600">
+            <h3 className="text-lg md:text-xl font-semibold text-fg mb-2">Select a Class to View Exam Reports</h3>
+            <p className="text-sm md:text-base text-fg-muted">
               Choose a class from the dropdown above to view exams, analyse student performance, and generate detailed reports.
             </p>
           </div>
         </div>
       ) : loadingExams ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600" />
         </div>
       ) : filteredExams.length === 0 ? (
         <EmptyState icon={LucideIcons.FileText} title="No exams found" description="No exams with results match your current filters." />
       ) : (
         <>
         {pendingRemarkExams.length > 0 && (
-          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <div className="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-              <LucideIcons.AlertCircle className="w-4 h-4 text-amber-600" />
+          <div className="flex items-center gap-3 bg-fill-amber-50 border border-edge-amber-200 rounded-xl px-4 py-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-fill-amber-100 rounded-full flex items-center justify-center">
+              <LucideIcons.AlertCircle className="w-4 h-4 text-mark-amber-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800">
+              <p className="text-sm font-semibold text-mark-amber-800">
                 {pendingRemarkExams.length} exam{pendingRemarkExams.length > 1 ? 's' : ''} pending your remark
               </p>
-              <p className="text-xs text-amber-600 mt-0.5">
+              <p className="text-xs text-mark-amber-600 mt-0.5">
                 Reports have been submitted but you have not yet added your remark.
               </p>
             </div>
-            <span className="flex-shrink-0 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            <span className="flex-shrink-0 bg-fill-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
               {pendingRemarkExams.length}
             </span>
           </div>
         )}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+        <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
           {/* Mobile cards */}
-          <div className="lg:hidden divide-y divide-neutral-200">
+          <div className="lg:hidden divide-y divide-line">
             {paginatedExams.map(ex => {
               const isPending = pendingRemarkExams.some(p => p.id === ex.id)
               const report = examReports[ex.id]
               return (
-              <div key={ex.id} className={`p-4 transition ${isPending ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-neutral-50'}`}>
+              <div key={ex.id} className={`p-4 transition ${isPending ? 'bg-fill-amber-50/40 hover:bg-fill-amber-50' : 'hover:bg-canvas'}`}>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${
-                        ex.exam_type === 'final' ? 'bg-purple-100 text-purple-700' :
-                        ex.exam_type === 'cat'   ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
+                        ex.exam_type === 'final' ? 'bg-fill-purple-100 text-mark-purple-700' :
+                        ex.exam_type === 'cat'   ? 'bg-fill-blue-100 text-mark-blue-700' :
+                        'bg-surface-2 text-fg-body'
                       }`}>{ex.exam_type || 'Exam'}</span>
                       {ex.average_score != null && (
-                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold text-mark-emerald-600 bg-fill-emerald-50 px-2 py-0.5 rounded-full">
                           Avg: {parseFloat(ex.average_score).toFixed(1)}%
                         </span>
                       )}
                     </div>
-                    {ex.title && <p className="font-semibold text-black text-sm">{ex.title}</p>}
-                    <p className="text-sm text-neutral-600">{ex.subject_name || 'N/A'}</p>
+                    {ex.title && <p className="font-semibold text-fg text-sm">{ex.title}</p>}
+                    <p className="text-sm text-fg-muted">{ex.subject_name || 'N/A'}</p>
                   </div>
-                  <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-2.5 py-1.5">
-                    <div className="text-lg font-bold text-indigo-700">{ex.total_marks ?? '—'}</div>
-                    <div className="text-[10px] text-indigo-500 font-medium">marks</div>
+                  <div className="text-right flex-shrink-0 bg-fill-indigo-50 rounded-lg px-2.5 py-1.5">
+                    <div className="text-lg font-bold text-mark-indigo-700">{ex.total_marks ?? '—'}</div>
+                    <div className="text-[10px] text-mark-indigo-500 font-medium">marks</div>
                   </div>
                 </div>
-                <div className="text-sm text-neutral-600 mb-2 flex items-center gap-3">
-                  <span className="flex items-center gap-1"><LucideIcons.Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                <div className="text-sm text-fg-muted mb-2 flex items-center gap-3">
+                  <span className="flex items-center gap-1"><LucideIcons.Calendar className="w-3.5 h-3.5 text-fg-faint" />
                     {ex.exam_date ? new Date(ex.exam_date).toLocaleDateString() : 'N/A'}
                   </span>
-                  <span className="text-neutral-400">·</span>
+                  <span className="text-fg-faint">·</span>
                   <span>{ex.submission_count ?? 0} submitted</span>
                 </div>
                 {/* Remarks status row */}
@@ -1227,7 +1227,7 @@ export default function CommandantExamReports() {
                     isPending ? (
                       <button
                         onClick={() => handleViewRemarks(ex.id)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg border border-amber-300"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-fill-amber-50 text-mark-amber-700 text-xs font-medium rounded-lg border border-edge-amber-300"
                       >
                         <LucideIcons.AlertCircle className="w-3.5 h-3.5" />
                         Pending Remark
@@ -1235,19 +1235,19 @@ export default function CommandantExamReports() {
                     ) : (
                       <button
                         onClick={() => handleViewRemarks(ex.id)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg border border-emerald-200"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-fill-emerald-50 text-mark-emerald-700 text-xs font-medium rounded-lg border border-edge-emerald-200"
                       >
                         <LucideIcons.CheckCircle className="w-3.5 h-3.5" />
                         {report.remarks_list?.length || 0} Remarks
                       </button>
                     )
                   ) : (
-                    <span className="text-neutral-400 text-xs italic">No report yet</span>
+                    <span className="text-fg-faint text-xs italic">No report yet</span>
                   )}
                 </div>
                 <button
                   onClick={() => handleViewReport(ex)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-fill-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-fill-indigo-700 transition shadow-sm"
                 >
                   <LucideIcons.Eye className="w-4 h-4" />View Report
                 </button>
@@ -1258,50 +1258,50 @@ export default function CommandantExamReports() {
 
           {/* Desktop table */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-neutral-200">
-              <thead className="bg-neutral-50">
+            <table className="min-w-full divide-y divide-line">
+              <thead className="bg-canvas">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Exam</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Subject</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Total Marks</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Avg Score</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Remarks</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Exam</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Subject</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Total Marks</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Avg Score</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Remarks</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-fg-soft uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200">
+              <tbody className="divide-y divide-line">
                 {paginatedExams.map(ex => (
-                  <tr key={ex.id} className={`transition ${pendingRemarkExams.some(p => p.id === ex.id) ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-neutral-50'}`}>
+                  <tr key={ex.id} className={`transition ${pendingRemarkExams.some(p => p.id === ex.id) ? 'bg-fill-amber-50/40 hover:bg-fill-amber-50' : 'hover:bg-canvas'}`}>
                     <td className="px-4 py-4">
-                      {ex.title && <div className="font-medium text-black">{ex.title}</div>}
-                      {ex.description && <div className="text-xs text-neutral-500 truncate max-w-xs">{ex.description}</div>}
-                      {!ex.title && <div className="text-neutral-500 text-sm capitalize">{ex.exam_type} exam</div>}
+                      {ex.title && <div className="font-medium text-fg">{ex.title}</div>}
+                      {ex.description && <div className="text-xs text-fg-soft truncate max-w-xs">{ex.description}</div>}
+                      {!ex.title && <div className="text-fg-soft text-sm capitalize">{ex.exam_type} exam</div>}
                     </td>
-                    <td className="px-4 py-4 text-sm text-neutral-700">{ex.subject_name || 'N/A'}</td>
+                    <td className="px-4 py-4 text-sm text-fg-body">{ex.subject_name || 'N/A'}</td>
                     <td className="px-4 py-4">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
-                        ex.exam_type === 'final' ? 'bg-purple-100 text-purple-700' :
-                        ex.exam_type === 'cat'   ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
+                        ex.exam_type === 'final' ? 'bg-fill-purple-100 text-mark-purple-700' :
+                        ex.exam_type === 'cat'   ? 'bg-fill-blue-100 text-mark-blue-700' :
+                        'bg-surface-2 text-fg-body'
                       }`}>{ex.exam_type || '—'}</span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-neutral-700">
+                    <td className="px-4 py-4 text-sm text-fg-body">
                       {ex.exam_date ? new Date(ex.exam_date).toLocaleDateString() : 'N/A'}
                     </td>
-                    <td className="px-4 py-4 text-sm font-medium text-black">{ex.total_marks ?? '—'}</td>
+                    <td className="px-4 py-4 text-sm font-medium text-fg">{ex.total_marks ?? '—'}</td>
                     <td className="px-4 py-4 text-sm">
                       {ex.average_score != null
-                        ? <span className="font-medium text-indigo-600">{parseFloat(ex.average_score).toFixed(1)}%</span>
-                        : <span className="text-neutral-400">--</span>}
+                        ? <span className="font-medium text-mark-indigo-600">{parseFloat(ex.average_score).toFixed(1)}%</span>
+                        : <span className="text-fg-faint">--</span>}
                     </td>
                     <td className="px-4 py-4">
                       {examReports[ex.id] ? (
                         pendingRemarkExams.some(p => p.id === ex.id) ? (
                           <button
                             onClick={() => handleViewRemarks(ex.id)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-100 transition border border-amber-300"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-fill-amber-50 text-mark-amber-700 text-xs font-medium rounded-lg hover:bg-fill-amber-100 transition border border-edge-amber-300"
                           >
                             <LucideIcons.AlertCircle className="w-3.5 h-3.5" />
                             Pending Remark
@@ -1309,20 +1309,20 @@ export default function CommandantExamReports() {
                         ) : (
                           <button
                             onClick={() => handleViewRemarks(ex.id)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition border border-emerald-200"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-fill-emerald-50 text-mark-emerald-700 text-xs font-medium rounded-lg hover:bg-fill-emerald-100 transition border border-edge-emerald-200"
                           >
                             <LucideIcons.CheckCircle className="w-3.5 h-3.5" />
                             {examReports[ex.id].remarks_list?.length || 0} Remarks
                           </button>
                         )
                       ) : (
-                        <span className="text-neutral-400 text-xs italic">No report yet</span>
+                        <span className="text-fg-faint text-xs italic">No report yet</span>
                       )}
                     </td>
                     <td className="px-4 py-4 text-right">
                       <button
                         onClick={() => handleViewReport(ex)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-fill-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-fill-indigo-700 transition"
                       >
                         <LucideIcons.Eye className="w-4 h-4" />View Report
                       </button>
@@ -1351,12 +1351,12 @@ export default function CommandantExamReports() {
       {remarksModalOpen && currentRemarksData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setRemarksModalOpen(false); setCurrentRemarksData(null) }} />
-          <div className="relative z-10 w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-black">Exam Remarks</h2>
+          <div className="relative z-10 w-full max-w-2xl bg-surface rounded-xl shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="sticky top-0 bg-surface border-b border-line px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-fg">Exam Remarks</h2>
               <button
                 onClick={() => { setRemarksModalOpen(false); setCurrentRemarksData(null) }}
-                className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition"
+                className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition"
                 aria-label="Close"
               >
                 <LucideIcons.X className="w-5 h-5" />
@@ -1365,65 +1365,65 @@ export default function CommandantExamReports() {
 
             <div className="p-6 space-y-4">
               {/* Report Info */}
-              <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 mb-4">
-                <h3 className="text-sm font-semibold text-neutral-700 mb-3">Report Context</h3>
+              <div className="bg-fill-indigo-50 rounded-xl p-4 border border-edge-indigo-100 mb-4">
+                <h3 className="text-sm font-semibold text-fg-body mb-3">Report Context</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-xs font-medium text-neutral-600 mb-1">Subject</div>
-                    <div className="text-sm font-semibold text-black">{currentRemarksData.subject_name}</div>
+                    <div className="text-xs font-medium text-fg-muted mb-1">Subject</div>
+                    <div className="text-sm font-semibold text-fg">{currentRemarksData.subject_name}</div>
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-neutral-600 mb-1">Class</div>
-                    <div className="text-sm font-semibold text-black">{currentRemarksData.class_name}</div>
+                    <div className="text-xs font-medium text-fg-muted mb-1">Class</div>
+                    <div className="text-sm font-semibold text-fg">{currentRemarksData.class_name}</div>
                   </div>
                 </div>
               </div>
 
               {/* Existing Remarks */}
               <div>
-                <h4 className="font-semibold text-black mb-3">Remarks History</h4>
+                <h4 className="font-semibold text-fg mb-3">Remarks History</h4>
                 {currentRemarksData.remarks_list && currentRemarksData.remarks_list.length > 0 ? (
                   <div className="space-y-3 max-h-60 overflow-y-auto">
                     {currentRemarksData.remarks_list.map((remark, idx) => (
-                      <div key={idx} className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                      <div key={idx} className="bg-canvas rounded-lg p-3 border border-line">
                         <div className="flex items-start justify-between mb-1">
-                          <div className="font-medium text-sm text-black">{remark.author_name}</div>
+                          <div className="font-medium text-sm text-fg">{remark.author_name}</div>
                           <span className={`text-xs px-2 py-1 rounded-full ${
-                            remark.author_role === 'commandant' ? 'bg-purple-100 text-purple-700' :
-                            remark.author_role === 'chief_instructor' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
+                            remark.author_role === 'commandant' ? 'bg-fill-purple-100 text-mark-purple-700' :
+                            remark.author_role === 'chief_instructor' ? 'bg-fill-blue-100 text-mark-blue-700' :
+                            'bg-surface-2 text-fg-body'
                           }`}>
                             {remark.author_role_display || remark.author_role}
                           </span>
                         </div>
-                        <p className="text-sm text-neutral-600 mb-2">{remark.remark}</p>
-                        <div className="text-xs text-neutral-500">
+                        <p className="text-sm text-fg-muted mb-2">{remark.remark}</p>
+                        <div className="text-xs text-fg-soft">
                           {new Date(remark.created_at).toLocaleString()}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-neutral-500 py-4 text-center">No remarks yet</p>
+                  <p className="text-sm text-fg-soft py-4 text-center">No remarks yet</p>
                 )}
               </div>
 
               {/* Add Remark Form — hidden for archived classes */}
-              <div className="border-t border-neutral-200 pt-4 mt-4">
+              <div className="border-t border-line pt-4 mt-4">
                 {isArchivedClass ? (
-                  <p className="text-sm text-neutral-500 flex items-center gap-2 mb-3">
+                  <p className="text-sm text-fg-soft flex items-center gap-2 mb-3">
                     <LucideIcons.Lock className="w-4 h-4" />
                     This class is archived — remarks are read-only.
                   </p>
                 ) : (
                   <>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                    <label className="block text-sm font-medium text-fg-body mb-2">Add New Remark</label>
                     <textarea
                       value={newRemark}
                       onChange={(e) => setNewRemark(e.target.value)}
                       placeholder="Enter your remark..."
                       rows={4}
-                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                      className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 resize-none text-fg"
                     />
                   </>
                 )}
@@ -1431,7 +1431,7 @@ export default function CommandantExamReports() {
                   <button
                     onClick={() => { setRemarksModalOpen(false); setCurrentRemarksData(null) }}
                     disabled={remarkSubmitting}
-                    className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 font-medium hover:bg-neutral-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border border-line-strong rounded-lg text-fg-body font-medium hover:bg-canvas transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Close
                   </button>
@@ -1439,7 +1439,7 @@ export default function CommandantExamReports() {
                     <button
                       onClick={handleAddRemark}
                       disabled={remarkSubmitting || !newRemark.trim()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 bg-fill-indigo-600 text-white rounded-lg font-medium hover:bg-fill-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {remarkSubmitting ? (
                         <>

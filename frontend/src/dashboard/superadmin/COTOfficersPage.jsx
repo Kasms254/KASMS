@@ -280,7 +280,7 @@ export default function COTOfficersPage() {
   }
 
   const inputClass = (field) =>
-    `w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${fieldErrors[field] ? 'border-red-500' : 'border-neutral-200'}`
+    `w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${fieldErrors[field] ? 'border-edge-red-500' : 'border-line'}`
 
   // ── Edit ──────────────────────────────────────────────────────────────────
   const openEdit = (officer) => {
@@ -317,7 +317,7 @@ export default function COTOfficersPage() {
   }
 
   const editInputClass = (field) =>
-    `w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editErrors[field] ? 'border-red-500' : 'border-neutral-200'}`
+    `w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${editErrors[field] ? 'border-edge-red-500' : 'border-line'}`
 
   const handleUpdate = async (e) => {
     e.preventDefault()
@@ -401,14 +401,14 @@ export default function COTOfficersPage() {
     <div className="w-full space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">Chief of Training Officers</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">Chief of Training Officers</h2>
+          <p className="text-xs sm:text-sm text-fg-soft">
             Global role — no school affiliation. Can view all schools' submitted reports.
           </p>
         </div>
         <button
           onClick={() => setCreateModal(true)}
-          className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-sm"
+          className="flex-1 sm:flex-none px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition flex items-center justify-center gap-2 shadow-sm"
         >
           <UserPlus className="w-4 h-4" />
           Add COT Officer
@@ -416,31 +416,31 @@ export default function COTOfficersPage() {
       </header>
 
       {/* Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-fg-faint" />
           <input
             type="text"
             placeholder="Search by name, email, or service number..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-            className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full pl-10 pr-4 py-2 border border-line rounded-lg text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600" />
           </div>
         ) : officers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-neutral-500">
-            <Users className="w-12 h-12 mb-4 text-neutral-300" />
+          <div className="flex flex-col items-center justify-center h-64 text-fg-soft">
+            <Users className="w-12 h-12 mb-4 text-fg-faint" />
             <p>{searchTerm ? 'No officers match your search' : 'No COT Officers added yet'}</p>
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="mt-2 text-indigo-600 hover:text-indigo-700">
+              <button onClick={() => setSearchTerm('')} className="mt-2 text-mark-indigo-600 hover:text-mark-indigo-700">
                 Clear search
               </button>
             )}
@@ -449,57 +449,57 @@ export default function COTOfficersPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-neutral-50 border-b border-neutral-200">
+                <thead className="bg-canvas border-b border-line">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Officer</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Contact</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Role</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Added</th>
-                    <th className="text-right py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Actions</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Officer</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Contact</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Role</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Added</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 bg-white">
+                <tbody className="divide-y divide-line bg-surface">
                   {officers.map((officer) => (
-                    <tr key={officer.id} className="hover:bg-neutral-50 transition">
+                    <tr key={officer.id} className="hover:bg-canvas transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-sm flex-shrink-0">
                             {(officer.first_name || officer.username || 'C').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium text-black">
+                            <p className="font-medium text-fg">
                               {officer.rank ? `${rankLabel(officer.rank)} ` : ''}{officer.first_name} {officer.last_name}
                             </p>
-                            <p className="text-sm text-neutral-500">SVC: {officer.svc_number || officer.username || '—'}</p>
+                            <p className="text-sm text-fg-soft">SVC: {officer.svc_number || officer.username || '—'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <p className="text-sm text-neutral-700">{officer.email || '—'}</p>
+                        <p className="text-sm text-fg-body">{officer.email || '—'}</p>
                         {officer.phone_number && (
-                          <p className="text-xs text-neutral-400">{officer.phone_number}</p>
+                          <p className="text-xs text-fg-faint">{officer.phone_number}</p>
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-fill-amber-100 text-mark-amber-700">
                           <Star className="w-3 h-3" />
                           Chief of Training
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-neutral-500">
+                      <td className="py-3 px-4 text-sm text-fg-soft">
                         {officer.created_at ? new Date(officer.created_at).toLocaleDateString() : '—'}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEdit(officer)}
-                            className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-xs text-white hover:bg-fill-indigo-700 transition whitespace-nowrap"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => setDeleteModal({ open: true, officer })}
-                            className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-md bg-fill-red-600 text-xs text-white hover:bg-fill-red-700 transition whitespace-nowrap"
                           >
                             Delete
                           </button>
@@ -512,30 +512,30 @@ export default function COTOfficersPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-neutral-200 gap-3">
-                <p className="text-sm text-neutral-600">
-                  Showing <span className="font-semibold text-black">{(currentPage - 1) * 10 + 1}</span>–
-                  <span className="font-semibold text-black">{Math.min(currentPage * 10, totalCount)}</span> of{' '}
-                  <span className="font-semibold text-black">{totalCount}</span> officers
+              <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-line gap-3">
+                <p className="text-sm text-fg-muted">
+                  Showing <span className="font-semibold text-fg">{(currentPage - 1) * 10 + 1}</span>–
+                  <span className="font-semibold text-fg">{Math.min(currentPage * 10, totalCount)}</span> of{' '}
+                  <span className="font-semibold text-fg">{totalCount}</span> officers
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50"
+                    className="p-2 rounded-lg border border-line bg-surface disabled:opacity-50 disabled:cursor-not-allowed hover:bg-canvas"
                   >
-                    <ChevronLeft className="w-4 h-4 text-neutral-600" />
+                    <ChevronLeft className="w-4 h-4 text-fg-muted" />
                   </button>
-                  <span className="text-sm text-neutral-600">
-                    Page <span className="font-semibold text-black">{currentPage}</span> of{' '}
-                    <span className="font-semibold text-black">{totalPages}</span>
+                  <span className="text-sm text-fg-muted">
+                    Page <span className="font-semibold text-fg">{currentPage}</span> of{' '}
+                    <span className="font-semibold text-fg">{totalPages}</span>
                   </span>
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50"
+                    className="p-2 rounded-lg border border-line bg-surface disabled:opacity-50 disabled:cursor-not-allowed hover:bg-canvas"
                   >
-                    <ChevronRight className="w-4 h-4 text-neutral-600" />
+                    <ChevronRight className="w-4 h-4 text-fg-muted" />
                   </button>
                 </div>
               </div>
@@ -548,136 +548,136 @@ export default function COTOfficersPage() {
       {createModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={closeCreate} />
-          <div className="relative bg-white rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-black/5 z-10 max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-hair z-10 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-black">Add COT Officer</h3>
-                <p className="text-xs text-neutral-500 mt-0.5">Global role — no school required</p>
+                <h3 className="text-lg font-semibold text-fg">Add COT Officer</h3>
+                <p className="text-xs text-fg-soft mt-0.5">Global role — no school required</p>
               </div>
-              <button onClick={closeCreate} className="p-2 hover:bg-neutral-100 rounded-lg">
-                <X className="w-5 h-5 text-neutral-500" />
+              <button onClick={closeCreate} className="p-2 hover:bg-surface-2 rounded-lg">
+                <X className="w-5 h-5 text-fg-soft" />
               </button>
             </div>
 
             <form onSubmit={handleCreate} className="space-y-3" noValidate>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">First Name *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">First Name *</label>
                   <input type="text" name="first_name" value={form.first_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={inputClass('first_name')} />
-                  {fieldErrors.first_name && <p className="text-red-500 text-xs mt-1">{fieldErrors.first_name}</p>}
+                  {fieldErrors.first_name && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.first_name}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Last Name *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Last Name *</label>
                   <input type="text" name="last_name" value={form.last_name} onChange={onChange} onBlur={onBlur} maxLength={50} className={inputClass('last_name')} />
-                  {fieldErrors.last_name && <p className="text-red-500 text-xs mt-1">{fieldErrors.last_name}</p>}
+                  {fieldErrors.last_name && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.last_name}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Service Number *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Service Number *</label>
                   <input
                     type="text" inputMode="numeric" pattern="[0-9]*" name="svc_number" maxLength={7}
                     value={form.svc_number} onChange={onChange} onBlur={onBlur} placeholder="e.g.. 1234567"
                     className={`${inputClass('svc_number')} font-mono`}
                   />
                   {fieldErrors.svc_number
-                    ? <p className="text-red-500 text-xs mt-1">{fieldErrors.svc_number}</p>
-                    : <p className="text-neutral-400 text-xs mt-0.5">Numbers only — used for login</p>}
+                    ? <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.svc_number}</p>
+                    : <p className="text-fg-faint text-xs mt-0.5">Numbers only — used for login</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Rank *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Rank *</label>
                   <select name="rank" value={form.rank} onChange={onChange} onBlur={onBlur} className={inputClass('rank')}>
                     <option value="" disabled>— Select rank —</option>
                     {RANK_CHOICES.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
-                  {fieldErrors.rank && <p className="text-red-500 text-xs mt-1">{fieldErrors.rank}</p>}
+                  {fieldErrors.rank && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.rank}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Email *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Email *</label>
                   <input type="email" name="email" value={form.email} onChange={onChange} onBlur={onBlur} className={inputClass('email')} />
-                  {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
+                  {fieldErrors.email && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.email}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Phone *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Phone *</label>
                   <input type="tel" inputMode="numeric" name="phone_number" value={form.phone_number} onChange={onChange} onBlur={onBlur} className={inputClass('phone_number')} />
-                  {fieldErrors.phone_number && <p className="text-red-500 text-xs mt-1">{fieldErrors.phone_number}</p>}
+                  {fieldErrors.phone_number && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.phone_number}</p>}
                 </div>
               </div>
 
               {/* Role — fixed for this page */}
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">Role</label>
-                <div className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 flex items-center justify-between">
+                <label className="block text-sm font-medium text-fg-muted mb-1">Role</label>
+                <div className="w-full px-3 py-2 border border-line rounded-lg bg-canvas text-fg-body flex items-center justify-between">
                   <span className="flex items-center gap-2 text-sm">
-                    <Star className="w-4 h-4 text-amber-500" />
+                    <Star className="w-4 h-4 text-mark-amber-500" />
                     Chief of Training
                   </span>
-                  <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                  <Lock className="w-3.5 h-3.5 text-fg-faint" />
                 </div>
               </div>
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">Password *</label>
+                <label className="block text-sm font-medium text-fg-muted mb-1">Password *</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'} name="password"
                     value={form.password} onChange={onChange} onBlur={onBlur}
                     className={`${inputClass('password')} pr-10`}
                   />
-                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
+                {fieldErrors.password && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.password}</p>}
               </div>
 
               {/* Confirm password */}
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">Confirm Password *</label>
+                <label className="block text-sm font-medium text-fg-muted mb-1">Confirm Password *</label>
                 <div className="relative">
                   <input
                     type={showConfirm ? 'text' : 'password'} name="password2"
                     value={form.password2} onChange={onChange} onBlur={onBlur}
                     className={`${inputClass('password2')} pr-10`}
                   />
-                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted">
                     {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {fieldErrors.password2 && <p className="text-red-500 text-xs mt-1">{fieldErrors.password2}</p>}
+                {fieldErrors.password2 && <p className="text-mark-red-500 text-xs mt-1">{fieldErrors.password2}</p>}
               </div>
 
               {/* Password strength */}
               {form.password && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-neutral-600">Strength:</span>
-                    <div className="flex-1 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                    <span className="text-xs font-medium text-fg-muted">Strength:</span>
+                    <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                       <div className={`h-full transition-all duration-300 ${
-                        passwordStrength.score === 0 ? 'w-0 bg-neutral-300' :
-                        passwordStrength.score === 1 ? 'w-1/4 bg-red-500' :
-                        passwordStrength.score === 2 ? 'w-2/4 bg-yellow-500' :
-                        passwordStrength.score === 3 ? 'w-3/4 bg-blue-500' : 'w-full bg-green-500'
+                        passwordStrength.score === 0 ? 'w-0 bg-surface-4' :
+                        passwordStrength.score === 1 ? 'w-1/4 bg-fill-red-500' :
+                        passwordStrength.score === 2 ? 'w-2/4 bg-fill-yellow-500' :
+                        passwordStrength.score === 3 ? 'w-3/4 bg-fill-blue-500' : 'w-full bg-fill-green-500'
                       }`} />
                     </div>
                     <span className={`text-xs font-medium ${
-                      passwordStrength.score <= 1 ? 'text-red-600' :
-                      passwordStrength.score === 2 ? 'text-yellow-600' :
-                      passwordStrength.score === 3 ? 'text-blue-600' : 'text-green-600'
+                      passwordStrength.score <= 1 ? 'text-mark-red-600' :
+                      passwordStrength.score === 2 ? 'text-mark-yellow-600' :
+                      passwordStrength.score === 3 ? 'text-mark-blue-600' : 'text-mark-green-600'
                     }`}>
                       {passwordStrength.score <= 1 ? 'Weak' : passwordStrength.score === 2 ? 'Fair' : passwordStrength.score === 3 ? 'Good' : 'Strong'}
                     </span>
                   </div>
                   <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     {passwordStrength.feedback.map((item, idx) => (
-                      <li key={idx} className={`flex items-center gap-1.5 ${item.met ? 'text-green-600' : 'text-neutral-400'}`}>
+                      <li key={idx} className={`flex items-center gap-1.5 ${item.met ? 'text-mark-green-600' : 'text-fg-faint'}`}>
                         <span>{item.met ? '✓' : '○'}</span>
                         <span>{item.text}</span>
                       </li>
@@ -687,8 +687,8 @@ export default function COTOfficersPage() {
               )}
 
               {/* Info banner */}
-              {/* <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                <Shield className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
+              {/* <div className="flex items-start gap-2 bg-fill-blue-50 border border-edge-blue-200 rounded-lg p-3 text-sm text-mark-blue-800">
+                <Shield className="w-4 h-4 mt-0.5 shrink-0 text-mark-blue-600" />
                 <span>
                   This officer will have read-only access to submitted reports from <strong>all schools</strong>.
                   They are not assigned to any school.
@@ -696,14 +696,14 @@ export default function COTOfficersPage() {
               </div> */}
 
               {formError && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-2">{formError}</div>
+                <div className="text-sm text-mark-red-700 bg-fill-red-50 border border-edge-red-100 rounded-lg p-2">{formError}</div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-200">
-                <button type="button" onClick={closeCreate} className="px-4 py-2 text-neutral-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition">
+              <div className="flex justify-end gap-2 pt-3 border-t border-line">
+                <button type="button" onClick={closeCreate} className="px-4 py-2 text-fg-body bg-surface-3 rounded-lg hover:bg-surface-4 transition">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50">
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition flex items-center gap-2 disabled:opacity-50">
                   {saving ? (
                     <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Creating...</>
                   ) : (
@@ -720,98 +720,98 @@ export default function COTOfficersPage() {
       {editModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={closeEdit} />
-          <div className="relative bg-white rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-black/5 z-10 max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-hair z-10 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-black">Edit COT Officer</h3>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <h3 className="text-lg font-semibold text-fg">Edit COT Officer</h3>
+                <p className="text-xs text-fg-soft mt-0.5">
                   {rankLabel(editModal.officer?.rank)} {editModal.officer?.first_name} {editModal.officer?.last_name}
                   {' · '}SVC: {editModal.officer?.svc_number || editModal.officer?.username || '—'}
                 </p>
               </div>
-              <button onClick={closeEdit} className="p-2 hover:bg-neutral-100 rounded-lg">
-                <X className="w-5 h-5 text-neutral-500" />
+              <button onClick={closeEdit} className="p-2 hover:bg-surface-2 rounded-lg">
+                <X className="w-5 h-5 text-fg-soft" />
               </button>
             </div>
 
             <form onSubmit={handleUpdate} className="space-y-3" noValidate>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">First Name *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">First Name *</label>
                   <input type="text" name="first_name" value={editForm.first_name} onChange={onEditChange} onBlur={onEditBlur} maxLength={50} className={editInputClass('first_name')} />
-                  {editErrors.first_name && <p className="text-red-500 text-xs mt-1">{editErrors.first_name}</p>}
+                  {editErrors.first_name && <p className="text-mark-red-500 text-xs mt-1">{editErrors.first_name}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Last Name *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Last Name *</label>
                   <input type="text" name="last_name" value={editForm.last_name} onChange={onEditChange} onBlur={onEditBlur} maxLength={50} className={editInputClass('last_name')} />
-                  {editErrors.last_name && <p className="text-red-500 text-xs mt-1">{editErrors.last_name}</p>}
+                  {editErrors.last_name && <p className="text-mark-red-500 text-xs mt-1">{editErrors.last_name}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Service Number *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Service Number *</label>
                   <input
                     type="text" inputMode="numeric" pattern="[0-9]*" name="svc_number" maxLength={7}
                     value={editForm.svc_number} onChange={onEditChange} onBlur={onEditBlur}
                     className={`${editInputClass('svc_number')} font-mono`}
                   />
                   {editErrors.svc_number
-                    ? <p className="text-red-500 text-xs mt-1">{editErrors.svc_number}</p>
-                    : <p className="text-neutral-400 text-xs mt-0.5">Numbers only — used for login</p>}
+                    ? <p className="text-mark-red-500 text-xs mt-1">{editErrors.svc_number}</p>
+                    : <p className="text-fg-faint text-xs mt-0.5">Numbers only — used for login</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Rank *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Rank *</label>
                   <select name="rank" value={editForm.rank} onChange={onEditChange} onBlur={onEditBlur} className={editInputClass('rank')}>
                     <option value="" disabled>— Select rank —</option>
                     {RANK_CHOICES.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
-                  {editErrors.rank && <p className="text-red-500 text-xs mt-1">{editErrors.rank}</p>}
+                  {editErrors.rank && <p className="text-mark-red-500 text-xs mt-1">{editErrors.rank}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Email *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Email *</label>
                   <input type="email" name="email" value={editForm.email} onChange={onEditChange} onBlur={onEditBlur} className={editInputClass('email')} />
-                  {editErrors.email && <p className="text-red-500 text-xs mt-1">{editErrors.email}</p>}
+                  {editErrors.email && <p className="text-mark-red-500 text-xs mt-1">{editErrors.email}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Phone *</label>
+                  <label className="block text-sm font-medium text-fg-muted mb-1">Phone *</label>
                   <input type="tel" inputMode="numeric" name="phone_number" value={editForm.phone_number} onChange={onEditChange} onBlur={onEditBlur} className={editInputClass('phone_number')} />
-                  {editErrors.phone_number && <p className="text-red-500 text-xs mt-1">{editErrors.phone_number}</p>}
+                  {editErrors.phone_number && <p className="text-mark-red-500 text-xs mt-1">{editErrors.phone_number}</p>}
                 </div>
               </div>
 
               {/* Role — fixed */}
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">Role</label>
-                <div className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 flex items-center justify-between">
+                <label className="block text-sm font-medium text-fg-muted mb-1">Role</label>
+                <div className="w-full px-3 py-2 border border-line rounded-lg bg-canvas text-fg-body flex items-center justify-between">
                   <span className="flex items-center gap-2 text-sm">
-                    <Star className="w-4 h-4 text-amber-500" />
+                    <Star className="w-4 h-4 text-mark-amber-500" />
                     Chief of Training
                   </span>
-                  <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                  <Lock className="w-3.5 h-3.5 text-fg-faint" />
                 </div>
               </div>
 
               {editError && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-2">{editError}</div>
+                <div className="text-sm text-mark-red-700 bg-fill-red-50 border border-edge-red-100 rounded-lg p-2">{editError}</div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-neutral-200">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line">
                 <button
                   type="button"
                   onClick={() => openResetPassword(editModal.officer)}
-                  className="px-3 py-2 rounded-lg bg-purple-600 text-sm text-white hover:bg-purple-700 transition flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-lg bg-fill-purple-600 text-sm text-white hover:bg-fill-purple-700 transition flex items-center gap-1.5"
                 >
                   <KeyRound className="w-4 h-4" />Reset Password
                 </button>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editSaving} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 transition flex items-center gap-2">
+                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-lg text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={editSaving} className="px-4 py-2 rounded-lg bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 transition flex items-center gap-2">
                     {editSaving ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Saving...</>) : 'Save Changes'}
                   </button>
                 </div>
@@ -825,84 +825,84 @@ export default function COTOfficersPage() {
       {resetPasswordUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={closeResetPassword} />
-          <div className="relative bg-white rounded-xl p-5 max-w-md w-full shadow-2xl ring-1 ring-black/5 z-10">
+          <div className="relative bg-surface rounded-xl p-5 max-w-md w-full shadow-2xl ring-1 ring-hair z-10">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-lg font-semibold text-black flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-purple-600" />
+              <h4 className="text-lg font-semibold text-fg flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-mark-purple-600" />
                 Reset Password
               </h4>
-              <button onClick={closeResetPassword} className="p-2 hover:bg-neutral-100 rounded-lg">
-                <X className="w-5 h-5 text-neutral-500" />
+              <button onClick={closeResetPassword} className="p-2 hover:bg-surface-2 rounded-lg">
+                <X className="w-5 h-5 text-fg-soft" />
               </button>
             </div>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-fg-muted">
               Set a new password for{' '}
               <strong>{rankLabel(resetPasswordUser.rank)} {resetPasswordUser.first_name} {resetPasswordUser.last_name}</strong>
             </p>
 
             <form onSubmit={submitResetPassword} className="mt-4 space-y-4">
               <div>
-                <label className="block text-sm text-neutral-600 mb-1">New Password</label>
+                <label className="block text-sm text-fg-muted mb-1">New Password</label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={handleNewPasswordChange}
-                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 pr-10 text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                     required minLength={8}
                   />
-                  <button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                  <button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               {newPassword && (
-                <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
-                  <p className="text-xs font-medium text-neutral-500 mb-2">Password Requirements:</p>
+                <div className="bg-canvas rounded-lg p-3 space-y-1">
+                  <p className="text-xs font-medium text-fg-soft mb-2">Password Requirements:</p>
                   {resetStrength.feedback.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2 text-xs">
-                      {item.met ? <Check className="w-3.5 h-3.5 text-green-600" /> : <X className="w-3.5 h-3.5 text-red-500" />}
-                      <span className={item.met ? 'text-green-700' : 'text-neutral-600'}>{item.text}</span>
+                      {item.met ? <Check className="w-3.5 h-3.5 text-mark-green-600" /> : <X className="w-3.5 h-3.5 text-mark-red-500" />}
+                      <span className={item.met ? 'text-mark-green-700' : 'text-fg-muted'}>{item.text}</span>
                     </div>
                   ))}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm text-neutral-600 mb-1">Confirm Password</label>
+                <label className="block text-sm text-fg-muted mb-1">Confirm Password</label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 pr-10 text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                     required minLength={8}
                   />
-                  <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                  <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
+                <p className="text-sm text-mark-red-600 flex items-center gap-1">
                   <AlertCircle className="w-4 h-4" />
                   Passwords do not match
                 </p>
               )}
 
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+              <div className="flex items-center gap-2 bg-fill-amber-50 border border-edge-amber-200 rounded-lg p-2.5 text-xs text-mark-amber-800">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 The officer must set a new password on their next login.
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
-                <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
+                <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
                 <button
                   type="submit"
                   disabled={resetSaving || !newPassword || !confirmPassword || newPassword !== confirmPassword || resetStrength.score < 4}
-                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-fill-purple-600 text-white text-sm hover:bg-fill-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {resetSaving ? 'Resetting...' : 'Reset Password'}
                 </button>
@@ -916,9 +916,9 @@ export default function COTOfficersPage() {
       {deleteModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteModal({ open: false, officer: null })} />
-          <div className="relative bg-white rounded-xl p-6 max-w-md w-full shadow-2xl ring-1 ring-black/5 z-10">
-            <h3 className="text-lg font-semibold text-black">Remove COT Officer</h3>
-            <p className="mt-2 text-neutral-600">
+          <div className="relative bg-surface rounded-xl p-6 max-w-md w-full shadow-2xl ring-1 ring-hair z-10">
+            <h3 className="text-lg font-semibold text-fg">Remove COT Officer</h3>
+            <p className="mt-2 text-fg-muted">
               Are you sure you want to remove{' '}
               <strong>{deleteModal.officer?.first_name} {deleteModal.officer?.last_name}</strong> as a
               Chief of Training officer? Their account will be deleted.
@@ -926,13 +926,13 @@ export default function COTOfficersPage() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteModal({ open: false, officer: null })}
-                className="px-4 py-2 text-neutral-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                className="px-4 py-2 text-fg-body bg-surface-3 rounded-lg hover:bg-surface-4 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                className="px-4 py-2 bg-fill-red-600 text-white rounded-lg hover:bg-fill-red-700 transition"
               >
                 Remove
               </button>

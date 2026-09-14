@@ -1,3 +1,5 @@
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -21,7 +23,7 @@ img, picture, video, canvas, svg, iframe, embed, object {
   display: block;
 }
 
-/* Design tokens */
+/* Design tokens — colour tokens live in ./styles/tokens.css */
 :root {
   font-size: 14px;
   --radius-sm: 4px;
@@ -29,13 +31,20 @@ img, picture, video, canvas, svg, iframe, embed, object {
   --radius-lg: 8px;
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
-  color-scheme: light;
 }
 
 html, body {
-  background-color: #fff;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--fg));
   /* Allow OS/browser forced-colors (high-contrast) mode to adjust colors for accessibility. */
   forced-color-adjust: auto;
+}
+
+/* Ease the light/dark handover on the large flat areas only. Transitioning
+ * every property on every element makes the swap feel sluggish. */
+html.scheme-transition,
+html.scheme-transition body {
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 @media (max-width: 640px) {
@@ -61,7 +70,7 @@ html, body {
 /* Global thin scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d1d5db transparent;
+  scrollbar-color: rgb(var(--surface-4)) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -74,15 +83,17 @@ html, body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: rgb(var(--surface-4));
   border-radius: 9999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: rgb(var(--surface-5));
 }
 
-/* Sidebar scrollbar: hidden by default, shown on hover */
+/* Sidebar scrollbar: hidden by default, shown on hover.
+ * The sidebar is always a branded colour surface, so its scrollbar stays
+ * white-on-colour in both schemes. */
 .sidebar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -132,5 +143,55 @@ button, [role="button"], label[for], select {
 
 /* Text selection */
 ::selection {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgb(var(--brand) / 0.25);
 }
+
+/* Elevation on dark.
+ *
+ * A drop shadow works by darkening the surround; against a near-black canvas
+ * there is nothing left to darken, so cards lose their edge entirely. Deepen
+ * the shadow and add a hairline highlight so elevation still reads. Scoped to
+ * .dark, so light mode keeps Tailwind's defaults exactly. */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+.dark .shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+.dark .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.dark .shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.dark .shadow-inner {
+  box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.4);
+}
+
+/* Printable / fixed-media surfaces (certificates, PDF previews, QR codes)
+ * opt out of dark mode via .scheme-light — see styles/tokens.css. They render
+ * on physical paper, so they stay light regardless of the app scheme. */
+.scheme-light {
+  background-color: rgb(var(--surface));
+  color: rgb(var(--fg));
+}
+
+/* Shadows inside a pinned-light subtree must not pick up the dark treatment. */
+.dark .scheme-light .shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+.dark .scheme-light .shadow { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
+.dark .scheme-light .shadow-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+.dark .scheme-light .shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+.dark .scheme-light .shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+.dark .scheme-light .shadow-2xl { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); }

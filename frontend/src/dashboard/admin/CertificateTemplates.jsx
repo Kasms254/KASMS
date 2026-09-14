@@ -216,11 +216,11 @@ export default function CertificateTemplates() {
 
   function getTypeBadgeClasses(type) {
     switch (type) {
-      case 'completion': return 'bg-emerald-100 text-emerald-700'
-      case 'achievement': return 'bg-amber-100 text-amber-700'
-      case 'participation': return 'bg-blue-100 text-blue-700'
-      case 'excellence': return 'bg-purple-100 text-purple-700'
-      default: return 'bg-neutral-100 text-neutral-700'
+      case 'completion': return 'bg-fill-emerald-100 text-mark-emerald-700'
+      case 'achievement': return 'bg-fill-amber-100 text-mark-amber-700'
+      case 'participation': return 'bg-fill-blue-100 text-mark-blue-700'
+      case 'excellence': return 'bg-fill-purple-100 text-mark-purple-700'
+      default: return 'bg-surface-2 text-fg-body'
     }
   }
 
@@ -231,12 +231,12 @@ export default function CertificateTemplates() {
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">Certificate Templates</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Manage certificate templates used when issuing certificates</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">Certificate Templates</h2>
+          <p className="text-xs sm:text-sm text-fg-soft">Manage certificate templates used when issuing certificates</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(true) }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition whitespace-nowrap"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fill-emerald-600 text-white text-sm hover:bg-fill-emerald-700 transition whitespace-nowrap"
         >
           <LucideIcons.Plus className="w-4 h-4" />
           New Template
@@ -244,21 +244,21 @@ export default function CertificateTemplates() {
       </header>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <div className="relative flex-1">
-            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search templates..."
-              className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200"
             />
           </div>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            className="border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-emerald-200"
           >
             <option value="">All Types</option>
             {TEMPLATE_TYPES.map(t => (
@@ -268,7 +268,7 @@ export default function CertificateTemplates() {
           {(searchTerm || filterType) && (
             <button
               onClick={() => { setSearchTerm(''); setFilterType('') }}
-              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+              className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
             >
               Clear
             </button>
@@ -278,11 +278,11 @@ export default function CertificateTemplates() {
 
       {/* Templates List */}
       {loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200">
+        <div className="p-6 bg-surface rounded-xl border border-line">
           <EmptyState icon="Loader2" title="Loading templates..." variant="minimal" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="bg-surface rounded-xl border border-line">
           <EmptyState
             icon="FileText"
             title="No templates found"
@@ -296,13 +296,13 @@ export default function CertificateTemplates() {
           {/* Mobile Card View */}
           <div className="lg:hidden space-y-3">
             {filtered.map(t => (
-              <div key={t.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+              <div key={t.id} className="bg-surface rounded-xl border border-line shadow-sm p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm text-black truncate">{t.name}</span>
+                      <span className="font-medium text-sm text-fg truncate">{t.name}</span>
                       {t.is_default && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium flex-shrink-0">Default</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-fill-emerald-100 text-mark-emerald-700 font-medium flex-shrink-0">Default</span>
                       )}
                     </div>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getTypeBadgeClasses(t.template_type)}`}>
@@ -310,38 +310,38 @@ export default function CertificateTemplates() {
                     </span>
                   </div>
                 </div>
-                {t.description && <p className="text-xs text-neutral-500 mb-3 line-clamp-2">{t.description}</p>}
+                {t.description && <p className="text-xs text-fg-soft mb-3 line-clamp-2">{t.description}</p>}
                 <div className="space-y-1 text-xs mb-3">
                   {t.signatory_name && (
                     <div className="flex justify-between gap-2">
-                      <span className="text-neutral-500">Signatory:</span>
-                      <span className="text-black">{t.signatory_name}</span>
+                      <span className="text-fg-soft">Signatory:</span>
+                      <span className="text-fg">{t.signatory_name}</span>
                     </div>
                   )}
                   <div className="flex justify-between gap-2">
-                    <span className="text-neutral-500">Branding:</span>
-                    <span className="text-black">{t.use_school_branding ? 'School' : 'Custom'}</span>
+                    <span className="text-fg-soft">Branding:</span>
+                    <span className="text-fg">{t.use_school_branding ? 'School' : 'Custom'}</span>
                   </div>
                   {t.has_signature && (
                     <div className="flex justify-between gap-2">
-                      <span className="text-neutral-500">Signature:</span>
-                      <span className="text-emerald-600">Uploaded</span>
+                      <span className="text-fg-soft">Signature:</span>
+                      <span className="text-mark-emerald-600">Uploaded</span>
                     </div>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handlePreview(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">
+                  <button onClick={() => handlePreview(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-2 text-fg-body text-xs hover:bg-surface-3 transition">
                     <LucideIcons.Eye className="w-3 h-3" /> Preview
                   </button>
-                  <button onClick={() => handleEdit(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">
+                  <button onClick={() => handleEdit(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-2 text-fg-body text-xs hover:bg-surface-3 transition">
                     <LucideIcons.Pencil className="w-3 h-3" /> Edit
                   </button>
                   {!t.is_default && (
-                    <button onClick={() => handleSetDefault(t.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 text-xs hover:bg-amber-100 transition">
+                    <button onClick={() => handleSetDefault(t.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-fill-amber-50 text-mark-amber-700 text-xs hover:bg-fill-amber-100 transition">
                       <LucideIcons.Star className="w-3 h-3" /> Set Default
                     </button>
                   )}
-                  <button onClick={() => setShowDeleteConfirm(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-xs hover:bg-red-100 transition">
+                  <button onClick={() => setShowDeleteConfirm(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-fill-red-50 text-mark-red-600 text-xs hover:bg-fill-red-100 transition">
                     <LucideIcons.Trash2 className="w-3 h-3" /> Delete
                   </button>
                 </div>
@@ -350,25 +350,25 @@ export default function CertificateTemplates() {
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <div className="hidden lg:block bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full table-auto">
-                <thead className="bg-neutral-50">
+                <thead className="bg-canvas">
                   <tr className="text-left">
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Template</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Type</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Signatory</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Branding</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Template</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Type</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Signatory</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Branding</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 bg-white">
+                <tbody className="divide-y divide-line bg-surface">
                   {filtered.map(t => (
-                    <tr key={t.id} className="hover:bg-neutral-50 transition">
+                    <tr key={t.id} className="hover:bg-canvas transition">
                       <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-black">{t.name}</div>
-                        {t.description && <div className="text-xs text-neutral-500 mt-0.5 max-w-xs truncate">{t.description}</div>}
+                        <div className="text-sm font-medium text-fg">{t.name}</div>
+                        {t.description && <div className="text-xs text-fg-soft mt-0.5 max-w-xs truncate">{t.description}</div>}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${getTypeBadgeClasses(t.template_type)}`}>
@@ -378,26 +378,26 @@ export default function CertificateTemplates() {
                       <td className="px-4 py-3">
                         {t.signatory_name ? (
                           <div>
-                            <div className="text-sm text-black">{t.signatory_name}</div>
-                            {t.signatory_title && <div className="text-xs text-neutral-500">{t.signatory_title}</div>}
+                            <div className="text-sm text-fg">{t.signatory_name}</div>
+                            {t.signatory_title && <div className="text-xs text-fg-soft">{t.signatory_title}</div>}
                           </div>
                         ) : (
-                          <span className="text-xs text-neutral-400">Not set</span>
+                          <span className="text-xs text-fg-faint">Not set</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           {t.use_school_branding ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs text-mark-blue-700 bg-fill-blue-50 px-2 py-0.5 rounded-full">
                               <LucideIcons.Building2 className="w-3 h-3" /> School
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs text-mark-violet-700 bg-fill-violet-50 px-2 py-0.5 rounded-full">
                               <LucideIcons.Palette className="w-3 h-3" /> Custom
                             </span>
                           )}
                           {t.has_signature && (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs text-mark-emerald-700 bg-fill-emerald-50 px-2 py-0.5 rounded-full">
                               <LucideIcons.PenTool className="w-3 h-3" /> Sig
                             </span>
                           )}
@@ -406,16 +406,16 @@ export default function CertificateTemplates() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           {t.is_active ? (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium w-fit">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-fill-emerald-100 text-mark-emerald-700 font-medium w-fit">
                               <LucideIcons.Check className="w-3 h-3" /> Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-600 font-medium w-fit">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-surface-2 text-fg-muted font-medium w-fit">
                               <LucideIcons.X className="w-3 h-3" /> Inactive
                             </span>
                           )}
                           {t.is_default && (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-medium w-fit">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-fill-amber-100 text-mark-amber-700 font-medium w-fit">
                               <LucideIcons.Star className="w-3 h-3" /> Default
                             </span>
                           )}
@@ -423,18 +423,18 @@ export default function CertificateTemplates() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handlePreview(t)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition" title="Preview">
+                          <button onClick={() => handlePreview(t)} className="p-1.5 rounded-md text-fg-soft hover:bg-surface-2 hover:text-fg-body transition" title="Preview">
                             <LucideIcons.Eye className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleEdit(t)} className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition" title="Edit">
+                          <button onClick={() => handleEdit(t)} className="p-1.5 rounded-md text-fg-soft hover:bg-surface-2 hover:text-fg-body transition" title="Edit">
                             <LucideIcons.Pencil className="w-4 h-4" />
                           </button>
                           {!t.is_default && (
-                            <button onClick={() => handleSetDefault(t.id)} className="p-1.5 rounded-md text-amber-500 hover:bg-amber-50 hover:text-amber-700 transition" title="Set as default">
+                            <button onClick={() => handleSetDefault(t.id)} className="p-1.5 rounded-md text-mark-amber-500 hover:bg-fill-amber-50 hover:text-mark-amber-700 transition" title="Set as default">
                               <LucideIcons.Star className="w-4 h-4" />
                             </button>
                           )}
-                          <button onClick={() => setShowDeleteConfirm(t)} className="p-1.5 rounded-md text-red-400 hover:bg-red-50 hover:text-red-600 transition" title="Delete">
+                          <button onClick={() => setShowDeleteConfirm(t)} className="p-1.5 rounded-md text-mark-red-400 hover:bg-fill-red-50 hover:text-mark-red-600 transition" title="Delete">
                             <LucideIcons.Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -452,10 +452,10 @@ export default function CertificateTemplates() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={resetForm} />
-          <div className="relative z-10 max-w-2xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-              <h3 className="text-lg font-semibold text-black">{editingId ? 'Edit Template' : 'Create New Template'}</h3>
-              <button onClick={resetForm} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+          <div className="relative z-10 max-w-2xl w-full bg-surface rounded-xl shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+              <h3 className="text-lg font-semibold text-fg">{editingId ? 'Edit Template' : 'Create New Template'}</h3>
+              <button onClick={resetForm} className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">
                 <LucideIcons.X className="w-5 h-5" />
               </button>
             </div>
@@ -463,93 +463,93 @@ export default function CertificateTemplates() {
               <div className="p-6 space-y-5">
                 {/* Basic Info */}
                 <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 flex items-center gap-2">
-                    <LucideIcons.FileText className="w-4 h-4 text-neutral-400" /> Basic Information
+                  <h4 className="text-sm font-medium text-fg-body mb-3 flex items-center gap-2">
+                    <LucideIcons.FileText className="w-4 h-4 text-fg-faint" /> Basic Information
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Template Name <span className="text-red-500">*</span></label>
-                      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Standard Completion Certificate" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Template Name <span className="text-mark-red-500">*</span></label>
+                      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Standard Completion Certificate" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Template Type</label>
-                      <select value={form.template_type} onChange={(e) => setForm({ ...form, template_type: e.target.value })} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Template Type</label>
+                      <select value={form.template_type} onChange={(e) => setForm({ ...form, template_type: e.target.value })} className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-emerald-200">
                         {TEMPLATE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Header Text</label>
-                      <input value={form.header_text} onChange={(e) => setForm({ ...form, header_text: e.target.value })} placeholder="Certificate of Completion" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Header Text</label>
+                      <input value={form.header_text} onChange={(e) => setForm({ ...form, header_text: e.target.value })} placeholder="Certificate of Completion" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Description</label>
-                      <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description for internal reference" rows={2} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Description</label>
+                      <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description for internal reference" rows={2} className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200 resize-none" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Body Template</label>
-                      <textarea value={form.body_template} onChange={(e) => setForm({ ...form, body_template: e.target.value })} placeholder="Custom body text. Use {student_name}, {course_name}, {class_name}, {completion_date}, {grade}" rows={3} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none font-mono" />
-                      <p className="mt-1 text-[11px] text-neutral-400">Placeholders: {'{student_name}'}, {'{course_name}'}, {'{class_name}'}, {'{completion_date}'}, {'{grade}'}</p>
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Body Template</label>
+                      <textarea value={form.body_template} onChange={(e) => setForm({ ...form, body_template: e.target.value })} placeholder="Custom body text. Use {student_name}, {course_name}, {class_name}, {completion_date}, {grade}" rows={3} className="w-full border border-line rounded-lg px-3 py-2 text-xs text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200 resize-none font-mono" />
+                      <p className="mt-1 text-[11px] text-fg-faint">Placeholders: {'{student_name}'}, {'{course_name}'}, {'{class_name}'}, {'{completion_date}'}, {'{grade}'}</p>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Footer Text</label>
-                      <input value={form.footer_text} onChange={(e) => setForm({ ...form, footer_text: e.target.value })} placeholder="e.g. Accreditation information" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Footer Text</label>
+                      <input value={form.footer_text} onChange={(e) => setForm({ ...form, footer_text: e.target.value })} placeholder="e.g. Accreditation information" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                   </div>
                 </div>
 
                 {/* Signatory Info */}
                 <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 flex items-center gap-2">
-                    <LucideIcons.PenTool className="w-4 h-4 text-neutral-400" /> Signatory Information
+                  <h4 className="text-sm font-medium text-fg-body mb-3 flex items-center gap-2">
+                    <LucideIcons.PenTool className="w-4 h-4 text-fg-faint" /> Signatory Information
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Primary Signatory Name</label>
-                      <input value={form.signatory_name} onChange={(e) => setForm({ ...form, signatory_name: e.target.value })} placeholder="e.g. Col. John Smith" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Primary Signatory Name</label>
+                      <input value={form.signatory_name} onChange={(e) => setForm({ ...form, signatory_name: e.target.value })} placeholder="e.g. Col. John Smith" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Primary Signatory Title</label>
-                      <input value={form.signatory_title} onChange={(e) => setForm({ ...form, signatory_title: e.target.value })} placeholder="e.g. Commandant" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Primary Signatory Title</label>
+                      <input value={form.signatory_title} onChange={(e) => setForm({ ...form, signatory_title: e.target.value })} placeholder="e.g. Commandant" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Secondary Signatory Name</label>
-                      <input value={form.secondary_signatory_name} onChange={(e) => setForm({ ...form, secondary_signatory_name: e.target.value })} placeholder="Optional" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Secondary Signatory Name</label>
+                      <input value={form.secondary_signatory_name} onChange={(e) => setForm({ ...form, secondary_signatory_name: e.target.value })} placeholder="Optional" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Secondary Signatory Title</label>
-                      <input value={form.secondary_signatory_title} onChange={(e) => setForm({ ...form, secondary_signatory_title: e.target.value })} placeholder="Optional" className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      <label className="block text-xs font-medium text-fg-muted mb-1">Secondary Signatory Title</label>
+                      <input value={form.secondary_signatory_title} onChange={(e) => setForm({ ...form, secondary_signatory_title: e.target.value })} placeholder="Optional" className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200" />
                     </div>
                   </div>
                 </div>
 
                 {/* Branding & Files */}
                 <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 flex items-center gap-2">
-                    <LucideIcons.Palette className="w-4 h-4 text-neutral-400" /> Branding & Images
+                  <h4 className="text-sm font-medium text-fg-body mb-3 flex items-center gap-2">
+                    <LucideIcons.Palette className="w-4 h-4 text-fg-faint" /> Branding & Images
                   </h4>
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                    <div className="flex items-center gap-3 p-3 bg-canvas rounded-lg border border-line">
                       <input
                         id="use_school_branding"
                         type="checkbox"
                         checked={form.use_school_branding}
                         onChange={(e) => setForm({ ...form, use_school_branding: e.target.checked })}
-                        className="w-4 h-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                        className="w-4 h-4 rounded border-line-strong text-mark-emerald-600 focus:ring-edge-emerald-500"
                       />
-                      <label htmlFor="use_school_branding" className="text-sm text-black">
+                      <label htmlFor="use_school_branding" className="text-sm text-fg">
                         Use school branding
-                        <span className="block text-xs text-neutral-500">Uses your school's logo and colours automatically</span>
+                        <span className="block text-xs text-fg-soft">Uses your school's logo and colours automatically</span>
                       </label>
                     </div>
 
                     {!form.use_school_branding && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border border-neutral-200 rounded-lg bg-neutral-50">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border border-line rounded-lg bg-canvas">
                         <div>
-                          <label className="block text-xs font-medium text-neutral-600 mb-1">Custom Logo</label>
+                          <label className="block text-xs font-medium text-fg-muted mb-1">Custom Logo</label>
                           {form._custom_logo_url && !form.custom_logo && (
-                            <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
-                              <img src={form._custom_logo_url} alt="Current logo" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
-                              <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                            <div className="mb-2 flex items-center gap-2 p-2 bg-canvas border border-line rounded-lg">
+                              <img src={form._custom_logo_url} alt="Current logo" className="h-10 object-contain border border-line rounded bg-surface" />
+                              <span className="text-xs text-fg-soft">Current — upload new to replace</span>
                             </div>
                           )}
                           <input type="file" accept="image/*" onChange={(e) => {
@@ -557,7 +557,7 @@ export default function CertificateTemplates() {
                             const err = validateImageFile(file)
                             if (err) { toast?.error?.(err); e.target.value = ''; return }
                             setForm({ ...form, custom_logo: file })
-                          }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                          }} className="w-full text-xs text-fg-muted file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-surface-3 file:text-fg-body hover:file:bg-surface-4" />
                         </div>
                         <div />
                       </div>
@@ -565,11 +565,11 @@ export default function CertificateTemplates() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-neutral-600 mb-1">Primary Signature Image</label>
+                        <label className="block text-xs font-medium text-fg-muted mb-1">Primary Signature Image</label>
                         {form._signature_image_url && !form.signature_image && (
-                          <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
-                            <img src={form._signature_image_url} alt="Current signature" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
-                            <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                          <div className="mb-2 flex items-center gap-2 p-2 bg-canvas border border-line rounded-lg">
+                            <img src={form._signature_image_url} alt="Current signature" className="h-10 object-contain border border-line rounded bg-surface" />
+                            <span className="text-xs text-fg-soft">Current — upload new to replace</span>
                           </div>
                         )}
                         <input type="file" accept="image/*" onChange={(e) => {
@@ -577,14 +577,14 @@ export default function CertificateTemplates() {
                           const err = validateImageFile(file)
                           if (err) { toast?.error?.(err); e.target.value = ''; return }
                           setForm({ ...form, signature_image: file })
-                        }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                        }} className="w-full text-xs text-fg-muted file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-surface-3 file:text-fg-body hover:file:bg-surface-4" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-neutral-600 mb-1">Secondary Signature Image</label>
+                        <label className="block text-xs font-medium text-fg-muted mb-1">Secondary Signature Image</label>
                         {form._secondary_signature_image_url && !form.secondary_signature_image && (
-                          <div className="mb-2 flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200 rounded-lg">
-                            <img src={form._secondary_signature_image_url} alt="Current secondary signature" className="h-10 object-contain border border-neutral-200 rounded bg-white" />
-                            <span className="text-xs text-neutral-500">Current — upload new to replace</span>
+                          <div className="mb-2 flex items-center gap-2 p-2 bg-canvas border border-line rounded-lg">
+                            <img src={form._secondary_signature_image_url} alt="Current secondary signature" className="h-10 object-contain border border-line rounded bg-surface" />
+                            <span className="text-xs text-fg-soft">Current — upload new to replace</span>
                           </div>
                         )}
                         <input type="file" accept="image/*" onChange={(e) => {
@@ -592,7 +592,7 @@ export default function CertificateTemplates() {
                           const err = validateImageFile(file)
                           if (err) { toast?.error?.(err); e.target.value = ''; return }
                           setForm({ ...form, secondary_signature_image: file })
-                        }} className="w-full text-xs text-neutral-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300" />
+                        }} className="w-full text-xs text-fg-muted file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-surface-3 file:text-fg-body hover:file:bg-surface-4" />
                       </div>
                     </div>
                   </div>
@@ -600,41 +600,41 @@ export default function CertificateTemplates() {
 
                 {/* Status & Default Toggles */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex items-center gap-3 p-3 bg-fill-emerald-50 rounded-lg border border-edge-emerald-200">
                     <input
                       id="is_active"
                       type="checkbox"
                       checked={form.is_active}
                       onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                      className="w-4 h-4 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                      className="w-4 h-4 rounded border-line-strong text-mark-emerald-600 focus:ring-edge-emerald-500"
                     />
-                    <label htmlFor="is_active" className="text-sm text-black">
+                    <label htmlFor="is_active" className="text-sm text-fg">
                       Active template
-                      <span className="block text-xs text-neutral-500">Enable this template for use in certificate issuance</span>
+                      <span className="block text-xs text-fg-soft">Enable this template for use in certificate issuance</span>
                     </label>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="flex items-center gap-3 p-3 bg-fill-amber-50 rounded-lg border border-edge-amber-200">
                     <input
                       id="is_default"
                       type="checkbox"
                       checked={form.is_default}
                       onChange={(e) => setForm({ ...form, is_default: e.target.checked })}
-                      className="w-4 h-4 rounded border-neutral-300 text-amber-600 focus:ring-amber-500"
+                      className="w-4 h-4 rounded border-line-strong text-mark-amber-600 focus:ring-edge-amber-500"
                     />
-                    <label htmlFor="is_default" className="text-sm text-black">
+                    <label htmlFor="is_default" className="text-sm text-fg">
                       Set as default template
-                      <span className="block text-xs text-neutral-500">This template will be used automatically when issuing certificates</span>
+                      <span className="block text-xs text-fg-soft">This template will be used automatically when issuing certificates</span>
                     </label>
                   </div>
                 </div>
               </div>
 
               {/* Form Footer */}
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50">
-                <button type="button" onClick={resetForm} className="px-4 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-100 transition">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line bg-canvas">
+                <button type="button" onClick={resetForm} className="px-4 py-2 rounded-lg border border-line text-sm text-fg-body hover:bg-surface-2 transition">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 transition">
+                <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fill-emerald-600 text-white text-sm hover:bg-fill-emerald-700 disabled:opacity-50 transition">
                   {submitting ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Check className="w-4 h-4" />}
                   {submitting ? 'Saving...' : editingId ? 'Update Template' : 'Create Template'}
                 </button>
@@ -648,24 +648,24 @@ export default function CertificateTemplates() {
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(null)} />
-          <div className="relative z-10 max-w-md w-full bg-white rounded-xl shadow-xl p-6">
+          <div className="relative z-10 max-w-md w-full bg-surface rounded-xl shadow-xl p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <LucideIcons.Trash2 className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center flex-shrink-0">
+                <LucideIcons.Trash2 className="w-5 h-5 text-mark-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-black">Delete Template</h3>
-                <p className="text-sm text-neutral-500">This action cannot be undone.</p>
+                <h3 className="text-lg font-semibold text-fg">Delete Template</h3>
+                <p className="text-sm text-fg-soft">This action cannot be undone.</p>
               </div>
             </div>
-            <p className="text-sm text-neutral-700 mb-6">
-              Are you sure you want to delete <span className="font-medium text-black">"{showDeleteConfirm.name}"</span>? Any certificates already issued with this template will not be affected.
+            <p className="text-sm text-fg-body mb-6">
+              Are you sure you want to delete <span className="font-medium text-fg">"{showDeleteConfirm.name}"</span>? Any certificates already issued with this template will not be affected.
             </p>
             <div className="flex items-center justify-end gap-3">
-              <button onClick={() => setShowDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-100 transition">
+              <button onClick={() => setShowDeleteConfirm(null)} className="px-4 py-2 rounded-lg border border-line text-sm text-fg-body hover:bg-surface-2 transition">
                 Cancel
               </button>
-              <button onClick={() => handleDelete(showDeleteConfirm.id)} disabled={deleting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 transition">
+              <button onClick={() => handleDelete(showDeleteConfirm.id)} disabled={deleting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-50 transition">
                 {deleting ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Trash2 className="w-4 h-4" />}
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -678,13 +678,13 @@ export default function CertificateTemplates() {
       {showPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowPreview(null)} />
-          <div className="relative z-10 max-w-4xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-neutral-200">
+          <div className="relative z-10 max-w-4xl w-full bg-surface rounded-xl shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-line">
               <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-black truncate">
+                <h3 className="text-lg font-semibold text-fg truncate">
                   Certificate Preview{showPreview.template?.name ? ` — ${showPreview.template.name}` : ''}
                 </h3>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-fg-soft">
                   Rendered with sample student data by the same generator used when issuing.
                 </p>
               </div>
@@ -692,31 +692,31 @@ export default function CertificateTemplates() {
                 {showPreview.url && (
                   <button
                     onClick={handleDownloadPreview}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-2 text-fg-body text-xs hover:bg-surface-3 transition"
                   >
                     <LucideIcons.Download className="w-3 h-3" /> Download sample
                   </button>
                 )}
-                <button onClick={() => setShowPreview(null)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                <button onClick={() => setShowPreview(null)} className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="bg-neutral-100 p-4">
+            <div className="bg-surface-2 p-4">
               {previewLoading || !showPreview.url ? (
-                <div className="h-[70vh] flex items-center justify-center bg-white rounded-lg border border-neutral-200">
+                <div className="h-[70vh] flex items-center justify-center bg-surface rounded-lg border border-line">
                   <EmptyState icon="Loader2" title="Rendering certificate..." variant="minimal" />
                 </div>
               ) : (
                 <iframe
                   title="Certificate preview"
                   src={showPreview.kind === 'pdf' ? `${showPreview.url}#view=FitH` : showPreview.url}
-                  className="w-full h-[70vh] bg-white rounded-lg border border-neutral-200"
+                  className="w-full h-[70vh] bg-surface rounded-lg border border-line"
                 />
               )}
             </div>
             {showPreview.kind === 'html' && (
-              <div className="px-6 py-3 border-t border-neutral-200 bg-amber-50 text-xs text-amber-700">
+              <div className="px-6 py-3 border-t border-line bg-fill-amber-50 text-xs text-mark-amber-700">
                 PDF rendering is unavailable on the server, so this HTML preview is shown instead. Fonts and page margins may differ slightly from the issued PDF.
               </div>
             )}

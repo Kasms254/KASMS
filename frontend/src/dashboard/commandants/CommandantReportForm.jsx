@@ -12,8 +12,8 @@ import ModernDatePicker from '../../components/ModernDatePicker'
 function Field({ label, children, hint, className = '' }) {
   return (
     <div className={className}>
-      <label className="block text-sm font-medium text-gray-900">{label}</label>
-      {hint && <p className="text-xs text-gray-600 mt-0.5 mb-1.5">{hint}</p>}
+      <label className="block text-sm font-medium text-fg">{label}</label>
+      {hint && <p className="text-xs text-fg-muted mt-0.5 mb-1.5">{hint}</p>}
       {!hint && <div className="mb-1" />}
       {children}
     </div>
@@ -28,7 +28,7 @@ function Textarea({ name, value, onChange, placeholder, rows = 5 }) {
       onChange={onChange}
       placeholder={placeholder}
       rows={rows}
-      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+      className="w-full border border-line-strong rounded-lg px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-blue-500 focus:border-edge-blue-500 resize-y"
     />
   )
 }
@@ -114,16 +114,16 @@ export default function CommandantReportForm() {
 
   if (isEdit && loadingExisting) return (
     <div className="flex items-center justify-center py-20">
-      <Loader className="animate-spin text-blue-600" size={28} />
+      <Loader className="animate-spin text-mark-blue-600" size={28} />
     </div>
   )
 
   if (isEdit && existing?.status !== 'draft') return (
     <div className="max-w-2xl mx-auto p-6 text-center">
-      <p className="text-gray-900 mb-4">This report has been submitted and is no longer editable.</p>
+      <p className="text-fg mb-4">This report has been submitted and is no longer editable.</p>
       <button
         onClick={() => navigate(`/commandant/reports/${id}`)}
-        className="text-blue-700 underline text-sm"
+        className="text-mark-blue-700 underline text-sm"
       >
         View report
       </button>
@@ -133,22 +133,22 @@ export default function CommandantReportForm() {
   return (
     <div className="w-full">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-900">
+        <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-surface-2 text-fg">
           <ArrowLeft size={18} />
         </button>
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-fg">
             {isEdit ? 'Edit Report Draft' : 'New School Report'}
           </h2>
-          <p className="text-sm text-gray-900">Statistics are automatically computed on submission.</p>
+          <p className="text-sm text-fg">Statistics are automatically computed on submission.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* Report identification */}
-        <section className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-          <h3 className="font-semibold text-gray-900 border-b pb-2">Report Identification</h3>
+        <section className="bg-surface border border-line rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-fg border-b pb-2">Report Identification</h3>
 
           <Field label="Report Title" hint="Leave blank to auto-generate from school name and period.">
             <input
@@ -156,7 +156,7 @@ export default function CommandantReportForm() {
               value={form.title}
               onChange={handleChange}
               placeholder="e.g. KACEME — Jan 2025 to Jun 2025"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-line-strong rounded-lg px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-blue-500 focus:border-edge-blue-500"
             />
           </Field>
 
@@ -168,7 +168,7 @@ export default function CommandantReportForm() {
                 placeholder="Select start date"
                 maxDate={form.reporting_period_end || null}
               />
-              {errors.reporting_period_start && <p className="text-red-500 text-xs mt-1">{errors.reporting_period_start}</p>}
+              {errors.reporting_period_start && <p className="text-mark-red-500 text-xs mt-1">{errors.reporting_period_start}</p>}
             </Field>
 
             <Field label="Period End *">
@@ -178,7 +178,7 @@ export default function CommandantReportForm() {
                 placeholder="Select end date"
                 minDate={form.reporting_period_start || null}
               />
-              {errors.reporting_period_end && <p className="text-red-500 text-xs mt-1">{errors.reporting_period_end}</p>}
+              {errors.reporting_period_end && <p className="text-mark-red-500 text-xs mt-1">{errors.reporting_period_end}</p>}
             </Field>
 
             <Field label="Report Date">
@@ -192,9 +192,9 @@ export default function CommandantReportForm() {
         </section>
 
         {/* Commandant narrative */}
-        <section className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-          <h3 className="font-semibold text-gray-900 border-b pb-2">Commandant's Narrative</h3>
-          <p className="text-xs text-gray-900">
+        <section className="bg-surface border border-line rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-fg border-b pb-2">Commandant's Narrative</h3>
+          <p className="text-xs text-fg">
             All statistics (students, instructors, courses, performance) are computed automatically
             from the system at submission time. Use this section for qualitative observations.
           </p>
@@ -223,15 +223,15 @@ export default function CommandantReportForm() {
         </section>
 
         {saveMutation.isError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+          <div className="bg-fill-red-50 border border-edge-red-200 rounded-lg px-4 py-3 text-sm text-mark-red-700">
             Failed to save. Please check the form and try again.
           </div>
         )}
 
         {/* Footer bar — same card surface as the sections above, so the actions
             read as the end of the form rather than loose page content. */}
-        <div className="bg-white border border-gray-200 rounded-xl px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <p className="text-xs text-gray-900 sm:max-w-md">
+        <div className="bg-surface border border-line rounded-xl px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p className="text-xs text-fg sm:max-w-md">
             Saved as a draft — you can review it and submit to the Chief of Training afterwards.
           </p>
           {/* Stacked and full-width on phones (primary action on top), inline on wider screens */}
@@ -239,14 +239,14 @@ export default function CommandantReportForm() {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="w-full sm:w-auto px-5 py-2.5 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="w-full sm:w-auto px-5 py-2.5 text-sm font-medium text-fg bg-surface border border-line-strong rounded-lg hover:bg-canvas"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold bg-fill-blue-700 text-white rounded-lg hover:bg-fill-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saveMutation.isPending ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
               {saveMutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Draft'}

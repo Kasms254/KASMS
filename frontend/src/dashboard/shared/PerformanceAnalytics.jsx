@@ -3,6 +3,7 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router'
 import * as api from '../../lib/api'
+import useChartTheme from '../../hooks/useChartTheme'
 import useAuth from '../../hooks/useAuth'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
@@ -14,20 +15,20 @@ import * as Icons from 'lucide-react'
 function LoadingSkeleton({ type = 'card' }) {
   if (type === 'card') {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
-        <div className="h-8 bg-gray-200 rounded w-1/2" />
+      <div className="bg-surface rounded-xl border border-line p-6 animate-pulse">
+        <div className="h-4 bg-surface-3 rounded w-1/3 mb-2" />
+        <div className="h-8 bg-surface-3 rounded w-1/2" />
       </div>
     )
   }
 
   if (type === 'table') {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/4 mb-4" />
+      <div className="bg-surface rounded-xl border border-line p-6 animate-pulse">
+        <div className="h-6 bg-surface-3 rounded w-1/4 mb-4" />
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-12 bg-gray-100 rounded" />
+            <div key={i} className="h-12 bg-surface-2 rounded" />
           ))}
         </div>
       </div>
@@ -35,12 +36,12 @@ function LoadingSkeleton({ type = 'card' }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-      <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
+    <div className="bg-surface rounded-xl border border-line p-6 animate-pulse">
+      <div className="h-6 bg-surface-3 rounded w-1/3 mb-4" />
       <div className="space-y-2">
-        <div className="h-4 bg-gray-100 rounded" />
-        <div className="h-4 bg-gray-100 rounded w-5/6" />
-        <div className="h-4 bg-gray-100 rounded w-4/6" />
+        <div className="h-4 bg-surface-2 rounded" />
+        <div className="h-4 bg-surface-2 rounded w-5/6" />
+        <div className="h-4 bg-surface-2 rounded w-4/6" />
       </div>
     </div>
   )
@@ -57,7 +58,7 @@ function LineChart({ data, height = 200 }) {
   return (
     <div className="relative" style={{ height: `${height}px` }}>
       {/* Y-axis labels */}
-      <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-gray-500 pr-2 text-right">
+      <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-fg-soft pr-2 text-right">
         <span>{maxValue.toFixed(0)}%</span>
         <span>{((maxValue + minValue) / 2).toFixed(0)}%</span>
         <span>{minValue.toFixed(0)}%</span>
@@ -68,7 +69,7 @@ function LineChart({ data, height = 200 }) {
         {/* Grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between">
           {[0, 1, 2, 3, 4].map(i => (
-            <div key={i} className="border-t border-gray-200" />
+            <div key={i} className="border-t border-line" />
           ))}
         </div>
 
@@ -124,7 +125,7 @@ function LineChart({ data, height = 200 }) {
         </svg>
 
         {/* X-axis labels */}
-        <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-xs text-gray-500">
+        <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-xs text-fg-soft">
           {data.map((point, i) => {
             if (i === 0 || i === data.length - 1 || i === Math.floor(data.length / 2)) {
               return <span key={i}>{point.label}</span>
@@ -138,7 +139,7 @@ function LineChart({ data, height = 200 }) {
 }
 
 // Enhanced Bar Chart with animations
-function BarChart({ data, labelKey, valueKey, maxValue, colorClass = 'bg-indigo-500' }) {
+function BarChart({ data, labelKey, valueKey, maxValue, colorClass = 'bg-fill-indigo-500' }) {
   if (!data || data.length === 0) return null
   const max = maxValue || Math.max(...data.map(d => d[valueKey] || 0), 1)
 
@@ -146,10 +147,10 @@ function BarChart({ data, labelKey, valueKey, maxValue, colorClass = 'bg-indigo-
     <div className="space-y-2">
       {data.map((item, idx) => (
         <div key={idx} className="flex items-center gap-3">
-          <div className="w-32 text-sm text-gray-600 truncate" title={item[labelKey]}>
+          <div className="w-32 text-sm text-fg-muted truncate" title={item[labelKey]}>
             {item[labelKey]}
           </div>
-          <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+          <div className="flex-1 bg-surface-2 rounded-full h-6 overflow-hidden">
             <div
               className={`h-full ${colorClass} rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
               style={{ width: `${Math.max((item[valueKey] / max) * 100, 5)}%` }}
@@ -169,15 +170,15 @@ function GradeDistribution({ distribution }) {
 
   const grades = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'F']
   const colors = {
-    'A':  { bg: 'bg-emerald-600', text: 'text-emerald-700', light: 'bg-emerald-50' },
-    'A-': { bg: 'bg-emerald-400', text: 'text-emerald-600', light: 'bg-emerald-50' },
-    'B+': { bg: 'bg-sky-600',     text: 'text-sky-700',     light: 'bg-sky-50' },
-    'B':  { bg: 'bg-sky-500',     text: 'text-sky-700',     light: 'bg-sky-50' },
-    'B-': { bg: 'bg-sky-400',     text: 'text-sky-600',     light: 'bg-sky-50' },
-    'C+': { bg: 'bg-amber-600',   text: 'text-amber-700',   light: 'bg-amber-50' },
-    'C':  { bg: 'bg-amber-500',   text: 'text-amber-700',   light: 'bg-amber-50' },
-    'C-': { bg: 'bg-amber-400',   text: 'text-amber-600',   light: 'bg-amber-50' },
-    'F':  { bg: 'bg-red-500',     text: 'text-red-700',     light: 'bg-red-50' },
+    'A':  { bg: 'bg-fill-emerald-600', text: 'text-mark-emerald-700', light: 'bg-fill-emerald-50' },
+    'A-': { bg: 'bg-fill-emerald-400', text: 'text-mark-emerald-600', light: 'bg-fill-emerald-50' },
+    'B+': { bg: 'bg-fill-sky-600',     text: 'text-mark-sky-700',     light: 'bg-fill-sky-50' },
+    'B':  { bg: 'bg-fill-sky-500',     text: 'text-mark-sky-700',     light: 'bg-fill-sky-50' },
+    'B-': { bg: 'bg-fill-sky-400',     text: 'text-mark-sky-600',     light: 'bg-fill-sky-50' },
+    'C+': { bg: 'bg-fill-amber-600',   text: 'text-mark-amber-700',   light: 'bg-fill-amber-50' },
+    'C':  { bg: 'bg-fill-amber-500',   text: 'text-mark-amber-700',   light: 'bg-fill-amber-50' },
+    'C-': { bg: 'bg-fill-amber-400',   text: 'text-mark-amber-600',   light: 'bg-fill-amber-50' },
+    'F':  { bg: 'bg-fill-red-500',     text: 'text-mark-red-700',     light: 'bg-fill-red-50' },
   }
   const total = grades.reduce((sum, g) => sum + (distribution[g] || 0), 0)
 
@@ -210,7 +211,7 @@ function GradeDistribution({ distribution }) {
           return (
             <div key={grade} className={`${colors[grade].light} rounded-lg p-3 text-center`}>
               <div className={`text-2xl font-bold ${colors[grade].text}`}>{grade}</div>
-              <div className="text-xs text-gray-600 mt-1">{count} ({pct}%)</div>
+              <div className="text-xs text-fg-muted mt-1">{count} ({pct}%)</div>
             </div>
           )
         })}
@@ -222,16 +223,16 @@ function GradeDistribution({ distribution }) {
 // Top performers list with medals
 function TopPerformersList({ performers }) {
   if (!performers || performers.length === 0) {
-    return <p className="text-sm text-gray-500">No data available</p>
+    return <p className="text-sm text-fg-soft">No data available</p>
   }
 
   // Show only top 3 performers
   const topThree = performers.slice(0, 3)
 
   const getMedalIcon = (rank) => {
-    if (rank === 1) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-amber-400" />
-    if (rank === 2) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-    if (rank === 3) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-orange-400" />
+    if (rank === 1) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-mark-amber-400" />
+    if (rank === 2) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-fg-faint" />
+    if (rank === 3) return <Icons.Medal className="w-4 h-4 md:w-5 md:h-5 text-mark-orange-400" />
     return null
   }
 
@@ -239,38 +240,38 @@ function TopPerformersList({ performers }) {
     <div className="overflow-x-auto">
       <table className="min-w-full text-xs md:text-sm">
         <thead>
-          <tr className="border-b border-gray-200">
-            <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">Rank</th>
-            <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">SVC Number</th>
-            <th className="text-left py-2 px-1 md:px-2 font-medium text-gray-600">Student</th>
-            <th className="text-right py-2 px-1 md:px-2 font-medium text-gray-600">Score</th>
-            <th className="text-right py-2 px-1 md:px-2 font-medium text-gray-600 hidden md:table-cell">Attendance</th>
+          <tr className="border-b border-line">
+            <th className="text-left py-2 px-1 md:px-2 font-medium text-fg-muted">Rank</th>
+            <th className="text-left py-2 px-1 md:px-2 font-medium text-fg-muted">SVC Number</th>
+            <th className="text-left py-2 px-1 md:px-2 font-medium text-fg-muted">Student</th>
+            <th className="text-right py-2 px-1 md:px-2 font-medium text-fg-muted">Score</th>
+            <th className="text-right py-2 px-1 md:px-2 font-medium text-fg-muted hidden md:table-cell">Attendance</th>
           </tr>
         </thead>
         <tbody>
           {topThree.map((p, idx) => (
-            <tr key={p.student_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+            <tr key={p.student_id || idx} className="border-b border-hair hover:bg-canvas transition-colors">
               <td className="py-2 px-1 md:px-2">
                 <div className="flex items-center gap-0.5 md:gap-1">
                   {getMedalIcon(p.rank || idx + 1)}
                   <span className={`inline-flex items-center justify-center w-5 h-5 md:w-6 md:h-6 rounded-full text-xs font-bold ${
-                    idx === 0 ? 'bg-amber-100 text-amber-700' :
-                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                    idx === 2 ? 'bg-orange-100 text-orange-700' :
-                    'bg-gray-100 text-gray-600'
+                    idx === 0 ? 'bg-fill-amber-100 text-mark-amber-700' :
+                    idx === 1 ? 'bg-surface-3 text-fg-body' :
+                    idx === 2 ? 'bg-fill-orange-100 text-mark-orange-700' :
+                    'bg-surface-2 text-fg-muted'
                   }`}>
                     {p.rank || idx + 1}
                   </span>
                 </div>
               </td>
-              <td className="py-2 px-1 md:px-2 text-gray-600 text-xs md:text-sm">{p.svc_number || '-'}</td>
-              <td className="py-2 px-1 md:px-2 font-medium text-gray-800 text-xs md:text-sm">{p.student_name}</td>
+              <td className="py-2 px-1 md:px-2 text-fg-muted text-xs md:text-sm">{p.svc_number || '-'}</td>
+              <td className="py-2 px-1 md:px-2 font-medium text-fg text-xs md:text-sm">{p.student_name}</td>
               <td className="py-2 px-1 md:px-2 text-right">
                 {(() => {
                   const score = p.exam_percentage !== undefined ? p.exam_percentage : 0;
-                  let color = 'text-red-600';
-                  if (score >= 76) color = 'text-emerald-600';
-                  else if (score >= 50) color = 'text-amber-600';
+                  let color = 'text-mark-red-600';
+                  if (score >= 76) color = 'text-mark-emerald-600';
+                  else if (score >= 50) color = 'text-mark-amber-600';
                   return (
                     <span className={`font-semibold text-xs md:text-sm ${color}`}>
                       {score?.toFixed ? score.toFixed(1) : score}%
@@ -278,7 +279,7 @@ function TopPerformersList({ performers }) {
                   );
                 })()}
               </td>
-              <td className="py-2 px-1 md:px-2 text-right text-gray-600 text-xs md:text-sm hidden md:table-cell">
+              <td className="py-2 px-1 md:px-2 text-right text-fg-muted text-xs md:text-sm hidden md:table-cell">
                 {p.attendance_rate?.toFixed(1) || 0}%
               </td>
             </tr>
@@ -291,12 +292,13 @@ function TopPerformersList({ performers }) {
 
 // Attendance-Performance Correlation Display
 function AttendanceCorrelation({ data }) {
+  const chart = useChartTheme()
   const [page, setPage] = useState(1)
   const [metric, setMetric] = useState('attendance_rate')
   const ITEMS_PER_PAGE = 10
 
   if (!data || data.message) {
-    return <p className="text-sm text-gray-500">{data?.message || 'No correlation data available'}</p>
+    return <p className="text-sm text-fg-soft">{data?.message || 'No correlation data available'}</p>
   }
 
   const coefficient = data.correlation_coefficient || 0
@@ -304,15 +306,15 @@ function AttendanceCorrelation({ data }) {
   const isPositive = coefficient >= 0
 
   const getCorrelationColor = () => {
-    if (absCoefficient >= 0.7) return isPositive ? 'text-emerald-600' : 'text-red-600'
-    if (absCoefficient >= 0.4) return isPositive ? 'text-amber-600' : 'text-orange-600'
-    return 'text-gray-600'
+    if (absCoefficient >= 0.7) return isPositive ? 'text-mark-emerald-600' : 'text-mark-red-600'
+    if (absCoefficient >= 0.4) return isPositive ? 'text-mark-amber-600' : 'text-mark-orange-600'
+    return 'text-fg-muted'
   }
 
   const getCorrelationBg = () => {
-    if (absCoefficient >= 0.7) return isPositive ? 'bg-emerald-100' : 'bg-red-100'
-    if (absCoefficient >= 0.4) return isPositive ? 'bg-amber-100' : 'bg-orange-100'
-    return 'bg-gray-100'
+    if (absCoefficient >= 0.7) return isPositive ? 'bg-fill-emerald-100' : 'bg-fill-red-100'
+    if (absCoefficient >= 0.4) return isPositive ? 'bg-fill-amber-100' : 'bg-fill-orange-100'
+    return 'bg-surface-2'
   }
 
   const correlationPoints = [...(data.correlation_data || [])].sort((a, b) => b[metric] - a[metric])
@@ -331,10 +333,10 @@ function AttendanceCorrelation({ data }) {
           <div className={`text-3xl font-bold ${getCorrelationColor()}`}>
             {coefficient.toFixed(3)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">Correlation Coefficient</div>
+          <div className="text-xs text-fg-soft mt-1">Correlation Coefficient</div>
         </div>
         <div className={`${getCorrelationBg()} px-3 py-2 rounded-lg`}>
-          <div className="text-xs font-medium text-gray-700">
+          <div className="text-xs font-medium text-fg-body">
             {absCoefficient >= 0.7 ? 'Strong' : absCoefficient >= 0.4 ? 'Moderate' : absCoefficient >= 0.2 ? 'Weak' : 'Very Weak'}
             {' '}{isPositive ? 'Positive' : 'Negative'}
           </div>
@@ -342,30 +344,30 @@ function AttendanceCorrelation({ data }) {
       </div>
 
       {/* Interpretation */}
-      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+      <p className="text-sm text-fg-muted bg-canvas p-3 rounded-lg">
         {data.interpretation}
       </p>
 
       {/* Bar Chart */}
       {correlationPoints.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="bg-surface rounded-xl border border-line shadow-sm">
           {/* Header */}
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
+          <div className="px-5 py-3 border-b border-hair flex items-center justify-between">
+            <div className="flex rounded-lg border border-line-strong overflow-hidden bg-surface">
               <button
                 onClick={() => { setMetric('attendance_rate'); setPage(1) }}
-                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${metric === 'attendance_rate' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${metric === 'attendance_rate' ? 'bg-fill-indigo-600 text-white' : 'text-fg-muted hover:bg-canvas'}`}
               >
                 Attendance
               </button>
               <button
                 onClick={() => { setMetric('exam_percentage'); setPage(1) }}
-                className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-gray-300 ${metric === 'exam_percentage' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-line-strong ${metric === 'exam_percentage' ? 'bg-fill-indigo-600 text-white' : 'text-fg-muted hover:bg-canvas'}`}
               >
                 Exam Score
               </button>
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-fg-faint">
               {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, correlationPoints.length)} of {correlationPoints.length} students
             </p>
           </div>
@@ -379,12 +381,12 @@ function AttendanceCorrelation({ data }) {
                 margin={{ top: 4, right: 60, left: 4, bottom: 4 }}
                 barSize={30}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} horizontal={false} />
                 <XAxis
                   type="number"
                   domain={[0, 100]}
                   tickFormatter={v => `${v}%`}
-                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  tick={{ fontSize: 11, fill: chart.axisTick }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -392,7 +394,7 @@ function AttendanceCorrelation({ data }) {
                   type="category"
                   dataKey="student_name"
                   width={130}
-                  tick={{ fontSize: 12, fill: '#374151', fontWeight: 500 }}
+                  tick={{ fontSize: 12, fill: chart.valueTick, fontWeight: 500 }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={v => v?.length > 16 ? v.slice(0, 15) + '…' : v}
@@ -403,21 +405,21 @@ function AttendanceCorrelation({ data }) {
                     if (!payload?.length) return null
                     const d = payload[0].payload
                     return (
-                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
-                        <p className="font-semibold text-gray-800 mb-2">{d.student_name}</p>
+                      <div className="bg-surface border border-line rounded-lg shadow-lg p-3 text-xs min-w-[160px]">
+                        <p className="font-semibold text-fg mb-2">{d.student_name}</p>
                         <div className="flex justify-between gap-4">
-                          <span className="text-gray-500">Attendance</span>
-                          <span className="font-bold text-indigo-600">{(d.attendance_rate || 0).toFixed(1)}%</span>
+                          <span className="text-fg-soft">Attendance</span>
+                          <span className="font-bold text-mark-indigo-600">{(d.attendance_rate || 0).toFixed(1)}%</span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-gray-500">Exam Score</span>
-                          <span className="font-bold text-emerald-600">{(d.exam_percentage || 0).toFixed(1)}%</span>
+                          <span className="text-fg-soft">Exam Score</span>
+                          <span className="font-bold text-mark-emerald-600">{(d.exam_percentage || 0).toFixed(1)}%</span>
                         </div>
                       </div>
                     )
                   }}
                 />
-                <Bar dataKey={metric} radius={[0, 6, 6, 0]} background={{ fill: '#f9fafb', radius: [0, 6, 6, 0] }}>
+                <Bar dataKey={metric} radius={[0, 6, 6, 0]} background={{ fill: chart.track, radius: [0, 6, 6, 0] }}>
                   {pageData.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
@@ -425,7 +427,7 @@ function AttendanceCorrelation({ data }) {
                     dataKey={metric}
                     position="right"
                     formatter={v => `${(v || 0).toFixed(1)}%`}
-                    style={{ fontSize: 12, fontWeight: 700, fill: '#374151' }}
+                    style={{ fontSize: 12, fontWeight: 700, fill: chart.valueTick }}
                   />
                 </Bar>
               </RechartsBarChart>
@@ -434,28 +436,28 @@ function AttendanceCorrelation({ data }) {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="px-5 py-3 border-t border-hair flex items-center justify-between">
+              <p className="text-xs text-fg-soft">Page {page} of {totalPages}</p>
               <div className="flex items-center gap-1">
-                <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Icons.ChevronsLeft className="w-4 h-4 text-gray-600" />
+                <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronsLeft className="w-4 h-4 text-fg-muted" />
                 </button>
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Icons.ChevronLeft className="w-4 h-4 text-gray-600" />
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronLeft className="w-4 h-4 text-fg-muted" />
                 </button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
                   return (
-                    <button key={p} onClick={() => setPage(p)} className={`min-w-[2rem] px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${page === p ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                    <button key={p} onClick={() => setPage(p)} className={`min-w-[2rem] px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${page === p ? 'bg-fill-indigo-600 text-white' : 'bg-surface border border-line text-fg-body hover:bg-canvas'}`}>
                       {p}
                     </button>
                   )
                 })}
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Icons.ChevronRight className="w-4 h-4 text-gray-600" />
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronRight className="w-4 h-4 text-fg-muted" />
                 </button>
-                <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Icons.ChevronsRight className="w-4 h-4 text-gray-600" />
+                <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="p-1.5 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Icons.ChevronsRight className="w-4 h-4 text-fg-muted" />
                 </button>
               </div>
             </div>
@@ -472,7 +474,7 @@ function SubjectComparison({ subjects }) {
   const MAX_VISIBLE = 3
 
   if (!subjects || subjects.length === 0) {
-    return <p className="text-sm text-gray-500">No subjects to compare</p>
+    return <p className="text-sm text-fg-soft">No subjects to compare</p>
   }
 
   // Sort by average percentage descending
@@ -484,34 +486,34 @@ function SubjectComparison({ subjects }) {
     <div>
       <div className={`space-y-3 ${!showAll && hiddenCount > 0 ? 'max-h-[600px] overflow-hidden' : ''}`}>
         {visibleSubjects.map((subj, idx) => (
-          <div key={subj.subject_id || idx} className="bg-gradient-to-r from-gray-50 to-white rounded-lg p-3 md:p-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <div key={subj.subject_id || idx} className="bg-gradient-to-r from-canvas to-surface rounded-lg p-3 md:p-4 border border-line hover:shadow-md transition-shadow">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-fill-indigo-100 text-mark-indigo-700 text-xs font-bold shrink-0">
                   {idx + 1}
                 </div>
                 <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
-                  subj.average_percentage >= 76 ? 'bg-emerald-100' :
-                  subj.average_percentage >= 50 ? 'bg-amber-100' :
-                  'bg-red-100'
+                  subj.average_percentage >= 76 ? 'bg-fill-emerald-100' :
+                  subj.average_percentage >= 50 ? 'bg-fill-amber-100' :
+                  'bg-fill-red-100'
                 }`}>
                   <Icons.BookOpen className={`w-4 h-4 md:w-5 md:h-5 ${
-                    subj.average_percentage >= 76 ? 'text-emerald-600' :
-                    subj.average_percentage >= 50 ? 'text-amber-600' :
-                    'text-red-600'
+                    subj.average_percentage >= 76 ? 'text-mark-emerald-600' :
+                    subj.average_percentage >= 50 ? 'text-mark-amber-600' :
+                    'text-mark-red-600'
                   }`} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-gray-800 text-sm md:text-base truncate" title={subj.subject_name}>{subj.subject_name}</span>
+                    <span className="font-semibold text-fg text-sm md:text-base truncate" title={subj.subject_name}>{subj.subject_name}</span>
                     {subj.grading_mode === 'POLICY' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 shrink-0">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fill-violet-100 text-mark-violet-700 border border-edge-violet-200 shrink-0">
                         POLICY
                       </span>
                     )}
                   </div>
                   {subj.instructor && (
-                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-fg-soft mt-0.5">
                       <Icons.User className="w-3 h-3 shrink-0" />
                       <span className="truncate">
                         {subj.instructor_rank && <span className="font-medium">{subj.instructor_rank} </span>}
@@ -523,41 +525,41 @@ function SubjectComparison({ subjects }) {
               </div>
               <div className="text-left sm:text-right shrink-0">
                 <div className={`text-xl md:text-2xl font-bold ${
-                  subj.average_percentage >= 76 ? 'text-emerald-600' :
-                  subj.average_percentage >= 50 ? 'text-amber-600' :
-                  'text-red-600'
+                  subj.average_percentage >= 76 ? 'text-mark-emerald-600' :
+                  subj.average_percentage >= 50 ? 'text-mark-amber-600' :
+                  'text-mark-red-600'
                 }`}>
                   {subj.average_percentage?.toFixed(1)}%
                 </div>
-                <div className="text-xs text-gray-500">Class Average</div>
+                <div className="text-xs text-fg-soft">Class Average</div>
               </div>
             </div>
 
             <div className="grid grid-cols-4 gap-2 mb-3">
-              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
-                <div className="text-[10px] text-gray-500">Pass Rate</div>
-                <div className="font-semibold text-gray-800 text-sm">{subj.pass_rate?.toFixed(0)}%</div>
+              <div className="text-center p-1.5 bg-surface rounded border border-hair">
+                <div className="text-[10px] text-fg-soft">Pass Rate</div>
+                <div className="font-semibold text-fg text-sm">{subj.pass_rate?.toFixed(0)}%</div>
               </div>
-              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
-                <div className="text-[10px] text-gray-500">Exams</div>
-                <div className="font-semibold text-gray-800 text-sm">{subj.total_exams || 0}</div>
+              <div className="text-center p-1.5 bg-surface rounded border border-hair">
+                <div className="text-[10px] text-fg-soft">Exams</div>
+                <div className="font-semibold text-fg text-sm">{subj.total_exams || 0}</div>
               </div>
-              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
-                <div className="text-[10px] text-gray-500">Highest</div>
-                <div className="font-semibold text-emerald-600 text-sm">{subj.highest_score?.toFixed(0)}%</div>
+              <div className="text-center p-1.5 bg-surface rounded border border-hair">
+                <div className="text-[10px] text-fg-soft">Highest</div>
+                <div className="font-semibold text-mark-emerald-600 text-sm">{subj.highest_score?.toFixed(0)}%</div>
               </div>
-              <div className="text-center p-1.5 bg-white rounded border border-gray-100">
-                <div className="text-[10px] text-gray-500">Lowest</div>
-                <div className="font-semibold text-red-600 text-sm">{subj.lowest_score?.toFixed(0)}%</div>
+              <div className="text-center p-1.5 bg-surface rounded border border-hair">
+                <div className="text-[10px] text-fg-soft">Lowest</div>
+                <div className="font-semibold text-mark-red-600 text-sm">{subj.lowest_score?.toFixed(0)}%</div>
               </div>
             </div>
 
-            <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="bg-surface-3 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  subj.average_percentage >= 76 ? 'bg-emerald-500' :
-                  subj.average_percentage >= 50 ? 'bg-amber-500' :
-                  'bg-red-500'
+                  subj.average_percentage >= 76 ? 'bg-fill-emerald-500' :
+                  subj.average_percentage >= 50 ? 'bg-fill-amber-500' :
+                  'bg-fill-red-500'
                 }`}
                 style={{ width: `${subj.average_percentage || 0}%` }}
               />
@@ -569,7 +571,7 @@ function SubjectComparison({ subjects }) {
       {hiddenCount > 0 && (
         <button
           onClick={() => setShowAll(!showAll)}
-          className="mt-4 w-full py-2 px-4 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center gap-2"
+          className="mt-4 w-full py-2 px-4 text-sm font-medium text-mark-indigo-600 bg-fill-indigo-50 hover:bg-fill-indigo-100 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {showAll ? (
             <>
@@ -750,8 +752,8 @@ export default function PerformanceAnalytics() {
     return (
       <div className="space-y-6">
         <header className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
-          <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
+          <h2 className="text-2xl font-semibold text-fg">Performance Analytics</h2>
+          <p className="text-sm text-fg-soft">Analysis of student performance across classes and subjects</p>
         </header>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => <LoadingSkeleton key={i} type="card" />)}
@@ -765,20 +767,20 @@ export default function PerformanceAnalytics() {
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <header className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-black">Performance Analytics</h2>
-        <p className="text-sm text-gray-500">Analysis of student performance across classes and subjects</p>
+        <h2 className="text-2xl font-semibold text-fg">Performance Analytics</h2>
+        <p className="text-sm text-fg-soft">Analysis of student performance across classes and subjects</p>
       </header>
 
       {/* View Mode Toggle */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-1.5 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
+      <div className="bg-surface rounded-xl border border-line p-1.5 inline-flex gap-1 w-full sm:w-auto overflow-x-auto">
         {/* Class View - visible to non-instructors, or instructors who are a class instructor for at least one class */}
         {(user?.role !== 'instructor' || hasAnyClassInstructorRole) && (
           <button
             onClick={() => setViewMode('class')}
             className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
               viewMode === 'class'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-fill-indigo-600 text-white shadow-md'
+                : 'text-fg-muted hover:bg-surface-2'
             }`}
           >
             <Icons.Layers className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
@@ -790,8 +792,8 @@ export default function PerformanceAnalytics() {
           onClick={() => setViewMode('subject')}
           className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
             viewMode === 'subject'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-fill-indigo-600 text-white shadow-md'
+              : 'text-fg-muted hover:bg-surface-2'
           }`}
         >
           <Icons.Book className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
@@ -802,8 +804,8 @@ export default function PerformanceAnalytics() {
           onClick={() => setViewMode('trends')}
           className={`flex-1 sm:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
             viewMode === 'trends'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-fill-indigo-600 text-white shadow-md'
+              : 'text-fg-muted hover:bg-surface-2'
           }`}
         >
           <Icons.LineChart className="w-3 h-3 md:w-4 md:h-4 inline mr-1 md:mr-1.5" />
@@ -813,20 +815,20 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className={`bg-white rounded-xl border p-3 md:p-4 transition-all ${
+      <div className={`bg-surface rounded-xl border p-3 md:p-4 transition-all ${
         !selectedClass
-          ? 'border-indigo-300 ring-2 ring-indigo-100'
-          : 'border-neutral-200'
+          ? 'border-edge-indigo-300 ring-2 ring-edge-indigo-100'
+          : 'border-line'
       }`}>
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
           <div className="flex-1 min-w-0 sm:min-w-[200px]">
             <label className={`flex items-center gap-1 text-xs md:text-sm font-medium mb-1.5 md:mb-2 ${
-              !selectedClass ? 'text-indigo-700' : 'text-gray-700'
+              !selectedClass ? 'text-mark-indigo-700' : 'text-fg-body'
             }`}>
               <Icons.School className="w-3 h-3 md:w-4 md:h-4" />
               Select Class
               {!selectedClass && (
-                <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+                <span className="ml-auto text-xs bg-fill-indigo-100 text-mark-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
                   Required
                 </span>
               )}
@@ -837,10 +839,10 @@ export default function PerformanceAnalytics() {
                 setSelectedClass(e.target.value)
                 setSelectedSubject('')
               }}
-              className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm transition-all ${
+              className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 text-fg bg-surface shadow-sm transition-all ${
                 !selectedClass
-                  ? 'border-indigo-300 ring-1 ring-indigo-100'
-                  : 'border-gray-300'
+                  ? 'border-edge-indigo-300 ring-1 ring-edge-indigo-100'
+                  : 'border-line-strong'
               }`}
             >
               <option value="">Select a class...</option>
@@ -855,12 +857,12 @@ export default function PerformanceAnalytics() {
           {(viewMode === 'subject' || viewMode === 'trends') && (
             <div className="flex-1 min-w-0 sm:min-w-[200px]">
               <label className={`flex items-center gap-1 text-xs md:text-sm font-medium mb-1.5 md:mb-2 ${
-                !selectedSubject ? 'text-indigo-700' : 'text-gray-700'
+                !selectedSubject ? 'text-mark-indigo-700' : 'text-fg-body'
               }`}>
                 <Icons.BookOpen className="w-3 h-3 md:w-4 md:h-4" />
                 Select Subject
                 {!selectedSubject && selectedClass && (
-                  <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
+                  <span className="ml-auto text-xs bg-fill-indigo-100 text-mark-indigo-700 px-2 py-0.5 rounded-full animate-pulse">
                     Required
                   </span>
                 )}
@@ -869,12 +871,12 @@ export default function PerformanceAnalytics() {
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 disabled={!selectedClass}
-                className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 bg-white shadow-sm transition-all ${
+                className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 text-fg bg-surface shadow-sm transition-all ${
                   !selectedClass
-                    ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                    ? 'bg-surface-2 cursor-not-allowed border-line-strong'
                     : !selectedSubject
-                    ? 'border-indigo-300 ring-1 ring-indigo-100'
-                    : 'border-gray-300'
+                    ? 'border-edge-indigo-300 ring-1 ring-edge-indigo-100'
+                    : 'border-line-strong'
                 }`}
               >
                 <option value="">
@@ -887,7 +889,7 @@ export default function PerformanceAnalytics() {
                 ))}
               </select>
               {!selectedClass && (
-                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <p className="text-xs text-fg-soft mt-1 flex items-center gap-1">
                   <Icons.Info className="w-3 h-3" />
                   Please select a class first
                 </p>
@@ -898,7 +900,7 @@ export default function PerformanceAnalytics() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 flex items-start gap-2">
+        <div className="bg-fill-red-50 border border-edge-red-200 rounded-lg p-4 text-mark-red-700 flex items-start gap-2">
           <Icons.AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
             <div className="font-medium">Error loading analytics</div>
@@ -922,45 +924,45 @@ export default function PerformanceAnalytics() {
               title="Total Students"
               value={classPerformance.overall_statistics?.total_students || 0}
               icon="Users"
-              accent="bg-indigo-500"
+              accent="bg-fill-indigo-500"
               colored
             />
             <Card
               title="Class Average"
               value={`${classPerformance.overall_statistics?.class_exam_average?.toFixed(1) || 0}%`}
               icon="TrendingUp"
-              accent="bg-emerald-500"
+              accent="bg-fill-emerald-500"
               colored
             />
             <Card
               title="Pass Rate"
               value={`${classPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
               icon="Award"
-              accent="bg-amber-500"
+              accent="bg-fill-amber-500"
               colored
             />
             <Card
               title="Attendance Rate"
               value={`${classPerformance.overall_statistics?.class_attendance_rate?.toFixed(1) || 0}%`}
               icon="CheckSquare"
-              accent="bg-sky-500"
+              accent="bg-fill-sky-500"
               colored
             />
           </section>
 
           {/* Grade Distribution & Top Performers */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.PieChart className="w-5 h-5 text-indigo-500" />
+            <div className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.PieChart className="w-5 h-5 text-mark-indigo-500" />
                 Grade Distribution
               </h3>
               <GradeDistribution distribution={classPerformance.grade_distribution} />
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.Trophy className="w-5 h-5 text-amber-500" />
+            <div className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.Trophy className="w-5 h-5 text-mark-amber-500" />
                 Top 3 Performers
               </h3>
               <TopPerformersList performers={classPerformance.top_performers} />
@@ -969,9 +971,9 @@ export default function PerformanceAnalytics() {
 
           {/* Subject Comparison */}
           {subjectComparison?.subjects && (
-            <section className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.BarChart2 className="w-5 h-5 text-indigo-500" />
+            <section className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.BarChart2 className="w-5 h-5 text-mark-indigo-500" />
                 Subject Performance Comparison
               </h3>
               <SubjectComparison subjects={subjectComparison.subjects} />
@@ -980,9 +982,9 @@ export default function PerformanceAnalytics() {
 
           {/* Attendance-Performance Correlation */}
           {correlationData && (
-            <section className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.GitBranch className="w-5 h-5 text-purple-500" />
+            <section className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.GitBranch className="w-5 h-5 text-mark-purple-500" />
                 Attendance-Performance Correlation
               </h3>
               <AttendanceCorrelation data={correlationData} />
@@ -991,7 +993,7 @@ export default function PerformanceAnalytics() {
 
           {/* All Students Table */}
           {classPerformance.all_students && classPerformance.all_students.length > 0 && (
-            <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+            <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
               <StudentPerformanceTable
                 students={classPerformance.all_students.map(s => ({
                   ...s,
@@ -1015,23 +1017,23 @@ export default function PerformanceAnalytics() {
       {viewMode === 'subject' && subjectPerformance && !analyticsLoading && (
         <>
           {/* Subject Info */}
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-r from-fill-indigo-50 to-fill-purple-50 rounded-xl border border-edge-indigo-200 p-6 shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-14 h-14 bg-fill-indigo-600 rounded-xl flex items-center justify-center shadow-md">
                 <Icons.Book className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-fg">
                     {subjectPerformance.subject?.name}
                   </h2>
                   {isPolicySubject && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-fill-violet-100 text-mark-violet-700 border border-edge-violet-200">
                       POLICY
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-fg-muted mt-1">
                   {subjectPerformance.subject?.instructor && `Instructor: ${subjectPerformance.subject.instructor}`}
                   {subjectPerformance.subject?.class && ` • Class: ${subjectPerformance.subject.class}`}
                 </p>
@@ -1046,28 +1048,28 @@ export default function PerformanceAnalytics() {
                 title="Students Enrolled"
                 value={subjectPerformance.overall_statistics?.total_students_enrolled || 0}
                 icon="Users"
-                accent="bg-indigo-500"
+                accent="bg-fill-indigo-500"
                 colored
               />
               <Card
                 title="Weighted Average"
                 value={policyStats.weightedAvg != null ? `${policyStats.weightedAvg.toFixed(1)}%` : '--'}
                 icon="TrendingUp"
-                accent="bg-emerald-500"
+                accent="bg-fill-emerald-500"
                 colored
               />
               <Card
                 title="Pass Rate"
                 value={policyStats.overallPassRate != null ? `${policyStats.overallPassRate.toFixed(1)}%` : '--'}
                 icon="Award"
-                accent="bg-amber-500"
+                accent="bg-fill-amber-500"
                 colored
               />
               <Card
                 title="Components"
                 value={policyStats.breakdown.length}
                 icon="Clipboard"
-                accent="bg-violet-500"
+                accent="bg-fill-violet-500"
                 colored
               />
             </section>
@@ -1077,28 +1079,28 @@ export default function PerformanceAnalytics() {
                 title="Students Enrolled"
                 value={subjectPerformance.overall_statistics?.total_students_enrolled || 0}
                 icon="Users"
-                accent="bg-indigo-500"
+                accent="bg-fill-indigo-500"
                 colored
               />
               <Card
                 title="Average Score"
                 value={`${subjectPerformance.overall_statistics?.exam_average_percentage?.toFixed(1) || 0}%`}
                 icon="TrendingUp"
-                accent="bg-emerald-500"
+                accent="bg-fill-emerald-500"
                 colored
               />
               <Card
                 title="Pass Rate"
                 value={`${subjectPerformance.overall_statistics?.exam_pass_rate?.toFixed(1) || 0}%`}
                 icon="Award"
-                accent="bg-amber-500"
+                accent="bg-fill-amber-500"
                 colored
               />
               <Card
                 title="Total Exams"
                 value={subjectPerformance.overall_statistics?.total_exams || 0}
                 icon="Clipboard"
-                accent="bg-sky-500"
+                accent="bg-fill-sky-500"
                 colored
               />
             </section>
@@ -1106,55 +1108,55 @@ export default function PerformanceAnalytics() {
 
           {/* Policy Component Breakdown */}
           {isPolicySubject && policyStats && policyStats.breakdown.length > 0 && (
-            <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
-              <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.Layers className="w-4 h-4 md:w-5 md:h-5 text-violet-500" />
+            <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
+              <h3 className="text-base md:text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.Layers className="w-4 h-4 md:w-5 md:h-5 text-mark-violet-500" />
                 Component Breakdown
               </h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs md:text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Component</th>
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Type</th>
-                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Weight</th>
-                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Graded</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Average</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden md:table-cell">Pass Rate</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Highest</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Lowest</th>
+                    <tr className="border-b border-line bg-canvas">
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Component</th>
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden sm:table-cell">Type</th>
+                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden sm:table-cell">Weight</th>
+                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Graded</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Average</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden md:table-cell">Pass Rate</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden lg:table-cell">Highest</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden lg:table-cell">Lowest</th>
                     </tr>
                   </thead>
                   <tbody>
                     {policyStats.breakdown.map((comp, idx) => (
-                      <tr key={comp.component_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-gray-800">{comp.component_name}</td>
+                      <tr key={comp.component_id || idx} className="border-b border-hair hover:bg-canvas transition-colors">
+                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-fg">{comp.component_name}</td>
                         <td className="py-2 md:py-3 px-2 md:px-3 hidden sm:table-cell">
-                          <span className="inline-flex px-1.5 md:px-2 py-0.5 text-xs font-medium rounded-full bg-violet-100 text-violet-700">
+                          <span className="inline-flex px-1.5 md:px-2 py-0.5 text-xs font-medium rounded-full bg-fill-violet-100 text-mark-violet-700">
                             {comp.component_type || 'component'}
                           </span>
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600 hidden sm:table-cell">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-fg-muted hidden sm:table-cell">
                           {comp.weight != null ? `${comp.weight}%` : '-'}
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-fg-muted">
                           {comp.students_graded ?? '-'}
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right font-semibold text-indigo-600">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right font-semibold text-mark-indigo-600">
                           {comp.average_percentage != null ? `${comp.average_percentage.toFixed(1)}%` : '--'}
                         </td>
                         <td className="py-2 md:py-3 px-2 md:px-3 text-right hidden md:table-cell">
                           <span className={`font-medium ${
-                            (comp.pass_rate || 0) >= 76 ? 'text-emerald-600' :
-                            (comp.pass_rate || 0) >= 50 ? 'text-amber-600' : 'text-red-600'
+                            (comp.pass_rate || 0) >= 76 ? 'text-mark-emerald-600' :
+                            (comp.pass_rate || 0) >= 50 ? 'text-mark-amber-600' : 'text-mark-red-600'
                           }`}>
                             {comp.pass_rate != null ? `${comp.pass_rate.toFixed(1)}%` : '--'}
                           </span>
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-emerald-600 hidden lg:table-cell">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-mark-emerald-600 hidden lg:table-cell">
                           {comp.highest_score != null ? `${comp.highest_score.toFixed(1)}%` : '--'}
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-red-600 hidden lg:table-cell">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-mark-red-600 hidden lg:table-cell">
                           {comp.lowest_score != null ? `${comp.lowest_score.toFixed(1)}%` : '--'}
                         </td>
                       </tr>
@@ -1167,23 +1169,23 @@ export default function PerformanceAnalytics() {
 
           {/* Grade Distribution & Top Performers */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.PieChart className="w-5 h-5 text-indigo-500" />
+            <div className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.PieChart className="w-5 h-5 text-mark-indigo-500" />
                 Grade Distribution
                 {isPolicySubject && (
-                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                  <span className="text-xs font-normal text-fg-soft ml-1">(weighted avg)</span>
                 )}
               </h3>
               <GradeDistribution distribution={subjectPerformance.grade_distribution} />
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.Trophy className="w-5 h-5 text-amber-500" />
+            <div className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.Trophy className="w-5 h-5 text-mark-amber-500" />
                 Top Performers
                 {isPolicySubject && (
-                  <span className="text-xs font-normal text-gray-500 ml-1">(weighted avg)</span>
+                  <span className="text-xs font-normal text-fg-soft ml-1">(weighted avg)</span>
                 )}
               </h3>
               <TopPerformersList performers={subjectPerformance.top_performers} />
@@ -1192,45 +1194,45 @@ export default function PerformanceAnalytics() {
 
           {/* Exam Breakdown — legacy only */}
           {!isPolicySubject && subjectPerformance.exam_breakdown && subjectPerformance.exam_breakdown.length > 0 && (
-            <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
-              <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Icons.FileText className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+            <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
+              <h3 className="text-base md:text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+                <Icons.FileText className="w-4 h-4 md:w-5 md:h-5 text-mark-indigo-500" />
                 Exam Performance Breakdown
               </h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs md:text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Exam</th>
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Type</th>
-                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden sm:table-cell">Date</th>
-                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden md:table-cell">Attempted</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600">Average</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Highest</th>
-                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-gray-600 hidden lg:table-cell">Lowest</th>
+                    <tr className="border-b border-line bg-canvas">
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Exam</th>
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Type</th>
+                      <th className="text-left py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden sm:table-cell">Date</th>
+                      <th className="text-center py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden md:table-cell">Attempted</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted">Average</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden lg:table-cell">Highest</th>
+                      <th className="text-right py-2 md:py-3 px-2 md:px-3 font-medium text-fg-muted hidden lg:table-cell">Lowest</th>
                     </tr>
                   </thead>
                   <tbody>
                     {subjectPerformance.exam_breakdown.map((exam, idx) => (
-                      <tr key={exam.exam_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-gray-800">{exam.exam_title}</td>
+                      <tr key={exam.exam_id || idx} className="border-b border-hair hover:bg-canvas transition-colors">
+                        <td className="py-2 md:py-3 px-2 md:px-3 font-medium text-fg">{exam.exam_title}</td>
                         <td className="py-2 md:py-3 px-2 md:px-3">
                           <span className={`inline-flex px-1.5 md:px-2 py-0.5 md:py-1 text-xs font-medium rounded-full ${
-                            exam.exam_type === 'final' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
+                            exam.exam_type === 'final' ? 'bg-fill-red-100 text-mark-red-700' :
+                            'bg-surface-2 text-fg-body'
                           }`}>
                             {exam.exam_type}
                           </span>
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-gray-600 hidden sm:table-cell">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-fg-muted hidden sm:table-cell">
                           {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : '-'}
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-gray-600 hidden md:table-cell">{exam.students_attempted}</td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right font-semibold text-indigo-600">
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-center text-fg-muted hidden md:table-cell">{exam.students_attempted}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right font-semibold text-mark-indigo-600">
                           {exam.average_percentage?.toFixed(1)}%
                         </td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-emerald-600 hidden lg:table-cell">{exam.highest_score?.toFixed(1)}%</td>
-                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-red-600 hidden lg:table-cell">{exam.lowest_score?.toFixed(1)}%</td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-mark-emerald-600 hidden lg:table-cell">{exam.highest_score?.toFixed(1)}%</td>
+                        <td className="py-2 md:py-3 px-2 md:px-3 text-right text-mark-red-600 hidden lg:table-cell">{exam.lowest_score?.toFixed(1)}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1244,14 +1246,14 @@ export default function PerformanceAnalytics() {
       {/* Trend Analysis View */}
       {viewMode === 'trends' && trendData && !analyticsLoading && (
         <>
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-6 shadow-sm">
+          <div className="bg-gradient-to-r from-fill-purple-50 to-fill-pink-50 rounded-xl border border-edge-purple-200 p-6 shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-14 h-14 bg-fill-purple-600 rounded-xl flex items-center justify-center shadow-md">
                 <Icons.LineChart className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Performance Trend Analysis</h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <h2 className="text-xl font-bold text-fg">Performance Trend Analysis</h2>
+                <p className="text-sm text-fg-muted mt-1">
                   {trendData.subject?.name} • {trendData.period?.days} days analysis
                 </p>
               </div>
@@ -1259,9 +1261,9 @@ export default function PerformanceAnalytics() {
           </div>
 
           {trendData.trend && trendData.trend.length > 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                <Icons.Activity className="w-5 h-5 text-purple-500" />
+            <div className="bg-surface rounded-xl border border-line p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-fg mb-6 flex items-center gap-2">
+                <Icons.Activity className="w-5 h-5 text-mark-purple-500" />
                 Performance Over Time
               </h3>
               <LineChart
@@ -1274,15 +1276,15 @@ export default function PerformanceAnalytics() {
                 height={250}
               />
               <div className="mt-8">
-                <h4 className="font-medium text-gray-800 mb-3">Details</h4>
+                <h4 className="font-medium text-fg mb-3">Details</h4>
                 <div className="space-y-2">
                   {trendData.trend.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={idx} className="flex items-center justify-between p-3 bg-canvas rounded-lg">
                       <div>
-                        <div className="font-medium text-gray-800">
+                        <div className="font-medium text-fg">
                           {item.type === 'exam' ? item.exam_title : item.session_title}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-fg-soft">
                           {new Date(item.date).toLocaleDateString()} • {item.type === 'exam'
                             ? `${item.students_attempted || 0} students attempted`
                             : `${item.students_marked || 0} students marked`}
@@ -1290,14 +1292,14 @@ export default function PerformanceAnalytics() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          item.type === 'exam' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                          item.type === 'exam' ? 'bg-fill-indigo-100 text-mark-indigo-700' : 'bg-fill-emerald-100 text-mark-emerald-700'
                         }`}>
                           {item.type === 'exam' ? 'Exam' : 'Attendance'}
                         </span>
                         <div className={`text-lg font-bold ${
-                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 76 ? 'text-emerald-600' :
-                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 50 ? 'text-amber-600' :
-                          'text-red-600'
+                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 76 ? 'text-mark-emerald-600' :
+                          (item.average_percentage ?? item.attendance_rate ?? 0) >= 50 ? 'text-mark-amber-600' :
+                          'text-mark-red-600'
                         }`}>
                           {(item.average_percentage ?? item.attendance_rate ?? 0).toFixed(1)}%
                         </div>
@@ -1319,9 +1321,9 @@ export default function PerformanceAnalytics() {
 
       {/* Class Comparison Section - only show in class view */}
       {viewMode === 'class' && classComparison?.classes && classComparison.classes.length > 0 && (
-        <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
-          <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Icons.BarChart2 className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+        <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
+          <h3 className="text-base md:text-lg font-semibold text-fg mb-4 flex items-center gap-2">
+            <Icons.BarChart2 className="w-4 h-4 md:w-5 md:h-5 text-mark-indigo-500" />
             Class Performance Comparison
           </h3>
           <ClassPerformanceBarChart classes={classComparison.classes} />
@@ -1330,41 +1332,41 @@ export default function PerformanceAnalytics() {
 
       {/* Empty state */}
       {!analyticsLoading && !classPerformance && !subjectPerformance && !trendData && (
-        <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl border-2 border-dashed border-indigo-200 p-8 md:p-12 text-center">
+        <div className="bg-gradient-to-br from-fill-indigo-50 via-surface to-fill-purple-50 rounded-xl border-2 border-dashed border-edge-indigo-200 p-8 md:p-12 text-center">
           <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 md:w-20 md:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Icons.BarChart2 className="w-8 h-8 md:w-10 md:h-10 text-indigo-600" />
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-fill-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icons.BarChart2 className="w-8 h-8 md:w-10 md:h-10 text-mark-indigo-600" />
             </div>
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg md:text-xl font-semibold text-fg mb-2">
               {viewMode === 'class' ? 'Select a Class to View Analytics' :
                !selectedClass ? 'Select a Class First' :
                viewMode === 'subject' ? 'Select a Subject to View Performance' :
                'Select a Subject for Trend Analysis'}
             </h3>
-            <p className="text-sm md:text-base text-gray-600 mb-6">
+            <p className="text-sm md:text-base text-fg-muted mb-6">
               {viewMode === 'class' ? 'Choose a class from the dropdown above to view detailed performance metrics, grade distribution, top performers, and subject comparisons.' :
                !selectedClass ? 'You need to select a class before choosing a subject. Please select a class from the dropdown above to continue.' :
                viewMode === 'subject' ? 'Choose a subject from the dropdown above to view exam breakdowns, student performance, and grade distribution for that subject.' :
                'Choose a subject from the dropdown above to analyze performance trends over time with visual charts and exam history.'}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-500">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-fg-soft">
               {selectedClass || viewMode === 'class' ? (
                 <>
                   <div className="flex items-center gap-2">
-                    <Icons.Users className="w-4 h-4 text-indigo-500" />
+                    <Icons.Users className="w-4 h-4 text-mark-indigo-500" />
                     <span>Student Rankings</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Icons.PieChart className="w-4 h-4 text-indigo-500" />
+                    <Icons.PieChart className="w-4 h-4 text-mark-indigo-500" />
                     <span>Grade Distribution</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Icons.TrendingUp className="w-4 h-4 text-indigo-500" />
+                    <Icons.TrendingUp className="w-4 h-4 text-mark-indigo-500" />
                     <span>Performance Insights</span>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center gap-2 text-amber-600">
+                <div className="flex items-center gap-2 text-mark-amber-600">
                   <Icons.AlertCircle className="w-4 h-4" />
                   <span>Class selection required first</span>
                 </div>

@@ -40,7 +40,7 @@ function checkPasswordStrength(password) {
 }
 
 const strengthLabels = ['Weak', 'Fair', 'Good', 'Strong']
-const strengthColors = ['bg-red-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500']
+const strengthColors = ['bg-fill-red-500', 'bg-fill-yellow-500', 'bg-fill-blue-500', 'bg-fill-green-500']
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -61,7 +61,7 @@ export default function ChangePassword() {
   const renderIcon = (name, props = {}) => {
     const Comp = LucideIcons[name]
     if (Comp) return <Comp {...props} />
-    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-gray-300 rounded`} />
+    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-surface-4 rounded`} />
   }
 
   const validate = () => {
@@ -121,25 +121,25 @@ export default function ChangePassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-canvas to-surface px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100">
+        <div className="bg-surface rounded-2xl shadow-xl p-6 lg:p-10 border border-hair">
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 p-0.5 mb-3 shadow-lg">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                {renderIcon('KeyRound', { className: 'w-8 h-8 text-red-900' })}
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-fill-red-900 to-fill-rose-800 p-0.5 mb-3 shadow-lg">
+              <div className="w-full h-full rounded-full bg-surface flex items-center justify-center">
+                {renderIcon('KeyRound', { className: 'w-8 h-8 text-mark-red-900' })}
               </div>
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Change Your Password</h2>
-            <p className="text-sm text-gray-500 mt-1">You must set a new password before continuing</p>
+            <h2 className="text-2xl font-semibold text-fg">Change Your Password</h2>
+            <p className="text-sm text-fg-soft mt-1">You must set a new password before continuing</p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             {/* Current Password */}
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Current Password</span>
+              <span className="text-sm font-medium text-fg-body">Current Password</span>
               <div className="mt-1.5 relative">
-                {renderIcon('Lock', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
+                {renderIcon('Lock', { className: 'w-4 h-4 text-fg-faint absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type={showCurrent ? 'text' : 'password'}
                   required
@@ -148,8 +148,8 @@ export default function ChangePassword() {
                     setCurrentPassword(e.target.value)
                     if (fieldErrors.currentPassword) setFieldErrors(prev => ({ ...prev, currentPassword: null }))
                   }}
-                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                    fieldErrors.currentPassword ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.currentPassword ? 'border-edge-red-300 focus:ring-edge-red-200' : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                   }`}
                   placeholder="Enter current password"
                   autoComplete="current-password"
@@ -157,7 +157,7 @@ export default function ChangePassword() {
                 <button
                   type="button"
                   onClick={() => setShowCurrent(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted transition-colors"
                   aria-label={showCurrent ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                 >
@@ -165,15 +165,15 @@ export default function ChangePassword() {
                 </button>
               </div>
               {fieldErrors.currentPassword && (
-                <p className="mt-1 text-xs text-red-600" role="alert">{fieldErrors.currentPassword}</p>
+                <p className="mt-1 text-xs text-mark-red-600" role="alert">{fieldErrors.currentPassword}</p>
               )}
             </label>
 
             {/* New Password */}
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">New Password</span>
+              <span className="text-sm font-medium text-fg-body">New Password</span>
               <div className="mt-1.5 relative">
-                {renderIcon('KeyRound', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
+                {renderIcon('KeyRound', { className: 'w-4 h-4 text-fg-faint absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type={showNew ? 'text' : 'password'}
                   required
@@ -182,8 +182,8 @@ export default function ChangePassword() {
                     setNewPassword(e.target.value)
                     if (fieldErrors.newPassword) setFieldErrors(prev => ({ ...prev, newPassword: null }))
                   }}
-                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                    fieldErrors.newPassword ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.newPassword ? 'border-edge-red-300 focus:ring-edge-red-200' : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                   }`}
                   placeholder="Enter new password"
                   autoComplete="new-password"
@@ -191,7 +191,7 @@ export default function ChangePassword() {
                 <button
                   type="button"
                   onClick={() => setShowNew(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted transition-colors"
                   aria-label={showNew ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                 >
@@ -199,7 +199,7 @@ export default function ChangePassword() {
                 </button>
               </div>
               {fieldErrors.newPassword && (
-                <p className="mt-1 text-xs text-red-600" role="alert">{fieldErrors.newPassword}</p>
+                <p className="mt-1 text-xs text-mark-red-600" role="alert">{fieldErrors.newPassword}</p>
               )}
             </label>
 
@@ -211,13 +211,13 @@ export default function ChangePassword() {
                     <div
                       key={i}
                       className={`h-1.5 flex-1 rounded-full transition-colors ${
-                        i < score ? strengthColors[score - 1] : 'bg-gray-200'
+                        i < score ? strengthColors[score - 1] : 'bg-surface-3'
                       }`}
                     />
                   ))}
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-fg-soft">
                     Strength: <span className="font-medium">{score > 0 ? strengthLabels[score - 1] : 'Too weak'}</span>
                   </span>
                 </div>
@@ -225,10 +225,10 @@ export default function ChangePassword() {
                   {feedback.map((item, i) => (
                     <li key={i} className="flex items-center gap-1.5 text-xs">
                       {item.met
-                        ? renderIcon('Check', { className: 'w-3.5 h-3.5 text-green-500' })
-                        : renderIcon('X', { className: 'w-3.5 h-3.5 text-gray-300' })
+                        ? renderIcon('Check', { className: 'w-3.5 h-3.5 text-mark-green-500' })
+                        : renderIcon('X', { className: 'w-3.5 h-3.5 text-fg-faint' })
                       }
-                      <span className={item.met ? 'text-green-700' : 'text-gray-400'}>{item.text}</span>
+                      <span className={item.met ? 'text-mark-green-700' : 'text-fg-faint'}>{item.text}</span>
                     </li>
                   ))}
                 </ul>
@@ -237,9 +237,9 @@ export default function ChangePassword() {
 
             {/* Confirm Password */}
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Confirm New Password</span>
+              <span className="text-sm font-medium text-fg-body">Confirm New Password</span>
               <div className="mt-1.5 relative">
-                {renderIcon('ShieldCheck', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
+                {renderIcon('ShieldCheck', { className: 'w-4 h-4 text-fg-faint absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   required
@@ -248,8 +248,8 @@ export default function ChangePassword() {
                     setConfirmPassword(e.target.value)
                     if (fieldErrors.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: null }))
                   }}
-                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                    fieldErrors.confirmPassword ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.confirmPassword ? 'border-edge-red-300 focus:ring-edge-red-200' : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                   }`}
                   placeholder="Confirm new password"
                   autoComplete="new-password"
@@ -257,7 +257,7 @@ export default function ChangePassword() {
                 <button
                   type="button"
                   onClick={() => setShowConfirm(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted transition-colors"
                   aria-label={showConfirm ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                 >
@@ -265,7 +265,7 @@ export default function ChangePassword() {
                 </button>
               </div>
               {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600" role="alert">{fieldErrors.confirmPassword}</p>
+                <p className="mt-1 text-xs text-mark-red-600" role="alert">{fieldErrors.confirmPassword}</p>
               )}
             </label>
 
@@ -273,7 +273,7 @@ export default function ChangePassword() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' }) : null}
                 Change Password
@@ -282,7 +282,7 @@ export default function ChangePassword() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-all"
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg border border-line text-fg-muted text-sm font-medium hover:bg-canvas transition-all"
               >
                 {renderIcon('LogOut', { className: 'w-4 h-4' })}
                 Log out instead
@@ -290,17 +290,17 @@ export default function ChangePassword() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start gap-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded-lg p-3">
                 {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
                 <div className="flex-1">
                   <p className="font-medium">Password Change Failed</p>
-                  <p className="text-red-500 mt-0.5">{error}</p>
+                  <p className="text-mark-red-500 mt-0.5">{error}</p>
                 </div>
               </div>
             )}
           </form>
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          <p className="mt-8 text-center text-sm text-fg-soft">
             &copy; {new Date().getFullYear()} KACS All Rights Reserved.
           </p>
         </div>

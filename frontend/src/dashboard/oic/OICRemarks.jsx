@@ -169,14 +169,14 @@ export default function OICRemarks() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-semibold text-black">My Remarks</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage your class and subject remarks.</p>
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">My Remarks</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">Manage your class and subject remarks.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1) }}
-            className="p-2 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black"
+            className="p-2 text-sm rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg"
           >
             <option value="">All Types</option>
             <option value="class">Class</option>
@@ -184,7 +184,7 @@ export default function OICRemarks() {
           </select>
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 transition"
           >
             <Icons.Plus className="w-4 h-4" />
             Add Remark
@@ -193,50 +193,50 @@ export default function OICRemarks() {
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-3 text-sm text-neutral-600">
+        <div className="mb-3 text-sm text-fg-muted">
           {totalCount} remark{totalCount !== 1 ? 's' : ''}
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl border border-line p-6">
           <EmptyState icon="Loader2" title="Loading remarks..." variant="minimal" />
         </div>
       ) : remarks.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl border border-line p-6">
           <EmptyState icon="MessageSquare" title="No remarks yet" description="Add your first remark by clicking 'Add Remark'." variant="minimal" />
         </div>
       ) : (
         <div className="space-y-3">
           {remarks.map((r) => (
-            <div key={r.id} className="bg-white rounded-xl border border-neutral-200 p-4">
+            <div key={r.id} className="bg-surface rounded-xl border border-line p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-black truncate">{r.class_name || '—'}</span>
+                    <span className="text-sm font-medium text-fg truncate">{r.class_name || '—'}</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                      r.remark_type === 'subject' ? 'bg-sky-100 text-sky-700' : 'bg-indigo-100 text-indigo-700'
+                      r.remark_type === 'subject' ? 'bg-fill-sky-100 text-mark-sky-700' : 'bg-fill-indigo-100 text-mark-indigo-700'
                     }`}>
                       {r.remark_type_display || r.remark_type || 'Class'}
                     </span>
                     {r.subject_name && (
-                      <span className="text-xs text-neutral-500">· {r.subject_name}</span>
+                      <span className="text-xs text-fg-soft">· {r.subject_name}</span>
                     )}
                   </div>
-                  <p className="text-sm text-neutral-700 mt-1 leading-relaxed">{r.remark}</p>
-                  <p className="text-xs text-neutral-400 mt-2">{formatDate(r.created_at)}</p>
+                  <p className="text-sm text-fg-body mt-1 leading-relaxed">{r.remark}</p>
+                  <p className="text-xs text-fg-faint mt-2">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   <button
                     onClick={() => openEdit(r)}
-                    className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-indigo-600 transition"
+                    className="p-1.5 rounded-md text-fg-soft hover:bg-surface-2 hover:text-mark-indigo-600 transition"
                     title="Edit"
                   >
                     <Icons.Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setDeleteTarget(r)}
-                    className="p-1.5 rounded-md text-neutral-500 hover:bg-red-50 hover:text-red-600 transition"
+                    className="p-1.5 rounded-md text-fg-soft hover:bg-fill-red-50 hover:text-mark-red-600 transition"
                     title="Delete"
                   >
                     <Icons.Trash2 className="w-4 h-4" />
@@ -249,17 +249,17 @@ export default function OICRemarks() {
       )}
 
       {totalPages > 1 && (
-        <div className="mt-4 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-4 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-neutral-600">
-              Page <span className="font-semibold text-black">{currentPage}</span> of{' '}
-              <span className="font-semibold text-black">{totalPages}</span>
-              {' '}· <span className="font-semibold text-black">{totalCount}</span> total
+            <div className="text-sm text-fg-muted">
+              Page <span className="font-semibold text-fg">{currentPage}</span> of{' '}
+              <span className="font-semibold text-fg">{totalPages}</span>
+              {' '}· <span className="font-semibold text-fg">{totalCount}</span> total
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <Icons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">
+                <Icons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
               {(() => {
                 const pages = []
@@ -268,26 +268,26 @@ export default function OICRemarks() {
                 let end = Math.min(totalPages, start + maxVisible - 1)
                 if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1)
                 if (start > 1) {
-                  pages.push(<button key={1} onClick={() => setCurrentPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">1</button>)
-                  if (start > 2) pages.push(<span key="e1" className="px-2 text-neutral-400">…</span>)
+                  pages.push(<button key={1} onClick={() => setCurrentPage(1)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">1</button>)
+                  if (start > 2) pages.push(<span key="e1" className="px-2 text-fg-faint">…</span>)
                 }
                 for (let i = start; i <= end; i++) {
                   pages.push(
                     <button key={i} onClick={() => setCurrentPage(i)}
-                      className={`px-3 py-1.5 text-sm rounded-lg transition ${currentPage === i ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}>
+                      className={`px-3 py-1.5 text-sm rounded-lg transition ${currentPage === i ? 'bg-fill-indigo-600 text-white font-semibold shadow-sm' : 'border border-line bg-surface text-fg hover:bg-canvas'}`}>
                       {i}
                     </button>
                   )
                 }
                 if (end < totalPages) {
-                  if (end < totalPages - 1) pages.push(<span key="e2" className="px-2 text-neutral-400">…</span>)
-                  pages.push(<button key={totalPages} onClick={() => setCurrentPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">{totalPages}</button>)
+                  if (end < totalPages - 1) pages.push(<span key="e2" className="px-2 text-fg-faint">…</span>)
+                  pages.push(<button key={totalPages} onClick={() => setCurrentPage(totalPages)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">{totalPages}</button>)
                 }
                 return pages
               })()}
               <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <Icons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">
+                <Icons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
             </div>
           </div>
@@ -299,43 +299,43 @@ export default function OICRemarks() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setFormModal(false)} />
           <div className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-5 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-5 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-base font-semibold text-black">
+                <h4 className="text-base font-semibold text-fg">
                   {editRemark ? 'Edit Remark' : 'Add Remark'}
                 </h4>
-                <button onClick={() => setFormModal(false)} className="text-neutral-400 hover:text-black transition">
+                <button onClick={() => setFormModal(false)} className="text-fg-faint hover:text-fg transition">
                   <Icons.X className="w-5 h-5" />
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Class *</label>
+                  <label className="text-sm text-fg-muted mb-1 block">Class *</label>
                   <select
                     value={form.class_obj}
                     onChange={(e) => setForm(f => ({ ...f, class_obj: e.target.value, subject: '' }))}
                     disabled={!!editRemark}
-                    className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black ${
-                      formErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'
-                    } ${editRemark ? 'bg-neutral-50 cursor-not-allowed' : ''}`}
+                    className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg ${
+                      formErrors.class_obj ? 'border-edge-rose-500' : 'border-line'
+                    } ${editRemark ? 'bg-canvas cursor-not-allowed' : ''}`}
                   >
                     <option value="">Select a class</option>
                     {classes.map(c => (
                       <option key={c.id} value={c.id}>{c.name} {c.class_code ? `(${c.class_code})` : ''}</option>
                     ))}
                   </select>
-                  {formErrors.class_obj && <p className="text-xs text-rose-600 mt-1">{formErrors.class_obj}</p>}
+                  {formErrors.class_obj && <p className="text-xs text-mark-rose-600 mt-1">{formErrors.class_obj}</p>}
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">
-                    Subject <span className="text-neutral-400">(optional — leave blank for class-level remark)</span>
+                  <label className="text-sm text-fg-muted mb-1 block">
+                    Subject <span className="text-fg-faint">(optional — leave blank for class-level remark)</span>
                   </label>
                   <select
                     value={form.subject}
                     onChange={(e) => setForm(f => ({ ...f, subject: e.target.value }))}
                     disabled={!form.class_obj || loadingSubjects}
-                    className="w-full p-2 rounded-md text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                    className="w-full p-2 rounded-md text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg disabled:bg-canvas disabled:cursor-not-allowed"
                   >
                     <option value="">No subject (class-level)</option>
                     {subjects.map(s => (
@@ -345,21 +345,21 @@ export default function OICRemarks() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Remark *</label>
+                  <label className="text-sm text-fg-muted mb-1 block">Remark *</label>
                   <textarea
                     value={form.remark}
                     onChange={(e) => setForm(f => ({ ...f, remark: e.target.value }))}
                     placeholder="Write your remark (min. 10 characters)..."
                     rows={5}
-                    className={`w-full p-2 rounded-md text-sm text-black border focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none ${
-                      formErrors.remark ? 'border-rose-500' : 'border-neutral-200'
+                    className={`w-full p-2 rounded-md text-sm text-fg border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 resize-none ${
+                      formErrors.remark ? 'border-edge-rose-500' : 'border-line'
                     }`}
                   />
                   <div className="flex items-center justify-between mt-0.5">
                     {formErrors.remark ? (
-                      <p className="text-xs text-rose-600">{formErrors.remark}</p>
+                      <p className="text-xs text-mark-rose-600">{formErrors.remark}</p>
                     ) : (
-                      <span className="text-xs text-neutral-400">{form.remark.length}/5000</span>
+                      <span className="text-xs text-fg-faint">{form.remark.length}/5000</span>
                     )}
                   </div>
                 </div>
@@ -368,14 +368,14 @@ export default function OICRemarks() {
                   <button
                     type="button"
                     onClick={() => setFormModal(false)}
-                    className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition"
+                    className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 transition"
+                    className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-50 transition"
                   >
                     {submitting ? 'Saving...' : editRemark ? 'Save Changes' : 'Add Remark'}
                   </button>
@@ -391,25 +391,25 @@ export default function OICRemarks() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
           <div className="relative z-10 w-full max-w-sm">
-            <div className="bg-white rounded-xl p-5 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-5 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                  <Icons.Trash2 className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center">
+                  <Icons.Trash2 className="w-5 h-5 text-mark-red-600" />
                 </div>
-                <h4 className="text-base font-semibold text-black">Delete Remark?</h4>
+                <h4 className="text-base font-semibold text-fg">Delete Remark?</h4>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">This action cannot be undone.</p>
+              <p className="text-sm text-fg-muted mb-4">This action cannot be undone.</p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setDeleteTarget(null)}
-                  className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition"
+                  className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 transition"
+                  className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-50 transition"
                 >
                   {deleting ? 'Deleting...' : 'Delete'}
                 </button>

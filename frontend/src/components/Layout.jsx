@@ -13,14 +13,16 @@ export default function Layout() {
  
   const role = user?.is_alumni ? 'alumni' : (user?.role || 'student')
 
-  // COT uses maroon; all other roles use their school theme
+  // COT uses maroon; all other roles use their school theme.
+  // The school gradient reads --sidebar-* rather than theme.*, so it picks up
+  // the scheme-corrected values ThemeProvider publishes (see ThemeProvider.jsx).
   const sidebarStyle = role === 'chief_of_training'
     ? { background: 'linear-gradient(to bottom, #7B1A1A, #4a0f0f)' }
-    : { background: `linear-gradient(to bottom, ${theme.primary_color}cc, ${theme.secondary_color}cc)` }
+    : { background: 'linear-gradient(to bottom, rgb(var(--sidebar-primary-rgb) / 0.8), rgb(var(--sidebar-secondary-rgb) / 0.8))' }
 
   return (
     <>
-      <div className="min-h-screen flex text-gray-900 dark:text-gray-100">
+      <div className="min-h-screen flex bg-canvas text-fg">
         {/* Mobile/Tablet Sidebar Overlay (drawer) */}
         {mobileMenuOpen && (
           <div

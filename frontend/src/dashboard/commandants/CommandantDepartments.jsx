@@ -49,20 +49,20 @@ export default function CommandantDepartments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-black">Departments</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">All departments in this school</p>
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">Departments</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">All departments in this school</p>
         </div>
         <input
           type="text"
           placeholder="Search..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
-          className="w-40 sm:w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          className="w-40 sm:w-48 p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
         />
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-3 text-sm text-neutral-600">
+        <div className="mb-3 text-sm text-fg-muted">
           Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount} departments
         </div>
       )}
@@ -70,9 +70,9 @@ export default function CommandantDepartments() {
       {/* Card Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? (
-          <div className="text-sm text-neutral-500">Loading...</div>
+          <div className="text-sm text-fg-soft">Loading...</div>
         ) : departments.length === 0 ? (
-          <div className="text-sm text-neutral-400">No Departments Found</div>
+          <div className="text-sm text-fg-faint">No Departments Found</div>
         ) : (
           departments.map((dept) => (
             <div key={dept.id} onClick={() => navigate(`/commandant/departments/${dept.id}`)} className="cursor-pointer">
@@ -81,24 +81,24 @@ export default function CommandantDepartments() {
                 value={dept.name}
                 badge={`${dept.course_count ?? 0} Courses • ${dept.class_count ?? 0} Classes`}
                 icon="Building"
-                accent={dept.is_active ? 'bg-indigo-600' : 'bg-neutral-400'}
+                accent={dept.is_active ? 'bg-fill-indigo-600' : 'bg-surface-5'}
                 colored
               >
                 <div className="space-y-1.5">
                   {dept.hod_name && (
                     <div className="text-xs truncate">
-                      <span className="text-neutral-500 font-medium">HOD:</span>
-                      <span className="text-black ml-1">{[dept.hod_svc_number, shortRank(dept.hod_rank), dept.hod_name].filter(Boolean).join(' ')}</span>
+                      <span className="text-fg-soft font-medium">HOD:</span>
+                      <span className="text-fg ml-1">{[dept.hod_svc_number, shortRank(dept.hod_rank), dept.hod_name].filter(Boolean).join(' ')}</span>
                     </div>
                   )}
                   {dept.description && (
-                    <div className="line-clamp-2 text-xs text-neutral-400" title={dept.description}>{dept.description}</div>
+                    <div className="line-clamp-2 text-xs text-fg-faint" title={dept.description}>{dept.description}</div>
                   )}
                   <div className="flex items-center justify-between mt-1">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dept.is_active ? 'bg-fill-indigo-100 text-mark-indigo-700' : 'bg-surface-2 text-fg-soft'}`}>
                       {dept.is_active ? 'Active' : 'Inactive'}
                     </span>
-                    <span className="text-[10px] text-indigo-400 flex items-center gap-0.5">
+                    <span className="text-[10px] text-mark-indigo-400 flex items-center gap-0.5">
                       Click to view <LucideIcons.ArrowRight className="w-3 h-3" />
                     </span>
                   </div>
@@ -112,12 +112,12 @@ export default function CommandantDepartments() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</div>
+          <div className="text-sm text-fg-muted">Page {currentPage} of {totalPages}</div>
           <div className="flex gap-2">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
           </div>
         </div>
       )}

@@ -30,24 +30,24 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-              <LucideIcons.AlertTriangle className="w-8 h-8 text-red-600" />
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-canvas to-surface-2 p-4">
+          <div className="max-w-md w-full bg-surface rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-6 bg-fill-red-100 rounded-full flex items-center justify-center">
+              <LucideIcons.AlertTriangle className="w-8 h-8 text-mark-red-600" />
             </div>
 
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">
+            <h1 className="text-2xl font-bold text-fg mb-3">
               Oops! Something went wrong
             </h1>
 
-            <p className="text-gray-600 mb-6">
+            <p className="text-fg-muted mb-6">
               We're sorry for the inconvenience. The application encountered an unexpected error.
             </p>
 
             {this.state.error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
-                <p className="text-xs font-semibold text-red-700 mb-1">Error Details (check browser console for full trace):</p>
-                <p className="text-sm font-mono text-red-800 break-all">
+              <div className="mb-6 p-4 bg-fill-red-50 border border-edge-red-200 rounded-lg text-left">
+                <p className="text-xs font-semibold text-mark-red-700 mb-1">Error Details (check browser console for full trace):</p>
+                <p className="text-sm font-mono text-mark-red-800 break-all">
                   {this.state.error.toString()}
                 </p>
               </div>
@@ -56,7 +56,7 @@ class ErrorBoundary extends React.Component {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={this.handleReload}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-fill-blue-600 text-white rounded-lg hover:bg-fill-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
               >
                 <LucideIcons.RefreshCw className="w-4 h-4" />
                 Reload Page
@@ -64,14 +64,14 @@ class ErrorBoundary extends React.Component {
 
               <button
                 onClick={this.handleReset}
-                className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 bg-surface-3 text-fg-body rounded-lg hover:bg-surface-4 transition-colors font-medium flex items-center justify-center gap-2"
               >
                 <LucideIcons.Home className="w-4 h-4" />
                 Go to Dashboard
               </button>
             </div>
 
-            <p className="text-xs text-gray-500 mt-6">
+            <p className="text-xs text-fg-soft mt-6">
               If this problem persists, please contact support.
             </p>
           </div>

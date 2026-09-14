@@ -217,14 +217,14 @@ export default function ClassCertificates() {
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Go back">
+          <button onClick={() => navigate(-1)} className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition" title="Go back">
             <LucideIcons.ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">
               Certificates — {classInfo.name || `Class ${classId}`}
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-500">Check completion status and issue certificates</p>
+            <p className="text-xs sm:text-sm text-fg-soft">Check completion status and issue certificates</p>
           </div>
         </div>
 
@@ -233,7 +233,7 @@ export default function ClassCertificates() {
             <select
               value={selectedTemplateId || ''}
               onChange={(e) => setSelectedTemplateId(e.target.value || null)}
-              className="px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm text-black focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-emerald-200"
             >
               <option value="">Default template</option>
               {templates.map((t) => (
@@ -244,7 +244,7 @@ export default function ClassCertificates() {
               onClick={() => setConfirmBulk(true)}
               disabled={issuingAll || eligibleCount === 0 || awaitingIssue === 0}
               title={awaitingIssue === 0 && eligibleCount > 0 ? 'Every eligible student already has a certificate' : undefined}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-fill-emerald-600 text-white text-sm hover:bg-fill-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm whitespace-nowrap"
             >
               {issuingAll ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Award className="w-4 h-4" />}
               {issuingAll
@@ -259,19 +259,19 @@ export default function ClassCertificates() {
 
       {/* Class Status Banner */}
       {!loading && !error && (
-        <div className={`rounded-xl p-4 mb-4 border ${classInfo.is_closed ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+        <div className={`rounded-xl p-4 mb-4 border ${classInfo.is_closed ? 'bg-fill-emerald-50 border-edge-emerald-200' : 'bg-fill-amber-50 border-edge-amber-200'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-start sm:items-center gap-2">
               {classInfo.is_closed ? (
-                <LucideIcons.CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+                <LucideIcons.CheckCircle2 className="w-5 h-5 text-mark-emerald-600 flex-shrink-0 mt-0.5 sm:mt-0" />
               ) : (
-                <LucideIcons.AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+                <LucideIcons.AlertCircle className="w-5 h-5 text-mark-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
               )}
               <div>
-                <span className={`text-sm font-medium ${classInfo.is_closed ? 'text-emerald-700' : 'text-amber-700'}`}>
+                <span className={`text-sm font-medium ${classInfo.is_closed ? 'text-mark-emerald-700' : 'text-mark-amber-700'}`}>
                   {classInfo.is_closed ? 'Class is closed' : 'Class is still open'}
                 </span>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <p className="text-xs text-fg-soft mt-0.5">
                   {classInfo.is_closed
                     ? 'All certificates have been issued and the class is finalized.'
                     : 'Issue certificates to all eligible students, then close the class to finalize.'}
@@ -279,17 +279,17 @@ export default function ClassCertificates() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm flex-wrap">
-              <span className="text-neutral-600">Students: <strong className="text-black">{totalStudents}</strong></span>
-              <span className="text-emerald-600">Coursework complete: <strong>{academicallyComplete}</strong></span>
-              <span className="text-indigo-600">Certificates issued: <strong>{certificatesIssued}</strong></span>
+              <span className="text-fg-muted">Students: <strong className="text-fg">{totalStudents}</strong></span>
+              <span className="text-mark-emerald-600">Coursework complete: <strong>{academicallyComplete}</strong></span>
+              <span className="text-mark-indigo-600">Certificates issued: <strong>{certificatesIssued}</strong></span>
               {certificatesRevoked > 0 && (
-                <span className="text-red-600">Revoked: <strong>{certificatesRevoked}</strong></span>
+                <span className="text-mark-red-600">Revoked: <strong>{certificatesRevoked}</strong></span>
               )}
-              <span className="text-amber-600">Awaiting issue: <strong>{awaitingAny}</strong></span>
+              <span className="text-mark-amber-600">Awaiting issue: <strong>{awaitingAny}</strong></span>
               {!classInfo.is_closed && (
                 <button
                   onClick={() => setConfirmClose(true)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-600 text-xs text-white hover:bg-amber-700 transition whitespace-nowrap"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-fill-amber-600 text-xs text-white hover:bg-fill-amber-700 transition whitespace-nowrap"
                 >
                   <LucideIcons.Lock className="w-3 h-3" />
                   Close Class
@@ -302,22 +302,22 @@ export default function ClassCertificates() {
 
       {/* Issue Report */}
       {issueReport && (
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 mb-4 shadow-sm">
+        <div className="rounded-xl border border-line bg-surface p-4 mb-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-black">Issue Report</h3>
-            <button onClick={() => setIssueReport(null)} className="p-1 rounded-md hover:bg-neutral-100 transition">
-              <LucideIcons.X className="w-4 h-4 text-neutral-400" />
+            <h3 className="text-sm font-semibold text-fg">Issue Report</h3>
+            <button onClick={() => setIssueReport(null)} className="p-1 rounded-md hover:bg-surface-2 transition">
+              <LucideIcons.X className="w-4 h-4 text-fg-faint" />
             </button>
           </div>
           <div className="flex flex-wrap gap-3 mb-3">
-            <span className="text-xs px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+            <span className="text-xs px-3 py-1.5 rounded-full bg-fill-emerald-100 text-mark-emerald-700 font-medium">
               <LucideIcons.CheckCircle2 className="w-3 h-3 inline mr-1" />Issued: {issueReport.issued_count}
             </span>
-            <span className="text-xs px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-700 font-medium">
+            <span className="text-xs px-3 py-1.5 rounded-full bg-surface-2 text-fg-body font-medium">
               <LucideIcons.SkipForward className="w-3 h-3 inline mr-1" />Skipped: {issueReport.skipped_count}
             </span>
             {issueReport.failed_count > 0 && (
-              <span className="text-xs px-3 py-1.5 rounded-full bg-red-100 text-red-700 font-medium">
+              <span className="text-xs px-3 py-1.5 rounded-full bg-fill-red-100 text-mark-red-700 font-medium">
                 <LucideIcons.XCircle className="w-3 h-3 inline mr-1" />Failed: {issueReport.failed_count}
               </span>
             )}
@@ -325,30 +325,30 @@ export default function ClassCertificates() {
 
           {issueReport.issued?.length > 0 && (
             <div className="mb-3">
-              <div className="text-xs font-medium text-emerald-700 mb-1.5">Successfully issued:</div>
+              <div className="text-xs font-medium text-mark-emerald-700 mb-1.5">Successfully issued:</div>
               <div className="flex flex-wrap gap-1.5">
                 {issueReport.issued.map((r, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-200">{r.student} — {r.certificate_number}</span>
+                  <span key={i} className="text-xs px-2 py-1 bg-fill-emerald-50 text-mark-emerald-700 rounded-md border border-edge-emerald-200">{r.student} — {r.certificate_number}</span>
                 ))}
               </div>
             </div>
           )}
           {issueReport.skipped?.length > 0 && (
             <div className="mb-3">
-              <div className="text-xs font-medium text-neutral-600 mb-1.5">Skipped (already issued):</div>
+              <div className="text-xs font-medium text-fg-muted mb-1.5">Skipped (already issued):</div>
               <div className="flex flex-wrap gap-1.5">
                 {issueReport.skipped.map((r, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-neutral-50 text-neutral-600 rounded-md border border-neutral-200">{r.student}</span>
+                  <span key={i} className="text-xs px-2 py-1 bg-canvas text-fg-muted rounded-md border border-line">{r.student}</span>
                 ))}
               </div>
             </div>
           )}
           {issueReport.failed?.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-red-700 mb-1.5">Failed:</div>
+              <div className="text-xs font-medium text-mark-red-700 mb-1.5">Failed:</div>
               <div className="flex flex-wrap gap-1.5">
                 {issueReport.failed.map((r, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-md border border-red-200">{r.student}: {r.reason}</span>
+                  <span key={i} className="text-xs px-2 py-1 bg-fill-red-50 text-mark-red-700 rounded-md border border-edge-red-200">{r.student}: {r.reason}</span>
                 ))}
               </div>
             </div>
@@ -358,28 +358,28 @@ export default function ClassCertificates() {
 
       {/* Search Bar (only when data loaded and students exist) */}
       {!loading && !error && students.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
-              <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+              <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
               <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by student name or service number..."
-                className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-emerald-200"
               />
             </div>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-emerald-200"
             >
               <option value="all">All students</option>
               <option value="issued">Certificate issued</option>
               <option value="not_issued">Not issued</option>
             </select>
             {(searchTerm || statusFilter !== 'all') && (
-              <button onClick={() => { setSearchTerm(''); setStatusFilter('all') }} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap">
+              <button onClick={() => { setSearchTerm(''); setStatusFilter('all') }} className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap">
                 Clear
               </button>
             )}
@@ -389,19 +389,19 @@ export default function ClassCertificates() {
 
       {/* Main Content */}
       {error ? (
-        <div className="p-6 bg-white rounded-xl border border-red-200">
+        <div className="p-6 bg-surface rounded-xl border border-edge-red-200">
           <EmptyState icon="AlertCircle" title="Error loading completion status" description={error} variant="minimal" />
         </div>
       ) : loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200">
+        <div className="p-6 bg-surface rounded-xl border border-line">
           <EmptyState icon="Loader2" title="Loading completion status..." variant="minimal" />
         </div>
       ) : students.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="bg-surface rounded-xl border border-line">
           <EmptyState icon="Users" title="No students enrolled" description="No students are enrolled in this class yet." />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="bg-surface rounded-xl border border-line">
           <EmptyState
             icon="Search"
             title="No students match"
@@ -413,11 +413,11 @@ export default function ClassCertificates() {
       ) : (
         <div className="space-y-3">
           {paginatedStudents.map((st) => (
-            <div key={st.enrollment_id || st.student_id} className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+            <div key={st.enrollment_id || st.student_id} className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
               {/* Student Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 border-b border-neutral-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 border-b border-hair">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${st.has_certificate ? 'bg-indigo-500' : st.is_academically_complete ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${st.has_certificate ? 'bg-fill-indigo-500' : st.is_academically_complete ? 'bg-fill-emerald-500' : 'bg-fill-amber-500'}`}>
                     {st.has_certificate
                       ? <LucideIcons.Award className="w-5 h-5" />
                       : st.is_academically_complete
@@ -425,17 +425,17 @@ export default function ClassCertificates() {
                         : <LucideIcons.Clock className="w-5 h-5" />}
                   </div>
                   <div>
-                    <div className="font-medium text-black text-sm">{st.student_name || '—'}</div>
-                    <div className="text-xs text-neutral-500">{st.svc_number || '—'}</div>
+                    <div className="font-medium text-fg text-sm">{st.student_name || '—'}</div>
+                    <div className="text-xs text-fg-soft">{st.svc_number || '—'}</div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
                   {/* Coursework status — separate from whether a certificate exists */}
-                  <span className="text-xs text-neutral-600">
+                  <span className="text-xs text-fg-muted">
                     {st.completed_subjects}/{st.total_subjects} subjects
                   </span>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${st.is_academically_complete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${st.is_academically_complete ? 'bg-fill-emerald-100 text-mark-emerald-700' : 'bg-fill-amber-100 text-mark-amber-700'}`}>
                     {st.is_academically_complete ? 'Coursework complete' : 'Coursework pending'}
                   </span>
 
@@ -443,7 +443,7 @@ export default function ClassCertificates() {
                   {st.has_certificate ? (
                     <>
                       <span
-                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium ${st.certificate?.status === 'revoked' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium ${st.certificate?.status === 'revoked' ? 'bg-fill-red-100 text-mark-red-700' : 'bg-fill-indigo-100 text-mark-indigo-700'}`}
                         title={st.certificate?.certificate_number || ''}
                       >
                         <LucideIcons.Award className="w-3 h-3" />
@@ -455,7 +455,7 @@ export default function ClassCertificates() {
                       <button
                         onClick={() => handleDownload(st.certificate)}
                         disabled={downloading === st.certificate?.id}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-2 text-xs text-fg-body hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         {downloading === st.certificate?.id ? (
                           <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
@@ -469,7 +469,7 @@ export default function ClassCertificates() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openPreview(st.enrollment_id, st.student_name)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200 transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-2 text-xs text-fg-body hover:bg-surface-3 transition"
                       >
                         {previewModal?.enrollmentId === st.enrollment_id && previewModal.loading ? (
                           <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
@@ -481,7 +481,7 @@ export default function ClassCertificates() {
                       <button
                         onClick={() => setConfirmIssue({ enrollmentId: st.enrollment_id, studentName: st.student_name })}
                         disabled={issuingSingle === st.enrollment_id}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-fill-emerald-600 text-xs text-white hover:bg-fill-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         {issuingSingle === st.enrollment_id ? (
                           <LucideIcons.Loader2 className="w-3 h-3 animate-spin" />
@@ -492,7 +492,7 @@ export default function ClassCertificates() {
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-500 font-medium">
+                    <span className="text-xs px-2 py-1 rounded-full bg-surface-2 text-fg-soft font-medium">
                       Not issued
                     </span>
                   )}
@@ -504,25 +504,25 @@ export default function ClassCertificates() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {st.subjects.map((subj) => (
-                      <div key={subj.subject_id} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${subj.is_complete ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                      <div key={subj.subject_id} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-xs ${subj.is_complete ? 'bg-fill-emerald-50 border-edge-emerald-200' : 'bg-canvas border-line'}`}>
                         <div className="flex items-center gap-2 min-w-0">
                           {subj.is_complete ? (
-                            <LucideIcons.CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                            <LucideIcons.CheckCircle2 className="w-3.5 h-3.5 text-mark-emerald-500 flex-shrink-0" />
                           ) : (
-                            <LucideIcons.Circle className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                            <LucideIcons.Circle className="w-3.5 h-3.5 text-fg-faint flex-shrink-0" />
                           )}
-                          <span className="truncate text-black">{subj.subject_name}</span>
+                          <span className="truncate text-fg">{subj.subject_name}</span>
                         </div>
                         <div className="flex-shrink-0">
                           {subj.result ? (
-                            <span className="font-medium text-black">
+                            <span className="font-medium text-fg">
                               {subj.result.percentage != null ? `${subj.result.percentage}%` : `${subj.result.marks}/${subj.result.total}`}
-                              {subj.result.grade && <span className="ml-1 text-neutral-500">({subj.result.grade})</span>}
+                              {subj.result.grade && <span className="ml-1 text-fg-soft">({subj.result.grade})</span>}
                             </span>
                           ) : subj.reason === 'no_final_exam' ? (
-                            <span className="text-neutral-400">No final exam</span>
+                            <span className="text-fg-faint">No final exam</span>
                           ) : (
-                            <span className="text-amber-600">Not graded</span>
+                            <span className="text-mark-amber-600">Not graded</span>
                           )}
                         </div>
                       </div>
@@ -537,30 +537,30 @@ export default function ClassCertificates() {
 
       {/* Pagination */}
       {!loading && totalCount > 0 && totalPages > 1 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-6 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-neutral-600">
-              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
-              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
-              <span className="font-semibold text-black">{totalCount}</span> students
+            <div className="text-sm text-fg-muted">
+              Showing <span className="font-semibold text-fg">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-fg">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-fg">{totalCount}</span> students
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 aria-label="Previous page"
               >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
-              <span className="px-3 py-1.5 text-sm text-black">{page} / {totalPages}</span>
+              <span className="px-3 py-1.5 text-sm text-fg">{page} / {totalPages}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 aria-label="Next page"
               >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
             </div>
           </div>
@@ -572,26 +572,26 @@ export default function ClassCertificates() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmClose(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                  <LucideIcons.Lock className="w-5 h-5 text-amber-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-amber-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.Lock className="w-5 h-5 text-mark-amber-600" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-black">Close Class</h4>
-                  <p className="text-sm text-neutral-500">This action cannot be undone.</p>
+                  <h4 className="text-lg font-semibold text-fg">Close Class</h4>
+                  <p className="text-sm text-fg-soft">This action cannot be undone.</p>
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 mb-2">
-                Are you sure you want to close <strong className="text-black">{classInfo.name}</strong>?
+              <p className="text-sm text-fg-muted mb-2">
+                Are you sure you want to close <strong className="text-fg">{classInfo.name}</strong>?
               </p>
-              <div className="text-xs text-neutral-500 bg-neutral-50 rounded-lg p-3 mb-4 space-y-1">
+              <div className="text-xs text-fg-soft bg-canvas rounded-lg p-3 mb-4 space-y-1">
                 <p>All eligible students must have certificates issued before the class can be closed.</p>
-                <p>Currently <strong className="text-black">{academicallyComplete}</strong> of <strong className="text-black">{totalStudents}</strong> students are academically complete.</p>
+                <p>Currently <strong className="text-fg">{academicallyComplete}</strong> of <strong className="text-fg">{totalStudents}</strong> students are academically complete.</p>
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmClose(false)} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition">Cancel</button>
-                <button onClick={handleCloseClass} disabled={closing} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                <button onClick={() => setConfirmClose(false)} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-body hover:bg-surface-2 transition">Cancel</button>
+                <button onClick={handleCloseClass} disabled={closing} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-fill-amber-600 text-white hover:bg-fill-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                   {closing ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Lock className="w-4 h-4" />}
                   {closing ? 'Closing...' : 'Close Class'}
                 </button>
@@ -608,23 +608,23 @@ export default function ClassCertificates() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmBulk(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <LucideIcons.Award className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.Award className="w-5 h-5 text-mark-emerald-600" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-black">Issue All Certificates</h4>
-                  <p className="text-sm text-neutral-500">A certificate number will be assigned to each student.</p>
+                  <h4 className="text-lg font-semibold text-fg">Issue All Certificates</h4>
+                  <p className="text-sm text-fg-soft">A certificate number will be assigned to each student.</p>
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 mb-2">
-                Issue certificates for <strong className="text-black">{awaitingIssue}</strong>{' '}
+              <p className="text-sm text-fg-muted mb-2">
+                Issue certificates for <strong className="text-fg">{awaitingIssue}</strong>{' '}
                 {awaitingIssue === 1 ? 'student' : 'students'} in{' '}
-                <strong className="text-black">{classInfo.name || `Class ${classId}`}</strong> using{' '}
-                <strong className="text-black">{selectedTemplate?.name || 'the default template'}</strong>?
+                <strong className="text-fg">{classInfo.name || `Class ${classId}`}</strong> using{' '}
+                <strong className="text-fg">{selectedTemplate?.name || 'the default template'}</strong>?
               </p>
-              <div className="text-xs text-neutral-500 bg-neutral-50 rounded-lg p-3 mb-4 space-y-1">
+              <div className="text-xs text-fg-soft bg-canvas rounded-lg p-3 mb-4 space-y-1">
                 <p>Students who already hold a certificate are skipped.</p>
                 
               </div>
@@ -632,14 +632,14 @@ export default function ClassCertificates() {
                 <button
                   onClick={() => setConfirmBulk(false)}
                   disabled={issuingAll}
-                  className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 transition"
+                  className="px-4 py-2 rounded-lg text-sm border border-line text-fg-body hover:bg-surface-2 disabled:opacity-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleBulkIssue}
                   disabled={issuingAll}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-fill-emerald-600 text-white hover:bg-fill-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   {issuingAll ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.Award className="w-4 h-4" />}
                   {issuingAll ? 'Issuing...' : `Issue ${awaitingIssue} Certificate${awaitingIssue === 1 ? '' : 's'}`}
@@ -656,32 +656,32 @@ export default function ClassCertificates() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmIssue(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <LucideIcons.Award className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.Award className="w-5 h-5 text-mark-emerald-600" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-black">Issue Certificate</h4>
-                  <p className="text-sm text-neutral-500">A certificate number will be assigned.</p>
+                  <h4 className="text-lg font-semibold text-fg">Issue Certificate</h4>
+                  <p className="text-sm text-fg-soft">A certificate number will be assigned.</p>
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">
-                Issue a certificate for <strong className="text-black">{confirmIssue.studentName}</strong> using{' '}
-                <strong className="text-black">{selectedTemplate?.name || 'the default template'}</strong>?
+              <p className="text-sm text-fg-muted mb-4">
+                Issue a certificate for <strong className="text-fg">{confirmIssue.studentName}</strong> using{' '}
+                <strong className="text-fg">{selectedTemplate?.name || 'the default template'}</strong>?
               </p>
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setConfirmIssue(null)}
                   disabled={issuingSingle === confirmIssue.enrollmentId}
-                  className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50 transition"
+                  className="px-4 py-2 rounded-lg text-sm border border-line text-fg-body hover:bg-surface-2 disabled:opacity-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleSingleIssue(confirmIssue.enrollmentId, confirmIssue.studentName)}
                   disabled={issuingSingle === confirmIssue.enrollmentId}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-fill-emerald-600 text-white hover:bg-fill-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   {issuingSingle === confirmIssue.enrollmentId ? (
                     <LucideIcons.Loader2 className="w-4 h-4 animate-spin" />
@@ -703,26 +703,26 @@ export default function ClassCertificates() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPreviewModal(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl">
-            <div className="bg-white rounded-xl shadow-2xl ring-1 ring-black/5 flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between p-4 border-b border-neutral-100 flex-shrink-0">
+            <div className="bg-surface rounded-xl shadow-2xl ring-1 ring-hair flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-4 border-b border-hair flex-shrink-0">
                 <div>
-                  <h4 className="text-lg font-semibold text-black">Certificate Preview</h4>
-                  <p className="text-sm text-neutral-500">{previewModal.studentName}</p>
+                  <h4 className="text-lg font-semibold text-fg">Certificate Preview</h4>
+                  <p className="text-sm text-fg-soft">{previewModal.studentName}</p>
                 </div>
-                <button onClick={() => setPreviewModal(null)} className="p-1 rounded-md hover:bg-neutral-100 transition">
-                  <LucideIcons.X className="w-5 h-5 text-neutral-400" />
+                <button onClick={() => setPreviewModal(null)} className="p-1 rounded-md hover:bg-surface-2 transition">
+                  <LucideIcons.X className="w-5 h-5 text-fg-faint" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">
                 {previewModal.loading ? (
                   <div className="flex items-center justify-center py-16">
-                    <LucideIcons.Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+                    <LucideIcons.Loader2 className="w-6 h-6 animate-spin text-fg-faint" />
                   </div>
                 ) : (
                   <>
                     {previewModal.data && (
-                      <div className={`rounded-lg p-3 mb-4 text-sm flex items-start gap-2 border ${previewModal.data.eligible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      <div className={`rounded-lg p-3 mb-4 text-sm flex items-start gap-2 border ${previewModal.data.eligible ? 'bg-fill-emerald-50 text-mark-emerald-700 border-edge-emerald-200' : 'bg-fill-amber-50 text-mark-amber-700 border-edge-amber-200'}`}>
                         {previewModal.data.eligible ? (
                           <LucideIcons.CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
                         ) : (
@@ -745,28 +745,28 @@ export default function ClassCertificates() {
 
                     {previewModal.data?.preview && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 text-xs">
-                        <div className="bg-neutral-50 rounded-lg p-2">
-                          <div className="text-neutral-400">Certificate type</div>
-                          <div className="text-black font-medium">{previewModal.data.preview.certificate_type_display}</div>
+                        <div className="bg-canvas rounded-lg p-2">
+                          <div className="text-fg-faint">Certificate type</div>
+                          <div className="text-fg font-medium">{previewModal.data.preview.certificate_type_display}</div>
                         </div>
-                        <div className="bg-neutral-50 rounded-lg p-2">
-                          <div className="text-neutral-400">Course</div>
-                          <div className="text-black font-medium">{previewModal.data.preview.course_name}</div>
+                        <div className="bg-canvas rounded-lg p-2">
+                          <div className="text-fg-faint">Course</div>
+                          <div className="text-fg font-medium">{previewModal.data.preview.course_name}</div>
                         </div>
-                        <div className="bg-neutral-50 rounded-lg p-2">
-                          <div className="text-neutral-400">Class</div>
-                          <div className="text-black font-medium">{previewModal.data.preview.class_name}</div>
+                        <div className="bg-canvas rounded-lg p-2">
+                          <div className="text-fg-faint">Class</div>
+                          <div className="text-fg font-medium">{previewModal.data.preview.class_name}</div>
                         </div>
                         {previewModal.data.preview.final_grade && (
-                          <div className="bg-neutral-50 rounded-lg p-2">
-                            <div className="text-neutral-400">Grade</div>
-                            <div className="text-black font-medium">{previewModal.data.preview.final_grade}</div>
+                          <div className="bg-canvas rounded-lg p-2">
+                            <div className="text-fg-faint">Grade</div>
+                            <div className="text-fg font-medium">{previewModal.data.preview.final_grade}</div>
                           </div>
                         )}
                         {previewModal.data.preview.attendance_percentage != null && (
-                          <div className="bg-neutral-50 rounded-lg p-2">
-                            <div className="text-neutral-400">Attendance</div>
-                            <div className="text-black font-medium">{previewModal.data.preview.attendance_percentage}%</div>
+                          <div className="bg-canvas rounded-lg p-2">
+                            <div className="text-fg-faint">Attendance</div>
+                            <div className="text-fg font-medium">{previewModal.data.preview.attendance_percentage}%</div>
                           </div>
                         )}
                       </div>
@@ -776,10 +776,10 @@ export default function ClassCertificates() {
                       <iframe
                         src={previewModal.pdfUrl}
                         title="Certificate document preview"
-                        className="w-full h-[55vh] rounded-lg border border-neutral-200"
+                        className="w-full h-[55vh] rounded-lg border border-line"
                       />
                     ) : (
-                      <div className="rounded-lg border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-400">
+                      <div className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-fg-faint">
                         Document preview unavailable — showing details only.
                       </div>
                     )}
@@ -787,8 +787,8 @@ export default function ClassCertificates() {
                 )}
               </div>
 
-              <div className="flex justify-end p-4 border-t border-neutral-100 flex-shrink-0">
-                <button onClick={() => setPreviewModal(null)} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition">
+              <div className="flex justify-end p-4 border-t border-hair flex-shrink-0">
+                <button onClick={() => setPreviewModal(null)} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-body hover:bg-surface-2 transition">
                   Close
                 </button>
               </div>

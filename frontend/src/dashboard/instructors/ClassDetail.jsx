@@ -209,17 +209,17 @@ export default function ClassDetail() {
   }
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 text-black space-y-4">
+    <div className="p-3 sm:p-4 md:p-6 text-fg space-y-4">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Class students</h2>
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-1">
-              <p className="text-xs sm:text-sm text-gray-600 break-words">
+              <p className="text-xs sm:text-sm text-fg-muted break-words">
                 {subjectId ? 'Students enrolled and their latest exam performance for this subject.' : 'Students enrolled in this class.'}
               </p>
               {subjectLabel && (
-                <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 w-fit">
+                <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-fill-indigo-50 text-mark-indigo-700 border border-edge-indigo-100 w-fit">
                   {subjectLabel}
                 </span>
               )}
@@ -230,7 +230,7 @@ export default function ClassDetail() {
               <button
                 onClick={downloadCSV}
                 disabled={marksLoading}
-                className="flex-1 sm:flex-none px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white shadow-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap"
+                className="flex-1 sm:flex-none px-3 py-1.5 text-sm rounded-lg bg-fill-green-600 text-white shadow-sm hover:bg-fill-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap"
               >
                 {marksLoading ? 'Preparing…' : 'Download CSV'}
               </button>
@@ -240,37 +240,37 @@ export default function ClassDetail() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Enrolled</p>
-          <p className="text-xl sm:text-2xl font-semibold text-gray-900 my-1">{totalStudents}</p>
-          <p className="text-[10px] sm:text-xs text-gray-500">Total students in this class</p>
+        <div className="bg-surface border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-fg-soft">Enrolled</p>
+          <p className="text-xl sm:text-2xl font-semibold text-fg my-1">{totalStudents}</p>
+          <p className="text-[10px] sm:text-xs text-fg-soft">Total students in this class</p>
         </div>
-        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Graded</p>
-          <p className="text-xl sm:text-2xl font-semibold text-green-700 my-1">{subjectId ? gradedCount : '—'}</p>
-          <p className="text-[10px] sm:text-xs text-gray-500">Latest exam for selected subject</p>
+        <div className="bg-surface border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-fg-soft">Graded</p>
+          <p className="text-xl sm:text-2xl font-semibold text-mark-green-700 my-1">{subjectId ? gradedCount : '—'}</p>
+          <p className="text-[10px] sm:text-xs text-fg-soft">Latest exam for selected subject</p>
         </div>
-        <div className="bg-white border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500">Pending</p>
-          <p className="text-xl sm:text-2xl font-semibold text-amber-600 my-1">{subjectId ? pendingCount : '—'}</p>
-          <p className="text-[10px] sm:text-xs text-gray-500">Awaiting grades for this subject</p>
+        <div className="bg-surface border rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wide text-fg-soft">Pending</p>
+          <p className="text-xl sm:text-2xl font-semibold text-mark-amber-600 my-1">{subjectId ? pendingCount : '—'}</p>
+          <p className="text-[10px] sm:text-xs text-fg-soft">Awaiting grades for this subject</p>
         </div>
       </div>
 
-      {loading && <div className="text-sm text-neutral-500">Loading…</div>}
-      {error && <div className="text-sm text-red-600">Failed to load students: {error.message || String(error)}</div>}
+      {loading && <div className="text-sm text-fg-soft">Loading…</div>}
+      {error && <div className="text-sm text-mark-red-600">Failed to load students: {error.message || String(error)}</div>}
 
-      {!loading && students.length === 0 && <div className="text-sm text-neutral-600">No students found for this class.</div>}
+      {!loading && students.length === 0 && <div className="text-sm text-fg-muted">No students found for this class.</div>}
 
-      <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
+      <div className="bg-surface rounded-lg sm:rounded-xl p-3 sm:p-4 border shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-          <p className="text-xs sm:text-sm font-medium text-gray-800">Students enrolled in this class.</p>
-          {subjectId && <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">Showing latest exam per subject</span>}
+          <p className="text-xs sm:text-sm font-medium text-fg">Students enrolled in this class.</p>
+          {subjectId && <span className="text-[10px] sm:text-xs text-fg-soft whitespace-nowrap">Showing latest exam per subject</span>}
         </div>
         <div className="overflow-x-auto -mx-3 sm:-mx-4">
           <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full text-left text-xs sm:text-sm divide-y divide-gray-200">
-              <thead className="bg-gray-50 text-gray-600">
+            <table className="min-w-full text-left text-xs sm:text-sm divide-y divide-line">
+              <thead className="bg-canvas text-fg-muted">
                 <tr>
                   <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm whitespace-nowrap">Svc number</th>
                   <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm whitespace-nowrap">Rank</th>
@@ -279,15 +279,15 @@ export default function ClassDetail() {
                   <th className="px-2 sm:px-3 py-2 font-semibold text-[10px] sm:text-sm">Grade</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody className="divide-y divide-hair bg-surface">
                 {marksLoading
                   ? Array.from({ length: Math.min(6, Math.max(3, paginatedStudents.length)) || 4 }).map((_, idx) => (
                       <tr key={idx} className="animate-pulse">
-                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-12 sm:w-16 bg-gray-200 rounded" /></td>
-                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-14 bg-gray-200 rounded" /></td>
-                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-20 sm:w-28 bg-gray-200 rounded" /></td>
-                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-12 bg-gray-200 rounded" /></td>
-                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-5 sm:h-6 w-10 sm:w-12 bg-gray-200 rounded-full" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-12 sm:w-16 bg-surface-3 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-14 bg-surface-3 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-20 sm:w-28 bg-surface-3 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-3 w-10 sm:w-12 bg-surface-3 rounded" /></td>
+                        <td className="px-2 sm:px-3 py-2 sm:py-3"><div className="h-5 sm:h-6 w-10 sm:w-12 bg-surface-3 rounded-full" /></td>
                       </tr>
                     ))
                   : paginatedStudents.map(st => {
@@ -296,17 +296,17 @@ export default function ClassDetail() {
                       const grade = marks != null ? (gradeFromPercent(marks) || '—') : '—'
                       const badgeClass = grade
                         ? (grade === 'A' || grade === 'A-' || grade.startsWith('B'))
-                          ? 'bg-green-50 text-green-700 border-green-200'
+                          ? 'bg-fill-green-50 text-mark-green-700 border-edge-green-200'
                           : grade.startsWith('C')
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-red-50 text-red-700 border-red-200'
-                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                          ? 'bg-fill-amber-50 text-mark-amber-700 border-edge-amber-200'
+                          : 'bg-fill-red-50 text-mark-red-700 border-edge-red-200'
+                        : 'bg-canvas text-fg-soft border-line'
                       return (
-                        <tr key={st.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-gray-800 text-[10px] sm:text-xs">{st.svc_number || st.student_svc_number || '—'}</td>
-                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-gray-700 text-[10px] sm:text-xs">{st.rank || '—'}</td>
-                          <td className="px-2 sm:px-3 py-2 text-gray-900 text-[10px] sm:text-xs">{st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim()}</td>
-                          <td className="px-2 sm:px-3 py-2 text-gray-800 text-[10px] sm:text-xs">{marks != null ? `${marks}%` : <span className="text-gray-400">—</span>}</td>
+                        <tr key={st.id} className="hover:bg-canvas transition-colors">
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-fg text-[10px] sm:text-xs">{st.svc_number || st.student_svc_number || '—'}</td>
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-fg-body text-[10px] sm:text-xs">{st.rank || '—'}</td>
+                          <td className="px-2 sm:px-3 py-2 text-fg text-[10px] sm:text-xs">{st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim()}</td>
+                          <td className="px-2 sm:px-3 py-2 text-fg text-[10px] sm:text-xs">{marks != null ? `${marks}%` : <span className="text-fg-faint">—</span>}</td>
                           <td className="px-2 sm:px-3 py-2">
                             <span className={`inline-flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold border ${badgeClass}`}>
                               {grade || 'Pending'}
@@ -320,7 +320,7 @@ export default function ClassDetail() {
           </div>
         </div>
         {!subjectId && (
-          <div className="mt-3 text-[10px] sm:text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <div className="mt-3 text-[10px] sm:text-xs text-mark-amber-700 bg-fill-amber-50 border border-edge-amber-100 rounded-lg px-3 py-2">
             Add a subject query param in the URL to see marks for that subject (e.g. ?subject=123).
           </div>
         )}
@@ -328,13 +328,13 @@ export default function ClassDetail() {
 
       {/* Modern Pagination Controls */}
       {!loading && totalStudents > 0 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-6 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Results info */}
-            <div className="text-sm text-black">
-              Showing <span className="font-semibold text-black">{Math.min(startIndex + 1, totalStudents)}</span> to{' '}
-              <span className="font-semibold text-black">{Math.min(endIndex, totalStudents)}</span> of{' '}
-              <span className="font-semibold text-black">{totalStudents}</span> students
+            <div className="text-sm text-fg">
+              Showing <span className="font-semibold text-fg">{Math.min(startIndex + 1, totalStudents)}</span> to{' '}
+              <span className="font-semibold text-fg">{Math.min(endIndex, totalStudents)}</span> of{' '}
+              <span className="font-semibold text-fg">{totalStudents}</span> students
             </div>
 
             {/* Pagination controls */}
@@ -343,10 +343,10 @@ export default function ClassDetail() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 aria-label="Previous page"
               >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page numbers */}
@@ -364,12 +364,12 @@ export default function ClassDetail() {
 
                   if (startPage > 1) {
                     pages.push(
-                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">
                         1
                       </button>
                     )
                     if (startPage > 2) {
-                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis1" className="px-2 text-fg-faint">...</span>)
                     }
                   }
 
@@ -380,8 +380,8 @@ export default function ClassDetail() {
                         onClick={() => setPage(i)}
                         className={`px-3 py-1.5 text-sm rounded-lg transition ${
                           page === i
-                            ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                            : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'
+                            ? 'bg-fill-indigo-600 text-white font-semibold shadow-sm'
+                            : 'border border-line bg-surface text-fg hover:bg-canvas'
                         }`}
                       >
                         {i}
@@ -391,10 +391,10 @@ export default function ClassDetail() {
 
                   if (endPage < totalPages) {
                     if (endPage < totalPages - 1) {
-                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis2" className="px-2 text-fg-faint">...</span>)
                     }
                     pages.push(
-                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">
+                      <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">
                         {totalPages}
                       </button>
                     )
@@ -408,22 +408,22 @@ export default function ClassDetail() {
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 aria-label="Next page"
               >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page size selector */}
               <div className="ml-2 flex items-center gap-2">
-                <span className="text-sm text-black hidden sm:inline">Per page:</span>
+                <span className="text-sm text-fg hidden sm:inline">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value))
                     setPage(1)
                   }}
-                  className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                  className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 transition"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>

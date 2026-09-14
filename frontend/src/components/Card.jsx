@@ -7,8 +7,8 @@ export default function Card({
   value,
   icon, // optional icon name string (lucide)
   className = '',
-  badgeClass = 'bg-white/90 px-2 py-1 rounded-full text-black border border-neutral-200',
-  accent = 'bg-indigo-600',
+  badgeClass = 'bg-surface/90 px-2 py-1 rounded-full text-fg border border-line',
+  accent = 'bg-fill-indigo-600',
   colored = false,
   children,
 }) {
@@ -16,16 +16,16 @@ export default function Card({
 
   // map accent token to background / text variants for a modern colored card
   const accentMap = {
-    'bg-indigo-600': { bg: 'bg-indigo-50', text: 'text-indigo-800', plate: 'bg-indigo-600' },
-    'bg-indigo-500': { bg: 'bg-indigo-50', text: 'text-indigo-800', plate: 'bg-indigo-500' },
-    'bg-emerald-500': { bg: 'bg-emerald-50', text: 'text-emerald-800', plate: 'bg-emerald-500' },
-    'bg-sky-500': { bg: 'bg-sky-50', text: 'text-sky-800', plate: 'bg-sky-500' },
-    'bg-amber-500': { bg: 'bg-amber-50', text: 'text-amber-800', plate: 'bg-amber-500' },
-    'bg-pink-500': { bg: 'bg-pink-50', text: 'text-pink-800', plate: 'bg-pink-500' },
-    'bg-neutral-400': { bg: 'bg-neutral-50', text: 'text-neutral-700', plate: 'bg-neutral-400' },
+    'bg-fill-indigo-600': { bg: 'bg-fill-indigo-50', text: 'text-mark-indigo-800', plate: 'bg-fill-indigo-600' },
+    'bg-fill-indigo-500': { bg: 'bg-fill-indigo-50', text: 'text-mark-indigo-800', plate: 'bg-fill-indigo-500' },
+    'bg-fill-emerald-500': { bg: 'bg-fill-emerald-50', text: 'text-mark-emerald-800', plate: 'bg-fill-emerald-500' },
+    'bg-fill-sky-500': { bg: 'bg-fill-sky-50', text: 'text-mark-sky-800', plate: 'bg-fill-sky-500' },
+    'bg-fill-amber-500': { bg: 'bg-fill-amber-50', text: 'text-mark-amber-800', plate: 'bg-fill-amber-500' },
+    'bg-fill-pink-500': { bg: 'bg-fill-pink-50', text: 'text-mark-pink-800', plate: 'bg-fill-pink-500' },
+    'bg-surface-5': { bg: 'bg-canvas', text: 'text-fg-body', plate: 'bg-surface-5' },
     // fallback
     // make the default card light and legible (avoid very dark cards)
-    default: { bg: 'bg-white', text: 'text-gray-900', plate: 'bg-indigo-600' },
+    default: { bg: 'bg-surface', text: 'text-fg', plate: 'bg-fill-indigo-600' },
   }
 
     const acc = accentMap[accent] || accentMap.default
@@ -35,7 +35,7 @@ export default function Card({
 
   return (
   <div
-    className={`relative rounded-xl p-3 sm:p-4 flex-1 min-w-0 ${outerBg} ${className} border border-neutral-200 hover:shadow-lg transition-shadow duration-200`}
+    className={`relative rounded-xl p-3 sm:p-4 flex-1 min-w-0 ${outerBg} ${className} border border-line hover:shadow-lg transition-shadow duration-200`}
   >
       {/* accent stripe */}
   <div className={`absolute top-0 left-0 h-1 w-12 md:w-16 ${plateClass} rounded-tl-xl`} />
@@ -49,10 +49,10 @@ export default function Card({
         ) : null}
       </div>
 
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold my-3 sm:my-4 text-black line-clamp-2" title={value}>{value ?? '-'}</h1>
-        <h2 className="capitalize text-sm sm:text-sm md:text-base font-medium text-black truncate" title={title}>{title}</h2>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold my-3 sm:my-4 text-fg line-clamp-2" title={value}>{value ?? '-'}</h1>
+        <h2 className="capitalize text-sm sm:text-sm md:text-base font-medium text-fg truncate" title={title}>{title}</h2>
         {children ? (
-          <div className="mt-2 text-xs text-neutral-500">{children}</div>
+          <div className="mt-2 text-xs text-fg-soft">{children}</div>
         ) : null}
     </div>
   )

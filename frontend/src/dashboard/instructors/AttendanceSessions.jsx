@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
-import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
 import QRCodeDisplay from '../../components/QRCodeDisplay'
 import ModernDateTimePicker from '../../components/ModernDateTimePicker'
@@ -23,21 +22,20 @@ const SESSION_TYPES = [
 ]
 
 const STATUS_COLORS = {
-  scheduled: 'bg-blue-100 text-blue-700',
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-700',
-  cancelled: 'bg-red-100 text-red-700'
+  scheduled: 'bg-fill-blue-100 text-mark-blue-700',
+  active: 'bg-fill-green-100 text-mark-green-700',
+  completed: 'bg-surface-2 text-fg-body',
+  cancelled: 'bg-fill-red-100 text-mark-red-700'
 }
 
 const ATTENDANCE_STATUS_COLORS = {
-  present: 'bg-emerald-500 text-white',
-  late: 'bg-yellow-500 text-white',
-  absent: 'bg-red-500 text-white',
-  excused: 'bg-blue-500 text-white'
+  present: 'bg-fill-emerald-500 text-white',
+  late: 'bg-fill-yellow-500 text-white',
+  absent: 'bg-fill-red-500 text-white',
+  excused: 'bg-fill-blue-500 text-white'
 }
 
 export default function AttendanceSessions() {
-  const { user } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -53,7 +51,7 @@ export default function AttendanceSessions() {
 
   // Classes and subjects for creating sessions
   const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
+  const [, setSubjects] = useState([])
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -202,7 +200,7 @@ export default function AttendanceSessions() {
 
     setCreateLoading(true)
     try {
-      const { subject, ...rest } = createForm;
+      const { subject: _subject, ...rest } = createForm;
       const payload = {
         ...rest,
         class_obj: Number(createForm.class_obj)
@@ -379,17 +377,17 @@ export default function AttendanceSessions() {
   }
 
   return (
-    <div className="p-4 md:p-6 text-black">
+    <div className="p-4 md:p-6 text-fg">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-black">Attendance Sessions</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage attendance sessions with QR codes, manual marking, and biometric integration</p>
+          <h1 className="text-2xl font-bold text-fg">Attendance Sessions</h1>
+          <p className="text-sm text-fg-muted mt-1">Manage attendance sessions with QR codes, manual marking, and biometric integration</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition"
           >
             <Plus className="w-5 h-5" />
             Create Session
@@ -398,24 +396,24 @@ export default function AttendanceSessions() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div className="bg-surface rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-fg-faint" />
               <input
                 type="text"
                 placeholder="Search sessions..."
                 value={filter.search}
                 onChange={(e) => { setFilter(f => ({ ...f, search: e.target.value })); setCurrentPage(1) }}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500"
               />
             </div>
           </div>
           <select
             value={filter.status}
             onChange={(e) => { setFilter(f => ({ ...f, status: e.target.value })); setCurrentPage(1) }}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500"
           >
             <option value="">All Status</option>
             <option value="scheduled">Scheduled</option>
@@ -426,7 +424,7 @@ export default function AttendanceSessions() {
           <select
             value={filter.session_type}
             onChange={(e) => { setFilter(f => ({ ...f, session_type: e.target.value })); setCurrentPage(1) }}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500"
           >
             <option value="">All Types</option>
             {SESSION_TYPES.map(t => (
@@ -435,7 +433,7 @@ export default function AttendanceSessions() {
           </select>
           <button
             onClick={loadSessions}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+            className="px-4 py-2 border rounded-lg hover:bg-canvas transition flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -446,18 +444,18 @@ export default function AttendanceSessions() {
       {/* Sessions List */}
       <div className="space-y-4">
         {loading ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading sessions...</p>
+          <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-edge-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+            <p className="mt-4 text-fg-muted">Loading sessions...</p>
           </div>
         ) : sessions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <Calendar className="w-12 h-12 text-gray-400 mx-auto" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">No sessions found</h3>
-            <p className="mt-2 text-gray-600">Create your first attendance session to get started</p>
+          <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+            <Calendar className="w-12 h-12 text-fg-faint mx-auto" />
+            <h3 className="mt-4 text-lg font-medium text-fg">No sessions found</h3>
+            <p className="mt-2 text-fg-muted">Create your first attendance session to get started</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              className="mt-4 px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition"
             >
               Create Session
             </button>
@@ -482,15 +480,15 @@ export default function AttendanceSessions() {
 
             {/* Pagination */}
             {totalCount > pageSize && (
-              <div className="flex items-center justify-between bg-white rounded-lg shadow-sm p-4 mt-4">
-                <div className="text-sm text-gray-600">
+              <div className="flex items-center justify-between bg-surface rounded-lg shadow-sm p-4 mt-4">
+                <div className="text-sm text-fg-muted">
                   Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} sessions
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 border rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -506,14 +504,14 @@ export default function AttendanceSessions() {
                       .map((page, idx, arr) => (
                         <React.Fragment key={page}>
                           {idx > 0 && arr[idx - 1] !== page - 1 && (
-                            <span className="px-2 text-gray-400">...</span>
+                            <span className="px-2 text-fg-faint">...</span>
                           )}
                           <button
                             onClick={() => setCurrentPage(page)}
                             className={`w-8 h-8 rounded-lg text-sm font-medium transition ${
                               currentPage === page
-                                ? 'bg-indigo-600 text-white'
-                                : 'hover:bg-gray-100 text-gray-700'
+                                ? 'bg-fill-indigo-600 text-white'
+                                : 'hover:bg-surface-2 text-fg-body'
                             }`}
                           >
                             {page}
@@ -524,7 +522,7 @@ export default function AttendanceSessions() {
                   <button
                     onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
                     disabled={currentPage >= Math.ceil(totalCount / pageSize)}
-                    className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 border rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
@@ -540,38 +538,38 @@ export default function AttendanceSessions() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowCreateModal(false); resetCreateForm() }} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <form onSubmit={handleCreateSession} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <form onSubmit={handleCreateSession} className="transform transition-all duration-200 bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Create session</h4>
-                  <p className="text-sm text-neutral-500">Create a new attendance session.</p>
+                  <h4 className="text-lg text-fg font-medium">Create session</h4>
+                  <p className="text-sm text-fg-soft">Create a new attendance session.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
               {createError && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{createError}</p>
+                <div className="mt-3 p-3 bg-fill-red-50 border border-edge-red-200 rounded-lg flex items-start gap-2">
+                  <XCircle className="w-5 h-5 text-mark-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-mark-red-700">{createError}</p>
                 </div>
               )}
               <div className="mt-4">
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                  <div className="text-sm text-fg-muted mb-1 flex justify-between">
                     <span>Title</span>
-                    <span className={`text-xs ${(createForm.title?.length || 0) > 40 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/40</span>
+                    <span className={`text-xs ${(createForm.title?.length || 0) > 40 ? 'text-mark-red-500' : 'text-fg-faint'}`}>{createForm.title?.length || 0}/40</span>
                   </div>
-                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: sanitizeInput(e.target.value).slice(0, 40) }))} maxLength={40} placeholder="e.g. Bedcheck Attendance" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required />
+                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: sanitizeInput(e.target.value).slice(0, 40) }))} maxLength={40} placeholder="e.g. Bedcheck Attendance" className="w-full border border-line rounded px-3 py-2 text-fg" required />
                 </label>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <label className="block">
-                    <div className="text-sm text-neutral-600 mb-1">Type</div>
-                    <select value={createForm.session_type} onChange={(e) => setCreateForm(f => ({ ...f, session_type: e.target.value }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <div className="text-sm text-fg-muted mb-1">Type</div>
+                    <select value={createForm.session_type} onChange={(e) => setCreateForm(f => ({ ...f, session_type: e.target.value }))} className="w-full border border-line rounded px-3 py-2 text-fg">
                       {SESSION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </label>
                   <label className="block">
-                    <div className="text-sm text-neutral-600 mb-1">Class</div>
-                    <select value={createForm.class_obj} onChange={(e) => setCreateForm(f => ({ ...f, class_obj: e.target.value }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" required>
+                    <div className="text-sm text-fg-muted mb-1">Class</div>
+                    <select value={createForm.class_obj} onChange={(e) => setCreateForm(f => ({ ...f, class_obj: e.target.value }))} className="w-full border border-line rounded px-3 py-2 text-fg" required>
                       <option value="">Select class</option>
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name || c.class_code}</option>)}
                     </select>
@@ -600,39 +598,39 @@ export default function AttendanceSessions() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <label className="block">
-                    <div className="text-sm text-neutral-600 mb-1">Late Grace Period (min)</div>
-                    <input type="number" min="0" max="60" value={createForm.allow_late_minutes} onChange={(e) => setCreateForm(f => ({ ...f, allow_late_minutes: Number(e.target.value) }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <div className="text-sm text-fg-muted mb-1">Late Grace Period (min)</div>
+                    <input type="number" min="0" max="60" value={createForm.allow_late_minutes} onChange={(e) => setCreateForm(f => ({ ...f, allow_late_minutes: Number(e.target.value) }))} className="w-full border border-line rounded px-3 py-2 text-fg" />
                   </label>
                   <label className="block">
-                    <div className="text-sm text-neutral-600 mb-1">QR Refresh (sec)</div>
-                    <input type="number" min="10" max="300" value={createForm.qr_refresh_interval} onChange={(e) => setCreateForm(f => ({ ...f, qr_refresh_interval: Number(e.target.value) }))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <div className="text-sm text-fg-muted mb-1">QR Refresh (sec)</div>
+                    <input type="number" min="10" max="300" value={createForm.qr_refresh_interval} onChange={(e) => setCreateForm(f => ({ ...f, qr_refresh_interval: Number(e.target.value) }))} className="w-full border border-line rounded px-3 py-2 text-fg" />
                   </label>
                 </div>
                 <div className="mb-3">
-                  <div className="text-sm text-neutral-600 mb-2">Marking Methods</div>
+                  <div className="text-sm text-fg-muted mb-2">Marking Methods</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-2">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={createForm.enable_qr_scan} onChange={(e) => setCreateForm(f => ({ ...f, enable_qr_scan: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                      <span className="text-sm text-gray-700">QR Scan</span>
+                      <input type="checkbox" checked={createForm.enable_qr_scan} onChange={(e) => setCreateForm(f => ({ ...f, enable_qr_scan: e.target.checked }))} className="rounded border-line-strong text-mark-indigo-600 focus:ring-edge-indigo-500" />
+                      <span className="text-sm text-fg-body">QR Scan</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={createForm.enable_manual_marking} onChange={(e) => setCreateForm(f => ({ ...f, enable_manual_marking: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                      <span className="text-sm text-gray-700">Manual</span>
+                      <input type="checkbox" checked={createForm.enable_manual_marking} onChange={(e) => setCreateForm(f => ({ ...f, enable_manual_marking: e.target.checked }))} className="rounded border-line-strong text-mark-indigo-600 focus:ring-edge-indigo-500" />
+                      <span className="text-sm text-fg-body">Manual</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={createForm.enable_biometric} onChange={(e) => setCreateForm(f => ({ ...f, enable_biometric: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                      <span className="text-sm text-gray-700">Biometric</span>
+                      <input type="checkbox" checked={createForm.enable_biometric} onChange={(e) => setCreateForm(f => ({ ...f, enable_biometric: e.target.checked }))} className="rounded border-line-strong text-mark-indigo-600 focus:ring-edge-indigo-500" />
+                      <span className="text-sm text-fg-body">Biometric</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={createForm.require_location} onChange={(e) => setCreateForm(f => ({ ...f, require_location: e.target.checked }))} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                      <span className="text-sm text-gray-700">Location</span>
+                      <input type="checkbox" checked={createForm.require_location} onChange={(e) => setCreateForm(f => ({ ...f, require_location: e.target.checked }))} className="rounded border-line-strong text-mark-indigo-600 focus:ring-edge-indigo-500" />
+                      <span className="text-sm text-fg-body">Location</span>
                     </label>
                   </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={createLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{createLoading ? 'Creating...' : 'Create session'}</button>
+                <button type="button" onClick={() => { setShowCreateModal(false); resetCreateForm() }} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                <button type="submit" disabled={createLoading} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{createLoading ? 'Creating...' : 'Create session'}</button>
               </div>
             </form>
           </div>
@@ -643,50 +641,50 @@ export default function AttendanceSessions() {
       {showQRModal && selectedSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowQRModal(false); if (qrRefreshTimer) clearInterval(qrRefreshTimer) }} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6 text-center">
               <h2 className="text-xl font-semibold mb-2">{selectedSession.title}</h2>
-              <p className="text-sm text-gray-600 mb-4">Scan this QR code to mark attendance</p>
+              <p className="text-sm text-fg-muted mb-4">Scan this QR code to mark attendance</p>
 
               {qrData ? (
                 <div className="space-y-4">
                   {/* Scannable QR Code Display */}
-                  <div className="bg-gray-100 p-6 rounded-lg">
-                    <div className="bg-white p-4 rounded-lg shadow-inner flex flex-col items-center">
+                  <div className="bg-surface-2 p-6 rounded-lg">
+                    <div className="bg-surface p-4 rounded-lg shadow-inner flex flex-col items-center">
                       <QRCodeDisplay sessionId={selectedSession.session_id} token={qrData.qr_token} size={200} />
-                      <p className="mt-3 font-mono text-sm text-gray-500">Token: {qrData.qr_token}</p>
+                      <p className="mt-3 font-mono text-sm text-fg-soft">Token: {qrData.qr_token}</p>
                     </div>
                   </div>
 
                   {/* Timer */}
                   <div className="flex items-center justify-center gap-2 text-sm">
-                    <RefreshCw className={`w-4 h-4 ${qrExpiresIn <= 5 ? 'text-red-500 animate-spin' : 'text-gray-500'}`} />
-                    <span className={qrExpiresIn <= 5 ? 'text-red-500 font-medium' : 'text-gray-600'}>
+                    <RefreshCw className={`w-4 h-4 ${qrExpiresIn <= 5 ? 'text-mark-red-500 animate-spin' : 'text-fg-soft'}`} />
+                    <span className={qrExpiresIn <= 5 ? 'text-mark-red-500 font-medium' : 'text-fg-muted'}>
                       Refreshes in {qrExpiresIn}s
                     </span>
                   </div>
 
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-fg-soft">
                     Session ID: {selectedSession.session_id}
                   </div>
                 </div>
               ) : (
                 <div className="py-8">
-                  <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+                  <div className="animate-spin w-8 h-8 border-4 border-edge-indigo-600 border-t-transparent rounded-full mx-auto"></div>
                 </div>
               )}
 
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={() => { setShowQRModal(false); if (qrRefreshTimer) clearInterval(qrRefreshTimer) }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-canvas transition"
                 >
                   Close
                 </button>
                 {selectedSession.status === 'active' && (
                   <button
                     onClick={() => setConfirmModal({ open: true, action: 'end', session: selectedSession })}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                    className="flex-1 px-4 py-2 bg-fill-red-600 text-white rounded-lg hover:bg-fill-red-700 transition"
                   >
                     End Session
                   </button>
@@ -701,23 +699,23 @@ export default function AttendanceSessions() {
       {showStatsModal && selectedSession && sessionStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowStatsModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg">
+          <div className="relative bg-surface rounded-xl shadow-xl w-full max-w-lg">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Session Statistics</h2>
-                <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-surface-2 rounded-lg">
                   <XCircle className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600">Total Students</div>
+                  <div className="bg-canvas rounded-lg p-4">
+                    <div className="text-sm text-fg-muted">Total Students</div>
                     <div className="text-2xl font-bold">{sessionStats.total_students || 0}</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600">Attendance Rate</div>
+                  <div className="bg-canvas rounded-lg p-4">
+                    <div className="text-sm text-fg-muted">Attendance Rate</div>
                     <div className="text-2xl font-bold">{sessionStats.attendance_rate || 0}%</div>
                   </div>
                 </div>
@@ -754,19 +752,19 @@ export default function AttendanceSessions() {
                   <h3 className="font-medium">By Method</h3>
                   <div className="flex items-center justify-between">
                     <span>QR Scan</span>
-                    <span className="text-gray-600">{sessionStats.qr_scan_count || 0}</span>
+                    <span className="text-fg-muted">{sessionStats.qr_scan_count || 0}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Manual</span>
-                    <span className="text-gray-600">{sessionStats.manual_count || 0}</span>
+                    <span className="text-fg-muted">{sessionStats.manual_count || 0}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Biometric</span>
-                    <span className="text-gray-600">{sessionStats.biometric_count || 0}</span>
+                    <span className="text-fg-muted">{sessionStats.biometric_count || 0}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Admin</span>
-                    <span className="text-gray-600">{sessionStats.admin_count || 0}</span>
+                    <span className="text-fg-muted">{sessionStats.admin_count || 0}</span>
                   </div>
                 </div>
               </div>
@@ -802,20 +800,20 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
   const [showMenu, setShowMenu] = useState(false)
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition">
+    <div className="bg-surface rounded-lg shadow-sm p-4 hover:shadow-md transition">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <h3 className="font-semibold text-gray-900">{session.title}</h3>
+            <h3 className="font-semibold text-fg">{session.title}</h3>
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[session.status]}`}>
               {session.status}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-surface-2 text-fg-body capitalize">
               {session.session_type}
             </span>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-fg-muted">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
               <span>{formatDateTime(session.scheduled_start)}</span>
@@ -829,23 +827,23 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               <span>{session.class_name || 'Class'}</span>
             </div>
             {session.subject_name && (
-              <div className="text-gray-500">| {session.subject_name}</div>
+              <div className="text-fg-soft">| {session.subject_name}</div>
             )}
           </div>
 
           {/* Marking methods indicators */}
           <div className="mt-2 flex gap-2">
             {session.enable_qr_scan && (
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs">QR</span>
+              <span className="px-2 py-0.5 bg-fill-indigo-50 text-mark-indigo-700 rounded text-xs">QR</span>
             )}
             {session.enable_manual_marking && (
-              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">Manual</span>
+              <span className="px-2 py-0.5 bg-fill-green-50 text-mark-green-700 rounded text-xs">Manual</span>
             )}
             {session.enable_biometric && (
-              <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">Biometric</span>
+              <span className="px-2 py-0.5 bg-fill-purple-50 text-mark-purple-700 rounded text-xs">Biometric</span>
             )}
             {session.require_location && (
-              <span className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded text-xs flex items-center gap-1">
+              <span className="px-2 py-0.5 bg-fill-orange-50 text-mark-orange-700 rounded text-xs flex items-center gap-1">
                 <MapPin className="w-3 h-3" /> Location
               </span>
             )}
@@ -857,7 +855,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
           {session.status === 'scheduled' && (
             <button
               onClick={onStart}
-              className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+              className="flex items-center gap-1 px-3 py-1.5 bg-fill-green-600 text-white rounded-lg hover:bg-fill-green-700 transition text-sm"
             >
               <Play className="w-4 h-4" />
               Start
@@ -869,7 +867,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               {session.enable_manual_marking && (
                 <button
                   onClick={onShowAttendance}
-                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-fill-emerald-600 text-white rounded-lg hover:bg-fill-emerald-700 transition text-sm"
                 >
                   <UserCheck className="w-4 h-4" />
                   <span className="hidden sm:inline">Mark</span>
@@ -878,7 +876,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               {session.enable_biometric && (
                 <button
                   onClick={onBiometricRecords}
-                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-fill-purple-600 text-white rounded-lg hover:bg-fill-purple-700 transition text-sm"
                 >
                   <Fingerprint className="w-4 h-4" />
                   <span className="hidden sm:inline">Biometrics</span>
@@ -886,14 +884,14 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
               )}
               <button
                 onClick={onShowQR}
-                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition text-sm"
               >
                 <QrCode className="w-4 h-4" />
                 <span className="hidden sm:inline">QR</span>
               </button>
               <button
                 onClick={onEnd}
-                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-fill-red-600 text-white rounded-lg hover:bg-fill-red-700 transition text-sm"
               >
                 <Square className="w-4 h-4" />
                 <span className="hidden sm:inline">End</span>
@@ -904,19 +902,19 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              className="p-2 hover:bg-surface-2 rounded-lg transition"
             >
-              <MoreVertical className="w-5 h-5 text-gray-500" />
+              <MoreVertical className="w-5 h-5 text-fg-soft" />
             </button>
 
             {showMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20">
+                <div className="absolute right-0 top-full mt-1 w-48 bg-surface rounded-lg shadow-lg border z-20">
                   {session.status !== 'scheduled' && (
                     <button
                       onClick={() => { onShowAttendance(); setShowMenu(false) }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-canvas flex items-center gap-2"
                     >
                       <Users className="w-4 h-4" />
                       Attendance Report
@@ -925,7 +923,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
                   {session.status !== 'scheduled' && (
                     <button
                       onClick={() => { onShowStats(); setShowMenu(false) }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-canvas flex items-center gap-2"
                     >
                       <Eye className="w-4 h-4" />
                       Statistics
@@ -934,7 +932,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
                   {session.status !== 'scheduled' && (
                     <button
                       onClick={() => { onExport(); setShowMenu(false) }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-canvas flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
                       Export CSV
@@ -943,7 +941,7 @@ function SessionCard({ session, onStart, onEnd, onShowQR, onShowAttendance, onSh
                   {session.status !== 'completed' && (
                     <button
                       onClick={() => { onDelete(); setShowMenu(false) }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-canvas text-mark-red-600 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Delete

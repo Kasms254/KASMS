@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 import * as LucideIcons from "lucide-react"
 import { useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
+import SchemeToggle from './SchemeToggle'
 import api from '../lib/api'
 import {
   fetchMyClassNotices,
@@ -285,8 +286,8 @@ export default function NavBar({
   return (
     <div className="
       flex items-center justify-between px-4 py-3
-      bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:backdrop-blur-xl
-      border-b border-neutral-200 shadow-sm
+      bg-surface/70 backdrop-blur-xl supports-[backdrop-filter]:backdrop-blur-xl
+      border-b border-line shadow-sm
     ">
       {/* LEFT SIDE */}
       <div className="flex items-center gap-3">
@@ -296,7 +297,7 @@ export default function NavBar({
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="
             p-2 rounded-md
-            text-neutral-600 hover:bg-neutral-100
+            text-fg-muted hover:bg-surface-2
             lg:hidden transition
           "
         >
@@ -306,18 +307,21 @@ export default function NavBar({
 
       {/* RIGHT SIDE */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Light / dark / system */}
+        <SchemeToggle />
+
         {/* Messages */}
         <button
           className="
             relative p-2 rounded-full 
-            text-neutral-600 bg-white/80 backdrop-blur 
-            border border-neutral-200 shadow-sm
-            hover:bg-neutral-100 transition
+            text-fg-muted bg-surface/80 backdrop-blur 
+            border border-line shadow-sm
+            hover:bg-surface-2 transition
           "
           aria-label="Messages"
         >
           <LucideIcons.MessageCircle className="w-5 h-5" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-fill-rose-500 rounded-full" />
         </button>
 
         {/* Notifications */}
@@ -325,9 +329,9 @@ export default function NavBar({
         <button
           className="
             relative p-2 rounded-full 
-            text-neutral-600 bg-white/80 backdrop-blur 
-            border border-neutral-200 shadow-sm
-            hover:bg-neutral-100 transition
+            text-fg-muted bg-surface/80 backdrop-blur 
+            border border-line shadow-sm
+            hover:bg-surface-2 transition
           "
           aria-label="Notifications"
           onClick={async () => {
@@ -342,7 +346,7 @@ export default function NavBar({
           <span className="
             absolute -top-1 -right-1 w-4 h-4 
             flex items-center justify-center 
-            bg-indigo-600 text-white text-[10px] 
+            bg-fill-indigo-600 text-white text-[10px] 
             rounded-full
           ">
             {unreadCount || 0}
@@ -350,22 +354,22 @@ export default function NavBar({
         </button>
         {/* Notifications dropdown */}
         {notifOpen && (
-          <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-neutral-200 rounded-xl shadow-lg py-2 z-50">
-            <div className="px-3 py-2 text-sm font-medium text-neutral-700 border-b border-neutral-100 flex items-center justify-between">
+          <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface border border-line rounded-xl shadow-lg py-2 z-50">
+            <div className="px-3 py-2 text-sm font-medium text-fg-body border-b border-hair flex items-center justify-between">
               <span>Notifications</span>
               {unreadCount > 0 && (
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{unreadCount} unread</span>
+                <span className="text-xs bg-fill-indigo-100 text-mark-indigo-700 px-2 py-0.5 rounded-full">{unreadCount} unread</span>
               )}
             </div>
             <div className="max-h-64 overflow-auto">
-                {notifsLoading && <div className="p-3 text-sm text-neutral-500">Loading…</div>}
-                {!notifsLoading && notifs.filter(n => !n.read).length === 0 && <div className="p-3 text-sm text-neutral-500">No notifications</div>}
+                {notifsLoading && <div className="p-3 text-sm text-fg-soft">Loading…</div>}
+                {!notifsLoading && notifs.filter(n => !n.read).length === 0 && <div className="p-3 text-sm text-fg-soft">No notifications</div>}
                 {!notifsLoading && notifs.filter(n => !n.read).map(n => {
                   const unread = !n.read
                   return (
                     <button
                       key={n.id}
-                      className={`w-full text-left px-3 py-2 hover:bg-neutral-50 text-sm ${unread ? 'bg-indigo-50/50' : ''}`}
+                      className={`w-full text-left px-3 py-2 hover:bg-canvas text-sm ${unread ? 'bg-fill-indigo-50/50' : ''}`}
                       onClick={async () => {
                         // Close dropdown
                         setNotifOpen(false)
@@ -404,11 +408,11 @@ export default function NavBar({
                       }}
                     >
                       <div className="flex items-start gap-2">
-                        {unread && <span className="w-2 h-2 mt-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                        {unread && <span className="w-2 h-2 mt-1.5 rounded-full bg-fill-indigo-500 shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <div className={`font-medium ${unread ? 'text-black' : 'text-neutral-500'}`}>{n.title}</div>
-                          <div className={`text-xs truncate ${unread ? 'text-neutral-700' : 'text-neutral-500'}`}>{n.content}</div>
-                          <div className={`text-[11px] mt-1 ${unread ? 'text-neutral-600' : 'text-neutral-400'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                          <div className={`font-medium ${unread ? 'text-fg' : 'text-fg-soft'}`}>{n.title}</div>
+                          <div className={`text-xs truncate ${unread ? 'text-fg-body' : 'text-fg-soft'}`}>{n.content}</div>
+                          <div className={`text-[11px] mt-1 ${unread ? 'text-fg-muted' : 'text-fg-faint'}`}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
                         </div>
                       </div>
                     </button>
@@ -417,7 +421,7 @@ export default function NavBar({
             </div>
             {/* Mark all as read button */}
             {unreadCount > 0 && (
-              <div className="px-3 py-2 border-t border-neutral-100">
+              <div className="px-3 py-2 border-t border-hair">
                 <button
                   onClick={async () => {
                     // Mark all as read locally
@@ -460,7 +464,7 @@ export default function NavBar({
                       // Ignore dispatch errors
                     }
                   }}
-                  className="w-full text-center text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1"
+                  className="w-full text-center text-xs text-mark-indigo-600 hover:text-mark-indigo-800 font-medium py-1"
                 >
                   Mark all as read
                 </button>
@@ -480,15 +484,15 @@ export default function NavBar({
             }}
             className="
               flex items-center gap-3 rounded-full px-2 py-1
-              bg-white/80 backdrop-blur border border-neutral-200 shadow-sm
-              hover:bg-neutral-100 transition
+              bg-surface/80 backdrop-blur border border-line shadow-sm
+              hover:bg-surface-2 transition
             "
             aria-haspopup="true"
             aria-expanded={menuOpen}
           >
             <div className="
               w-8 h-8 rounded-full 
-              bg-gradient-to-br from-indigo-500 to-pink-500 
+              bg-gradient-to-br from-fill-indigo-500 to-fill-pink-500 
               flex items-center justify-center 
               text-white font-semibold
             ">
@@ -496,13 +500,13 @@ export default function NavBar({
             </div>
 
             <div className="hidden sm:flex flex-col text-left">
-              <span className="text-sm font-medium text-neutral-800 leading-4">
+              <span className="text-sm font-medium text-fg leading-4">
                 {displayName || 'Guest'}
               </span>
-              <span className="text-xs text-neutral-500">{user?.role || 'visitor'}</span>
+              <span className="text-xs text-fg-soft">{user?.role || 'visitor'}</span>
             </div>
 
-            <LucideIcons.ChevronDown className="w-4 h-4 text-neutral-500 hidden sm:block" />
+            <LucideIcons.ChevronDown className="w-4 h-4 text-fg-soft hidden sm:block" />
           </button>
 
           {/* Dropdown */}
@@ -510,10 +514,10 @@ export default function NavBar({
             <div
               className="
                 absolute right-0 mt-2 w-44 max-w-[calc(100vw-2rem)]
-                bg-white border border-neutral-200
+                bg-surface border border-line
                 rounded-xl shadow-lg overflow-hidden
                 py-1 animate-in fade-in
-                text-neutral-700
+                text-fg-body
               "
               role="menu"
             >
@@ -525,20 +529,20 @@ export default function NavBar({
                       setMenuOpen(false)
                       navigate('/profile')
                     }}
-                    className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-surface-2 text-sm"
                   >
                     Profile
                   </button>
                   <button
                     role="menuitem"
-                    className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-surface-2 text-sm"
                   >
                     Settings
                   </button>
                 </>
               )}
 
-              <div className="border-t border-neutral-200" />
+              <div className="border-t border-line" />
 
               {user ? (
                 <button
@@ -547,12 +551,12 @@ export default function NavBar({
                     setMenuOpen(false)
                     setLogoutModalOpen(true)
                   }}
-                  className="w-full text-left px-4 py-2 hover:bg-neutral-100 text-sm"
+                  className="w-full text-left px-4 py-2 hover:bg-surface-2 text-sm"
                 >
                   Logout
                 </button>
               ) : (
-                <div className="px-4 py-2 text-sm text-neutral-500">Not signed in</div>
+                <div className="px-4 py-2 text-sm text-fg-soft">Not signed in</div>
               )}
             </div>
           )}
@@ -564,18 +568,18 @@ export default function NavBar({
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setLogoutModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                  <LucideIcons.LogOut className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center">
+                  <LucideIcons.LogOut className="w-5 h-5 text-mark-red-600" />
                 </div>
-                <h4 className="text-lg font-semibold text-black">Confirm Logout</h4>
+                <h4 className="text-lg font-semibold text-fg">Confirm Logout</h4>
               </div>
-              <p className="text-sm text-neutral-600 mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
+              <p className="text-sm text-fg-muted mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setLogoutModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                  className="px-4 py-2 rounded-lg text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition"
                 >
                   Cancel
                 </button>
@@ -585,7 +589,7 @@ export default function NavBar({
                     await auth.logout()
                     navigate('/', { replace: true })
                   }}
-                  className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                  className="px-4 py-2 rounded-lg text-sm bg-fill-red-600 text-white hover:bg-fill-red-700 transition"
                 >
                   Logout
                 </button>

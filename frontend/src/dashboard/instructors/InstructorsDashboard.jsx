@@ -141,7 +141,7 @@ export default function InstructorsDashboard() {
           // Note: Class creation events are intentionally excluded from calendar
           // to avoid cluttering the events view with administrative actions
           if (mounted) setCalendarEvents(ev)
-        } catch (err) {
+        } catch {
           // ignore calendar load errors; don't block dashboard
         }
       }
@@ -152,13 +152,13 @@ export default function InstructorsDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Instructors Dashboard</h2>
-        <p className="text-sm text-gray-500">Your Classes and Recent Activity</p>
+        <h2 className="text-2xl font-semibold text-fg">Instructors Dashboard</h2>
+        <p className="text-sm text-fg-soft">Your Classes and Recent Activity</p>
       </header>
 
       {/* Cards grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-  <Card title="My Classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-emerald-500" colored={true} />
+  <Card title="My Classes" value={loading ? '…' : (classes ? String(classes.length) : '0')} icon="Layers" badge={null} accent="bg-fill-emerald-500" colored={true} />
   <div
     role="button"
     tabIndex={0}
@@ -166,10 +166,10 @@ export default function InstructorsDashboard() {
     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/dashboard/instructors/subjects') }}
     className="focus:outline-none"
   >
-    <Card title="Subjects" value={loading ? '…' : String(subjectsCount ?? 0)} icon="Book" badge={null} accent="bg-sky-500" colored={true} />
+    <Card title="Subjects" value={loading ? '…' : String(subjectsCount ?? 0)} icon="Book" badge={null} accent="bg-fill-sky-500" colored={true} />
   </div>
-  <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-indigo-500" colored={true} />
-        <Card title="Attendance Today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-pink-500" colored={true} />
+  <Card title="Students" value={loading ? '…' : String(uniqueStudentsCount)} icon="Users" badge={null} accent="bg-fill-indigo-500" colored={true} />
+        <Card title="Attendance Today" value={loading ? '…' : String(attendanceToday ?? 0)} icon="Calendar" badge={null} accent="bg-fill-pink-500" colored={true} />
       </section>
 
       <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -177,11 +177,11 @@ export default function InstructorsDashboard() {
           <Calendar events={calendarEvents} />
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-lg font-medium mb-3 text-black">Upcoming Assignments & Events</h3>
+        <div className="bg-surface rounded-xl p-4 border border-line">
+          <h3 className="text-lg font-medium mb-3 text-fg">Upcoming Assignments & Events</h3>
           {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
-          {loading && <div className="p-2 text-sm text-neutral-500">Loading…</div>}
-          {error && <div className="p-2 text-sm text-red-600">Failed to load: {error.message || String(error)}</div>}
+          {loading && <div className="p-2 text-sm text-fg-soft">Loading…</div>}
+          {error && <div className="p-2 text-sm text-mark-red-600">Failed to load: {error.message || String(error)}</div>}
           {(() => {
             const items = []
             Object.keys(calendarEvents || {}).forEach(iso => {
@@ -220,26 +220,26 @@ export default function InstructorsDashboard() {
             return (
               <ul className="divide-y">
                 {list.length === 0 && (
-                  <li className="py-2 text-sm text-neutral-500">No Upcoming Events</li>
+                  <li className="py-2 text-sm text-fg-soft">No Upcoming Events</li>
                 )}
                 {list.map((it, idx) => (
                   <li key={`${it.date}-${idx}`} className="py-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-black truncate">
+                        <div className="text-sm font-medium text-fg truncate">
                           {it.title || it.name || (it.kind === 'notice' ? 'Notice' : 'Event')}
                         </div>
-                        <div className="text-xs text-neutral-500 mt-1">
+                        <div className="text-xs text-fg-soft mt-1">
                           {it.subject ? `${it.subject}${it.className ? ` · ${it.className}` : ''}` : (it.className || '')}
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
-                        <div className="text-sm text-neutral-600">{fmt(it.date)}</div>
+                        <div className="text-sm text-fg-muted">{fmt(it.date)}</div>
                         <div className="mt-1">
                           {it.url ? (
-                            <a className="text-xs text-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
+                            <a className="text-xs text-mark-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
                           ) : it.kind === 'notice' ? (
-                            <span className="text-xs text-amber-700">Notice</span>
+                            <span className="text-xs text-mark-amber-700">Notice</span>
                           ) : null}
                         </div>
                       </div>

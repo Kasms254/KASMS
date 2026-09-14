@@ -62,22 +62,22 @@ export default function CommandantCourses() {
     <div className="p-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-black">Courses</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Course analytics for Commandant — Active class counts and overview.</p>
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">Courses</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">Course analytics for Commandant — Active class counts and overview.</p>
         </div>
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-3 text-sm text-neutral-600">
+        <div className="mb-3 text-sm text-fg-muted">
           Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} of {totalCount} courses
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loading ? (
-          <div className="text-sm text-neutral-500">Loading...</div>
+          <div className="text-sm text-fg-soft">Loading...</div>
         ) : courses.length === 0 ? (
-          <div className="text-sm text-neutral-400">No Courses Found</div>
+          <div className="text-sm text-fg-faint">No Courses Found</div>
         ) : (
           courses.map((course) => (
             <div key={course.id} className="cursor-pointer" onClick={() => openCourse(course)}>
@@ -86,13 +86,13 @@ export default function CommandantCourses() {
                 value={course.name}
                 badge={`${course.active_classes ?? 0} Active • ${course.total_classes ?? course.classes_count ?? 0} Classes`}
                 icon="BookOpen"
-                accent="bg-indigo-600"
+                accent="bg-fill-indigo-600"
                 colored
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="line-clamp-2 text-xs text-neutral-500 flex-1 min-w-0" title={course.description}>{course.description}</div>
+                  <div className="line-clamp-2 text-xs text-fg-soft flex-1 min-w-0" title={course.description}>{course.description}</div>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={(e) => { e.stopPropagation(); openCourse(course) }} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition">Open</button>
+                    <button onClick={(e) => { e.stopPropagation(); openCourse(course) }} className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-xs hover:bg-fill-indigo-700 transition">Open</button>
                   </div>
                 </div>
               </Card>
@@ -103,12 +103,12 @@ export default function CommandantCourses() {
 
       {totalPages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</div>
+          <div className="text-sm text-fg-muted">Page {currentPage} of {totalPages}</div>
           <div className="flex gap-2">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
           </div>
         </div>
       )}

@@ -30,7 +30,8 @@ export default function StudentsDashboard() {
   const [calendarEvents, setCalendarEvents] = useState({})
   // tick used to re-render the component periodically so "upcoming" windows
   // update when the date changes without needing a backend update.
-  const [nowTick, setNowTick] = useState(0)
+  // Value is intentionally unused — the tick only exists to force a re-render.
+  const [, setNowTick] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -228,7 +229,7 @@ export default function StudentsDashboard() {
                 else if (s._id) subjectIds.add(s._id)
               })
             })
-          } catch (err) {
+          } catch {
             // ignore subject lookup errors; continue with whatever we have
           }
         }
@@ -296,7 +297,7 @@ export default function StudentsDashboard() {
         })
 
         if (mounted) setCalendarEvents(ev)
-      } catch (err) {
+      } catch { // non-fatal: calendar just stays empty
       }
     }
 
@@ -319,8 +320,8 @@ export default function StudentsDashboard() {
   return (
     <div>
       <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold text-black">Students Dashboard</h2>
-        <p className="text-sm text-gray-500">Your Classes, Assignments and Progress</p>
+        <h2 className="text-2xl font-semibold text-fg">Students Dashboard</h2>
+        <p className="text-sm text-fg-soft">Your Classes, Assignments and Progress</p>
       </header>
 
       {/* Top cards */}
@@ -330,7 +331,7 @@ export default function StudentsDashboard() {
           value={loadingMetrics ? '…' : `${dashboardStats?.total_classes ?? classesCount ?? 0} `}
           icon="BookOpen"
           badge={null}
-          accent="bg-indigo-500"
+          accent="bg-fill-indigo-500"
           colored={true}
         >
           <div className="text-xs">Subjects: {dashboardStats?.total_subjects ?? '—'}</div>
@@ -357,22 +358,22 @@ export default function StudentsDashboard() {
           accent={(() => {
             const pct = dashboardStats?.average_grade ?? (gpa != null ? Number(gpa) : null)
             const letter = gradeFromPct(pct)
-            if (!letter) return 'bg-amber-500'
-            if (letter === 'A' || letter === 'A-') return 'bg-emerald-500'
-            if (letter.startsWith('B')) return 'bg-amber-500'
-            if (letter.startsWith('C')) return 'bg-sky-500'
-            return 'bg-rose-500'
+            if (!letter) return 'bg-fill-amber-500'
+            if (letter === 'A' || letter === 'A-') return 'bg-fill-emerald-500'
+            if (letter.startsWith('B')) return 'bg-fill-amber-500'
+            if (letter.startsWith('C')) return 'bg-fill-sky-500'
+            return 'bg-fill-rose-500'
           })()}
           colored={true}
         >
-          <div className="mt-2 text-xs text-black">
+          <div className="mt-2 text-xs text-fg">
             {(() => {
-              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Avg: …</span>
+              if (loadingMetrics) return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-fg font-medium">Avg: …</span>
               const avgNum = dashboardStats?.average_grade != null ? Number(dashboardStats.average_grade) : (gpa != null ? Number(gpa) : null)
               if (avgNum != null && !Number.isNaN(avgNum)) {
-                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">Avg: {avgNum.toFixed(1)}%</span>
+                return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-fg font-medium">Avg: {avgNum.toFixed(1)}%</span>
               }
-              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-black font-medium">No Results Yet</span>
+              return <span className="inline-block px-2 py-0.5 rounded-md bg-black/5 text-fg font-medium">No Results Yet</span>
             })()}
           </div>
         </Card>
@@ -382,7 +383,7 @@ export default function StudentsDashboard() {
           value={loadingMetrics ? '…' : `${dashboardStats?.pending_exams ?? '—'}`}
           icon="Clock"
           badge={null}
-          accent="bg-sky-500"
+          accent="bg-fill-sky-500"
           colored={true}
         >
           <div className="text-xs">Exams Scheduled: {dashboardStats?.pending_exams ?? '—'}</div>
@@ -393,7 +394,7 @@ export default function StudentsDashboard() {
           value={loadingMetrics ? '…' : (dashboardStats?.attendance_rate != null ? `${dashboardStats.attendance_rate}%` : '—')}
           icon="UserCheck"
           badge={null}
-          accent="bg-pink-500"
+          accent="bg-fill-pink-500"
           colored={true}
         >
           <div className="text-xs">Present: {dashboardStats?.present_days ?? '—'}</div>
@@ -406,8 +407,8 @@ export default function StudentsDashboard() {
           <Calendar events={calendarEvents} />
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-neutral-200">
-          <h3 className="text-lg font-medium mb-3 text-black">Upcoming Assignments & Events</h3>
+        <div className="bg-surface rounded-xl p-4 border border-line">
+          <h3 className="text-lg font-medium mb-3 text-fg">Upcoming Assignments & Events</h3>
           {/* Build a flattened list of events from calendarEvents and sort by date (latest first) */}
           {(() => {
             const items = []
@@ -450,26 +451,26 @@ export default function StudentsDashboard() {
             return (
               <ul className="divide-y">
                 {list.length === 0 && (
-                  <li className="py-2 text-sm text-neutral-500">No Upcoming Events</li>
+                  <li className="py-2 text-sm text-fg-soft">No Upcoming Events</li>
                 )}
                 {list.map((it, idx) => (
                   <li key={`${it.date}-${idx}`} className="py-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-black truncate">
+                        <div className="text-sm font-medium text-fg truncate">
                           {it.title || it.name || (it.kind === 'notice' ? 'Notice' : 'Event')}
                         </div>
-                        <div className="text-xs text-neutral-500 mt-1">
+                        <div className="text-xs text-fg-soft mt-1">
                           {it.subject ? `${it.subject}${it.className ? ` · ${it.className}` : ''}` : (it.className || '')}
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
-                        <div className="text-sm text-neutral-600">{fmt(it.date)}</div>
+                        <div className="text-sm text-fg-muted">{fmt(it.date)}</div>
                         <div className="mt-1">
                           {it.url ? (
-                            <a className="text-xs text-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
+                            <a className="text-xs text-mark-indigo-600 hover:underline" href={it.url} target="_blank" rel="noopener noreferrer">View</a>
                           ) : it.kind === 'notice' ? (
-                            <span className="text-xs text-amber-700">Notice</span>
+                            <span className="text-xs text-mark-amber-700">Notice</span>
                           ) : null}
                         </div>
                       </div>

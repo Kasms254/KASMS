@@ -652,15 +652,15 @@ export default function AddResults() {
   }, [hasChanges])
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 text-black w-full">
+    <div className="p-3 sm:p-4 md:p-6 text-fg w-full">
       <header className="mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-2">Grade Results</h2>
-        <p className="text-xs sm:text-sm md:text-base text-gray-600">Enter marks for your students.</p>
+        <p className="text-xs sm:text-sm md:text-base text-fg-muted">Enter marks for your students.</p>
       </header>
 
       {/* Exam Selection — single selector for all exams */}
-      <div className="mb-4 sm:mb-6 bg-white rounded-lg shadow p-3 sm:p-4">
-        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
+      <div className="mb-4 sm:mb-6 bg-surface rounded-lg shadow p-3 sm:p-4">
+        <label className="block text-xs sm:text-sm font-medium text-fg-body mb-2">Select Exam</label>
         <select
           value={selectedExam}
           onChange={e => {
@@ -668,7 +668,7 @@ export default function AddResults() {
             setSearchTerm('')
             setSortConfig({ key: null, direction: 'asc' })
           }}
-          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-line-strong focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent"
         >
           <option value="">-- Select an exam --</option>
           {exams.map(ex => (
@@ -685,20 +685,20 @@ export default function AddResults() {
         <div>
           {componentLoading && (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <p className="mt-2 text-gray-600">Loading...</p>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600"></div>
+              <p className="mt-2 text-fg-muted">Loading...</p>
             </div>
           )}
 
           {!componentLoading && activeComponentId && componentStudents.length === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
+            <div className="bg-fill-yellow-50 border border-edge-yellow-200 rounded-lg p-4 sm:p-6">
               <div className="flex items-start gap-2 sm:gap-3">
-                <svg className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 sm:h-6 sm:w-6 text-mark-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <div className="flex-1">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900">No students found</h3>
-                  <p className="mt-1 text-xs sm:text-sm text-gray-700">No students are enrolled in this subject's class.</p>
+                  <h3 className="text-base sm:text-lg font-medium text-fg">No students found</h3>
+                  <p className="mt-1 text-xs sm:text-sm text-fg-body">No students are enrolled in this subject's class.</p>
                 </div>
               </div>
             </div>
@@ -742,35 +742,35 @@ export default function AddResults() {
             const compTotalPages = Math.ceil(filteredComp.length / componentItemsPerPage)
             const paginatedComp = filteredComp.slice((componentPage - 1) * componentItemsPerPage, componentPage * componentItemsPerPage)
             return (
-            <div className="bg-white rounded-lg shadow-lg">
+            <div className="bg-surface rounded-lg shadow-lg">
               {/* Info Cards — same layout as legacy */}
-              <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
+              <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-fill-indigo-50 to-fill-blue-50">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Component</div>
-                    <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate" title={componentInfo.name}>{componentInfo.name}</div>
+                  <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Component</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-fg truncate" title={componentInfo.name}>{componentInfo.name}</div>
                   </div>
-                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
-                    <div className="text-sm sm:text-base md:text-lg font-semibold text-indigo-600">{componentInfo.total_marks ?? '—'}</div>
+                  <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Total Marks</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-mark-indigo-600">{componentInfo.total_marks ?? '—'}</div>
                   </div>
-                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Students</div>
-                    <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">{componentStudents.length}</div>
+                  <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Students</div>
+                    <div className="text-sm sm:text-base md:text-lg font-semibold text-fg">{componentStudents.length}</div>
                   </div>
-                  <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                    <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Progress</div>
+                  <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                    <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Progress</div>
                     <div className="text-sm sm:text-base md:text-lg font-semibold">
-                      <span className="text-green-600">{compGraded}</span>
-                      <span className="text-gray-400 mx-1">/</span>
-                      <span className="text-orange-600">{compPending}</span>
+                      <span className="text-mark-green-600">{compGraded}</span>
+                      <span className="text-fg-faint mx-1">/</span>
+                      <span className="text-mark-orange-600">{compPending}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Search + Controls — same layout as legacy */}
-              <div className="p-3 sm:p-4 border-b bg-gray-50">
+              <div className="p-3 sm:p-4 border-b bg-canvas">
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
@@ -779,15 +779,15 @@ export default function AddResults() {
                         placeholder="Search by name or index..."
                         value={componentSearchTerm}
                         onChange={e => { setComponentSearchTerm(e.target.value); setComponentPage(1) }}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-3 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent"
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</label>
+                      <label className="text-xs sm:text-sm text-fg-body whitespace-nowrap">Per page:</label>
                       <select
                         value={componentItemsPerPage}
                         onChange={e => { setComponentItemsPerPage(Number(e.target.value)); setComponentPage(1) }}
-                        className="px-2 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="px-2 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent"
                       >
                         <option value={10}>10</option>
                         <option value={25}>25</option>
@@ -799,7 +799,7 @@ export default function AddResults() {
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => loadComponentStudents(activeComponentId, componentInfo, null)}
-                      className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
+                      className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-surface border border-line-strong rounded-lg hover:bg-canvas transition whitespace-nowrap"
                     >
                       Refresh
                     </button>
@@ -810,59 +810,59 @@ export default function AddResults() {
               {/* Desktop Table — same structure as legacy */}
               <div className="hidden md:block overflow-x-auto">
                 <div className="inline-block min-w-full align-middle">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
+                  <table className="min-w-full divide-y divide-line">
+                    <thead className="bg-surface-2">
                       <tr>
                         <th
                           onClick={() => handleComponentSort('class_index')}
-                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                         >
                           <div className="flex items-center gap-1">
                             Index
-                            <span className={componentSortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                            <span className={componentSortConfig.key === 'class_index' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                               {componentSortConfig.key === 'class_index' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                             </span>
                           </div>
                         </th>
                         <th
                           onClick={() => handleComponentSort('marks_obtained')}
-                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                         >
                           <div className="flex items-center gap-1">
                             Marks (/{componentInfo.total_marks})
-                            <span className={componentSortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                            <span className={componentSortConfig.key === 'marks_obtained' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                               {componentSortConfig.key === 'marks_obtained' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                             </span>
                           </div>
                         </th>
                         <th
                           onClick={() => handleComponentSort('percentage')}
-                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                         >
                           <div className="flex items-center gap-1">
                             Percentage
-                            <span className={componentSortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                            <span className={componentSortConfig.key === 'percentage' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                               {componentSortConfig.key === 'percentage' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                             </span>
                           </div>
                         </th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Grade</th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider">Grade</th>
                         <th
                           onClick={() => handleComponentSort('status')}
-                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                          className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                         >
                           <div className="flex items-center gap-1">
                             Status
-                            <span className={componentSortConfig.key === 'status' ? 'text-indigo-600' : 'text-gray-300'}>
+                            <span className={componentSortConfig.key === 'status' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                               {componentSortConfig.key === 'status' ? (componentSortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                             </span>
                           </div>
                         </th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Remarks</th>
-                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24"></th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider w-24"></th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-surface divide-y divide-line">
                       {paginatedComp.map(({ r, i: idx }) => {
                         const inputPct = r.marks_obtained !== '' && r.marks_obtained != null && componentInfo.total_marks
                           ? (parseFloat(r.marks_obtained) / componentInfo.total_marks) * 100
@@ -870,18 +870,18 @@ export default function AddResults() {
                         const displayPct = inputPct ?? (r.current_percentage != null ? parseFloat(r.current_percentage) : null)
                         const g = displayPct != null ? gradeFromPct(displayPct) : '—'
                         return (
-                          <tr key={r.student_id} className={`hover:bg-gray-50 transition ${r.dirty ? 'bg-yellow-50' : ''}`}>
-                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
+                          <tr key={r.student_id} className={`hover:bg-canvas transition ${r.dirty ? 'bg-fill-yellow-50' : ''}`}>
+                            <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-mark-indigo-700">
                               {r.class_index || '—'}
                             </td>
                             <td className="px-3 lg:px-4 py-3">
                               {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-500">{r.current_marks ?? '—'}</span>
+                                  <span className="text-sm text-fg-soft">{r.current_marks ?? '—'}</span>
                                   <button
                                     type="button"
                                     onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
-                                    className="px-2 py-1 text-xs font-medium rounded bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition whitespace-nowrap"
+                                    className="px-2 py-1 text-xs font-medium rounded bg-fill-amber-100 text-mark-amber-800 border border-edge-amber-300 hover:bg-fill-amber-200 transition whitespace-nowrap"
                                   >
                                     Retake (Attempt {r.next_attempt})
                                   </button>
@@ -889,7 +889,7 @@ export default function AddResults() {
                               ) : (
                                 <>
                                   {r.is_retake && r.can_enter && (
-                                    <div className="text-xs text-amber-600 font-medium mb-0.5">Retake — Attempt {r.next_attempt}</div>
+                                    <div className="text-xs text-mark-amber-600 font-medium mb-0.5">Retake — Attempt {r.next_attempt}</div>
                                   )}
                                   <input
                                     type="number"
@@ -902,33 +902,33 @@ export default function AddResults() {
                                     disabled={!r.can_enter}
                                     className={`w-full px-2 py-1.5 text-sm rounded-md border ${
                                       !r.can_enter
-                                        ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                        ? 'border-line bg-canvas text-fg-soft cursor-not-allowed'
                                         : r.errors?.marks_obtained
-                                        ? 'border-red-500 focus:ring-red-500'
-                                        : 'border-amber-400 focus:ring-amber-500'
+                                        ? 'border-edge-red-500 focus:ring-edge-red-500'
+                                        : 'border-edge-amber-400 focus:ring-edge-amber-500'
                                     } focus:ring-2 focus:border-transparent`}
                                   />
-                                  {r.errors?.marks_obtained && <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>}
+                                  {r.errors?.marks_obtained && <div className="text-xs text-mark-red-600 mt-1">{r.errors.marks_obtained}</div>}
                                 </>
                               )}
                             </td>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                               <span className={`font-medium ${
-                                displayPct == null ? 'text-gray-400' :
-                                displayPct >= 76 ? 'text-green-600' :
-                                displayPct >= 50 ? 'text-yellow-600' :
-                                'text-red-600'
+                                displayPct == null ? 'text-fg-faint' :
+                                displayPct >= 76 ? 'text-mark-green-600' :
+                                displayPct >= 50 ? 'text-mark-yellow-600' :
+                                'text-mark-red-600'
                               }`}>
                                 {displayPct != null ? formatPercentage(displayPct) : '-'}
                               </span>
                             </td>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
-                                g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
-                                g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                                g === 'F' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
+                                g === 'A' || g === 'A-' ? 'bg-fill-green-100 text-mark-green-800' :
+                                g === 'B+' || g === 'B' || g === 'B-' ? 'bg-fill-blue-100 text-mark-blue-800' :
+                                g === 'C+' || g === 'C' || g === 'C-' ? 'bg-fill-yellow-100 text-mark-yellow-800' :
+                                g === 'F' ? 'bg-fill-red-100 text-mark-red-800' :
+                                'bg-surface-2 text-fg'
                               }`}>
                                 {g}
                               </span>
@@ -936,13 +936,13 @@ export default function AddResults() {
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
                               {r.current_status ? (
                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                  r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
-                                  r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-600'
+                                  r.current_status === 'PASS' ? 'bg-fill-green-100 text-mark-green-800' :
+                                  r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-fill-red-100 text-mark-red-800' :
+                                  'bg-surface-2 text-fg-muted'
                                 }`}>
                                   {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
                                 </span>
-                              ) : <span className="text-gray-300 text-xs">—</span>}
+                              ) : <span className="text-fg-faint text-xs">—</span>}
                             </td>
                             <td className="px-3 lg:px-4 py-3">
                               <input
@@ -952,8 +952,8 @@ export default function AddResults() {
                                 placeholder="Remarks"
                                 disabled={!r.can_enter}
                                 className={`w-full px-2 py-1.5 text-sm rounded-md border ${
-                                  !r.can_enter ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300'
-                                } focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
+                                  !r.can_enter ? 'border-line bg-canvas cursor-not-allowed' : 'border-line-strong'
+                                } focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent`}
                               />
                             </td>
                             <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
@@ -961,7 +961,7 @@ export default function AddResults() {
                                 <button
                                   type="button"
                                   onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
-                                  className="px-2 py-1 rounded-md bg-orange-600 text-white text-xs hover:bg-orange-700 transition whitespace-nowrap"
+                                  className="px-2 py-1 rounded-md bg-fill-orange-600 text-white text-xs hover:bg-fill-orange-700 transition whitespace-nowrap"
                                 >
                                   Request Edit
                                 </button>
@@ -984,30 +984,30 @@ export default function AddResults() {
                   const displayPct = inputPct ?? (r.current_percentage != null ? parseFloat(r.current_percentage) : null)
                   const g = displayPct != null ? gradeFromPct(displayPct) : '—'
                   return (
-                    <div key={r.student_id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                    <div key={r.student_id} className={`bg-surface rounded-xl border-2 p-4 shadow-sm ${r.dirty ? 'border-edge-yellow-400 bg-fill-yellow-50' : 'border-line'}`}>
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-indigo-700">{r.class_index || '—'}</div>
+                          <div className="text-sm font-medium text-mark-indigo-700">{r.class_index || '—'}</div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                            g === 'A' || g === 'A-' ? 'bg-green-100 text-green-800' :
-                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-blue-100 text-blue-800' :
-                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                            g === 'F' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
+                            g === 'A' || g === 'A-' ? 'bg-fill-green-100 text-mark-green-800' :
+                            g === 'B+' || g === 'B' || g === 'B-' ? 'bg-fill-blue-100 text-mark-blue-800' :
+                            g === 'C+' || g === 'C' || g === 'C-' ? 'bg-fill-yellow-100 text-mark-yellow-800' :
+                            g === 'F' ? 'bg-fill-red-100 text-mark-red-800' :
+                            'bg-surface-2 text-fg'
                           }`}>{g}</span>
                           <span className={`text-sm font-semibold ${
-                            displayPct == null ? 'text-gray-400' :
-                            displayPct >= 76 ? 'text-green-600' :
-                            displayPct >= 50 ? 'text-yellow-600' :
-                            'text-red-600'
+                            displayPct == null ? 'text-fg-faint' :
+                            displayPct >= 76 ? 'text-mark-green-600' :
+                            displayPct >= 50 ? 'text-mark-yellow-600' :
+                            'text-mark-red-600'
                           }`}>{displayPct != null ? formatPercentage(displayPct) : '-'}</span>
                           {r.current_status && (
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              r.current_status === 'PASS' ? 'bg-green-100 text-green-800' :
-                              r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-600'
+                              r.current_status === 'PASS' ? 'bg-fill-green-100 text-mark-green-800' :
+                              r.current_status === 'FAIL' || r.current_status === 'RETAKE_REQUIRED' ? 'bg-fill-red-100 text-mark-red-800' :
+                              'bg-surface-2 text-fg-muted'
                             }`}>
                               {r.current_status === 'RETAKE_REQUIRED' ? 'Retake' : r.current_status}
                             </span>
@@ -1019,23 +1019,23 @@ export default function AddResults() {
                           {r.is_retake && r.can_enter && !retakeActive.has(r.student_id) ? (
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-xs text-gray-500 mb-0.5">Previous marks</div>
-                                <div className="text-sm font-medium text-gray-700">{r.current_marks ?? '—'} / {componentInfo.total_marks}</div>
+                                <div className="text-xs text-fg-soft mb-0.5">Previous marks</div>
+                                <div className="text-sm font-medium text-fg-body">{r.current_marks ?? '—'} / {componentInfo.total_marks}</div>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setRetakeActive(prev => new Set([...prev, r.student_id]))}
-                                className="px-3 py-2 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition"
+                                className="px-3 py-2 text-sm font-medium rounded-lg bg-fill-amber-100 text-mark-amber-800 border border-edge-amber-300 hover:bg-fill-amber-200 transition"
                               >
                                 Retake (Attempt {r.next_attempt})
                               </button>
                             </div>
                           ) : (
                             <>
-                              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                              <label className="block text-sm font-medium text-fg-body mb-1.5">
                                 {r.is_retake && r.can_enter
-                                  ? <>Retake Marks — Attempt {r.next_attempt} <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
-                                  : <>Marks <span className="text-gray-400">(out of {componentInfo.total_marks})</span></>
+                                  ? <>Retake Marks — Attempt {r.next_attempt} <span className="text-fg-faint">(out of {componentInfo.total_marks})</span></>
+                                  : <>Marks <span className="text-fg-faint">(out of {componentInfo.total_marks})</span></>
                                 }
                               </label>
                               <input
@@ -1050,20 +1050,20 @@ export default function AddResults() {
                                 disabled={!r.can_enter}
                                 className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
                                   !r.can_enter
-                                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                    ? 'border-line bg-canvas text-fg-soft cursor-not-allowed'
                                     : r.errors?.marks_obtained
-                                    ? 'border-red-500 bg-red-50'
+                                    ? 'border-edge-red-500 bg-fill-red-50'
                                     : r.is_retake
-                                    ? 'border-amber-400 focus:border-amber-500'
-                                    : 'border-gray-300 focus:border-indigo-500'
-                                } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
+                                    ? 'border-edge-amber-400 focus:border-edge-amber-500'
+                                    : 'border-line-strong focus:border-edge-indigo-500'
+                                } focus:ring-2 focus:ring-edge-indigo-500 focus:outline-none transition`}
                               />
-                              {r.errors?.marks_obtained && <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>}
+                              {r.errors?.marks_obtained && <div className="text-sm text-mark-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>}
                             </>
                           )}
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+                          <label className="block text-sm font-medium text-fg-body mb-1.5">Remarks</label>
                           <input
                             type="text"
                             value={r.remarks}
@@ -1071,15 +1071,15 @@ export default function AddResults() {
                             placeholder="Optional remarks"
                             disabled={!r.can_enter}
                             className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
-                              !r.can_enter ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300 focus:border-indigo-500'
-                            } focus:ring-2 focus:ring-indigo-500 focus:outline-none transition`}
+                              !r.can_enter ? 'border-line bg-canvas cursor-not-allowed' : 'border-line-strong focus:border-edge-indigo-500'
+                            } focus:ring-2 focus:ring-edge-indigo-500 focus:outline-none transition`}
                           />
                         </div>
                         {r.id && (
                           <button
                             type="button"
                             onClick={() => openEditRequest({ ...r, _isComponent: true, total_marks: componentInfo.total_marks })}
-                            className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                            className="w-full px-3 py-2 text-sm bg-fill-orange-600 text-white rounded-lg hover:bg-fill-orange-700 transition"
                           >
                             Request Edit
                           </button>
@@ -1092,30 +1092,30 @@ export default function AddResults() {
 
               {/* Pagination — same as legacy */}
               {compTotalPages > 1 && (
-                <div className="p-3 sm:p-4 border-t bg-white">
+                <div className="p-3 sm:p-4 border-t bg-surface">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="text-xs sm:text-sm text-gray-600">
+                    <div className="text-xs sm:text-sm text-fg-muted">
                       Showing <span className="font-medium">{(componentPage - 1) * componentItemsPerPage + 1}</span> to{' '}
                       <span className="font-medium">{Math.min(componentPage * componentItemsPerPage, filteredComp.length)}</span> of{' '}
                       <span className="font-medium">{filteredComp.length}</span> results
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2">
-                      <button onClick={() => setComponentPage(1)} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">«</button>
-                      <button onClick={() => setComponentPage(p => Math.max(1, p - 1))} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">‹</button>
-                      <span className="px-3 py-1.5 text-xs sm:text-sm text-gray-700">{componentPage} / {compTotalPages}</span>
-                      <button onClick={() => setComponentPage(p => Math.min(compTotalPages, p + 1))} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">›</button>
-                      <button onClick={() => setComponentPage(compTotalPages)} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">»</button>
+                      <button onClick={() => setComponentPage(1)} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">«</button>
+                      <button onClick={() => setComponentPage(p => Math.max(1, p - 1))} disabled={componentPage === 1} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">‹</button>
+                      <span className="px-3 py-1.5 text-xs sm:text-sm text-fg-body">{componentPage} / {compTotalPages}</span>
+                      <button onClick={() => setComponentPage(p => Math.min(compTotalPages, p + 1))} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">›</button>
+                      <button onClick={() => setComponentPage(compTotalPages)} disabled={componentPage === compTotalPages} className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">»</button>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Save button — same position as legacy */}
-              <div className="p-3 sm:p-4 border-t bg-gray-50 flex justify-end">
+              <div className="p-3 sm:p-4 border-t bg-canvas flex justify-end">
                 <button
                   onClick={handleSaveComponentResults}
                   disabled={componentSaving || !componentStudents.some(r => r.dirty)}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   {componentSaving ? 'Saving...' : 'Save All Grades'}
                 </button>
@@ -1132,32 +1132,32 @@ export default function AddResults() {
 
       {loading && (
         <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600"></div>
+          <p className="mt-2 text-fg-muted">Loading...</p>
         </div>
       )}
 
       {/* Empty State - No Exam Selected */}
       {!loading && !selectedExam && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6 text-center">
-          <svg className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-fill-blue-50 border border-edge-blue-200 rounded-lg p-4 sm:p-6 text-center">
+          <svg className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-mark-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <h3 className="mt-2 text-base sm:text-lg font-medium text-gray-900">No exam selected</h3>
-          <p className="mt-1 text-xs sm:text-sm text-gray-600">Please select an exam from the dropdown above to begin grading.</p>
+          <h3 className="mt-2 text-base sm:text-lg font-medium text-fg">No exam selected</h3>
+          <p className="mt-1 text-xs sm:text-sm text-fg-muted">Please select an exam from the dropdown above to begin grading.</p>
         </div>
       )}
 
       {/* Empty State - No Results */}
       {!loading && results.length === 0 && examInfo && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
+        <div className="bg-fill-yellow-50 border border-edge-yellow-200 rounded-lg p-4 sm:p-6">
           <div className="flex items-start gap-2 sm:gap-3">
-            <svg className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5 sm:h-6 sm:w-6 text-mark-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div className="flex-1">
-              <h3 className="text-base sm:text-lg font-medium text-gray-900">No result entries found</h3>
-              <p className="mt-1 text-xs sm:text-sm text-gray-700">
+              <h3 className="text-base sm:text-lg font-medium text-fg">No result entries found</h3>
+              <p className="mt-1 text-xs sm:text-sm text-fg-body">
                 {examStats.count === 0
                   ? 'No students are enrolled in this course. Please ensure students are added to the course before creating result entries.'
                   : 'Result entries have not been generated yet. Click "Create Result Entries for All Students" above to generate rows for all enrolled students.'}
@@ -1169,35 +1169,35 @@ export default function AddResults() {
 
       {/* Results Table */}
       {results.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg">
+        <div className="bg-surface rounded-lg shadow-lg">
           {/* Exam Info Cards */}
-          <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-indigo-50 to-blue-50">
+          <div className="p-3 sm:p-4 border-b bg-gradient-to-r from-fill-indigo-50 to-fill-blue-50">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Exam</div>
-                <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate" title={examInfo?.title || '—'}>{examInfo?.title || '—'}</div>
+              <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Exam</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-fg truncate" title={examInfo?.title || '—'}>{examInfo?.title || '—'}</div>
               </div>
-              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Total Marks</div>
-                <div className="text-sm sm:text-base md:text-lg font-semibold text-indigo-600">{examInfo?.total_marks ?? '—'}</div>
+              <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Total Marks</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-mark-indigo-600">{examInfo?.total_marks ?? '—'}</div>
               </div>
-              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Students</div>
-                <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">{examStats.count}</div>
+              <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Students</div>
+                <div className="text-sm sm:text-base md:text-lg font-semibold text-fg">{examStats.count}</div>
               </div>
-              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                <div className="text-[10px] sm:text-xs font-medium text-gray-600 uppercase">Progress</div>
+              <div className="bg-surface rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="text-[10px] sm:text-xs font-medium text-fg-muted uppercase">Progress</div>
                 <div className="text-sm sm:text-base md:text-lg font-semibold">
-                  <span className="text-green-600">{examStats.submitted}</span>
-                  <span className="text-gray-400 mx-1">/</span>
-                  <span className="text-orange-600">{examStats.pending}</span>
+                  <span className="text-mark-green-600">{examStats.submitted}</span>
+                  <span className="text-fg-faint mx-1">/</span>
+                  <span className="text-mark-orange-600">{examStats.pending}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Search and Bulk Actions */}
-          <div className="p-3 sm:p-4 border-b bg-gray-50">
+          <div className="p-3 sm:p-4 border-b bg-canvas">
             <div className="flex flex-col gap-3">
               {/* Search and Per Page selector */}
               <div className="flex flex-col sm:flex-row gap-3">
@@ -1207,18 +1207,18 @@ export default function AddResults() {
                     placeholder="Search by index number..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</label>
+                  <label className="text-xs sm:text-sm text-fg-body whitespace-nowrap">Per page:</label>
                   <select
                     value={itemsPerPage}
                     onChange={e => {
                       setItemsPerPage(Number(e.target.value))
                       setCurrentPage(1)
                     }}
-                    className="px-2 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="px-2 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent"
                   >
                     <option value={10}>10</option>
                     <option value={25}>25</option>
@@ -1233,7 +1233,7 @@ export default function AddResults() {
                 <button
                   onClick={handleUndo}
                   disabled={!hasChanges}
-                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-surface border border-line-strong rounded-lg hover:bg-canvas transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   Undo
                 </button>
@@ -1250,34 +1250,34 @@ export default function AddResults() {
                 : r.percentage != null ? parseFloat(r.percentage) : null
               const liveGrade = gradeFromPct(livePct)
               return (
-                <div key={r.id} className={`bg-white rounded-xl border-2 p-4 shadow-sm ${r.is_locked ? 'border-orange-300 bg-orange-50/30' : r.dirty ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                <div key={r.id} className={`bg-surface rounded-xl border-2 p-4 shadow-sm ${r.is_locked ? 'border-edge-orange-300 bg-fill-orange-50/30' : r.dirty ? 'border-edge-yellow-400 bg-fill-yellow-50' : 'border-line'}`}>
                   {/* Student Info Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {r.is_locked && (
-                          <svg className="h-4 w-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-4 w-4 text-mark-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                         )}
-                        <div className="text-sm font-medium text-indigo-700">#{r.class_index || '-'}</div>
+                        <div className="text-sm font-medium text-mark-indigo-700">#{r.class_index || '-'}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`px-2.5 py-1 text-sm font-bold rounded-lg ${
-                        liveGrade === 'A' || liveGrade === 'A-' ? 'bg-green-100 text-green-800' :
-                        liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-blue-100 text-blue-800' :
-                        liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                        liveGrade === 'F' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
+                        liveGrade === 'A' || liveGrade === 'A-' ? 'bg-fill-green-100 text-mark-green-800' :
+                        liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-fill-blue-100 text-mark-blue-800' :
+                        liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-fill-yellow-100 text-mark-yellow-800' :
+                        liveGrade === 'F' ? 'bg-fill-red-100 text-mark-red-800' :
+                        'bg-surface-2 text-fg'
                       }`}>
                         {liveGrade}
                       </span>
                       <span className={`text-sm font-semibold ${
-                        livePct == null ? 'text-gray-400' :
-                        livePct >= 76 ? 'text-green-600' :
-                        livePct >= 50 ? 'text-yellow-600' :
-                        'text-red-600'
+                        livePct == null ? 'text-fg-faint' :
+                        livePct >= 76 ? 'text-mark-green-600' :
+                        livePct >= 50 ? 'text-mark-yellow-600' :
+                        'text-mark-red-600'
                       }`}>
                         {livePct != null ? formatPercentage(livePct) : '-'}
                       </span>
@@ -1287,8 +1287,8 @@ export default function AddResults() {
                   {/* Input Fields */}
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Marks <span className="text-gray-400">(out of {examInfo?.total_marks || '?'})</span>
+                      <label className="block text-sm font-medium text-fg-body mb-1.5">
+                        Marks <span className="text-fg-faint">(out of {examInfo?.total_marks || '?'})</span>
                       </label>
                       <input
                         type="number"
@@ -1305,18 +1305,18 @@ export default function AddResults() {
                         disabled={r.is_locked}
                         className={`w-full px-4 py-3 text-base rounded-lg border-2 ${
                           r.is_locked
-                            ? 'border-orange-300 bg-orange-50 text-orange-700 cursor-not-allowed'
+                            ? 'border-edge-orange-300 bg-fill-orange-50 text-mark-orange-700 cursor-not-allowed'
                             : r.errors?.marks_obtained
-                            ? 'border-red-500 focus:ring-red-500 bg-red-50'
-                            : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                            ? 'border-edge-red-500 focus:ring-edge-red-500 bg-fill-red-50'
+                            : 'border-line-strong focus:ring-edge-indigo-500 focus:border-edge-indigo-500'
                         } focus:ring-2 focus:outline-none transition`}
                       />
                       {r.errors?.marks_obtained && (
-                        <div className="text-sm text-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>
+                        <div className="text-sm text-mark-red-600 mt-1.5 font-medium">{r.errors.marks_obtained}</div>
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+                      <label className="block text-sm font-medium text-fg-body mb-1.5">Remarks</label>
                       <input
                         type="text"
                         value={r.remarks}
@@ -1326,14 +1326,14 @@ export default function AddResults() {
                         data-field="remarks"
                         placeholder="Optional remarks"
                         disabled={r.is_locked}
-                        className={`w-full px-4 py-3 text-base rounded-lg border-2 ${r.is_locked ? 'border-orange-300 bg-orange-50 cursor-not-allowed' : 'border-gray-300'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition`}
+                        className={`w-full px-4 py-3 text-base rounded-lg border-2 ${r.is_locked ? 'border-edge-orange-300 bg-fill-orange-50 cursor-not-allowed' : 'border-line-strong'} focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 focus:outline-none transition`}
                       />
                     </div>
                     {r.is_locked && (
                       <button
                         type="button"
                         onClick={() => openEditRequest(r)}
-                        className="w-full px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                        className="w-full px-3 py-2 text-sm bg-fill-orange-600 text-white rounded-lg hover:bg-fill-orange-700 transition"
                       >
                         Request Edit
                       </button>
@@ -1347,61 +1347,61 @@ export default function AddResults() {
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
             <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100">
+              <table className="min-w-full divide-y divide-line">
+                <thead className="bg-surface-2">
                   <tr>
                     <th
                       onClick={() => handleSort('class_index')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                     >
                       <div className="flex items-center gap-1">
                         Index
-                        <span className={sortConfig.key === 'class_index' ? 'text-indigo-600' : 'text-gray-300'}>
+                        <span className={sortConfig.key === 'class_index' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                           {sortConfig.key === 'class_index' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => handleSort('marks_obtained')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                     >
                       <div className="flex items-center gap-1">
                         Marks (/{examInfo?.total_marks || '?'})
-                        <span className={sortConfig.key === 'marks_obtained' ? 'text-indigo-600' : 'text-gray-300'}>
+                        <span className={sortConfig.key === 'marks_obtained' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                           {sortConfig.key === 'marks_obtained' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => handleSort('percentage')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                     >
                       <div className="flex items-center gap-1">
                         Percentage
-                        <span className={sortConfig.key === 'percentage' ? 'text-indigo-600' : 'text-gray-300'}>
+                        <span className={sortConfig.key === 'percentage' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                           {sortConfig.key === 'percentage' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => handleSort('grade')}
-                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition"
+                      className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider cursor-pointer hover:bg-surface-3 transition"
                     >
                       <div className="flex items-center gap-1">
                         Grade
-                        <span className={sortConfig.key === 'grade' ? 'text-indigo-600' : 'text-gray-300'}>
+                        <span className={sortConfig.key === 'grade' ? 'text-mark-indigo-600' : 'text-fg-faint'}>
                           {sortConfig.key === 'grade' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </div>
                     </th>
-                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider">
                       Remarks
                     </th>
-                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20">
+                    <th className="px-3 lg:px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider w-20">
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-surface divide-y divide-line">
                   {paginatedResults.map((r) => {
                     const actualIdx = results.findIndex(row => row.id === r.id);
                     const livePct = r.marks_obtained !== '' && r.marks_obtained != null && examInfo?.total_marks
@@ -1409,8 +1409,8 @@ export default function AddResults() {
                       : r.percentage != null ? parseFloat(r.percentage) : null
                     const liveGrade = gradeFromPct(livePct)
                     return (
-                      <tr key={r.id} className={`hover:bg-gray-50 transition ${r.is_locked ? 'bg-orange-50/40' : r.dirty ? 'bg-yellow-50' : ''}`}>
-                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-700">
+                      <tr key={r.id} className={`hover:bg-canvas transition ${r.is_locked ? 'bg-fill-orange-50/40' : r.dirty ? 'bg-fill-yellow-50' : ''}`}>
+                        <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm font-medium text-mark-indigo-700">
                           {r.class_index || '-'}
                         </td>
                         <td className="px-3 lg:px-4 py-3">
@@ -1429,34 +1429,34 @@ export default function AddResults() {
                               disabled={r.is_locked}
                               className={`w-full px-2 py-1.5 text-sm rounded-md border ${
                                 r.is_locked
-                                  ? 'border-orange-300 bg-orange-50 text-orange-700 cursor-not-allowed'
+                                  ? 'border-edge-orange-300 bg-fill-orange-50 text-mark-orange-700 cursor-not-allowed'
                                   : r.errors?.marks_obtained
-                                  ? 'border-red-500 focus:ring-red-500'
-                                  : 'border-gray-300 focus:ring-indigo-500'
+                                  ? 'border-edge-red-500 focus:ring-edge-red-500'
+                                  : 'border-line-strong focus:ring-edge-indigo-500'
                               } focus:ring-2 focus:border-transparent`}
                             />
                             {r.errors?.marks_obtained && (
-                              <div className="text-xs text-red-600 mt-1">{r.errors.marks_obtained}</div>
+                              <div className="text-xs text-mark-red-600 mt-1">{r.errors.marks_obtained}</div>
                             )}
                           </div>
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap text-sm">
                           <span className={`font-medium ${
-                            livePct == null ? 'text-gray-400' :
-                            livePct >= 76 ? 'text-green-600' :
-                            livePct >= 50 ? 'text-yellow-600' :
-                            'text-red-600'
+                            livePct == null ? 'text-fg-faint' :
+                            livePct >= 76 ? 'text-mark-green-600' :
+                            livePct >= 50 ? 'text-mark-yellow-600' :
+                            'text-mark-red-600'
                           }`}>
                             {livePct != null ? formatPercentage(livePct) : '-'}
                           </span>
                         </td>
                         <td className="px-3 lg:px-4 py-3 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            liveGrade === 'A' || liveGrade === 'A-' ? 'bg-green-100 text-green-800' :
-                            liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-blue-100 text-blue-800' :
-                            liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-yellow-100 text-yellow-800' :
-                            liveGrade === 'F' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
+                            liveGrade === 'A' || liveGrade === 'A-' ? 'bg-fill-green-100 text-mark-green-800' :
+                            liveGrade === 'B+' || liveGrade === 'B' || liveGrade === 'B-' ? 'bg-fill-blue-100 text-mark-blue-800' :
+                            liveGrade === 'C+' || liveGrade === 'C' || liveGrade === 'C-' ? 'bg-fill-yellow-100 text-mark-yellow-800' :
+                            liveGrade === 'F' ? 'bg-fill-red-100 text-mark-red-800' :
+                            'bg-surface-2 text-fg'
                           }`}>
                             {liveGrade}
                           </span>
@@ -1471,7 +1471,7 @@ export default function AddResults() {
                             data-field="remarks"
                             placeholder="Remarks"
                             disabled={r.is_locked}
-                            className={`w-full px-2 py-1.5 text-sm rounded-md border ${r.is_locked ? 'border-orange-300 bg-orange-50 cursor-not-allowed' : 'border-gray-300'} focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
+                            className={`w-full px-2 py-1.5 text-sm rounded-md border ${r.is_locked ? 'border-edge-orange-300 bg-fill-orange-50 cursor-not-allowed' : 'border-line-strong'} focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent`}
                           />
                         </td>
                         <td className="px-3 lg:px-4 py-3">
@@ -1479,7 +1479,7 @@ export default function AddResults() {
                             <button
                               type="button"
                               onClick={() => openEditRequest(r)}
-                              className="px-2 py-1 rounded-md bg-orange-600 text-white text-xs hover:bg-orange-700 transition whitespace-nowrap"
+                              className="px-2 py-1 rounded-md bg-fill-orange-600 text-white text-xs hover:bg-fill-orange-700 transition whitespace-nowrap"
                             >
                               Request Edit
                             </button>
@@ -1495,10 +1495,10 @@ export default function AddResults() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="p-3 sm:p-4 border-t bg-white">
+            <div className="p-3 sm:p-4 border-t bg-surface">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 {/* Results info */}
-                <div className="text-xs sm:text-sm text-gray-600">
+                <div className="text-xs sm:text-sm text-fg-muted">
                   Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
                   <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredAndSortedResults.length)}</span> of{' '}
                   <span className="font-medium">{filteredAndSortedResults.length}</span> results
@@ -1509,7 +1509,7 @@ export default function AddResults() {
                   <button
                     onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
-                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     title="First page"
                   >
                     «
@@ -1517,7 +1517,7 @@ export default function AddResults() {
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     title="Previous page"
                   >
                     ‹
@@ -1542,8 +1542,8 @@ export default function AddResults() {
                             onClick={() => setCurrentPage(i)}
                             className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg transition ${
                               currentPage === i
-                                ? 'bg-indigo-600 text-white font-medium'
-                                : 'border border-gray-300 hover:bg-gray-50'
+                                ? 'bg-fill-indigo-600 text-white font-medium'
+                                : 'border border-line-strong hover:bg-canvas'
                             }`}
                           >
                             {i}
@@ -1557,7 +1557,7 @@ export default function AddResults() {
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     title="Next page"
                   >
                     ›
@@ -1565,7 +1565,7 @@ export default function AddResults() {
                   <button
                     onClick={() => setCurrentPage(totalPages)}
                     disabled={currentPage === totalPages}
-                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-line-strong rounded-lg hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     title="Last page"
                   >
                     »
@@ -1576,18 +1576,18 @@ export default function AddResults() {
           )}
 
           {/* Footer with Save Button */}
-          <div className="p-3 sm:p-4 border-t bg-gray-50">
+          <div className="p-3 sm:p-4 border-t bg-canvas">
             <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 {hasChanges && (
-                  <div className="flex items-center gap-2 text-yellow-700 bg-yellow-100 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm">
+                  <div className="flex items-center gap-2 text-mark-yellow-700 bg-fill-yellow-100 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm">
                     <svg className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <span className="font-medium">Unsaved changes</span>
                   </div>
                 )}
-                <div className="text-xs sm:text-sm text-gray-600">
+                <div className="text-xs sm:text-sm text-fg-muted">
                   {filteredAndSortedResults.length < results.length ? (
                     <>Filtered: {filteredAndSortedResults.length} of {results.length} students</>
                   ) : (
@@ -1598,7 +1598,7 @@ export default function AddResults() {
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || saving}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg"
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-fill-indigo-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-fill-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg"
               >
                 {saving ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1623,11 +1623,11 @@ export default function AddResults() {
       {/* Modal: Request Edit — shared by both LEGACY and POLICY modes */}
       {editRequestModal && editRequestRow && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 ring-1 ring-black/5">
+          <div className="bg-surface rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 ring-1 ring-hair">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
-                <h4 className="text-lg text-black font-medium">Request Result Edit</h4>
-                <p className="text-sm text-neutral-500">
+                <h4 className="text-lg text-fg font-medium">Request Result Edit</h4>
+                <p className="text-sm text-fg-soft">
                   Index: {editRequestRow.class_index || editRequestRow.student_svc_number || '—'} — Current marks: {
                     editRequestRow._isComponent
                       ? `${editRequestRow.current_marks ?? '—'}/${editRequestRow.total_marks || '?'}`
@@ -1635,9 +1635,9 @@ export default function AddResults() {
                   }
                 </p>
               </div>
-              <button type="button" aria-label="Close" onClick={() => setEditRequestModal(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+              <button type="button" aria-label="Close" onClick={() => setEditRequestModal(false)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
             </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-800">
+            <div className="bg-fill-orange-50 border border-edge-orange-200 rounded-lg p-3 mb-4 text-sm text-mark-orange-800">
               {editRequestRow._isComponent
                 ? 'Submit an edit request for HOD approval. If approved, the proposed marks will be applied directly.'
                 : 'This result is locked after grading. Submit an edit request for HOD approval.'}
@@ -1645,19 +1645,19 @@ export default function AddResults() {
             <form onSubmit={handleSubmitEditRequest}>
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Reason for Edit *</label>
+                  <label className="text-sm text-fg-muted mb-1 block">Reason for Edit *</label>
                   <textarea
                     value={editRequestForm.reason}
                     onChange={(e) => setEditRequestForm({ ...editRequestForm, reason: e.target.value.slice(0, 500) })}
                     placeholder="Explain why this result needs to be edited..."
                     rows={3}
                     maxLength={500}
-                    className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.reason ? 'border-rose-500' : 'border-neutral-200'}`}
+                    className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${editRequestErrors.reason ? 'border-edge-rose-500' : 'border-line'}`}
                   />
-                  {editRequestErrors.reason && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.reason}</div>}
+                  {editRequestErrors.reason && <div className="text-xs text-mark-rose-600 mt-1">{editRequestErrors.reason}</div>}
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">
+                  <label className="text-sm text-fg-muted mb-1 block">
                     Proposed Marks {editRequestRow._isComponent ? '*' : '(optional)'}
                   </label>
                   <input
@@ -1668,25 +1668,25 @@ export default function AddResults() {
                     value={editRequestForm.proposed_marks}
                     onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_marks: e.target.value })}
                     placeholder={`New marks (max ${editRequestRow._isComponent ? (editRequestRow.total_marks || '?') : (examInfo?.total_marks || '?')})`}
-                    className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editRequestErrors.proposed_marks ? 'border-rose-500' : 'border-neutral-200'}`}
+                    className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${editRequestErrors.proposed_marks ? 'border-edge-rose-500' : 'border-line'}`}
                   />
-                  {editRequestErrors.proposed_marks && <div className="text-xs text-rose-600 mt-1">{editRequestErrors.proposed_marks}</div>}
+                  {editRequestErrors.proposed_marks && <div className="text-xs text-mark-rose-600 mt-1">{editRequestErrors.proposed_marks}</div>}
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Proposed Remarks (optional)</label>
+                  <label className="text-sm text-fg-muted mb-1 block">Proposed Remarks (optional)</label>
                   <input
                     type="text"
                     value={editRequestForm.proposed_remarks}
                     onChange={(e) => setEditRequestForm({ ...editRequestForm, proposed_remarks: e.target.value.slice(0, 300) })}
                     placeholder="New remarks"
                     maxLength={300}
-                    className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setEditRequestModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={editRequestSaving} className="px-4 py-2 rounded-md bg-orange-600 text-white text-sm hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <button type="button" onClick={() => setEditRequestModal(false)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                <button type="submit" disabled={editRequestSaving} className="px-4 py-2 rounded-md bg-fill-orange-600 text-white text-sm hover:bg-fill-orange-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {editRequestSaving ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>

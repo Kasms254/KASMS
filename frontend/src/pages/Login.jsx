@@ -33,6 +33,7 @@ export default function Login() {
   const handlePasswordChange = (e) => {
     let value = e.target.value
     // Remove control characters and null bytes that could cause issues
+    // eslint-disable-next-line no-control-regex -- stripping control chars is the point here
     value = value.replace(/[\x00-\x1F\x7F]/g, '')
     // Limit length to reasonable password length
     value = value.slice(0, 128)
@@ -116,25 +117,25 @@ export default function Login() {
     const Comp = LucideIcons[name]
     if (Comp) return <Comp {...props} />
     // fallback: small neutral square to avoid rendering undefined
-    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-gray-300 rounded`} />
+    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-surface-4 rounded`} />
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-canvas to-surface px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         {/* Graphic / branding: modern maroon gradient hero with logo */}
         <div className="hidden lg:flex items-center justify-center px-6">
-          <div className="w-full max-w-md p-8 rounded-3xl bg-gradient-to-br from-red-900 via-red-800 to-rose-900 text-white shadow-2xl transform transition hover:scale-[1.01] relative overflow-hidden">
+          <div className="w-full max-w-md p-8 rounded-3xl bg-gradient-to-br from-fill-red-900 via-fill-red-800 to-fill-rose-900 text-white shadow-2xl transform transition hover:scale-[1.01] relative overflow-hidden">
             {/* Decorative background elements */}
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
             <div className="flex flex-col items-center relative z-10">
-              <div className="w-36 h-36 rounded-full bg-white p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
+              <div className="w-36 h-36 rounded-full bg-surface p-3 flex items-center justify-center mb-4 shadow-lg ring-4 ring-white/20">
                 <img src="/ka.png" alt="Kenya Army logo" className="w-full h-full object-contain" />
               </div>
               <h1 className="text-lg font-extrabold text-white text-center leading-tight">ELIMUKA</h1>
-              <p className="mt-3 text-sm text-red-100 text-center">A Training Platform</p>
+              <p className="mt-3 text-sm text-mark-red-100 text-center">A Training Platform</p>
               <div className="mt-6 grid grid-cols-3 gap-2 w-full">
                 <span className="px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center justify-center gap-1.5 whitespace-nowrap">
                   <LucideIcons.FileText className="w-3.5 h-3.5 shrink-0" />
@@ -154,18 +155,18 @@ export default function Login() {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100 w-full max-w-md mx-auto lg:max-w-none">
+        <div className="bg-surface rounded-2xl shadow-xl p-6 lg:p-10 border border-hair w-full max-w-md mx-auto lg:max-w-none">
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 p-0.5 mb-3 shadow-lg">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-fill-red-900 to-fill-rose-800 p-0.5 mb-3 shadow-lg">
+              <div className="w-full h-full rounded-full bg-surface flex items-center justify-center">
                 <img src="/ka.png" alt="Kenya Army logo" className="w-12 h-12 object-contain" />
               </div>
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="text-2xl font-semibold text-fg">
                 {mode === 'signin' ? 'Welcome back' : 'Verify a Certificate'}
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-fg-soft mt-1">
                 {mode === 'signin'
                   ? 'Sign In With Your Elimuka Credentials'
                   : 'Enter the verification code printed on the certificate.'}
@@ -183,17 +184,17 @@ export default function Login() {
             autoComplete="on"
           >
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Service Number</span>
+              <span className="text-sm font-medium text-fg-body">Service Number</span>
               <div className="mt-1.5 relative">
-                {renderIcon('User', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
+                {renderIcon('User', { className: 'w-4 h-4 text-fg-faint absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type="text"
                   inputMode="numeric"
                   required
                   value={svc_number}
                   onChange={handleServiceNumberChange}
-                  className={`w-full pl-10 pr-3 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                    fieldErrors.svc_number ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                  className={`w-full pl-10 pr-3 py-3 border rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.svc_number ? 'border-edge-red-300 focus:ring-edge-red-200' : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                   }`}
                   placeholder="e.g. 123456"
                   aria-invalid={!!fieldErrors.svc_number}
@@ -205,23 +206,23 @@ export default function Login() {
                 />
               </div>
               {fieldErrors.svc_number && (
-                <p id="svc-number-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p id="svc-number-error" className="mt-1 text-xs text-mark-red-600" role="alert">
                   {fieldErrors.svc_number}
                 </p>
               )}
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Password</span>
+              <span className="text-sm font-medium text-fg-body">Password</span>
               <div className="mt-1.5 relative">
-                {renderIcon('Lock', { className: 'w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' })}
+                {renderIcon('Lock', { className: 'w-4 h-4 text-fg-faint absolute left-3 top-1/2 -translate-y-1/2' })}
                 <input
                   type={show ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                    fieldErrors.password ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                    fieldErrors.password ? 'border-edge-red-300 focus:ring-edge-red-200' : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                   }`}
                   placeholder="Enter your password"
                   aria-invalid={!!fieldErrors.password}
@@ -233,7 +234,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShow((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted transition-colors"
                   aria-label={show ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                 >
@@ -241,7 +242,7 @@ export default function Login() {
                 </button>
               </div>
               {fieldErrors.password && (
-                <p id="password-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p id="password-error" className="mt-1 text-xs text-mark-red-600" role="alert">
                   {fieldErrors.password}
                 </p>
               )}
@@ -249,17 +250,17 @@ export default function Login() {
 
             {/* <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-red-800 focus:ring-red-200 focus:ring-offset-0" />
-                <span className="text-sm text-gray-600">Remember me</span>
+                <input type="checkbox" className="w-4 h-4 rounded border-line-strong text-mark-red-800 focus:ring-edge-red-200 focus:ring-offset-0" />
+                <span className="text-sm text-fg-muted">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-red-800 hover:text-red-900 font-medium transition-colors">Forgot password?</a>
+              <a href="#" className="text-sm text-mark-red-800 hover:text-mark-red-900 font-medium transition-colors">Forgot password?</a>
             </div> */}
 
             <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' })
@@ -269,11 +270,11 @@ export default function Login() {
             </div>
 
             {error ? (
-              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start gap-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded-lg p-3">
                 {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
                 <div className="flex-1">
                   <p className="font-medium">Login Failed</p>
-                  <p className="text-red-500 mt-0.5">{error}</p>
+                  <p className="text-mark-red-500 mt-0.5">{error}</p>
                 </div>
               </div>
             ) : null}
@@ -284,13 +285,13 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setMode((m) => (m === 'signin' ? 'verify' : 'signin'))}
-              className="text-red-800 hover:text-red-900 font-medium transition-colors"
+              className="text-mark-red-800 hover:text-mark-red-900 font-medium transition-colors"
             >
               {mode === 'signin' ? 'Verify a Certificate instead' : '← Back to Sign In'}
             </button>
           </p>
 
-          <p className="mt-4 text-center text-sm text-gray-500">
+          <p className="mt-4 text-center text-sm text-fg-soft">
                          © {new Date().getFullYear()} KACS All Rights Reserved.
           </p>
 

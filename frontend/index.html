@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
+    <!--
+      Applies the stored colour scheme before first paint, avoiding a white
+      flash for dark-mode users. External (not inline) because the SPA runs
+      under a strict `script-src 'self'` CSP — see public/theme-init.js.
+      Must stay render-blocking and above the stylesheet.
+    -->
+    <script src="/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">

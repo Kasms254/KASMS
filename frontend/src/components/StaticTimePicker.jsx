@@ -74,29 +74,29 @@ export default function StaticTimePicker({ value, onChange, label }) {
   return (
     <div>
       {label && (
-        <div className="text-sm text-neutral-600 mb-2">{label}</div>
+        <div className="text-sm text-fg-muted mb-2">{label}</div>
       )}
 
-      <div className="bg-white border border-neutral-200 rounded-lg p-4">
+      <div className="bg-surface border border-line rounded-lg p-4">
         {/* Time Display */}
         <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="flex items-center gap-2 bg-indigo-50 rounded-lg px-4 py-3">
-            <Clock className="w-5 h-5 text-indigo-600" />
+          <div className="flex items-center gap-2 bg-fill-indigo-50 rounded-lg px-4 py-3">
+            <Clock className="w-5 h-5 text-mark-indigo-600" />
             <button
               type="button"
               onClick={() => setSelectingHour(true)}
               className={`text-3xl font-bold transition-colors ${
-                selectingHour ? 'text-indigo-600' : 'text-neutral-400'
+                selectingHour ? 'text-mark-indigo-600' : 'text-fg-faint'
               }`}
             >
               {String(selectedHour).padStart(2, '0')}
             </button>
-            <span className="text-3xl font-bold text-neutral-400">:</span>
+            <span className="text-3xl font-bold text-fg-faint">:</span>
             <button
               type="button"
               onClick={() => setSelectingHour(false)}
               className={`text-3xl font-bold transition-colors ${
-                !selectingHour ? 'text-indigo-600' : 'text-neutral-400'
+                !selectingHour ? 'text-mark-indigo-600' : 'text-fg-faint'
               }`}
             >
               {String(selectedMinute).padStart(2, '0')}
@@ -104,7 +104,7 @@ export default function StaticTimePicker({ value, onChange, label }) {
             <button
               type="button"
               onClick={togglePeriod}
-              className="ml-2 text-xl font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+              className="ml-2 text-xl font-semibold text-mark-indigo-600 hover:text-mark-indigo-700 transition-colors"
             >
               {period}
             </button>
@@ -118,8 +118,8 @@ export default function StaticTimePicker({ value, onChange, label }) {
             onClick={() => setSelectingHour(true)}
             className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
               selectingHour
-                ? 'bg-indigo-600 text-white'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                ? 'bg-fill-indigo-600 text-white'
+                : 'bg-surface-2 text-fg-muted hover:bg-surface-3'
             }`}
           >
             Hour
@@ -129,8 +129,8 @@ export default function StaticTimePicker({ value, onChange, label }) {
             onClick={() => setSelectingHour(false)}
             className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
               !selectingHour
-                ? 'bg-indigo-600 text-white'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                ? 'bg-fill-indigo-600 text-white'
+                : 'bg-surface-2 text-fg-muted hover:bg-surface-3'
             }`}
           >
             Minute
@@ -139,9 +139,9 @@ export default function StaticTimePicker({ value, onChange, label }) {
 
         {/* Clock Face */}
         <div className="relative w-64 h-64 mx-auto">
-          <div className="absolute inset-0 rounded-full border-2 border-neutral-200 bg-neutral-50">
+          <div className="absolute inset-0 rounded-full border-2 border-line bg-canvas">
             {/* Center dot */}
-            <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-indigo-600 rounded-full -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-fill-indigo-600 rounded-full -translate-x-1/2 -translate-y-1/2" />
 
             {selectingHour ? (
               // Hour selection
@@ -157,8 +157,8 @@ export default function StaticTimePicker({ value, onChange, label }) {
                       onClick={() => handleHourClick(hour)}
                       className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
                         isSelected
-                          ? 'bg-indigo-600 text-white scale-110 shadow-lg'
-                          : 'bg-white text-neutral-700 hover:bg-indigo-100 hover:scale-105'
+                          ? 'bg-fill-indigo-600 text-white scale-110 shadow-lg'
+                          : 'bg-surface text-fg-body hover:bg-fill-indigo-100 hover:scale-105'
                       }`}
                       style={{
                         left: `calc(50% + ${pos.x}px - 20px)`,
@@ -184,8 +184,8 @@ export default function StaticTimePicker({ value, onChange, label }) {
                       onClick={() => handleMinuteClick(minute)}
                       className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
                         isSelected
-                          ? 'bg-indigo-600 text-white scale-110 shadow-lg'
-                          : 'bg-white text-neutral-700 hover:bg-indigo-100 hover:scale-105'
+                          ? 'bg-fill-indigo-600 text-white scale-110 shadow-lg'
+                          : 'bg-surface text-fg-body hover:bg-fill-indigo-100 hover:scale-105'
                       }`}
                       style={{
                         left: `calc(50% + ${pos.x}px - 20px)`,
@@ -202,8 +202,8 @@ export default function StaticTimePicker({ value, onChange, label }) {
         </div>
 
         {/* Quick Time Shortcuts */}
-        <div className="mt-4 pt-4 border-t border-neutral-200">
-          <div className="text-xs text-neutral-500 mb-2">Quick Select</div>
+        <div className="mt-4 pt-4 border-t border-line">
+          <div className="text-xs text-fg-soft mb-2">Quick Select</div>
           <div className="flex flex-wrap gap-2">
             {[
               { label: '8:00 AM', hour: 8, minute: 0, period: 'AM' },
@@ -221,7 +221,7 @@ export default function StaticTimePicker({ value, onChange, label }) {
                   setPeriod(preset.period)
                   emitChange(preset.hour, preset.minute, preset.period)
                 }}
-                className="px-3 py-1.5 text-xs font-medium bg-neutral-100 text-neutral-700 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium bg-surface-2 text-fg-body rounded-lg hover:bg-fill-indigo-100 hover:text-mark-indigo-700 transition-colors"
               >
                 {preset.label}
               </button>

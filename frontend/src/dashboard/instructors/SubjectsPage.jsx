@@ -39,21 +39,21 @@ export default function SubjectsPage() {
   }, [subjects, query])
 
   const gradientClasses = [
-    'bg-gradient-to-r from-indigo-50 to-indigo-100 text-black',
-    'bg-gradient-to-r from-rose-50 to-rose-100 text-black',
-    'bg-gradient-to-r from-emerald-50 to-emerald-100 text-black',
-    'bg-gradient-to-r from-yellow-50 to-yellow-100 text-black',
-    'bg-gradient-to-r from-sky-50 to-sky-100 text-black',
-    'bg-gradient-to-r from-violet-50 to-violet-100 text-black',
-    'bg-gradient-to-r from-pink-50 to-pink-100 text-black',
+    'bg-gradient-to-r from-fill-indigo-50 to-fill-indigo-100 text-fg',
+    'bg-gradient-to-r from-fill-rose-50 to-fill-rose-100 text-fg',
+    'bg-gradient-to-r from-fill-emerald-50 to-fill-emerald-100 text-fg',
+    'bg-gradient-to-r from-fill-yellow-50 to-fill-yellow-100 text-fg',
+    'bg-gradient-to-r from-fill-sky-50 to-fill-sky-100 text-fg',
+    'bg-gradient-to-r from-fill-violet-50 to-fill-violet-100 text-fg',
+    'bg-gradient-to-r from-fill-pink-50 to-fill-pink-100 text-fg',
   ]
 
   return (
-    <div className="p-4 text-black">
+    <div className="p-4 text-fg">
       <header className="flex items-start justify-between mb-4">
         <div>
           <h2 className="text-2xl font-semibold">My subjects</h2>
-          <p className="text-sm text-gray-600">Subjects you teach and the class each subject belongs to.</p>
+          <p className="text-sm text-fg-muted">Subjects you teach and the class each subject belongs to.</p>
         </div>
       </header>
 
@@ -61,11 +61,11 @@ export default function SubjectsPage() {
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search subjects, code or class" className="p-2 rounded border w-full sm:w-64" />
       </div>
 
-      {loading && <div className="text-sm text-neutral-500">Loading…</div>}
-      {!loading && error && <div className="text-sm text-red-600">Failed to load subjects: {error.message || String(error)}</div>}
+      {loading && <div className="text-sm text-fg-soft">Loading…</div>}
+      {!loading && error && <div className="text-sm text-mark-red-600">Failed to load subjects: {error.message || String(error)}</div>}
 
       {!loading && !subjects.length && (
-        <div className="text-sm text-neutral-600">No subjects found. If you teach subjects they will appear here.</div>
+        <div className="text-sm text-fg-muted">No subjects found. If you teach subjects they will appear here.</div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -77,36 +77,36 @@ export default function SubjectsPage() {
           }}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-lg font-semibold text-black truncate" title={s.name || 'Untitled'}>{s.name || 'Untitled'}</div>
-                <div className="text-sm text-neutral-600 mt-1 truncate">{s.subject_code || ''}</div>
+                <div className="text-lg font-semibold text-fg truncate" title={s.name || 'Untitled'}>{s.name || 'Untitled'}</div>
+                <div className="text-sm text-fg-muted mt-1 truncate">{s.subject_code || ''}</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-sm text-neutral-600">Class</div>
-                <div className="text-sm font-medium text-black truncate max-w-[120px]" title={s.class_name || s.class_obj?.name || '—'}>{s.class_name || s.class_obj?.name || '—'}</div>
+                <div className="text-sm text-fg-muted">Class</div>
+                <div className="text-sm font-medium text-fg truncate max-w-[120px]" title={s.class_name || s.class_obj?.name || '—'}>{s.class_name || s.class_obj?.name || '—'}</div>
               </div>
             </div>
             {s.description && (
-              <div className="mt-2 text-sm text-neutral-600 line-clamp-2" title={s.description}>
+              <div className="mt-2 text-sm text-fg-muted line-clamp-2" title={s.description}>
                 {s.description}
               </div>
             )}
-            <div className="mt-3 text-sm text-neutral-600 flex-1">
-              <div className="truncate"><span className="font-medium text-black">Subject:</span> <span className="ml-1">{s.name || '—'}</span></div>
-              <div className="mt-1 truncate"><span className="font-medium text-black">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
-              {s.subject_code ? <div className="mt-1 truncate"><span className="font-medium text-black">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
+            <div className="mt-3 text-sm text-fg-muted flex-1">
+              <div className="truncate"><span className="font-medium text-fg">Subject:</span> <span className="ml-1">{s.name || '—'}</span></div>
+              <div className="mt-1 truncate"><span className="font-medium text-fg">Class:</span> <span className="ml-1">{s.class_name || s.class_obj?.name || '—'}</span></div>
+              {s.subject_code ? <div className="mt-1 truncate"><span className="font-medium text-fg">Code:</span> <span className="ml-1">{s.subject_code}</span></div> : null}
             </div>
             <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
-              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-fill-amber-50 text-mark-amber-700' : 'bg-surface-2 text-fg-soft'}`}>
                 {s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-black/10">
+            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-line">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate(`/list/classes/${s.class_obj?.id || s.class_obj || s.class_id || ''}?subject=${s.id}`)
                 }}
-                className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+                className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-sm text-white hover:bg-fill-indigo-700 transition"
               >
                 View class
               </button>
@@ -115,7 +115,7 @@ export default function SubjectsPage() {
                   e.stopPropagation();
                   navigate(`/list/exams?subject=${s.id}`)
                 }}
-                className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white hover:bg-emerald-700 transition"
+                className="px-3 py-1.5 rounded-md bg-fill-emerald-600 text-sm text-white hover:bg-fill-emerald-700 transition"
               >
                 View exams
               </button>

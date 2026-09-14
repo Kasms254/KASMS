@@ -25,7 +25,7 @@ export default function Exams() {
   const [createForm, setCreateForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
   const [editForm, setEditForm] = useState({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', component: '' })
   const [createError, setCreateError] = useState('')
-  const [editError, setEditError] = useState('')
+  const [, setEditError] = useState('')
 
   const [createComponents, setCreateComponents] = useState([])
   const [createGradingMode, setCreateGradingMode] = useState('LEGACY')
@@ -56,7 +56,7 @@ export default function Exams() {
       // ensure array
       const arr = Array.isArray(list) ? list : (list && list.results) ? list.results : []
       setAttachmentsMap(m => ({ ...m, [examId]: arr }))
-    } catch (err) {
+    } catch {
       // Silently handle attachment load error
     }
   }
@@ -259,7 +259,7 @@ export default function Exams() {
           return
         }
       }
-    } catch (err) {
+    } catch {
       // Silently handle duplicate check failure
     }
 
@@ -276,7 +276,7 @@ export default function Exams() {
           return toast.error('An active Final exam already exists for this subject. Deactivate it before creating another Final exam.')
         }
       }
-    } catch (err) {}
+    } catch { /* non-fatal: ignored */ }
 
     // POLICY: one active exam per component
     try {
@@ -290,7 +290,7 @@ export default function Exams() {
           return
         }
       }
-    } catch (err) {}
+    } catch { /* non-fatal: ignored */ }
 
     // build payload including description and duration
     const toDuration = (mins) => {
@@ -334,7 +334,7 @@ export default function Exams() {
             await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
             await fetchAttachmentsForExam(res.id)
             toast.success(`${filesToUpload.length} resource(s) uploaded`)
-          } catch (err) {
+          } catch {
             // Silently handle file upload failure
             toast.error('Failed to upload one or more files')
           } finally {
@@ -349,7 +349,7 @@ export default function Exams() {
             await api.createClassNotice({ title: `Exam scheduled: ${res.title}`, content: `Exam ${res.title} scheduled on ${res.exam_date}.`, class_obj: Number(classId), subject: Number(res.subject || currentForm.subject) })
             toast.success('Students notified')
           }
-        } catch (err) {
+        } catch {
           // Silently handle class notice creation failure
         }
       } catch (err) {
@@ -373,7 +373,7 @@ export default function Exams() {
             await Promise.all(filesToUpload.map(f => api.uploadExamAttachment(res.id, f)))
             await fetchAttachmentsForExam(res.id)
             toast.success(`${filesToUpload.length} file(s) uploaded`)
-          } catch (err) {
+          } catch {
             // Silently handle file upload failure
             toast.error('Failed to upload one or more files')
           } finally {
@@ -420,7 +420,7 @@ export default function Exams() {
     // scroll into view (optional UX nicety)
     try {
       document.querySelector('aside')?.scrollIntoView({ behavior: 'smooth' })
-    } catch (err) {
+    } catch {
       // ignore scrolling errors
       // Silently handle scroll failure
     }
@@ -620,10 +620,10 @@ export default function Exams() {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map(i => (
-          <div key={i} className="animate-pulse rounded-lg border border-neutral-200 bg-neutral-100 p-4">
-            <div className="h-4 w-24 bg-neutral-200 rounded" />
-            <div className="mt-2 h-4 w-40 bg-neutral-200 rounded" />
-            <div className="mt-2 h-3 w-32 bg-neutral-200 rounded" />
+          <div key={i} className="animate-pulse rounded-lg border border-line bg-surface-2 p-4">
+            <div className="h-4 w-24 bg-surface-3 rounded" />
+            <div className="mt-2 h-4 w-40 bg-surface-3 rounded" />
+            <div className="mt-2 h-3 w-32 bg-surface-3 rounded" />
           </div>
         ))}
       </div>
@@ -631,36 +631,36 @@ export default function Exams() {
   }
 
   return (
-    <div className="p-6 text-black w-full">
+    <div className="p-6 text-fg w-full">
       <header className="mb-6 flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <h2 className="text-3xl font-semibold mb-1">Exams</h2>
-            <p className="text-sm text-gray-600">Plan exams, share resources, and notify students in one place.</p>
+            <p className="text-sm text-fg-muted">Plan exams, share resources, and notify students in one place.</p>
           </div>
           <div className="flex items-center gap-2 self-start">
-            <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">Create exam</button>
+            <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2.5 rounded-lg bg-fill-green-600 text-white font-medium hover:bg-fill-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">Create exam</button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[{ label: 'Total exams', value: metrics.total, tone: 'text-indigo-600' },
-            { label: 'Active', value: metrics.active, tone: 'text-emerald-600' },
-            { label: 'Finals', value: metrics.finals, tone: 'text-amber-600' },
-            { label: 'Upcoming', value: metrics.upcoming, tone: 'text-blue-600' }].map(card => (
-            <div key={card.label} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">{card.label}</div>
-              <div className={`mt-2 text-2xl font-semibold ${card.tone || 'text-gray-900'}`}>{card.value}</div>
+          {[{ label: 'Total exams', value: metrics.total, tone: 'text-mark-indigo-600' },
+            { label: 'Active', value: metrics.active, tone: 'text-mark-emerald-600' },
+            { label: 'Finals', value: metrics.finals, tone: 'text-mark-amber-600' },
+            { label: 'Upcoming', value: metrics.upcoming, tone: 'text-mark-blue-600' }].map(card => (
+            <div key={card.label} className="rounded-xl border border-line bg-surface p-4 shadow-sm">
+              <div className="text-xs uppercase tracking-wide text-fg-soft">{card.label}</div>
+              <div className={`mt-2 text-2xl font-semibold ${card.tone || 'text-fg'}`}>{card.value}</div>
             </div>
           ))}
         </div>
       </header>
 
       <div className="mt-4 grid grid-cols-1 gap-4">
-        <div className="bg-white rounded-lg shadow p-4 border border-neutral-200">
+        <div className="bg-surface rounded-lg shadow p-4 border border-line">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
             <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-              <input placeholder="Search by title or subject" value={query} onChange={e => { setQuery(e.target.value); setCurrentPage(1) }} className="w-full sm:w-72 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <input placeholder="Search by title or subject" value={query} onChange={e => { setQuery(e.target.value); setCurrentPage(1) }} className="w-full sm:w-72 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-transparent" />
               <div className="flex gap-2">
                 <select value={subjectFilter} onChange={e => { setSubjectFilter(e.target.value); setCurrentPage(1) }} className="px-3 py-2 rounded-lg border w-full sm:w-52">
                   <option value="">All subjects</option>
@@ -674,16 +674,16 @@ export default function Exams() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 text-xs text-neutral-600" aria-hidden />
+            <div className="flex flex-wrap gap-2 text-xs text-fg-muted" aria-hidden />
           </div>
 
           {loading && <LoadingSkeleton />}
 
           {!loading && exams.length === 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-              <h3 className="mt-2 text-lg font-medium text-gray-900">No exams yet</h3>
-              <p className="mt-1 text-gray-600">Start by creating your first exam and attaching supporting resources.</p>
-              <button onClick={() => setCreateModalOpen(true)} className="mt-3 px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition">Create exam</button>
+            <div className="bg-fill-blue-50 border border-edge-blue-200 rounded-lg p-6 text-center">
+              <h3 className="mt-2 text-lg font-medium text-fg">No exams yet</h3>
+              <p className="mt-1 text-fg-muted">Start by creating your first exam and attaching supporting resources.</p>
+              <button onClick={() => setCreateModalOpen(true)} className="mt-3 px-4 py-2 rounded-md bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 transition">Create exam</button>
             </div>
           )}
 
@@ -696,73 +696,73 @@ export default function Exams() {
                   const files = attachmentsMap[x.id] || []
                   const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
                   return (
-                    <div key={x.id} className="bg-white rounded-xl p-4 shadow-md border border-neutral-200 hover:shadow-lg transition-shadow">
+                    <div key={x.id} className="bg-surface rounded-xl p-4 shadow-md border border-line hover:shadow-lg transition-shadow">
                       {/* Header with status badge */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             {x.is_active ? (
-                              <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">Active</span>
+                              <span className="text-xs bg-fill-green-100 text-mark-green-700 px-2.5 py-1 rounded-full font-medium">Active</span>
                             ) : (
-                              <span className="text-xs bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full font-medium">Inactive</span>
+                              <span className="text-xs bg-surface-2 text-fg-muted px-2.5 py-1 rounded-full font-medium">Inactive</span>
                             )}
-                            <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium uppercase">
+                            <span className="text-xs bg-fill-indigo-50 text-mark-indigo-700 px-2.5 py-1 rounded-full font-medium uppercase">
                               {x.exam_type_display || x.exam_type}
                             </span>
                           </div>
-                          <h3 className="font-bold text-gray-900 text-lg leading-tight">{x.title}</h3>
-                          <p className="text-base text-indigo-600 font-medium mt-1">{x.subject_name || x.subject?.name || '—'}</p>
+                          <h3 className="font-bold text-fg text-lg leading-tight">{x.title}</h3>
+                          <p className="text-base text-mark-indigo-600 font-medium mt-1">{x.subject_name || x.subject?.name || '—'}</p>
                         </div>
-                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-3 py-2">
-                          <div className="text-xl font-bold text-indigo-700">{x.total_marks ?? '—'}</div>
-                          <div className="text-xs text-indigo-500 font-medium">marks</div>
+                        <div className="text-right flex-shrink-0 bg-fill-indigo-50 rounded-lg px-3 py-2">
+                          <div className="text-xl font-bold text-mark-indigo-700">{x.total_marks ?? '—'}</div>
+                          <div className="text-xs text-mark-indigo-500 font-medium">marks</div>
                         </div>
                       </div>
 
                       {/* Info Grid */}
-                      <div className="grid grid-cols-2 gap-3 mb-4 py-3 border-y border-neutral-100">
+                      <div className="grid grid-cols-2 gap-3 mb-4 py-3 border-y border-hair">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-fill-blue-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-mark-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500">Date</div>
-                            <div className="text-sm font-semibold text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
+                            <div className="text-xs text-fg-soft">Date</div>
+                            <div className="text-sm font-semibold text-fg">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-fill-amber-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-mark-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500">Duration</div>
-                            <div className="text-sm font-semibold text-gray-900">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : '—'}</div>
+                            <div className="text-xs text-fg-soft">Duration</div>
+                            <div className="text-sm font-semibold text-fg">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : '—'}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-fill-purple-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-mark-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500">Resources</div>
-                            <div className="text-sm font-semibold text-gray-900">{totalResources} file(s)</div>
+                            <div className="text-xs text-fg-soft">Resources</div>
+                            <div className="text-sm font-semibold text-fg">{totalResources} file(s)</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-fill-green-50 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-mark-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                           </div>
                           <div>
-                            <div className="text-xs text-neutral-500">Created by</div>
-                            <div className="text-sm font-semibold text-gray-900 truncate max-w-[100px]">{x.created_by_name || '—'}</div>
+                            <div className="text-xs text-fg-soft">Created by</div>
+                            <div className="text-sm font-semibold text-fg truncate max-w-[100px]">{x.created_by_name || '—'}</div>
                           </div>
                         </div>
                       </div>
@@ -771,7 +771,7 @@ export default function Exams() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => navigate(`/list/results?exam=${x.id}`)}
-                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-base text-white font-semibold hover:bg-emerald-700 active:bg-emerald-800 transition shadow-sm"
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-fill-emerald-600 text-base text-white font-semibold hover:bg-fill-emerald-700 active:bg-fill-emerald-800 transition shadow-sm"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -780,7 +780,7 @@ export default function Exams() {
                         </button>
                         <button
                           onClick={() => startEdit(x)}
-                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-base text-white font-semibold hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-fill-indigo-600 text-base text-white font-semibold hover:bg-fill-indigo-700 active:bg-fill-indigo-800 transition shadow-sm"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -791,8 +791,8 @@ export default function Exams() {
                           onClick={() => toggleAttachments(x.id)}
                           className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-base font-semibold transition shadow-sm ${
                             attachmentsOpenId === x.id
-                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                              ? 'bg-fill-blue-100 text-mark-blue-700 hover:bg-fill-blue-200'
+                              : 'bg-fill-blue-600 text-white hover:bg-fill-blue-700 active:bg-fill-blue-800'
                           }`}
                           aria-expanded={attachmentsOpenId === x.id}
                         >
@@ -804,7 +804,7 @@ export default function Exams() {
                         <button
                           disabled={deletingId === x.id}
                           onClick={() => handleDelete(x)}
-                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-base text-white font-semibold hover:bg-red-700 active:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-fill-red-600 text-base text-white font-semibold hover:bg-fill-red-700 active:bg-fill-red-800 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -815,17 +815,17 @@ export default function Exams() {
 
                       {/* Resources Panel */}
                       {attachmentsOpenId === x.id && (
-                        <div className="mt-4 bg-gradient-to-br from-neutral-50 to-blue-50 p-4 rounded-xl border border-neutral-200">
+                        <div className="mt-4 bg-gradient-to-br from-canvas to-fill-blue-50 p-4 rounded-xl border border-line">
                           <div className="space-y-4">
                             {/* Uploaded Files */}
                             <div>
                               <div className="flex items-center gap-2 mb-3">
-                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="w-8 h-8 rounded-full bg-fill-blue-100 flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-mark-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                   </svg>
                                 </div>
-                                <div className="text-base font-semibold text-gray-900">Uploaded Files</div>
+                                <div className="text-base font-semibold text-fg">Uploaded Files</div>
                               </div>
                               {(files && files.length > 0) ? (
                                 <div className="space-y-2">
@@ -835,25 +835,25 @@ export default function Exams() {
                                       href={f.file_url || f.file}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-blue-400 hover:shadow-sm transition active:bg-blue-50"
+                                      className="flex items-center gap-3 p-3 bg-surface rounded-lg border border-line hover:border-edge-blue-400 hover:shadow-sm transition active:bg-fill-blue-50"
                                     >
-                                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <div className="w-10 h-10 rounded-lg bg-fill-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-mark-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                         </svg>
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-blue-700 truncate">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</div>
-                                        <div className="text-xs text-neutral-500">{f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
+                                        <div className="text-sm font-medium text-mark-blue-700 truncate">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</div>
+                                        <div className="text-xs text-fg-soft">{f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</div>
                                       </div>
-                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-fg-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                       </svg>
                                     </a>
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-sm text-neutral-500 italic p-3 bg-white rounded-lg border border-dashed border-neutral-300 text-center">No uploaded files</div>
+                                <div className="text-sm text-fg-soft italic p-3 bg-surface rounded-lg border border-dashed border-line-strong text-center">No uploaded files</div>
                               )}
                             </div>
 
@@ -861,12 +861,12 @@ export default function Exams() {
                             {(links && links.length > 0) && (
                               <div>
                                 <div className="flex items-center gap-2 mb-3">
-                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <div className="w-8 h-8 rounded-full bg-fill-purple-100 flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-mark-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                     </svg>
                                   </div>
-                                  <div className="text-base font-semibold text-gray-900">Links</div>
+                                  <div className="text-base font-semibold text-fg">Links</div>
                                 </div>
                                 <div className="space-y-2">
                                   {links.map((lnk, idx) => (
@@ -875,18 +875,18 @@ export default function Exams() {
                                       href={lnk}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="flex items-center gap-3 p-3 bg-white rounded-lg border border-neutral-200 hover:border-purple-400 hover:shadow-sm transition active:bg-purple-50"
+                                      className="flex items-center gap-3 p-3 bg-surface rounded-lg border border-line hover:border-edge-purple-400 hover:shadow-sm transition active:bg-fill-purple-50"
                                     >
-                                      <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <div className="w-10 h-10 rounded-lg bg-fill-purple-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-5 h-5 text-mark-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                         </svg>
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-purple-700 truncate">{lnk}</div>
-                                        <div className="text-xs text-neutral-500">External link</div>
+                                        <div className="text-sm font-medium text-mark-purple-700 truncate">{lnk}</div>
+                                        <div className="text-xs text-fg-soft">External link</div>
                                       </div>
-                                      <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-fg-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                       </svg>
                                     </a>
@@ -903,48 +903,48 @@ export default function Exams() {
 
               {/* Desktop: table */}
               <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr className="text-gray-600">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider min-w-[200px]">Title</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-32">Subject</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider w-28">Resources</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-20">Type</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider w-20">Marks</th>
+                <table className="w-full divide-y divide-line">
+                  <thead className="bg-surface-2">
+                    <tr className="text-fg-muted">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider w-24">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider min-w-[200px]">Title</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-body uppercase tracking-wider w-32">Subject</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-fg-body uppercase tracking-wider w-28">Resources</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-fg-body uppercase tracking-wider w-20">Type</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-fg-body uppercase tracking-wider w-20">Marks</th>
                       
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider min-w-[280px]">Actions</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-fg-body uppercase tracking-wider min-w-[280px]">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-surface divide-y divide-line">
                     {paged.map((x) => {
                       const links = parseLinksFromDescription(x.description)
                       const files = attachmentsMap[x.id] || []
                       const totalResources = (links ? links.length : 0) + (files ? files.length : 0)
                       return (
                         <React.Fragment key={x.id}>
-                          <tr className="hover:bg-neutral-50 transition">
-                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900">
+                          <tr className="hover:bg-canvas transition">
+                            <td className="px-4 py-4 align-top text-sm text-fg">{x.exam_date ? new Date(x.exam_date).toLocaleDateString() : '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-fg">
                               <div className="flex flex-col gap-1 max-w-[40ch]">
                                 <div className="flex items-center gap-2">
                                   <div className="font-semibold truncate">{x.title}</div>
-                                  {x.is_active ? <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">Inactive</span>}
+                                  {x.is_active ? <span className="text-xs bg-fill-green-50 text-mark-green-700 px-2 py-0.5 rounded">Active</span> : <span className="text-xs bg-surface-2 text-fg-muted px-2 py-0.5 rounded">Inactive</span>}
                                 </div>
-                                <div className="text-xs text-neutral-500 line-clamp-2">{x.description || 'No description added'}</div>
-                                <div className="text-xs text-neutral-600">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : 'No duration'}</div>
+                                <div className="text-xs text-fg-soft line-clamp-2">{x.description || 'No description added'}</div>
+                                <div className="text-xs text-fg-muted">{x.exam_duration ? (() => { const p = String(x.exam_duration).split(':').map(Number); const t = (p[0]||0)*60+(p[1]||0); return t >= 60 ? `${Math.floor(t/60)}h ${t%60 ? t%60+'min' : ''}`.trim() : `${t} min` })() : 'No duration'}</div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900">{x.subject_name || x.subject?.name || '—'}</td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-right">
+                            <td className="px-4 py-4 align-top text-sm text-fg">{x.subject_name || x.subject?.name || '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-fg text-right">
                               <div className="flex items-center justify-end gap-2">
-                                <div className="text-sm text-gray-700">{totalResources}</div>
+                                <div className="text-sm text-fg-body">{totalResources}</div>
                                 <button
                                   onClick={() => toggleAttachments(x.id)}
                                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition whitespace-nowrap ${
                                     attachmentsOpenId === x.id
-                                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                      ? 'bg-fill-blue-100 text-mark-blue-700 hover:bg-fill-blue-200'
+                                      : 'bg-fill-blue-600 text-white hover:bg-fill-blue-700'
                                   }`}
                                   aria-expanded={attachmentsOpenId === x.id}
                                   aria-label={attachmentsOpenId === x.id ? 'Hide resources' : 'View resources'}
@@ -953,27 +953,27 @@ export default function Exams() {
                                 </button>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.exam_type_display || x.exam_type}</td>
-                            <td className="px-4 py-4 align-top text-sm text-gray-900 text-center">{x.total_marks ?? '—'}</td>
+                            <td className="px-4 py-4 align-top text-sm text-fg text-center">{x.exam_type_display || x.exam_type}</td>
+                            <td className="px-4 py-4 align-top text-sm text-fg text-center">{x.total_marks ?? '—'}</td>
                             
-                            <td className="px-4 py-4 align-top text-sm text-gray-900">
+                            <td className="px-4 py-4 align-top text-sm text-fg">
                               <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => startEdit(x)}
-                                  className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white font-medium hover:bg-indigo-700 transition whitespace-nowrap"
+                                  className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-sm text-white font-medium hover:bg-fill-indigo-700 transition whitespace-nowrap"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   onClick={() => navigate(`/list/results?exam=${x.id}`)}
-                                  className="px-3 py-1.5 rounded-md bg-emerald-600 text-sm text-white font-medium hover:bg-emerald-700 transition whitespace-nowrap"
+                                  className="px-3 py-1.5 rounded-md bg-fill-emerald-600 text-sm text-white font-medium hover:bg-fill-emerald-700 transition whitespace-nowrap"
                                 >
                                   Grade
                                 </button>
                                 <button
                                   disabled={deletingId === x.id}
                                   onClick={() => handleDelete(x)}
-                                  className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white font-medium hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap"
+                                  className="px-3 py-1.5 rounded-md bg-fill-red-600 text-sm text-white font-medium hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap"
                                 >
                                   {deletingId === x.id ? 'Deleting...' : 'Remove'}
                                 </button>
@@ -982,45 +982,45 @@ export default function Exams() {
                           </tr>
 
                           {attachmentsOpenId === x.id && (
-                            <tr className="bg-neutral-50 border-t-2 border-blue-200">
+                            <tr className="bg-canvas border-t-2 border-edge-blue-200">
                               <td colSpan={7} className="px-4 py-4">
                                 <div className="grid gap-4 md:grid-cols-2">
-                                  <div className="bg-white rounded-lg p-3 border border-neutral-200">
+                                  <div className="bg-surface rounded-lg p-3 border border-line">
                                     <div className="flex items-center gap-2 mb-2">
-                                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-4 h-4 text-mark-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                       </svg>
-                                      <div className="text-sm font-semibold text-gray-900">Uploaded files</div>
+                                      <div className="text-sm font-semibold text-fg">Uploaded files</div>
                                     </div>
                                     {(files && files.length > 0) ? (
                                       <ul className="space-y-2">
                                         {files.map(f => (
-                                          <li key={f.id} className="text-sm p-2 bg-blue-50 rounded hover:bg-blue-100 transition">
-                                            <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
-                                            <span className="text-xs text-neutral-600 mt-1 block">📎 {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
+                                          <li key={f.id} className="text-sm p-2 bg-fill-blue-50 rounded hover:bg-fill-blue-100 transition">
+                                            <a href={f.file_url || f.file} target="_blank" rel="noreferrer" className="text-mark-blue-700 font-medium hover:underline break-words block">{f.file ? f.file.split('/').pop() : (f.file_url || 'file')}</a>
+                                            <span className="text-xs text-fg-muted mt-1 block">📎 {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : '—'}</span>
                                           </li>
                                         ))}
                                       </ul>
-                                    ) : <div className="text-sm text-neutral-500 italic">No uploaded files</div>}
+                                    ) : <div className="text-sm text-fg-soft italic">No uploaded files</div>}
                                   </div>
 
-                                  <div className="bg-white rounded-lg p-3 border border-neutral-200">
+                                  <div className="bg-surface rounded-lg p-3 border border-line">
                                     <div className="flex items-center gap-2 mb-2">
-                                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-4 h-4 text-mark-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                       </svg>
-                                      <div className="text-sm font-semibold text-gray-900">Links</div>
+                                      <div className="text-sm font-semibold text-fg">Links</div>
                                     </div>
                                     {(links && links.length > 0) ? (
                                       <ul className="space-y-2">
                                         {links.map((lnk, idx) => (
-                                          <li key={idx} className="text-sm p-2 bg-blue-50 rounded hover:bg-blue-100 transition">
-                                            <a href={lnk} target="_blank" rel="noreferrer" className="text-blue-700 font-medium hover:underline break-words block">{lnk}</a>
-                                            <span className="text-xs text-neutral-600 mt-1 block">🔗 External link</span>
+                                          <li key={idx} className="text-sm p-2 bg-fill-blue-50 rounded hover:bg-fill-blue-100 transition">
+                                            <a href={lnk} target="_blank" rel="noreferrer" className="text-mark-blue-700 font-medium hover:underline break-words block">{lnk}</a>
+                                            <span className="text-xs text-fg-muted mt-1 block">🔗 External link</span>
                                           </li>
                                         ))}
                                       </ul>
-                                    ) : <div className="text-sm text-neutral-500 italic">No links</div>}
+                                    ) : <div className="text-sm text-fg-soft italic">No links</div>}
                                   </div>
                                 </div>
                               </td>
@@ -1050,33 +1050,33 @@ export default function Exams() {
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
-              <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <form onSubmit={submit} className="transform transition-all duration-200 bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h4 className="text-lg text-black font-medium">Create exam</h4>
-                    <p className="text-sm text-neutral-500">Create a new exam for your subject.</p>
+                    <h4 className="text-lg text-fg font-medium">Create exam</h4>
+                    <p className="text-sm text-fg-soft">Create a new exam for your subject.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                  <button type="button" aria-label="Close" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
                 </div>
                 {createError && (
-                  <div className="mt-3 mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  <div className="mt-3 mb-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded px-3 py-2">
                     {createError}
                   </div>
                 )}
                 <div className="mt-4">
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
-                    <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <div className="text-sm text-fg-muted mb-1">Subject</div>
+                    <select value={createForm.subject} onChange={(e) => updateField('subject', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg">
                       <option value="">Select a subject</option>
                       {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
                     </select>
                   </label>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                    <div className="text-sm text-fg-muted mb-1 flex justify-between">
                       <span>Title</span>
-                      <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.title?.length || 0}/25</span>
+                      <span className={`text-xs ${(createForm.title?.length || 0) > 15 ? 'text-mark-red-500' : 'text-fg-faint'}`}>{createForm.title?.length || 0}/25</span>
                     </div>
-                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g.. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <input value={createForm.title} onChange={(e) => updateField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g.. Final Exam" className="w-full border border-line rounded px-3 py-2 text-fg" />
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <ModernDatePicker
@@ -1088,8 +1088,8 @@ export default function Exams() {
                     />
                     {createGradingMode === 'POLICY' ? (
                       <label className="block">
-                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
-                        <select value={createForm.component} onChange={(e) => updateField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                        <div className="text-sm text-fg-muted mb-1">Component *</div>
+                        <select value={createForm.component} onChange={(e) => updateField('component', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg">
                           <option value="">Select component</option>
                           {createComponents.map(c => (
                             <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
@@ -1098,14 +1098,14 @@ export default function Exams() {
                       </label>
                     ) : (
                       <label className="block">
-                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                        <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                        <div className="text-sm text-fg-muted mb-1">Total marks</div>
+                        <input type="number" value={createForm.total_marks} onChange={(e) => updateField('total_marks', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg" />
                       </label>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <div className="text-sm text-fg-muted mb-1">Type</div>
                       <input
                         type="text"
                         value={
@@ -1114,31 +1114,31 @@ export default function Exams() {
                             : 'Final'
                         }
                         disabled
-                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                        className="w-full border border-line rounded px-3 py-2 text-fg bg-surface-2"
                       />
                       <input type="hidden" value={createForm.exam_type || 'final'} />
                     </label>
                     <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
-                      <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      <div className="text-sm text-fg-muted mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={createForm.exam_duration || ''} onChange={(e) => updateField('exam_duration', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg" />
                     </label>
                   </div>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                    <div className="text-sm text-fg-muted mb-1 flex justify-between">
                       <span>Description</span>
-                      <span className={`text-xs ${(createForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{createForm.description?.length || 0}/150</span>
+                      <span className={`text-xs ${(createForm.description?.length || 0) > 150 ? 'text-mark-red-500' : 'text-fg-faint'}`}>{createForm.description?.length || 0}/150</span>
                     </div>
-                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                    <textarea value={createForm.description || ''} onChange={(e) => updateField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-line rounded px-3 py-2 text-fg" rows={2} />
                   </label>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="w-full text-sm text-neutral-600" />
-                    {createFiles && createFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{createFiles.length} file(s) selected</div>}
+                    <div className="text-sm text-fg-muted mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleCreateFilesChange} className="w-full text-sm text-fg-muted" />
+                    {createFiles && createFiles.length > 0 && <div className="text-xs text-fg-soft mt-1">{createFiles.length} file(s) selected</div>}
                   </label>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
+                  <button type="button" onClick={() => { setCreateModalOpen(false); setCreateError(''); setCreateForm({ title: '', subject: '', exam_type: 'final', exam_date: '', total_marks: '', description: '', exam_duration: '' }); setCreateFiles([]) }} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={loading || !isCreateFormValid} className="px-4 py-2 rounded-md bg-fill-green-600 text-white text-sm hover:bg-fill-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{loading ? 'Saving...' : 'Create exam'}</button>
                 </div>
               </form>
             </div>
@@ -1162,28 +1162,28 @@ export default function Exams() {
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cancelEdit} />
             <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
-              <form onSubmit={submit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+              <form onSubmit={submit} className="transform transition-all duration-200 bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h4 className="text-lg text-black font-medium">Edit exam</h4>
-                    <p className="text-sm text-neutral-500">Update exam details.</p>
+                    <h4 className="text-lg text-fg font-medium">Edit exam</h4>
+                    <p className="text-sm text-fg-soft">Update exam details.</p>
                   </div>
-                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                  <button type="button" aria-label="Close" onClick={cancelEdit} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
                 </div>
                 <div className="mt-4">
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1">Subject</div>
-                    <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                    <div className="text-sm text-fg-muted mb-1">Subject</div>
+                    <select value={editForm.subject} onChange={(e) => updateEditField('subject', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg">
                       <option value="">Select a subject</option>
                       {subjects.map(s => <option key={s.id} value={s.id}>{s.name} {s.class_name ? `— ${s.class_name}` : ''}</option>)}
                     </select>
                   </label>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                    <div className="text-sm text-fg-muted mb-1 flex justify-between">
                       <span>Title</span>
-                      <span className={`text-xs ${(editForm.title?.length || 0) > 25 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.title?.length || 0}/25</span>
+                      <span className={`text-xs ${(editForm.title?.length || 0) > 25 ? 'text-mark-red-500' : 'text-fg-faint'}`}>{editForm.title?.length || 0}/25</span>
                     </div>
-                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g. Final Exam" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                    <input value={editForm.title} onChange={(e) => updateEditField('title', e.target.value.slice(0, 25))} maxLength={25} placeholder="e.g. Final Exam" className="w-full border border-line rounded px-3 py-2 text-fg" />
                   </label>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <ModernDatePicker
@@ -1195,8 +1195,8 @@ export default function Exams() {
                     />
                     {editGradingMode === 'POLICY' ? (
                       <label className="block">
-                        <div className="text-sm text-neutral-600 mb-1">Component *</div>
-                        <select value={editForm.component} onChange={(e) => updateEditField('component', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black">
+                        <div className="text-sm text-fg-muted mb-1">Component *</div>
+                        <select value={editForm.component} onChange={(e) => updateEditField('component', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg">
                           <option value="">Select component</option>
                           {editComponents.map(c => (
                             <option key={c.id} value={c.id}>{c.name} ({c.total_marks} marks)</option>
@@ -1205,14 +1205,14 @@ export default function Exams() {
                       </label>
                     ) : (
                       <label className="block">
-                        <div className="text-sm text-neutral-600 mb-1">Total marks</div>
-                        <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                        <div className="text-sm text-fg-muted mb-1">Total marks</div>
+                        <input type="number" value={editForm.total_marks} onChange={(e) => updateEditField('total_marks', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg" />
                       </label>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Type</div>
+                      <div className="text-sm text-fg-muted mb-1">Type</div>
                       <input
                         type="text"
                         value={
@@ -1221,31 +1221,31 @@ export default function Exams() {
                             : 'Final'
                         }
                         disabled
-                        className="w-full border border-neutral-200 rounded px-3 py-2 text-black bg-gray-100"
+                        className="w-full border border-line rounded px-3 py-2 text-fg bg-surface-2"
                       />
                       <input type="hidden" value={editForm.exam_type || 'final'} />
                     </label>
                     <label className="block">
-                      <div className="text-sm text-neutral-600 mb-1">Duration (min)</div>
-                      <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                      <div className="text-sm text-fg-muted mb-1">Duration (min)</div>
+                      <input type="number" min="0" value={editForm.exam_duration || ''} onChange={(e) => updateEditField('exam_duration', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg" />
                     </label>
                   </div>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1 flex justify-between">
+                    <div className="text-sm text-fg-muted mb-1 flex justify-between">
                       <span>Description</span>
-                      <span className={`text-xs ${(editForm.description?.length || 0) > 150 ? 'text-red-500' : 'text-neutral-400'}`}>{editForm.description?.length || 0}/150</span>
+                      <span className={`text-xs ${(editForm.description?.length || 0) > 150 ? 'text-mark-red-500' : 'text-fg-faint'}`}>{editForm.description?.length || 0}/150</span>
                     </div>
-                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-neutral-200 rounded px-3 py-2 text-black" rows={2} />
+                    <textarea value={editForm.description || ''} onChange={(e) => updateEditField('description', e.target.value.slice(0, 150))} maxLength={150} placeholder="Optional description" className="w-full border border-line rounded px-3 py-2 text-fg" rows={2} />
                   </label>
                   <label className="block mb-3">
-                    <div className="text-sm text-neutral-600 mb-1">Resources</div>
-                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="w-full text-sm text-neutral-600" />
-                    {editFiles && editFiles.length > 0 && <div className="text-xs text-neutral-500 mt-1">{editFiles.length} file(s) selected</div>}
+                    <div className="text-sm text-fg-muted mb-1">Resources</div>
+                    <input type="file" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" multiple onChange={handleEditFilesChange} className="w-full text-sm text-fg-muted" />
+                    {editFiles && editFiles.length > 0 && <div className="text-xs text-fg-soft mt-1">{editFiles.length} file(s) selected</div>}
                   </label>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editLoading || !isEditFormValid} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                  <button type="button" onClick={cancelEdit} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading || !isEditFormValid} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
                 </div>
               </form>
             </div>

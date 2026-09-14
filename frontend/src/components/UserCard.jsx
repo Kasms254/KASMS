@@ -2,10 +2,10 @@ import React from 'react'
 import Card from './Card'
 
 const typeMap = {
-  admin: { title: 'Admins', accent: 'bg-indigo-600', icon: 'Shield' },
-  teacher: { title: 'Instructors', accent: 'bg-emerald-500', icon: 'BookOpen' },
-  student: { title: 'Students', accent: 'bg-sky-500', icon: 'Users' },
-  subject: { title: 'Subjects', accent: 'bg-amber-500', icon: 'Home' },
+  admin: { title: 'Admins', accent: 'bg-fill-indigo-600', icon: 'Shield' },
+  teacher: { title: 'Instructors', accent: 'bg-fill-emerald-500', icon: 'BookOpen' },
+  student: { title: 'Students', accent: 'bg-fill-sky-500', icon: 'Users' },
+  subject: { title: 'Subjects', accent: 'bg-fill-amber-500', icon: 'Home' },
 }
 
 export default function UserCard({ type = 'student', count = null }) {
@@ -25,7 +25,7 @@ export default function UserCard({ type = 'student', count = null }) {
       title={cfg.title}
       value={count}
       className=""
-      badgeClass="bg-white/5 text-black"
+      badgeClass="bg-white/5 text-fg"
       accent={cfg.accent}
       icon={cfg.icon}
       colored={true}

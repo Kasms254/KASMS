@@ -43,10 +43,10 @@ export default function AdminsPage() {
     if (/[^a-zA-Z0-9]/.test(password)) score += 1
 
     // Map score to label and color
-    if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500' }
-    if (score <= 4) return { score, label: 'Fair', color: 'bg-yellow-500' }
-    if (score <= 5) return { score, label: 'Good', color: 'bg-blue-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
+    if (score <= 2) return { score, label: 'Weak', color: 'bg-fill-red-500' }
+    if (score <= 4) return { score, label: 'Fair', color: 'bg-fill-yellow-500' }
+    if (score <= 5) return { score, label: 'Good', color: 'bg-fill-blue-500' }
+    return { score, label: 'Strong', color: 'bg-fill-green-500' }
   }
 
   const [form, setForm] = useState({
@@ -215,12 +215,12 @@ export default function AdminsPage() {
     <div className="w-full space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">School Admins</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Manage administrators for all schools</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">School Admins</h2>
+          <p className="text-xs sm:text-sm text-fg-soft">Manage administrators for all schools</p>
         </div>
         <button
           onClick={() => setCreateModal(true)}
-          className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-sm"
+          className="flex-1 sm:flex-none px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition flex items-center justify-center gap-2 shadow-sm"
         >
           <UserPlus className="w-4 h-4" />
           Add Admin
@@ -228,10 +228,10 @@ export default function AdminsPage() {
       </header>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-fg-faint" />
             <input
               type="text"
               placeholder="Search by name, email, or service number..."
@@ -240,7 +240,7 @@ export default function AdminsPage() {
                 setSearchTerm(e.target.value)
                 setCurrentPage(1)
               }}
-              className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full pl-10 pr-4 py-2 border border-line rounded-lg text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
           </div>
           <select
@@ -249,7 +249,7 @@ export default function AdminsPage() {
               setSelectedSchool(e.target.value)
               setCurrentPage(1)
             }}
-            className="w-full sm:w-64 px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full sm:w-64 px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           >
             <option value="all">All Schools</option>
             {schools.map((school) => (
@@ -262,14 +262,14 @@ export default function AdminsPage() {
       </div>
 
       {/* Admins Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600"></div>
           </div>
         ) : admins.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-neutral-500">
-            <Users className="w-12 h-12 mb-4 text-neutral-300" />
+          <div className="flex flex-col items-center justify-center h-64 text-fg-soft">
+            <Users className="w-12 h-12 mb-4 text-fg-faint" />
             <p>No admins found</p>
             {(searchTerm || selectedSchool !== 'all') && (
               <button
@@ -277,7 +277,7 @@ export default function AdminsPage() {
                   setSearchTerm('')
                   setSelectedSchool('all')
                 }}
-                className="mt-2 text-indigo-600 hover:text-indigo-700"
+                className="mt-2 text-mark-indigo-600 hover:text-mark-indigo-700"
               >
                 Clear filters
               </button>
@@ -288,56 +288,56 @@ export default function AdminsPage() {
             <div className="overflow-x-auto">
               <div className="overflow-y-visible">
                 <table className="w-full">
-                  <thead className="bg-neutral-50 border-b border-neutral-200">
+                  <thead className="bg-canvas border-b border-line">
                     <tr>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Admin</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">School</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Contact</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Role</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Created</th>
-                      <th className="text-right py-3 px-4 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Actions</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Admin</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">School</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Contact</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Role</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Created</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-fg-muted uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200 bg-white">
+                  <tbody className="divide-y divide-line bg-surface">
                   {admins.map((admin) => (
-                    <tr key={admin.id} className="hover:bg-neutral-50 transition">
+                    <tr key={admin.id} className="hover:bg-canvas transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-sm flex-shrink-0">
                             {(admin.user_name || 'A').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium text-black">{admin.user_name || 'Unknown'}</p>
-                            <p className="text-sm text-neutral-500">SVC: {admin.user?.svc_number || '-'}</p>
+                            <p className="font-medium text-fg">{admin.user_name || 'Unknown'}</p>
+                            <p className="text-sm text-fg-soft">SVC: {admin.user?.svc_number || '-'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-neutral-400" />
+                          <Building2 className="w-4 h-4 text-fg-faint" />
                           <div>
-                            <p className="font-medium text-black">{admin.school_name || 'Unknown'}</p>
-                            <p className="text-xs text-neutral-500">{admin.school_code || ''}</p>
+                            <p className="font-medium text-fg">{admin.school_name || 'Unknown'}</p>
+                            <p className="text-xs text-fg-soft">{admin.school_code || ''}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <p className="text-sm text-neutral-700">{admin.user_email || '-'}</p>
+                        <p className="text-sm text-fg-body">{admin.user_email || '-'}</p>
                       </td>
                       <td className="py-3 px-4">
                         {admin.is_primary ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-fill-amber-100 text-mark-amber-700">
                             <ShieldCheck className="w-3 h-3" />
                             Primary
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-neutral-100 text-neutral-700">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-surface-2 text-fg-body">
                             <Shield className="w-3 h-3" />
                             Admin
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-sm text-neutral-500">
+                      <td className="py-3 px-4 text-sm text-fg-soft">
                         {admin.created_at ? new Date(admin.created_at).toLocaleDateString() : '-'}
                       </td>
                       <td className="py-3 px-4">
@@ -355,7 +355,7 @@ export default function AdminsPage() {
                                 setActiveDropdown(admin.id)
                               }
                             }}
-                            className="p-2 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition"
+                            className="p-2 text-fg-soft hover:text-fg-body hover:bg-surface-2 rounded-lg transition"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
@@ -368,7 +368,7 @@ export default function AdminsPage() {
                               onClick={() => setActiveDropdown(null)}
                             />
                             <div
-                              className="fixed w-48 bg-white rounded-lg shadow-xl border border-neutral-200 py-1 z-50"
+                              className="fixed w-48 bg-surface rounded-lg shadow-xl border border-line py-1 z-50"
                               style={{
                                 top: `${dropdownPos.top}px`,
                                 right: `${dropdownPos.right}px`,
@@ -376,16 +376,16 @@ export default function AdminsPage() {
                             >
                               <button
                                 onClick={() => handleTogglePrimary(admin)}
-                                className="w-full px-4 py-2 text-left text-sm text-black hover:bg-neutral-50 flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-sm text-fg hover:bg-canvas flex items-center gap-2"
                               >
                                 {admin.is_primary ? (
                                   <>
-                                    <Shield className="w-4 h-4 text-neutral-500" />
+                                    <Shield className="w-4 h-4 text-fg-soft" />
                                     <span>Remove Primary</span>
                                   </>
                                 ) : (
                                   <>
-                                    <ShieldCheck className="w-4 h-4 text-amber-500" />
+                                    <ShieldCheck className="w-4 h-4 text-mark-amber-500" />
                                     <span>Make Primary</span>
                                   </>
                                 )}
@@ -395,7 +395,7 @@ export default function AdminsPage() {
                                   setDeleteModal({ open: true, admin })
                                   setActiveDropdown(null)
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2 text-red-600"
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-canvas flex items-center gap-2 text-mark-red-600"
                               >
                                 <Trash2 className="w-4 h-4" />
                                 <span>Remove Admin</span>
@@ -413,30 +413,30 @@ export default function AdminsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-neutral-200 gap-3">
-                <p className="text-sm text-neutral-600">
-                  Showing <span className="font-semibold text-black">{(currentPage - 1) * 10 + 1}</span> to{' '}
-                  <span className="font-semibold text-black">{Math.min(currentPage * 10, totalCount)}</span> of{' '}
-                  <span className="font-semibold text-black">{totalCount}</span> admins
+              <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-line gap-3">
+                <p className="text-sm text-fg-muted">
+                  Showing <span className="font-semibold text-fg">{(currentPage - 1) * 10 + 1}</span> to{' '}
+                  <span className="font-semibold text-fg">{Math.min(currentPage * 10, totalCount)}</span> of{' '}
+                  <span className="font-semibold text-fg">{totalCount}</span> admins
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 transition"
+                    className="p-2 rounded-lg border border-line bg-surface disabled:opacity-50 disabled:cursor-not-allowed hover:bg-canvas transition"
                   >
-                    <ChevronLeft className="w-4 h-4 text-neutral-600" />
+                    <ChevronLeft className="w-4 h-4 text-fg-muted" />
                   </button>
-                  <span className="text-sm text-neutral-600">
-                    Page <span className="font-semibold text-black">{currentPage}</span> of{' '}
-                    <span className="font-semibold text-black">{totalPages}</span>
+                  <span className="text-sm text-fg-muted">
+                    Page <span className="font-semibold text-fg">{currentPage}</span> of{' '}
+                    <span className="font-semibold text-fg">{totalPages}</span>
                   </span>
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 transition"
+                    className="p-2 rounded-lg border border-line bg-surface disabled:opacity-50 disabled:cursor-not-allowed hover:bg-canvas transition"
                   >
-                    <ChevronRight className="w-4 h-4 text-neutral-600" />
+                    <ChevronRight className="w-4 h-4 text-fg-muted" />
                   </button>
                 </div>
               </div>
@@ -449,20 +449,20 @@ export default function AdminsPage() {
       {createModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setCreateModal(false)} />
-          <div className="relative bg-white rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200 z-10 max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-xl p-5 max-w-lg w-full shadow-2xl ring-1 ring-hair animate-in zoom-in-95 duration-200 z-10 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-semibold text-black">Create School Admin</h3>
+              <h3 className="text-lg font-semibold text-fg">Create School Admin</h3>
               <button
                 onClick={() => setCreateModal(false)}
-                className="p-2 hover:bg-neutral-100 rounded-lg transition"
+                className="p-2 hover:bg-surface-2 rounded-lg transition"
               >
-                <X className="w-5 h-5 text-neutral-500" />
+                <X className="w-5 h-5 text-fg-soft" />
               </button>
             </div>
 
             <form onSubmit={handleCreateAdmin} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   School *
                 </label>
                 <select
@@ -470,8 +470,8 @@ export default function AdminsPage() {
                   value={form.school}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.school ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    errors.school ? 'border-edge-red-500' : 'border-line'
                   }`}
                 >
                   <option value="">Select a school</option>
@@ -481,12 +481,12 @@ export default function AdminsPage() {
                     </option>
                   ))}
                 </select>
-                {errors.school && <p className="text-red-500 text-sm mt-1">{errors.school}</p>}
+                {errors.school && <p className="text-mark-red-500 text-sm mt-1">{errors.school}</p>}
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  <label className="block text-sm font-medium text-fg-muted mb-1">
                     First Name *
                   </label>
                   <input
@@ -495,14 +495,14 @@ export default function AdminsPage() {
                     value={form.first_name}
                     onChange={handleChange}
                     required
-                    className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.first_name ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.first_name ? 'border-edge-red-500' : 'border-line'
                     }`}
                   />
-                  {errors.first_name && <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>}
+                  {errors.first_name && <p className="text-mark-red-500 text-sm mt-1">{errors.first_name}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  <label className="block text-sm font-medium text-fg-muted mb-1">
                     Last Name *
                   </label>
                   <input
@@ -511,14 +511,14 @@ export default function AdminsPage() {
                     value={form.last_name}
                     onChange={handleChange}
                     required
-                    className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.last_name ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.last_name ? 'border-edge-red-500' : 'border-line'
                     }`}
                   />
-                  {errors.last_name && <p className="text-red-500 text-sm mt-1">{errors.last_name}</p>}
+                  {errors.last_name && <p className="text-mark-red-500 text-sm mt-1">{errors.last_name}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  <label className="block text-sm font-medium text-fg-muted mb-1">
                     Service Number *
                   </label>
                   <input
@@ -529,20 +529,20 @@ export default function AdminsPage() {
                     value={form.svc_number}
                     onChange={handleChange}
                     required
-                    className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono ${
-                      errors.svc_number ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 font-mono ${
+                      errors.svc_number ? 'border-edge-red-500' : 'border-line'
                     }`}
                     placeholder="e.g., 12345678"
                   />
-                  {errors.svc_number && <p className="text-red-500 text-sm mt-1">{errors.svc_number}</p>}
+                  {errors.svc_number && <p className="text-mark-red-500 text-sm mt-1">{errors.svc_number}</p>}
                 </div>
               </div>
 
-              <p className="text-neutral-500 text-xs">Numbers only - used for login</p>
+              <p className="text-fg-soft text-xs">Numbers only - used for login</p>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  <label className="block text-sm font-medium text-fg-muted mb-1">
                     Email *
                   </label>
                   <input
@@ -551,15 +551,15 @@ export default function AdminsPage() {
                     value={form.email}
                     onChange={handleChange}
                     required
-                    className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.email ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.email ? 'border-edge-red-500' : 'border-line'
                     }`}
                   />
-                  {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                  {errors.email && <p className="text-mark-red-500 text-sm mt-1">{errors.email}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  <label className="block text-sm font-medium text-fg-muted mb-1">
                     Phone Number *
                   </label>
                   <input
@@ -568,16 +568,16 @@ export default function AdminsPage() {
                     value={form.phone_number}
                     onChange={handleChange}
                     required
-                    className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.phone_number ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.phone_number ? 'border-edge-red-500' : 'border-line'
                     }`}
                   />
-                  {errors.phone_number && <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>}
+                  {errors.phone_number && <p className="text-mark-red-500 text-sm mt-1">{errors.phone_number}</p>}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   Password *
                 </label>
                 <div className="relative">
@@ -588,45 +588,45 @@ export default function AdminsPage() {
                     onChange={handleChange}
                     required
                     minLength={8}
-                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.password ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.password ? 'border-edge-red-500' : 'border-line'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+                {errors.password && <p className="text-mark-red-500 text-sm mt-1">{errors.password}</p>}
                 {/* Password Strength Indicator */}
                 {form.password && (
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all duration-300 ${passwordStrength.color}`}
                           style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
                         />
                       </div>
                       <span className={`text-xs font-medium ${
-                        passwordStrength.label === 'Weak' ? 'text-red-600' :
-                        passwordStrength.label === 'Fair' ? 'text-yellow-600' :
-                        passwordStrength.label === 'Good' ? 'text-blue-600' :
-                        'text-green-600'
+                        passwordStrength.label === 'Weak' ? 'text-mark-red-600' :
+                        passwordStrength.label === 'Fair' ? 'text-mark-yellow-600' :
+                        passwordStrength.label === 'Good' ? 'text-mark-blue-600' :
+                        'text-mark-green-600'
                       }`}>
                         {passwordStrength.label}
                       </span>
                     </div>
-                    <p className="text-neutral-500 text-xs mt-1">
+                    <p className="text-fg-soft text-xs mt-1">
                       Use 8+ characters with uppercase, lowercase, numbers & symbols
                     </p>
                   </div>
                 )}
                 {!form.password && (
-                  <p className="text-neutral-500 text-xs mt-1">Minimum 8 characters</p>
+                  <p className="text-fg-soft text-xs mt-1">Minimum 8 characters</p>
                 )}
               </div>
 
@@ -637,25 +637,25 @@ export default function AdminsPage() {
                   id="is_primary"
                   checked={form.is_primary}
                   onChange={handleChange}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                  className="w-4 h-4 text-mark-indigo-600 rounded focus:ring-edge-indigo-500"
                 />
-                <label htmlFor="is_primary" className="text-sm text-neutral-700">
+                <label htmlFor="is_primary" className="text-sm text-fg-body">
                   Make this admin the primary admin for the school
                 </label>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-200">
+              <div className="flex justify-end gap-2 pt-3 border-t border-line">
                 <button
                   type="button"
                   onClick={() => setCreateModal(false)}
-                  className="px-4 py-2 text-neutral-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                  className="px-4 py-2 text-fg-body bg-surface-3 rounded-lg hover:bg-surface-4 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50"
+                  className="px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition flex items-center gap-2 disabled:opacity-50"
                 >
                   {saving ? (
                     <>
@@ -679,22 +679,22 @@ export default function AdminsPage() {
       {deleteModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setDeleteModal({ open: false, admin: null })} />
-          <div className="relative bg-white rounded-xl p-6 max-w-md w-full shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200 z-10">
-            <h3 className="text-lg font-semibold text-black">Remove Admin</h3>
-            <p className="mt-2 text-neutral-600">
+          <div className="relative bg-surface rounded-xl p-6 max-w-md w-full shadow-2xl ring-1 ring-hair animate-in zoom-in-95 duration-200 z-10">
+            <h3 className="text-lg font-semibold text-fg">Remove Admin</h3>
+            <p className="mt-2 text-fg-muted">
               Are you sure you want to remove <strong>{deleteModal.admin?.user_name}</strong> as an admin for{' '}
               <strong>{deleteModal.admin?.school_name}</strong>? The user account will remain but will no longer have admin access.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteModal({ open: false, admin: null })}
-                className="px-4 py-2 text-neutral-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                className="px-4 py-2 text-fg-body bg-surface-3 rounded-lg hover:bg-surface-4 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                className="px-4 py-2 bg-fill-red-600 text-white rounded-lg hover:bg-fill-red-700 transition"
               >
                 Remove
               </button>

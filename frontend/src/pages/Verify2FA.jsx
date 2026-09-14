@@ -123,7 +123,7 @@ export default function Verify2FA() {
   const renderIcon = (name, props = {}) => {
     const Comp = LucideIcons[name]
     if (Comp) return <Comp {...props} />
-    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-gray-300 rounded`} />
+    return <span className={`${props.className || ''} inline-block w-4 h-4 bg-surface-4 rounded`} />
   }
 
   // Render nothing while the session check is running, or while any redirect condition
@@ -131,19 +131,19 @@ export default function Verify2FA() {
   if (authLoading || user || !twoFAEmail) return null
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-canvas to-surface px-4">
       <div className="w-full max-w-md">
 
         {/* OTP Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100 w-full">
+        <div className="bg-surface rounded-2xl shadow-xl p-6 lg:p-10 border border-hair w-full">
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 flex items-center justify-center mb-3 shadow-lg">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-fill-red-900 to-fill-rose-800 flex items-center justify-center mb-3 shadow-lg">
               {renderIcon('ShieldCheck', { className: 'w-8 h-8 text-white' })}
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Verify Your Identity</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-2xl font-semibold text-fg">Verify Your Identity</h2>
+            <p className="text-sm text-fg-soft mt-1">
               Enter the 6-digit code sent to{' '}
-              <span className="font-medium text-gray-700">{twoFAEmail || 'your email'}</span>
+              <span className="font-medium text-fg-body">{twoFAEmail || 'your email'}</span>
             </p>
           </div>
 
@@ -163,10 +163,10 @@ export default function Verify2FA() {
                     onKeyDown={e => handleKeyDown(i, e)}
                     className={`w-11 h-14 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
                       error
-                        ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                        ? 'border-edge-red-300 focus:ring-edge-red-200 focus:border-edge-red-400'
                         : digit
-                        ? 'border-red-800 bg-red-50 focus:ring-red-100 focus:border-red-800'
-                        : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                        ? 'border-edge-red-800 bg-fill-red-50 focus:ring-edge-red-100 focus:border-edge-red-800'
+                        : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                     }`}
                     aria-label={`Digit ${i + 1} of 6`}
                     autoComplete="one-time-code"
@@ -177,7 +177,7 @@ export default function Verify2FA() {
 
               {/* Remaining attempts warning */}
               {remainingAttempts !== null && remainingAttempts > 0 && (
-                <p className="mt-2 text-center text-xs text-amber-600 flex items-center justify-center gap-1">
+                <p className="mt-2 text-center text-xs text-mark-amber-600 flex items-center justify-center gap-1">
                   {renderIcon('AlertTriangle', { className: 'w-3.5 h-3.5' })}
                   {remainingAttempts} attempt{remainingAttempts !== 1 ? 's' : ''} remaining before lockout
                 </p>
@@ -187,7 +187,7 @@ export default function Verify2FA() {
             <button
               type="submit"
               disabled={loading || digits.join('').length < 6}
-              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' }) : null}
               {loading ? 'Verifying...' : 'Verify Code'}
@@ -195,18 +195,18 @@ export default function Verify2FA() {
 
             {/* Error message */}
             {error && (
-              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start gap-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded-lg p-3">
                 {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
                 <div className="flex-1">
                   <p className="font-medium">Verification Failed</p>
-                  <p className="text-red-500 mt-0.5">{error}</p>
+                  <p className="text-mark-red-500 mt-0.5">{error}</p>
                 </div>
               </div>
             )}
 
             {/* Resend success message */}
             {resendSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm text-mark-green-700 bg-fill-green-50 border border-edge-green-200 rounded-lg p-3">
                 {renderIcon('CheckCircle', { className: 'w-4 h-4 flex-shrink-0' })}
                 <p>A new verification code has been sent to your email.</p>
               </div>
@@ -218,7 +218,7 @@ export default function Verify2FA() {
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading || resendCooldown > 0}
-                className="text-sm text-red-800 hover:text-red-900 font-medium disabled:text-gray-400 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                className="text-sm text-mark-red-800 hover:text-mark-red-900 font-medium disabled:text-fg-faint disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
               >
                 {resendLoading
                   ? renderIcon('Loader2', { className: 'w-3.5 h-3.5 animate-spin' })
@@ -229,7 +229,7 @@ export default function Verify2FA() {
               <button
                 type="button"
                 onClick={handleBackToLogin}
-                className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1 transition-colors"
+                className="text-sm text-fg-soft hover:text-fg-body inline-flex items-center gap-1 transition-colors"
               >
                 {renderIcon('ArrowLeft', { className: 'w-3.5 h-3.5' })}
                 Back to Login
@@ -237,7 +237,7 @@ export default function Verify2FA() {
             </div>
           </form>
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          <p className="mt-8 text-center text-sm text-fg-soft">
             © {new Date().getFullYear()} KACS All Rights Reserved.
           </p>
         </div>

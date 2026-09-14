@@ -199,8 +199,8 @@ export default function OICAssignments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-semibold text-black">OIC Assignments</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">OIC Assignments</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">
             {canManage ? 'Assign Officers in Charge to classes.' : 'Officers in Charge assigned to classes.'}
           </p>
         </div>
@@ -210,9 +210,9 @@ export default function OICAssignments() {
             placeholder="Search..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
-            className="w-40 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-40 p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
-          <label className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-black cursor-pointer">
+          <label className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-fg cursor-pointer">
             <input
               type="checkbox"
               checked={!filterActive}
@@ -225,14 +225,14 @@ export default function OICAssignments() {
             <>
               <button
                 onClick={() => setBulkModal(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 transition"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-fill-emerald-600 text-white text-xs sm:text-sm hover:bg-fill-emerald-700 transition"
               >
                 <Icons.ListPlus className="w-4 h-4" />
                 Bulk Assign
               </button>
               <button
                 onClick={openCreate}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-600 text-white text-xs sm:text-sm hover:bg-indigo-700 transition"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-fill-indigo-600 text-white text-xs sm:text-sm hover:bg-fill-indigo-700 transition"
               >
                 <Icons.Plus className="w-4 h-4" />
                 Assign OIC
@@ -243,18 +243,18 @@ export default function OICAssignments() {
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-3 text-sm text-neutral-600">
+        <div className="mb-3 text-sm text-fg-muted">
           Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount} assignments
         </div>
       )}
 
       {/* Assignment grid */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl border border-line p-6">
           <EmptyState icon="Loader2" title="Loading assignments..." variant="minimal" />
         </div>
       ) : assignments.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-surface rounded-xl border border-line p-6">
           <EmptyState
             icon="UserCheck"
             title="No assignments found"
@@ -265,44 +265,44 @@ export default function OICAssignments() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {assignments.map((a) => (
-            <div key={a.id} className={`relative bg-white rounded-xl border p-4 hover:shadow-md transition-shadow ${a.is_active ? 'border-neutral-200' : 'border-neutral-100 opacity-60'}`}>
+            <div key={a.id} className={`relative bg-surface rounded-xl border p-4 hover:shadow-md transition-shadow ${a.is_active ? 'border-line' : 'border-hair opacity-60'}`}>
               {/* Accent stripe */}
-              <div className={`absolute top-0 left-0 h-1 w-12 md:w-16 rounded-tl-xl ${a.is_active ? 'bg-indigo-600' : 'bg-neutral-400'}`} />
+              <div className={`absolute top-0 left-0 h-1 w-12 md:w-16 rounded-tl-xl ${a.is_active ? 'bg-fill-indigo-600' : 'bg-surface-5'}`} />
 
               <div className="flex items-start justify-between gap-2 mt-1">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-black truncate">{a.oic_name || a.oic_svc_number || '—'}</p>
-                  {a.oic_rank && <p className="text-xs text-neutral-500">{a.oic_rank}</p>}
-                  {a.oic_svc_number && <p className="text-xs text-neutral-400">{a.oic_svc_number}</p>}
+                  <p className="text-sm font-semibold text-fg truncate">{a.oic_name || a.oic_svc_number || '—'}</p>
+                  {a.oic_rank && <p className="text-xs text-fg-soft">{a.oic_rank}</p>}
+                  {a.oic_svc_number && <p className="text-xs text-fg-faint">{a.oic_svc_number}</p>}
                 </div>
-                <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${a.is_active ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${a.is_active ? 'bg-fill-green-100 text-mark-green-700' : 'bg-surface-2 text-fg-soft'}`}>
                   {a.is_active ? 'Active' : 'Inactive'}
                 </span>
               </div>
 
-              <div className="mt-3 pt-3 border-t border-neutral-100">
-                <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-                  <Icons.Layers className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+              <div className="mt-3 pt-3 border-t border-hair">
+                <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                  <Icons.Layers className="w-3.5 h-3.5 text-mark-indigo-500 flex-shrink-0" />
                   <span className="truncate font-medium">{a.class_name || '—'}</span>
                 </div>
                 {a.course_name && (
-                  <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-fg-faint mt-1">
                     <Icons.BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{a.course_name}</span>
                   </div>
                 )}
                 {a.department_name && (
-                  <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-fg-faint mt-1">
                     <Icons.Building className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{a.department_name}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-1">
+                <div className="flex items-center gap-1.5 text-xs text-fg-faint mt-1">
                   <Icons.Calendar className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{formatDate(a.assigned_at)}</span>
                 </div>
                 {a.notes && (
-                  <p className="mt-2 text-xs text-neutral-500 italic line-clamp-2">{a.notes}</p>
+                  <p className="mt-2 text-xs text-fg-soft italic line-clamp-2">{a.notes}</p>
                 )}
               </div>
 
@@ -310,13 +310,13 @@ export default function OICAssignments() {
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => openEdit(a)}
-                    className="flex-1 px-2 py-1.5 rounded-md bg-indigo-50 text-indigo-600 text-xs hover:bg-indigo-100 transition font-medium"
+                    className="flex-1 px-2 py-1.5 rounded-md bg-fill-indigo-50 text-mark-indigo-600 text-xs hover:bg-fill-indigo-100 transition font-medium"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => setDeactivateTarget(a)}
-                    className="flex-1 px-2 py-1.5 rounded-md bg-red-50 text-red-600 text-xs hover:bg-red-100 transition font-medium"
+                    className="flex-1 px-2 py-1.5 rounded-md bg-fill-red-50 text-mark-red-600 text-xs hover:bg-fill-red-100 transition font-medium"
                   >
                     Deactivate
                   </button>
@@ -330,12 +330,12 @@ export default function OICAssignments() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</div>
+          <div className="text-sm text-fg-muted">Page {currentPage} of {totalPages}</div>
           <div className="flex gap-2">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition">First</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition">Previous</button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition">Next</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition">Last</button>
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 transition">First</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 transition">Previous</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 transition">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md bg-surface border border-line-strong text-fg-body hover:bg-canvas disabled:opacity-50 transition">Last</button>
           </div>
         </div>
       )}
@@ -345,25 +345,25 @@ export default function OICAssignments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAssignModal(false)} />
           <div className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-5 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-5 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-base font-semibold text-black">
+                <h4 className="text-base font-semibold text-fg">
                   {editTarget ? 'Edit Assignment' : 'Assign OIC to Class'}
                 </h4>
-                <button onClick={() => setAssignModal(false)} className="text-neutral-400 hover:text-black transition">
+                <button onClick={() => setAssignModal(false)} className="text-fg-faint hover:text-fg transition">
                   <Icons.X className="w-5 h-5" />
                 </button>
               </div>
 
               {loadingLookups ? (
-                <div className="py-8 text-center text-sm text-neutral-500">Loading...</div>
+                <div className="py-8 text-center text-sm text-fg-soft">Loading...</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* OIC selector */}
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">OIC User *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">OIC User *</label>
                     {oicUsers.length === 0 ? (
-                      <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                      <div className="p-3 rounded-md bg-fill-amber-50 border border-edge-amber-200 text-xs text-mark-amber-700">
                         No OIC users found. Create a user with the <strong>Officer in Charge</strong> role first.
                       </div>
                     ) : (
@@ -371,9 +371,9 @@ export default function OICAssignments() {
                         value={form.oic}
                         onChange={(e) => setForm(f => ({ ...f, oic: e.target.value }))}
                         disabled={!!editTarget}
-                        className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black ${
-                          formErrors.oic ? 'border-rose-500' : 'border-neutral-200'
-                        } ${editTarget ? 'bg-neutral-50 cursor-not-allowed' : ''}`}
+                        className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg ${
+                          formErrors.oic ? 'border-edge-rose-500' : 'border-line'
+                        } ${editTarget ? 'bg-canvas cursor-not-allowed' : ''}`}
                       >
                         <option value="">Select an OIC user</option>
                         {oicUsers.map(u => (
@@ -383,19 +383,19 @@ export default function OICAssignments() {
                         ))}
                       </select>
                     )}
-                    {formErrors.oic && <p className="text-xs text-rose-600 mt-1">{formErrors.oic}</p>}
+                    {formErrors.oic && <p className="text-xs text-mark-rose-600 mt-1">{formErrors.oic}</p>}
                   </div>
 
                   {/* Class selector */}
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Class *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Class *</label>
                     <select
                       value={form.class_obj}
                       onChange={(e) => setForm(f => ({ ...f, class_obj: e.target.value }))}
                       disabled={!!editTarget}
-                      className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black ${
-                        formErrors.class_obj ? 'border-rose-500' : 'border-neutral-200'
-                      } ${editTarget ? 'bg-neutral-50 cursor-not-allowed' : ''}`}
+                      className={`w-full p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg ${
+                        formErrors.class_obj ? 'border-edge-rose-500' : 'border-line'
+                      } ${editTarget ? 'bg-canvas cursor-not-allowed' : ''}`}
                     >
                       <option value="">Select a class</option>
                       {classes.map(c => (
@@ -404,31 +404,31 @@ export default function OICAssignments() {
                         </option>
                       ))}
                     </select>
-                    {formErrors.class_obj && <p className="text-xs text-rose-600 mt-1">{formErrors.class_obj}</p>}
+                    {formErrors.class_obj && <p className="text-xs text-mark-rose-600 mt-1">{formErrors.class_obj}</p>}
                     {editTarget && (
-                      <p className="text-xs text-neutral-400 mt-1">OIC and class cannot be changed. Create a new assignment instead.</p>
+                      <p className="text-xs text-fg-faint mt-1">OIC and class cannot be changed. Create a new assignment instead.</p>
                     )}
                   </div>
 
                   {/* Notes */}
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Notes <span className="text-neutral-400">(optional)</span></label>
+                    <label className="text-sm text-fg-muted mb-1 block">Notes <span className="text-fg-faint">(optional)</span></label>
                     <textarea
                       value={form.notes}
                       onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
                       placeholder="Any notes about this assignment..."
                       rows={3}
-                      className="w-full p-2 rounded-md text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+                      className="w-full p-2 rounded-md text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 resize-none"
                     />
                   </div>
 
                   <div className="flex justify-end gap-2 pt-1">
                     <button type="button" onClick={() => setAssignModal(false)}
-                      className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">
+                      className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">
                       Cancel
                     </button>
                     <button type="submit" disabled={submitting || oicUsers.length === 0}
-                      className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 transition">
+                      className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-50 transition">
                       {submitting ? 'Saving...' : editTarget ? 'Save Changes' : 'Assign OIC'}
                     </button>
                   </div>
@@ -444,34 +444,34 @@ export default function OICAssignments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setBulkModal(false)} />
           <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="bg-white rounded-xl shadow-2xl ring-1 ring-black/5 flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between p-5 border-b border-neutral-100">
+            <div className="bg-surface rounded-xl shadow-2xl ring-1 ring-hair flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-5 border-b border-hair">
                 <div>
-                  <h4 className="text-base font-semibold text-black">Bulk Assign OIC</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">Assign one OIC to multiple classes at once.</p>
+                  <h4 className="text-base font-semibold text-fg">Bulk Assign OIC</h4>
+                  <p className="text-xs text-fg-soft mt-0.5">Assign one OIC to multiple classes at once.</p>
                 </div>
-                <button onClick={() => setBulkModal(false)} className="text-neutral-400 hover:text-black transition">
+                <button onClick={() => setBulkModal(false)} className="text-fg-faint hover:text-fg transition">
                   <Icons.X className="w-5 h-5" />
                 </button>
               </div>
 
               {loadingLookups ? (
-                <div className="p-8 text-center text-sm text-neutral-500">Loading...</div>
+                <div className="p-8 text-center text-sm text-fg-soft">Loading...</div>
               ) : (
                 <form onSubmit={handleBulkSubmit} className="flex flex-col flex-1 overflow-hidden">
                   <div className="p-5 space-y-4 overflow-y-auto flex-1">
                     {/* OIC selector */}
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">OIC User *</label>
+                      <label className="text-sm text-fg-muted mb-1 block">OIC User *</label>
                       {oicUsers.length === 0 ? (
-                        <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                        <div className="p-3 rounded-md bg-fill-amber-50 border border-edge-amber-200 text-xs text-mark-amber-700">
                           No OIC users found. Create a user with the <strong>Officer in Charge</strong> role first.
                         </div>
                       ) : (
                         <select
                           value={bulkOic}
                           onChange={(e) => setBulkOic(e.target.value)}
-                          className="w-full p-2 rounded-md text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black"
+                          className="w-full p-2 rounded-md text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg"
                         >
                           <option value="">Select an OIC user</option>
                           {oicUsers.map(u => (
@@ -486,20 +486,20 @@ export default function OICAssignments() {
                     {/* Class checkboxes */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm text-neutral-600">Classes * <span className="text-neutral-400">({bulkClassIds.length} selected)</span></label>
+                        <label className="text-sm text-fg-muted">Classes * <span className="text-fg-faint">({bulkClassIds.length} selected)</span></label>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setBulkClassIds(classes.map(c => c.id))}
-                            className="text-xs text-indigo-600 hover:underline">Select all</button>
+                            className="text-xs text-mark-indigo-600 hover:underline">Select all</button>
                           <button type="button" onClick={() => setBulkClassIds([])}
-                            className="text-xs text-neutral-500 hover:underline">Clear</button>
+                            className="text-xs text-fg-soft hover:underline">Clear</button>
                         </div>
                       </div>
-                      <div className="border border-neutral-200 rounded-lg overflow-y-auto max-h-60 divide-y divide-neutral-100">
+                      <div className="border border-line rounded-lg overflow-y-auto max-h-60 divide-y divide-hair">
                         {classes.length === 0 ? (
-                          <div className="p-4 text-sm text-neutral-400 text-center">No active classes available</div>
+                          <div className="p-4 text-sm text-fg-faint text-center">No active classes available</div>
                         ) : (
                           classes.map(c => (
-                            <label key={c.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 cursor-pointer">
+                            <label key={c.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-canvas cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={bulkClassIds.includes(c.id)}
@@ -507,11 +507,11 @@ export default function OICAssignments() {
                                 className="rounded"
                               />
                               <div className="min-w-0">
-                                <span className="text-sm text-black font-medium truncate block">
+                                <span className="text-sm text-fg font-medium truncate block">
                                   {c.name}{c.class_code ? ` (${c.class_code})` : ''}
                                 </span>
                                 {c.course_name && (
-                                  <span className="text-xs text-neutral-400">{c.course_name}</span>
+                                  <span className="text-xs text-fg-faint">{c.course_name}</span>
                                 )}
                               </div>
                             </label>
@@ -521,13 +521,13 @@ export default function OICAssignments() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 p-5 border-t border-neutral-100">
+                  <div className="flex justify-end gap-2 p-5 border-t border-hair">
                     <button type="button" onClick={() => setBulkModal(false)}
-                      className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">
+                      className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">
                       Cancel
                     </button>
                     <button type="submit" disabled={bulkSubmitting || !bulkOic || bulkClassIds.length === 0 || oicUsers.length === 0}
-                      className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 transition">
+                      className="px-4 py-2 rounded-md bg-fill-emerald-600 text-white text-sm hover:bg-fill-emerald-700 disabled:opacity-50 transition">
                       {bulkSubmitting ? 'Assigning...' : `Assign to ${bulkClassIds.length} class${bulkClassIds.length !== 1 ? 'es' : ''}`}
                     </button>
                   </div>
@@ -543,28 +543,28 @@ export default function OICAssignments() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeactivateTarget(null)} />
           <div className="relative z-10 w-full max-w-sm">
-            <div className="bg-white rounded-xl p-5 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-5 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                  <Icons.UserMinus className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center flex-shrink-0">
+                  <Icons.UserMinus className="w-5 h-5 text-mark-red-600" />
                 </div>
                 <div>
-                  <h4 className="text-base font-semibold text-black">Deactivate Assignment?</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">
+                  <h4 className="text-base font-semibold text-fg">Deactivate Assignment?</h4>
+                  <p className="text-xs text-fg-soft mt-0.5">
                     {deactivateTarget.oic_name} → {deactivateTarget.class_name}
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">
+              <p className="text-sm text-fg-muted mb-4">
                 The OIC will lose access to this class. This can be re-activated later.
               </p>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setDeactivateTarget(null)}
-                  className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">
+                  className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">
                   Cancel
                 </button>
                 <button onClick={handleDeactivate} disabled={deactivating}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 transition">
+                  className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-50 transition">
                   {deactivating ? 'Deactivating...' : 'Deactivate'}
                 </button>
               </div>

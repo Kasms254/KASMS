@@ -10,9 +10,9 @@ const MAROON = '#7B1A1A'
 const MAROON_LIGHT = '#f9f0f0'
 
 const STATUS_CONFIG = {
-  submitted: { label: 'Submitted', cls: 'bg-amber-100 text-amber-800 border border-amber-300' },
-  reviewed:  { label: 'Reviewed',  cls: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-  archived:  { label: 'Archived',  cls: 'bg-gray-100 text-gray-600 border border-gray-300' },
+  submitted: { label: 'Submitted', cls: 'bg-fill-amber-100 text-mark-amber-800 border border-edge-amber-300' },
+  reviewed:  { label: 'Reviewed',  cls: 'bg-fill-emerald-100 text-mark-emerald-800 border border-edge-emerald-300' },
+  archived:  { label: 'Archived',  cls: 'bg-surface-2 text-fg-muted border border-line-strong' },
 }
 
 function formatDate(d) {
@@ -34,8 +34,8 @@ function StatCard({ label, value, icon: Icon, maroon }) {
         <Icon size={20} className="shrink-0" style={{ color: maroon ? MAROON : '#64748b' }} />
       )}
       <div>
-        <div className="text-2xl font-bold text-gray-900">{value ?? 0}</div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mt-0.5">{label}</div>
+        <div className="text-2xl font-bold text-fg">{value ?? 0}</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-fg-soft mt-0.5">{label}</div>
       </div>
     </div>
   )
@@ -51,7 +51,7 @@ function NarrativeSection({ title, content, className = '' }) {
       >
         {title}
       </div>
-      <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+      <div className="bg-canvas border border-line rounded-lg px-4 py-3 text-sm text-fg leading-relaxed whitespace-pre-wrap">
         {content}
       </div>
     </div>
@@ -87,7 +87,7 @@ export default function COTReportDetail() {
   )
 
   if (error) return (
-    <div className="p-6 text-red-700 bg-red-50 border border-red-200 rounded-xl">
+    <div className="p-6 text-mark-red-700 bg-fill-red-50 border border-edge-red-200 rounded-xl">
       Failed to load report: {error.message}
     </div>
   )
@@ -100,7 +100,7 @@ export default function COTReportDetail() {
   const ratio = instructors.ratio || {}
   const avgPct = performance.school_average_percentage || 0
   const barWidth = Math.min(parseFloat(avgPct), 100)
-  const statusCfg = STATUS_CONFIG[report.status] || { label: report.status, cls: 'bg-gray-100 text-gray-600 border border-gray-300' }
+  const statusCfg = STATUS_CONFIG[report.status] || { label: report.status, cls: 'bg-surface-2 text-fg-muted border border-line-strong' }
   const commandantName = [report.commandant_rank_display, report.commandant_name].filter(Boolean).join(' ')
   const commandantDisplay = commandantName && report.commandant_svc_number
     ? `${commandantName} (${report.commandant_svc_number})`
@@ -114,21 +114,21 @@ export default function COTReportDetail() {
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate('/cot/reports')}
-            className="mt-1 p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+            className="mt-1 p-2 rounded-lg hover:bg-surface-2 text-fg-faint hover:text-fg-body transition-colors"
           >
             <ArrowLeft size={18} />
           </button>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-xl font-bold text-gray-900">{report.title}</h2>
+              <h2 className="text-xl font-bold text-fg">{report.title}</h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide ${statusCfg.cls}`}>
                 {statusCfg.label}
               </span>
             </div>
-            <p className="text-sm text-gray-500 mt-0.5">
-              <span className="font-medium text-gray-700">{report.school_name}</span>
-              {report.school_code && <span className="text-gray-400"> ({report.school_code})</span>}
-              <span className="mx-1.5 text-gray-300">·</span>
+            <p className="text-sm text-fg-soft mt-0.5">
+              <span className="font-medium text-fg-body">{report.school_name}</span>
+              {report.school_code && <span className="text-fg-faint"> ({report.school_code})</span>}
+              <span className="mx-1.5 text-fg-faint">·</span>
               {formatDate(report.reporting_period_start)} — {formatDate(report.reporting_period_end)}
             </p>
           </div>
@@ -143,59 +143,59 @@ export default function COTReportDetail() {
       </div>
 
       {/* Report meta — clearly visible fields */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-surface border border-line rounded-xl overflow-hidden">
         <div
           className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-white"
           style={{ backgroundColor: MAROON }}
         >
           Report Information
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y divide-gray-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-y divide-hair">
           <div className="p-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <School size={13} className="text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">School</span>
+              <School size={13} className="text-fg-faint" />
+              <span className="text-xs font-bold uppercase tracking-wider text-fg-faint">School</span>
             </div>
-            <p className="text-sm font-bold text-gray-900">{report.school_name || '—'}</p>
+            <p className="text-sm font-bold text-fg">{report.school_name || '—'}</p>
             {report.school_code && (
-              <p className="text-xs text-gray-500 mt-0.5">{report.school_code}</p>
+              <p className="text-xs text-fg-soft mt-0.5">{report.school_code}</p>
             )}
           </div>
           <div className="p-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <User size={13} className="text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Commandant</span>
+              <User size={13} className="text-fg-faint" />
+              <span className="text-xs font-bold uppercase tracking-wider text-fg-faint">Commandant</span>
             </div>
-            <p className="text-sm font-bold text-gray-900">{commandantDisplay || '—'}</p>
+            <p className="text-sm font-bold text-fg">{commandantDisplay || '—'}</p>
           </div>
           <div className="p-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <Calendar size={13} className="text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Report Date</span>
+              <Calendar size={13} className="text-fg-faint" />
+              <span className="text-xs font-bold uppercase tracking-wider text-fg-faint">Report Date</span>
             </div>
-            <p className="text-sm font-bold text-gray-900">{formatDate(report.report_date)}</p>
+            <p className="text-sm font-bold text-fg">{formatDate(report.report_date)}</p>
           </div>
           <div className="p-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <CheckCircle size={13} className="text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Submitted</span>
+              <CheckCircle size={13} className="text-fg-faint" />
+              <span className="text-xs font-bold uppercase tracking-wider text-fg-faint">Submitted</span>
             </div>
             <p className="text-sm font-bold" style={{ color: MAROON }}>{formatDate(report.submitted_at)}</p>
             {report.submitted_by_name && (
-              <p className="text-xs text-gray-500 mt-0.5">by {report.submitted_by_name}</p>
+              <p className="text-xs text-fg-soft mt-0.5">by {report.submitted_by_name}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Statistics */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+      <section className="bg-surface border border-line rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-hair">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} style={{ color: MAROON }} />
-            <h3 className="font-bold text-gray-900">School Statistics</h3>
+            <h3 className="font-bold text-fg">School Statistics</h3>
           </div>
-          <span className="text-xs text-gray-400 italic">Snapshotted at submission time</span>
+          <span className="text-xs text-fg-faint italic">Snapshotted at submission time</span>
         </div>
 
         <div className="p-5 space-y-5">
@@ -220,24 +220,24 @@ export default function COTReportDetail() {
               <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: MAROON }}>
                 Instructor : Student Ratio
               </p>
-              <p className="text-xl font-bold text-gray-900">{ratio.ratio_text || 'N/A'}</p>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xl font-bold text-fg">{ratio.ratio_text || 'N/A'}</p>
+              <p className="text-xs text-fg-muted mt-1">
                 {instructors.active ?? 0} active instructors · {students.active ?? 0} active students
               </p>
             </div>
 
             {/* Performance bar */}
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="rounded-xl border border-line bg-canvas p-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-800">School Average Performance</p>
+                <p className="text-sm font-semibold text-fg">School Average Performance</p>
                 <span className="text-lg font-bold" style={{ color: MAROON }}>
                   {avgPct.toFixed ? avgPct.toFixed(1) : avgPct}%
                 </span>
               </div>
-              <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div className="bg-surface-3 rounded-full h-3 overflow-hidden">
                 <div className="h-3 rounded-full" style={{ width: `${barWidth}%`, backgroundColor: MAROON }} />
               </div>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-fg-faint mt-1">
                 Based on submitted examination results for the reporting period
               </p>
             </div>
@@ -246,8 +246,8 @@ export default function COTReportDetail() {
           {/* Students per course */}
           {(students.per_course ?? []).length > 0 && (
             <div>
-              <p className="text-sm font-bold text-gray-800 mb-2">Students by Course (during period)</p>
-              <div className="border border-gray-200 rounded-lg overflow-hidden text-sm">
+              <p className="text-sm font-bold text-fg mb-2">Students by Course (during period)</p>
+              <div className="border border-line rounded-lg overflow-hidden text-sm">
                 <table className="w-full">
                   <thead style={{ backgroundColor: MAROON }}>
                     <tr>
@@ -258,10 +258,10 @@ export default function COTReportDetail() {
                   </thead>
                   <tbody>
                     {students.per_course.map((c, i) => (
-                      <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-2.5 text-gray-900 font-medium">{c.course_name}</td>
-                        <td className="px-4 py-2.5 text-gray-500">{c.course_code}</td>
-                        <td className="px-4 py-2.5 text-right font-bold text-gray-900">{c.student_count}</td>
+                      <tr key={i} className="border-t border-hair hover:bg-canvas">
+                        <td className="px-4 py-2.5 text-fg font-medium">{c.course_name}</td>
+                        <td className="px-4 py-2.5 text-fg-soft">{c.course_code}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-fg">{c.student_count}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -274,10 +274,10 @@ export default function COTReportDetail() {
 
       {/* Commandant narrative */}
       {(report.observations || report.challenges || report.achievements || report.recommendations || report.overall_remarks) && (
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-hair">
             <Award size={16} style={{ color: MAROON }} />
-            <h3 className="font-bold text-gray-900">Commandant's Narrative</h3>
+            <h3 className="font-bold text-fg">Commandant's Narrative</h3>
           </div>
           <div className="p-5 grid gap-5 xl:grid-cols-2">
             <NarrativeSection title="Observations"    content={report.observations} />

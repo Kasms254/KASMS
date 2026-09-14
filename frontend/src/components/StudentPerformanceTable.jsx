@@ -6,24 +6,24 @@ import useToast from '../hooks/useToast'
 import { shortRank } from '../lib/rankUtils'
 
 function SortIcon({ columnKey, sortConfig }) {
-  if (sortConfig.key !== columnKey) return <Icons.ChevronsUpDown className="w-3 h-3 text-gray-400" />
+  if (sortConfig.key !== columnKey) return <Icons.ChevronsUpDown className="w-3 h-3 text-fg-faint" />
   return sortConfig.direction === 'asc'
-    ? <Icons.ChevronUp className="w-3 h-3 text-indigo-600" />
-    : <Icons.ChevronDown className="w-3 h-3 text-indigo-600" />
+    ? <Icons.ChevronUp className="w-3 h-3 text-mark-indigo-600" />
+    : <Icons.ChevronDown className="w-3 h-3 text-mark-indigo-600" />
 }
 
 function gradeColor(grade) {
-  if (grade === 'A' || grade === 'A-') return 'text-emerald-600'
-  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'text-sky-600'
-  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'text-amber-600'
-  return 'text-red-600'
+  if (grade === 'A' || grade === 'A-') return 'text-mark-emerald-600'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'text-mark-sky-600'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'text-mark-amber-600'
+  return 'text-mark-red-600'
 }
 
 function gradeBg(grade) {
-  if (grade === 'A' || grade === 'A-') return 'bg-emerald-50'
-  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-sky-50'
-  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-amber-50'
-  return 'bg-red-50'
+  if (grade === 'A' || grade === 'A-') return 'bg-fill-emerald-50'
+  if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-fill-sky-50'
+  if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-fill-amber-50'
+  return 'bg-fill-red-50'
 }
 
 const fmtPct = n => `${parseFloat(Number(n).toFixed(1))}%`
@@ -38,8 +38,8 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
   if (!students || students.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Icons.Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+      <div className="text-center py-8 text-fg-soft">
+        <Icons.Users className="w-12 h-12 mx-auto mb-2 text-fg-faint" />
         <p>No student data available</p>
       </div>
     )
@@ -405,15 +405,15 @@ export default function StudentPerformanceTable({ students, title = "All Student
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h3 className="text-base md:text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Icons.Users className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+        <h3 className="text-base md:text-lg font-semibold text-fg flex items-center gap-2">
+          <Icons.Users className="w-4 h-4 md:w-5 md:h-5 text-mark-indigo-500" />
           {title}
         </h3>
         <div className="flex items-center gap-2">
           <select
             value={itemsPerPage}
             onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1) }}
-            className="px-3 py-1.5 text-xs font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-fg bg-surface border border-line-strong rounded-lg hover:bg-canvas transition-colors"
           >
             <option value={10}>10 per page</option>
             <option value={20}>20 per page</option>
@@ -422,7 +422,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
           </select>
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-fill-indigo-600 hover:bg-fill-indigo-700 rounded-lg transition-colors"
             title="Download as PDF"
           >
             <Icons.FileDown className="w-3.5 h-3.5" />
@@ -431,7 +431,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
           {hasSubjects && (
             <button
               onClick={handleExcelDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-fill-emerald-600 hover:bg-fill-emerald-700 rounded-lg transition-colors"
               title="Download as Excel"
             >
               <Icons.Sheet className="w-3.5 h-3.5" />
@@ -443,18 +443,18 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
       {/* Search */}
       <div className="relative">
-        <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
         <input
           type="text"
           placeholder="Search by student name or service number..."
           value={searchTerm}
           onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-          className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="w-full pl-10 pr-4 py-2 text-sm text-fg border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500"
         />
         {searchTerm && (
           <button
             onClick={() => { setSearchTerm(''); setCurrentPage(1) }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
           >
             <Icons.X className="w-4 h-4" />
           </button>
@@ -462,40 +462,40 @@ export default function StudentPerformanceTable({ students, title = "All Student
       </div>
 
       {searchTerm && (
-        <div className="text-sm text-gray-600">
-          Found <span className="font-semibold text-gray-900">{filteredStudents.length}</span> of{' '}
-          <span className="font-semibold text-gray-900">{students.length}</span> students
+        <div className="text-sm text-fg-muted">
+          Found <span className="font-semibold text-fg">{filteredStudents.length}</span> of{' '}
+          <span className="font-semibold text-fg">{students.length}</span> students
         </div>
       )}
 
       {/* Desktop Table — with sticky left columns when subjects > 5 */}
-      <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200" style={{ position: 'relative' }}>
+      <div className="hidden md:block overflow-x-auto bg-surface rounded-lg border border-line" style={{ position: 'relative' }}>
         <table className="min-w-full text-xs md:text-sm" style={subjectList.length > 5 ? { minWidth: `${stickyLeftTotal + subjectList.length * 100 + 200}px` } : undefined} >
           <thead>
-            <tr className="border-b-2 border-gray-200 bg-gray-50">
+            <tr className="border-b-2 border-line bg-canvas">
               {/* ── Sticky left columns ── */}
               <th
                 onClick={() => handleSort('rank')}
-                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20"
+                className="text-left py-3 px-3 font-medium text-fg-muted cursor-pointer hover:bg-surface-2 whitespace-nowrap bg-canvas z-20"
                 style={subjectList.length > 5 ? { position: 'sticky', left: 0, width: stickyLeftW.rank, minWidth: stickyLeftW.rank } : {}}
               >
                 <div className="flex items-center gap-1">S/No <SortIcon columnKey="rank" sortConfig={sortConfig} /></div>
               </th>
               <th
-                className="text-left py-3 px-3 font-medium text-gray-600 whitespace-nowrap bg-gray-50 z-20"
+                className="text-left py-3 px-3 font-medium text-fg-muted whitespace-nowrap bg-canvas z-20"
                 style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank, width: stickyLeftW.svc, minWidth: stickyLeftW.svc } : {}}
               >
                 SVC No.
               </th>
               <th
-                className="text-left py-3 px-3 font-medium text-gray-600 whitespace-nowrap bg-gray-50 z-20"
+                className="text-left py-3 px-3 font-medium text-fg-muted whitespace-nowrap bg-canvas z-20"
                 style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc, width: stickyLeftW.mrank, minWidth: stickyLeftW.mrank } : {}}
               >
                 Rank
               </th>
               <th
                 onClick={() => handleSort('student_name')}
-                className="text-left py-3 px-3 font-medium text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap bg-gray-50 z-20 border-r-2 border-gray-300"
+                className="text-left py-3 px-3 font-medium text-fg-muted cursor-pointer hover:bg-surface-2 whitespace-nowrap bg-canvas z-20 border-r-2 border-line-strong"
                 style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.mrank, width: stickyLeftW.name, minWidth: stickyLeftW.name, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
               >
                 <div className="flex items-center gap-1">Student Name <SortIcon columnKey="student_name" sortConfig={sortConfig} /></div>
@@ -503,50 +503,50 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
               {/* ── Scrollable subject columns ── */}
               {subjectList.map((subj, i) => (
-                <th key={i} className="text-center py-3 px-3 font-medium text-indigo-700 whitespace-nowrap border-l border-gray-200">
+                <th key={i} className="text-center py-3 px-3 font-medium text-mark-indigo-700 whitespace-nowrap border-l border-line">
                   <div>{subj.name}</div>
-                  <div className="text-xs font-normal text-gray-500">(Score %)</div>
+                  <div className="text-xs font-normal text-fg-soft">(Score %)</div>
                 </th>
               ))}
 
               {/* ── Right summary columns ── */}
-              <th onClick={() => handleSort('total_percentage')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap border-l-2 border-gray-300">
+              <th onClick={() => handleSort('total_percentage')} className="text-center py-3 px-3 font-medium text-fg-body cursor-pointer hover:bg-surface-2 whitespace-nowrap border-l-2 border-line-strong">
                 <div className="flex items-center justify-center gap-1">Score <SortIcon columnKey="total_percentage" sortConfig={sortConfig} /></div>
               </th>
-              <th onClick={() => handleSort('total_grade')} className="text-center py-3 px-3 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap">
+              <th onClick={() => handleSort('total_grade')} className="text-center py-3 px-3 font-medium text-fg-body cursor-pointer hover:bg-surface-2 whitespace-nowrap">
                 <div className="flex items-center justify-center gap-1">Grade <SortIcon columnKey="total_grade" sortConfig={sortConfig} /></div>
               </th>
             </tr>
           </thead>
           <tbody>
             {paginatedStudents.length > 0 ? paginatedStudents.map((student, idx) => (
-              <tr key={student.student_id || idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <tr key={student.student_id || idx} className="border-b border-hair hover:bg-canvas transition-colors">
                 {/* ── Sticky left cells ── */}
                 <td
-                  className="py-2 px-3 bg-white z-10"
+                  className="py-2 px-3 bg-surface z-10"
                   style={subjectList.length > 5 ? { position: 'sticky', left: 0 } : {}}
                 >
                   <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                    student.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                    student.rank === 2 ? 'bg-gray-200 text-gray-700' :
-                    student.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                    'bg-gray-100 text-gray-600'
+                    student.rank === 1 ? 'bg-fill-amber-100 text-mark-amber-700' :
+                    student.rank === 2 ? 'bg-surface-3 text-fg-body' :
+                    student.rank === 3 ? 'bg-fill-orange-100 text-mark-orange-700' :
+                    'bg-surface-2 text-fg-muted'
                   }`}>{student.rank}</span>
                 </td>
                 <td
-                  className="py-2 px-3 text-gray-600 whitespace-nowrap bg-white z-10"
+                  className="py-2 px-3 text-fg-muted whitespace-nowrap bg-surface z-10"
                   style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank } : {}}
                 >
                   {student.svc_number || '-'}
                 </td>
                 <td
-                  className="py-2 px-3 text-gray-600 whitespace-nowrap bg-white z-10"
+                  className="py-2 px-3 text-fg-muted whitespace-nowrap bg-surface z-10"
                   style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc } : {}}
                 >
                   {shortRank(student.student_rank) || '—'}
                 </td>
                 <td
-                  className="py-2 px-3 font-medium text-gray-800 whitespace-nowrap bg-white z-10 border-r-2 border-gray-300"
+                  className="py-2 px-3 font-medium text-fg whitespace-nowrap bg-surface z-10 border-r-2 border-line-strong"
                   style={subjectList.length > 5 ? { position: 'sticky', left: stickyLeftW.rank + stickyLeftW.svc + stickyLeftW.mrank, boxShadow: '2px 0 4px -2px rgba(0,0,0,0.1)' } : {}}
                 >
                   {student.student_name}
@@ -556,23 +556,23 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 {subjectList.map((subj, i) => {
                   const breakdown = student.subject_breakdown?.find(s => s.subject_name === subj.name)
                   return (
-                    <td key={i} className="py-2 px-3 text-center border-l border-gray-200">
+                    <td key={i} className="py-2 px-3 text-center border-l border-line">
                       {breakdown && breakdown.marks_obtained != null ? (
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-fg">
                           {fmtPct(breakdown.marks_obtained)}
                         </span>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-fg-faint">—</span>
                       )}
                     </td>
                   )
                 })}
 
                 {/* Total score */}
-                <td className="py-2 px-3 text-center border-l-2 border-gray-300">
+                <td className="py-2 px-3 text-center border-l-2 border-line-strong">
                   {student.total_percentage != null ? (
-                    <span className="font-semibold text-gray-800">{fmtPct(student.total_percentage)}</span>
-                  ) : <span className="text-gray-400">—</span>}
+                    <span className="font-semibold text-fg">{fmtPct(student.total_percentage)}</span>
+                  ) : <span className="text-fg-faint">—</span>}
                 </td>
 
                 {/* Grade */}
@@ -581,14 +581,14 @@ export default function StudentPerformanceTable({ students, title = "All Student
                     <span className={`text-base font-bold ${gradeColor(student.total_grade)}`}>
                       {student.total_grade}
                     </span>
-                  ) : <span className="text-gray-400">—</span>}
+                  ) : <span className="text-fg-faint">—</span>}
                 </td>
 
               </tr>
             )) : (
               <tr>
-                <td colSpan={4 + subjectList.length + 2} className="py-8 text-center text-gray-500">
-                  <Icons.Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <td colSpan={4 + subjectList.length + 2} className="py-8 text-center text-fg-soft">
+                  <Icons.Search className="w-8 h-8 mx-auto mb-2 text-fg-faint" />
                   <p>No students match your search criteria</p>
                 </td>
               </tr>
@@ -600,26 +600,26 @@ export default function StudentPerformanceTable({ students, title = "All Student
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {paginatedStudents.length > 0 ? paginatedStudents.map((student, idx) => (
-          <div key={student.student_id || idx} className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+          <div key={student.student_id || idx} className="bg-surface rounded-lg border border-line p-4 space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
-                  student.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                  student.rank === 2 ? 'bg-gray-200 text-gray-700' :
-                  student.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                  'bg-gray-100 text-gray-600'
+                  student.rank === 1 ? 'bg-fill-amber-100 text-mark-amber-700' :
+                  student.rank === 2 ? 'bg-surface-3 text-fg-body' :
+                  student.rank === 3 ? 'bg-fill-orange-100 text-mark-orange-700' :
+                  'bg-surface-2 text-fg-muted'
                 }`}>{student.rank}</span>
                 <div>
-                  <div className="font-medium text-gray-800">{student.student_name}</div>
-                  <div className="text-xs text-gray-500">{[student.svc_number, shortRank(student.student_rank)].filter(Boolean).join(' · ')}</div>
+                  <div className="font-medium text-fg">{student.student_name}</div>
+                  <div className="text-xs text-fg-soft">{[student.svc_number, shortRank(student.student_rank)].filter(Boolean).join(' · ')}</div>
                 </div>
               </div>
               <div className="text-right">
                 <div className={`text-xl font-bold ${gradeColor(student.total_grade || 'F')}`}>
                   {student.total_grade || '—'}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-fg-soft">
                   {student.total_percentage != null ? `${fmtPct(student.total_percentage)}` : '—'}
                 </div>
               </div>
@@ -627,11 +627,11 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
             {/* Subject breakdown */}
             {student.subject_breakdown?.length > 0 && (
-              <div className="border-t border-gray-100 pt-2 space-y-1">
+              <div className="border-t border-hair pt-2 space-y-1">
                 {student.subject_breakdown.map((subj, i) => (
                   <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 truncate flex-1">{subj.subject_name}</span>
-                    <span className="text-gray-800 font-medium ml-2">
+                    <span className="text-fg-muted truncate flex-1">{subj.subject_name}</span>
+                    <span className="text-fg font-medium ml-2">
                       {subj.marks_obtained != null ? `${fmtPct(subj.marks_obtained)}` : '—'}
                     </span>
                   </div>
@@ -641,29 +641,29 @@ export default function StudentPerformanceTable({ students, title = "All Student
 
           </div>
         )) : (
-          <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
-            <Icons.Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-            <p className="text-gray-500">No students match your search criteria</p>
+          <div className="text-center py-8 bg-surface rounded-lg border border-line">
+            <Icons.Search className="w-8 h-8 mx-auto mb-2 text-fg-faint" />
+            <p className="text-fg-soft">No students match your search criteria</p>
           </div>
         )}
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
-          <div className="text-sm text-gray-600">
-            Showing <span className="font-semibold text-gray-900">{startIndex + 1}</span> to{' '}
-            <span className="font-semibold text-gray-900">{Math.min(startIndex + itemsPerPage, sortedStudents.length)}</span> of{' '}
-            <span className="font-semibold text-gray-900">{sortedStudents.length}</span> students
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-canvas rounded-lg p-3 border border-line">
+          <div className="text-sm text-fg-muted">
+            Showing <span className="font-semibold text-fg">{startIndex + 1}</span> to{' '}
+            <span className="font-semibold text-fg">{Math.min(startIndex + itemsPerPage, sortedStudents.length)}</span> of{' '}
+            <span className="font-semibold text-fg">{sortedStudents.length}</span> students
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
-              className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Icons.ChevronsLeft className="w-4 h-4 text-black" />
+              className="p-2 rounded-lg border border-line-strong bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
+              <Icons.ChevronsLeft className="w-4 h-4 text-fg" />
             </button>
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-              className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Icons.ChevronLeft className="w-4 h-4 text-black" />
+              className="p-2 rounded-lg border border-line-strong bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
+              <Icons.ChevronLeft className="w-4 h-4 text-fg" />
             </button>
             <div className="flex items-center gap-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -675,7 +675,7 @@ export default function StudentPerformanceTable({ students, title = "All Student
                 return (
                   <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
                     className={`min-w-[2rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      currentPage === pageNum ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-black hover:bg-gray-50'
+                      currentPage === pageNum ? 'bg-fill-indigo-600 text-white' : 'bg-surface border border-line-strong text-fg hover:bg-canvas'
                     }`}>
                     {pageNum}
                   </button>
@@ -683,12 +683,12 @@ export default function StudentPerformanceTable({ students, title = "All Student
               })}
             </div>
             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Icons.ChevronRight className="w-4 h-4 text-black" />
+              className="p-2 rounded-lg border border-line-strong bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
+              <Icons.ChevronRight className="w-4 h-4 text-fg" />
             </button>
             <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
-              className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Icons.ChevronsRight className="w-4 h-4 text-black" />
+              className="p-2 rounded-lg border border-line-strong bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
+              <Icons.ChevronsRight className="w-4 h-4 text-fg" />
             </button>
           </div>
         </div>

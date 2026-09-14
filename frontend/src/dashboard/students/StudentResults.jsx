@@ -203,24 +203,24 @@ export default function StudentResults() {
   }
 
   function getGradeColor(grade) {
-    if (grade === 'A' || grade === 'A-') return 'bg-green-100 text-green-800 border-green-200'
-    if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-blue-100 text-blue-800 border-blue-200'
-    if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-    if (grade === 'F') return 'bg-red-100 text-red-800 border-red-200'
-    return 'bg-gray-100 text-gray-600 border-gray-200'
+    if (grade === 'A' || grade === 'A-') return 'bg-fill-green-100 text-mark-green-800 border-edge-green-200'
+    if (grade === 'B+' || grade === 'B' || grade === 'B-') return 'bg-fill-blue-100 text-mark-blue-800 border-edge-blue-200'
+    if (grade === 'C+' || grade === 'C' || grade === 'C-') return 'bg-fill-yellow-100 text-mark-yellow-800 border-edge-yellow-200'
+    if (grade === 'F') return 'bg-fill-red-100 text-mark-red-800 border-edge-red-200'
+    return 'bg-surface-2 text-fg-muted border-line'
   }
 
   function getPerformanceIndicator(pct) {
     if (pct == null) return null
-    if (pct >= 91) return { icon: TrendingUp, color: 'text-green-600', label: 'Excellent' }
-    if (pct >= 86) return { icon: TrendingUp, color: 'text-green-500', label: 'Very Good' }
-    if (pct >= 81) return { icon: TrendingUp, color: 'text-blue-600', label: 'Good' }
-    if (pct >= 76) return { icon: TrendingUp, color: 'text-blue-500', label: 'Good' }
-    if (pct >= 71) return { icon: Minus, color: 'text-indigo-500', label: 'Above Average' }
-    if (pct >= 65) return { icon: Minus, color: 'text-yellow-600', label: 'Average' }
-    if (pct >= 60) return { icon: Minus, color: 'text-orange-500', label: 'Pass' }
-    if (pct >= 50) return { icon: TrendingDown, color: 'text-orange-600', label: 'Pass' }
-    return { icon: TrendingDown, color: 'text-red-600', label: 'Fail' }
+    if (pct >= 91) return { icon: TrendingUp, color: 'text-mark-green-600', label: 'Excellent' }
+    if (pct >= 86) return { icon: TrendingUp, color: 'text-mark-green-500', label: 'Very Good' }
+    if (pct >= 81) return { icon: TrendingUp, color: 'text-mark-blue-600', label: 'Good' }
+    if (pct >= 76) return { icon: TrendingUp, color: 'text-mark-blue-500', label: 'Good' }
+    if (pct >= 71) return { icon: Minus, color: 'text-mark-indigo-500', label: 'Above Average' }
+    if (pct >= 65) return { icon: Minus, color: 'text-mark-yellow-600', label: 'Average' }
+    if (pct >= 60) return { icon: Minus, color: 'text-mark-orange-500', label: 'Pass' }
+    if (pct >= 50) return { icon: TrendingDown, color: 'text-mark-orange-600', label: 'Pass' }
+    return { icon: TrendingDown, color: 'text-mark-red-600', label: 'Fail' }
   }
 
   function formatMarks(obtained, total) {
@@ -262,9 +262,9 @@ export default function StudentResults() {
     const firstAvg = firstHalf.reduce((sum, r) => sum + r.percentage, 0) / firstHalf.length
     const secondAvg = secondHalf.reduce((sum, r) => sum + r.percentage, 0) / secondHalf.length
     const diff = secondAvg - firstAvg
-    if (diff > 5) return { direction: 'up', value: diff, icon: TrendingUp, color: 'text-green-600' }
-    if (diff < -5) return { direction: 'down', value: Math.abs(diff), icon: TrendingDown, color: 'text-red-600' }
-    return { direction: 'stable', value: 0, icon: Minus, color: 'text-gray-600' }
+    if (diff > 5) return { direction: 'up', value: diff, icon: TrendingUp, color: 'text-mark-green-600' }
+    if (diff < -5) return { direction: 'down', value: Math.abs(diff), icon: TrendingDown, color: 'text-mark-red-600' }
+    return { direction: 'stable', value: 0, icon: Minus, color: 'text-fg-muted' }
   }, [results])
 
   function toggleRowExpansion(id) {
@@ -1059,22 +1059,22 @@ export default function StudentResults() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h2 className="text-2xl font-semibold text-black">My Results</h2>
-        <p className="text-sm text-gray-500">View your graded results across all classes you've been enrolled in</p>
+        <h2 className="text-2xl font-semibold text-fg">My Results</h2>
+        <p className="text-sm text-fg-soft">View your graded results across all classes you've been enrolled in</p>
       </header>
 
       {/* Class Filter */}
       {classOptions.length > 0 && (
-        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm">
+        <div className="bg-surface rounded-xl p-4 border border-line shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-fg-muted">
               <Filter className="w-4 h-4" />
               <span className="font-medium">Filter by Class:</span>
             </div>
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="flex-1 sm:flex-none sm:min-w-[280px] px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              className="flex-1 sm:flex-none sm:min-w-[280px] px-3 py-2 text-sm border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 bg-surface"
               aria-label="Select a class to filter results"
               style={{ color: '#000' }}
             >
@@ -1088,47 +1088,47 @@ export default function StudentResults() {
             {selectedClassId !== 'all' && (
               <button
                 onClick={() => setSelectedClassId('all')}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                className="text-sm text-mark-indigo-600 hover:text-mark-indigo-800 font-medium"
               >
                 Clear filter
               </button>
             )}
           </div>
           {loadingEnrollments && (
-            <div className="mt-2 text-xs text-gray-500">Loading classes...</div>
+            <div className="mt-2 text-xs text-fg-soft">Loading classes...</div>
           )}
         </div>
       )}
 
       {/* Summary Banner - Shows current class stats */}
-      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100">
+      <div className="bg-gradient-to-r from-fill-indigo-50 to-fill-blue-50 rounded-xl p-6 border border-edge-indigo-100">
         {currentClass && (
-          <div className="mb-4 pb-3 border-b border-indigo-200">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+          <div className="mb-4 pb-3 border-b border-edge-indigo-200">
+            <div className="text-xs font-medium text-fg-soft uppercase tracking-wide">
               {selectedClassId !== 'all' ? 'Selected Class' : 'Current Class'}
             </div>
-            <div className="text-lg font-semibold text-indigo-900">
+            <div className="text-lg font-semibold text-mark-indigo-900">
               {currentClass.name}{currentClass.courseName ? ` — ${currentClass.courseName}` : ''}
             </div>
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
-            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Score</div>
-            <div className="text-2xl font-bold text-indigo-900">{formatMarks(combinedStats.obtained, combinedStats.totalPossible)}</div>
+            <div className="text-xs font-medium text-fg-muted uppercase tracking-wide">Total Score</div>
+            <div className="text-2xl font-bold text-mark-indigo-900">{formatMarks(combinedStats.obtained, combinedStats.totalPossible)}</div>
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Overall Grade</div>
+            <div className="text-xs font-medium text-fg-muted uppercase tracking-wide">Overall Grade</div>
             <div className="flex items-center gap-2">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(toLetterGrade(combinedStats.percentage))}`}>
                 {combinedStats.percentage != null ? toLetterGrade(combinedStats.percentage) : '—'}
               </span>
-              <span className="text-lg font-semibold text-gray-700">{formatPercentage(combinedStats.percentage)}</span>
+              <span className="text-lg font-semibold text-fg-body">{formatPercentage(combinedStats.percentage)}</span>
             </div>
           </div>
           {trend && (
             <div className="space-y-1">
-              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Performance Trend</div>
+              <div className="text-xs font-medium text-fg-muted uppercase tracking-wide">Performance Trend</div>
               <div className="flex items-center gap-2">
                 {React.createElement(trend.icon, { className: `w-5 h-5 ${trend.color}` })}
                 <span className={`text-sm font-medium ${trend.color}`}>
@@ -1224,7 +1224,7 @@ export default function StudentResults() {
                 setShowTranscriptMenu(v => !v)
               }}
               disabled={!results || results.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm hover:shadow"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm hover:shadow"
               aria-label="Download transcript as PDF"
               aria-expanded={showTranscriptMenu}
               aria-haspopup="true"
@@ -1236,8 +1236,8 @@ export default function StudentResults() {
             
             {/* Transcript selection dropdown */}
             {showTranscriptMenu && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+              <div className="absolute right-0 top-full mt-2 w-64 bg-surface rounded-lg shadow-lg border border-line py-2 z-50">
+                <div className="px-3 py-2 text-xs font-semibold text-fg-soft uppercase tracking-wide border-b border-hair">
                   Select Transcript
                 </div>
                 
@@ -1245,12 +1245,12 @@ export default function StudentResults() {
                 {currentClass && (
                   <button
                     onClick={() => downloadTranscript(currentClass.id)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-fill-indigo-50 flex items-center gap-2 text-fg-body hover:text-mark-indigo-700"
                   >
-                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-fill-green-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{currentClass.name}</div>
-                      <div className="text-xs text-gray-500">Current Class</div>
+                      <div className="text-xs text-fg-soft">Current Class</div>
                     </div>
                   </button>
                 )}
@@ -1260,12 +1260,12 @@ export default function StudentResults() {
                   <button
                     key={classGroup.classId}
                     onClick={() => downloadTranscript(classGroup.classId)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-fill-indigo-50 flex items-center gap-2 text-fg-body hover:text-mark-indigo-700"
                   >
-                    <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-surface-4 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{classGroup.className}</div>
-                      {classGroup.courseName && <div className="text-xs text-gray-500">{classGroup.courseName}</div>}
+                      {classGroup.courseName && <div className="text-xs text-fg-soft">{classGroup.courseName}</div>}
                     </div>
                   </button>
                 ))}
@@ -1273,15 +1273,15 @@ export default function StudentResults() {
                 {/* All classes option (only if multiple classes) */}
                 {(transcriptClasses.length || resultsByClass.length) > 1 && (
                   <>
-                    <div className="border-t border-gray-100 my-1" />
+                    <div className="border-t border-hair my-1" />
                     <button
                       onClick={() => downloadTranscript('all')}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 text-gray-700 hover:text-indigo-700"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-fill-indigo-50 flex items-center gap-2 text-fg-body hover:text-mark-indigo-700"
                     >
-                      <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-fill-indigo-500 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium">All Classes Combined</div>
-                        <div className="text-xs text-gray-500">{resultsByClass.length} classes • Full transcript</div>
+                        <div className="text-xs text-fg-soft">{resultsByClass.length} classes • Full transcript</div>
                       </div>
                     </button>
                   </>
@@ -1292,33 +1292,33 @@ export default function StudentResults() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 border border-neutral-200 shadow-sm">
+      <div className="bg-surface rounded-xl p-6 border border-line shadow-sm">
         {loading && (
           <div className="space-y-4">
-            <div className="h-6 bg-neutral-200 rounded w-1/3 animate-pulse" />
+            <div className="h-6 bg-surface-3 rounded w-1/3 animate-pulse" />
             <div className="space-y-3">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-20 bg-neutral-100 rounded animate-pulse" />
+                <div key={i} className="h-20 bg-surface-2 rounded animate-pulse" />
               ))}
             </div>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 p-4 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+          <div className="flex items-center gap-2 p-4 text-sm text-mark-red-600 bg-fill-red-50 rounded-lg border border-edge-red-200">
             <span className="font-medium">Error:</span> Failed to load results. {String(error)}
           </div>
         )}
 
         {!loading && !componentResultsLoading && unifiedResults.length === 0 && (
           <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-2 mb-4">
+              <svg className="w-8 h-8 text-fg-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Results for This Class</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="text-lg font-medium text-fg mb-2">No Results for This Class</h3>
+            <p className="text-sm text-fg-soft">
               No graded results found for {currentClass?.name || 'this class'}. Your results will appear here once your instructor grades your assessments.
             </p>
           </div>
@@ -1327,63 +1327,63 @@ export default function StudentResults() {
         {unifiedResults.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-lg font-semibold text-black">
+              <h3 className="text-lg font-semibold text-fg">
                 Exam Results{' '}
-                <span className="text-sm font-normal text-gray-500">
+                <span className="text-sm font-normal text-fg-soft">
                   ({unifiedResults.length} {unifiedResults.length === 1 ? 'result' : 'results'})
                 </span>
                 {componentResultsLoading && (
-                  <span className="ml-2 text-xs text-indigo-500 animate-pulse">Loading…</span>
+                  <span className="ml-2 text-xs text-mark-indigo-500 animate-pulse">Loading…</span>
                 )}
               </h3>
             </div>
 
             {/* Table View for Desktop */}
             {viewMode === 'table' && (
-              <div className="overflow-x-auto rounded-lg border border-neutral-200">
+              <div className="overflow-x-auto rounded-lg border border-line">
                 <table className="min-w-full text-sm" role="table" aria-label="Student exam results">
                   <thead>
-                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Subject</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Assessment</th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Score</th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Percentage</th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Grade</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                    <tr className="bg-gradient-to-r from-canvas to-surface-2">
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-fg-body uppercase tracking-wider">Subject</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-fg-body uppercase tracking-wider">Assessment</th>
+                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-fg-body uppercase tracking-wider">Score</th>
+                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-fg-body uppercase tracking-wider">Percentage</th>
+                      <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-fg-body uppercase tracking-wider">Grade</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-fg-body uppercase tracking-wider">Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200 bg-white">
+                  <tbody className="divide-y divide-line bg-surface">
                     {unifiedResults.map(r => {
                       const grade = r.percentage != null ? toLetterGrade(r.percentage) : '—'
                       const indicator = getPerformanceIndicator(r.percentage)
                       return (
-                        <tr key={r.id} className={`transition-colors duration-150 ${r.is_retake ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`} role="row">
-                          <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                        <tr key={r.id} className={`transition-colors duration-150 ${r.is_retake ? 'bg-fill-amber-50 hover:bg-fill-amber-100' : 'hover:bg-canvas'}`} role="row">
+                          <td className="px-4 py-4 text-sm font-medium text-fg">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span>{r.subject_name}</span>
                               {r.is_retake && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fill-amber-100 text-mark-amber-700 border border-edge-amber-200">
                                   ↺ RETAKE
                                 </span>
                               )}
                             </div>
                             {r.resultType === 'policy' && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 mt-0.5">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fill-violet-100 text-mark-violet-700 mt-0.5">
                                 POLICY
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-700">
+                          <td className="px-4 py-4 text-sm text-fg-body">
                             <div>{r.label}</div>
                             {r.resultType === 'legacy' && r.exam_type && (
-                              <span className="text-xs text-gray-400">{r.exam_type}</span>
+                              <span className="text-xs text-fg-faint">{r.exam_type}</span>
                             )}
                             {r.resultType === 'policy' && r.component_type && (
-                              <span className="text-xs text-gray-400">{r.component_type}</span>
+                              <span className="text-xs text-fg-faint">{r.component_type}</span>
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <span className="text-sm font-semibold text-gray-900">
+                            <span className="text-sm font-semibold text-fg">
                               {formatMarks(r.marks_obtained, r.total_marks)}
                             </span>
                           </td>
@@ -1393,7 +1393,7 @@ export default function StudentResults() {
                                 className: `w-4 h-4 ${indicator.color}`,
                                 'aria-label': indicator.label
                               })}
-                              <span className="text-sm font-medium text-gray-900">
+                              <span className="text-sm font-medium text-fg">
                                 {formatPercentage(r.percentage)}
                               </span>
                             </div>
@@ -1405,14 +1405,14 @@ export default function StudentResults() {
                               </span>
                               {r.resultType === 'policy' && r.status && r.status !== 'PENDING' && (
                                 <span className={`text-[10px] font-medium ${
-                                  r.status === 'PASS' ? 'text-green-600' :
-                                  r.status === 'RETAKE_REQUIRED' ? 'text-amber-600' :
-                                  'text-red-600'
+                                  r.status === 'PASS' ? 'text-mark-green-600' :
+                                  r.status === 'RETAKE_REQUIRED' ? 'text-mark-amber-600' :
+                                  'text-mark-red-600'
                                 }`}>{r.status}</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
+                          <td className="px-4 py-4 text-sm text-fg-muted">
                             {formatDate(r.graded_at)}
                           </td>
                         </tr>
@@ -1433,57 +1433,57 @@ export default function StudentResults() {
                   return (
                     <div
                       key={r.id}
-                      className={`rounded-lg overflow-hidden transition-shadow duration-200 hover:shadow-md ${r.is_retake ? 'border border-amber-300 bg-amber-50' : 'border border-neutral-200'}`}
+                      className={`rounded-lg overflow-hidden transition-shadow duration-200 hover:shadow-md ${r.is_retake ? 'border border-edge-amber-300 bg-fill-amber-50' : 'border border-line'}`}
                       role="article"
                       aria-label={`Result for ${r.subject_name}`}
                     >
                       <button
                         onClick={() => toggleRowExpansion(r.id)}
-                        className={`w-full p-4 text-left transition-colors duration-150 ${r.is_retake ? 'hover:bg-amber-100' : 'hover:bg-gray-50'}`}
+                        className={`w-full p-4 text-left transition-colors duration-150 ${r.is_retake ? 'hover:bg-fill-amber-100' : 'hover:bg-canvas'}`}
                         aria-expanded={isExpanded}
                         aria-controls={`result-details-${r.id}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-gray-900 truncate">{r.subject_name}</span>
+                              <span className="font-semibold text-fg truncate">{r.subject_name}</span>
                               {r.is_retake && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fill-amber-100 text-mark-amber-700 border border-edge-amber-200 shrink-0">
                                   ↺ RETAKE
                                 </span>
                               )}
                               {r.resultType === 'policy' && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 shrink-0">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fill-violet-100 text-mark-violet-700 shrink-0">
                                   POLICY
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-600 truncate mt-0.5">{r.label}</div>
+                            <div className="text-sm text-fg-muted truncate mt-0.5">{r.label}</div>
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getGradeColor(grade)}`}>
                                 {grade}
                               </span>
-                              <span className="text-sm font-medium text-gray-900">{formatPercentage(r.percentage)}</span>
+                              <span className="text-sm font-medium text-fg">{formatPercentage(r.percentage)}</span>
                               {indicator && React.createElement(indicator.icon, {
                                 className: `w-4 h-4 ${indicator.color}`,
                                 'aria-label': indicator.label
                               })}
                               {r.resultType === 'policy' && r.status && r.status !== 'PENDING' && (
                                 <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                  r.status === 'PASS' ? 'bg-green-50 text-green-700' :
-                                  r.status === 'RETAKE_REQUIRED' ? 'bg-amber-50 text-amber-700' :
-                                  'bg-red-50 text-red-700'
+                                  r.status === 'PASS' ? 'bg-fill-green-50 text-mark-green-700' :
+                                  r.status === 'RETAKE_REQUIRED' ? 'bg-fill-amber-50 text-mark-amber-700' :
+                                  'bg-fill-red-50 text-mark-red-700'
                                 }`}>{r.status}</span>
                               )}
                             </div>
                           </div>
                           <div className="flex-shrink-0 flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">
+                            <span className="text-sm font-semibold text-fg">
                               {formatMarks(r.marks_obtained, r.total_marks)}
                             </span>
                             {isExpanded
-                              ? <ChevronUp className="w-5 h-5 text-gray-400" aria-hidden="true" />
-                              : <ChevronDown className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                              ? <ChevronUp className="w-5 h-5 text-fg-faint" aria-hidden="true" />
+                              : <ChevronDown className="w-5 h-5 text-fg-faint" aria-hidden="true" />
                             }
                           </div>
                         </div>
@@ -1491,30 +1491,30 @@ export default function StudentResults() {
                       {isExpanded && (
                         <div
                           id={`result-details-${r.id}`}
-                          className="px-4 pb-4 pt-2 bg-gray-50 border-t border-neutral-200 space-y-2"
+                          className="px-4 pb-4 pt-2 bg-canvas border-t border-line space-y-2"
                         >
                           <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Marks Obtained:</span>
-                            <span className="font-medium text-gray-900">{formatNumber(r.marks_obtained)}</span>
+                            <span className="text-fg-muted">Marks Obtained:</span>
+                            <span className="font-medium text-fg">{formatNumber(r.marks_obtained)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Total Marks:</span>
-                            <span className="font-medium text-gray-900">{formatNumber(r.total_marks)}</span>
+                            <span className="text-fg-muted">Total Marks:</span>
+                            <span className="font-medium text-fg">{formatNumber(r.total_marks)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Performance:</span>
-                            <span className={`font-medium ${indicator?.color || 'text-gray-900'}`}>
+                            <span className="text-fg-muted">Performance:</span>
+                            <span className={`font-medium ${indicator?.color || 'text-fg'}`}>
                               {indicator?.label || '—'}
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Graded on:</span>
-                            <span className="font-medium text-gray-900">{formatDate(r.graded_at)}</span>
+                            <span className="text-fg-muted">Graded on:</span>
+                            <span className="font-medium text-fg">{formatDate(r.graded_at)}</span>
                           </div>
                           {r.remarks && (
-                            <div className="pt-2 border-t border-neutral-200">
-                              <span className="text-xs text-gray-600 block mb-1">Remarks:</span>
-                              <p className="text-sm text-gray-900">{r.remarks}</p>
+                            <div className="pt-2 border-t border-line">
+                              <span className="text-xs text-fg-muted block mb-1">Remarks:</span>
+                              <p className="text-sm text-fg">{r.remarks}</p>
                             </div>
                           )}
                         </div>

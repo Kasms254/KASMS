@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import useChartTheme from '../../hooks/useChartTheme'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -23,6 +24,7 @@ const STATUS_COLORS = {
 }
 
 export default function AttendanceReports() {
+  const chart = useChartTheme()
   const { user } = useAuth()
   const toast = useToast()
 
@@ -279,17 +281,17 @@ export default function AttendanceReports() {
   }
 
   return (
-    <div className="p-4 md:p-6 text-black">
+    <div className="p-4 md:p-6 text-fg">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-black">Attendance Reports</h1>
-          <p className="text-sm text-gray-600 mt-1">Analyze attendance patterns and identify students at risk</p>
+          <h1 className="text-2xl font-bold text-fg">Attendance Reports</h1>
+          <p className="text-sm text-fg-muted mt-1">Analyze attendance patterns and identify students at risk</p>
         </div>
         {selectedClass && (
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition"
           >
             <Download className="w-5 h-5" />
             Export Report
@@ -298,14 +300,14 @@ export default function AttendanceReports() {
       </div>
 
       {/* Class Selection */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div className="bg-surface rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm text-gray-600 mb-1">Class</label>
+            <label className="block text-sm text-fg-muted mb-1">Class</label>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500"
             >
               <option value="">Select a Class</option>
               {classes.map(c => (
@@ -341,7 +343,7 @@ export default function AttendanceReports() {
                     else if (activeTab === 'trends') loadTrendData()
                     else if (activeTab === 'alerts') loadLowAttendanceAlerts()
                   }}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+                  className="px-4 py-2 border rounded-lg hover:bg-canvas transition flex items-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Refresh
@@ -354,16 +356,16 @@ export default function AttendanceReports() {
 
       {/* Show prompt when no class selected */}
       {!selectedClass && (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Class</h3>
-          <p className="text-gray-500">Choose a class from the dropdown above to view attendance reports.</p>
+        <div className="bg-surface rounded-lg shadow-sm p-12 text-center">
+          <FileText className="w-12 h-12 text-fg-faint mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-fg mb-2">Select a Class</h3>
+          <p className="text-fg-soft">Choose a class from the dropdown above to view attendance reports.</p>
         </div>
       )}
 
       {/* Tabs - only show when class is selected */}
       {selectedClass && (
-        <div className="bg-white rounded-lg shadow-sm mb-6">
+        <div className="bg-surface rounded-lg shadow-sm mb-6">
           <div className="flex border-b overflow-x-auto">
             {[
               { id: 'overview', label: 'Overview', icon: Target },
@@ -376,8 +378,8 @@ export default function AttendanceReports() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap transition border-b-2 ${
                   activeTab === tab.id
-                    ? 'text-indigo-600 border-indigo-600'
-                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                    ? 'text-mark-indigo-600 border-edge-indigo-600'
+                    : 'text-fg-muted border-transparent hover:text-fg'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -392,64 +394,64 @@ export default function AttendanceReports() {
       {selectedClass && activeTab === 'overview' && (
         <div className="space-y-6">
           {loading ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading report data...</p>
+            <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-edge-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+              <p className="mt-4 text-fg-muted">Loading report data...</p>
             </div>
           ) : !classSummary ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto" />
-              <h3 className="mt-4 text-gray-700 font-medium">Select a Class</h3>
-              <p className="text-sm text-gray-500 mt-1">Choose a class to view attendance reports</p>
+            <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+              <FileText className="w-12 h-12 text-fg-faint mx-auto" />
+              <h3 className="mt-4 text-fg-body font-medium">Select a Class</h3>
+              <p className="text-sm text-fg-soft mt-1">Choose a class to view attendance reports</p>
             </div>
           ) : (
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-lg shadow-sm p-4">
+                <div className="bg-surface rounded-lg shadow-sm p-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-full bg-fill-blue-100 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-mark-blue-600" />
                     </div>
                     <div>
-                      <div className="text-sm text-gray-600">Total Sessions</div>
+                      <div className="text-sm text-fg-muted">Total Sessions</div>
                       <div className="text-xl font-bold">{classSummary.total_sessions || 0}</div>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-4">
+                <div className="bg-surface rounded-lg shadow-sm p-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-purple-600" />
+                    <div className="w-10 h-10 rounded-full bg-fill-purple-100 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-mark-purple-600" />
                     </div>
                     <div>
-                      <div className="text-sm text-gray-600">Total Students</div>
+                      <div className="text-sm text-fg-muted">Total Students</div>
                       <div className="text-xl font-bold">{classSummary.total_students || 0}</div>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-4">
+                <div className="bg-surface rounded-lg shadow-sm p-4">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      (classSummary.attendance_rate || 0) >= 75 ? 'bg-emerald-100' : 'bg-red-100'
+                      (classSummary.attendance_rate || 0) >= 75 ? 'bg-fill-emerald-100' : 'bg-fill-red-100'
                     }`}>
                       <Target className={`w-5 h-5 ${
-                        (classSummary.attendance_rate || 0) >= 75 ? 'text-emerald-600' : 'text-red-600'
+                        (classSummary.attendance_rate || 0) >= 75 ? 'text-mark-emerald-600' : 'text-mark-red-600'
                       }`} />
                     </div>
                     <div>
-                      <div className="text-sm text-gray-600">Attendance Rate</div>
+                      <div className="text-sm text-fg-muted">Attendance Rate</div>
                       <div className="text-xl font-bold">{(classSummary.attendance_rate || 0).toFixed(1)}%</div>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-4">
+                <div className="bg-surface rounded-lg shadow-sm p-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <Award className="w-5 h-5 text-emerald-600" />
+                    <div className="w-10 h-10 rounded-full bg-fill-emerald-100 flex items-center justify-center">
+                      <Award className="w-5 h-5 text-mark-emerald-600" />
                     </div>
                     <div>
-                      <div className="text-sm text-gray-600">Punctuality</div>
+                      <div className="text-sm text-fg-muted">Punctuality</div>
                       <div className="text-xl font-bold">{(classSummary.punctuality_rate || 0).toFixed(1)}%</div>
                     </div>
                   </div>
@@ -459,11 +461,11 @@ export default function AttendanceReports() {
               {/* Charts */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Pie Chart - Status Distribution */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="bg-surface rounded-2xl border border-hair shadow-sm p-6">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-base font-bold text-gray-800">Attendance Distribution</h3>
+                    <h3 className="text-base font-bold text-fg">Attendance Distribution</h3>
                     {classSummary?.total_records > 0 && (
-                      <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+                      <span className="text-xs font-medium text-fg-faint bg-canvas px-2 py-1 rounded-full">
                         {classSummary.total_records} records
                       </span>
                     )}
@@ -492,7 +494,7 @@ export default function AttendanceReports() {
                                 return (
                                   <text
                                     x={x} y={y}
-                                    fill="#1f2937"
+                                    fill={chart.valueTick}
                                     textAnchor={x > cx ? 'start' : 'end'}
                                     dominantBaseline="central"
                                     fontSize={11}
@@ -502,7 +504,7 @@ export default function AttendanceReports() {
                                   </text>
                                 )
                               }}
-                              labelLine={{ stroke: '#d1d5db', strokeWidth: 1 }}
+                              labelLine={{ stroke: chart.labelLine, strokeWidth: 1 }}
                             >
                               {getPieChartData().filter(d => d.value > 0).map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -514,9 +516,9 @@ export default function AttendanceReports() {
                                 const d = payload[0].payload
                                 const total = getPieChartData().reduce((s, x) => s + x.value, 0)
                                 return (
-                                  <div className="bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+                                  <div className="bg-inverse text-white text-xs rounded-xl px-3 py-2 shadow-xl">
                                     <p className="font-semibold mb-0.5">{d.name}</p>
-                                    <p>{d.value} students &nbsp;<span className="text-gray-300">({total ? ((d.value / total) * 100).toFixed(1) : 0}%)</span></p>
+                                    <p>{d.value} students &nbsp;<span className="text-fg-faint">({total ? ((d.value / total) * 100).toFixed(1) : 0}%)</span></p>
                                   </div>
                                 )
                               }}
@@ -535,15 +537,15 @@ export default function AttendanceReports() {
                       </div>
                     </>
                   ) : (
-                    <div className="h-56 flex flex-col items-center justify-center text-gray-400">
-                      <Target className="w-12 h-12 mb-2 text-gray-200" />
+                    <div className="h-56 flex flex-col items-center justify-center text-fg-faint">
+                      <Target className="w-12 h-12 mb-2 text-fg-faint" />
                       <p className="text-sm">No attendance data available</p>
                     </div>
                   )}
                 </div>
 
                 {/* Bar Chart - Student Performance */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="bg-surface rounded-lg shadow-sm p-6">
                   <h3 className="font-semibold mb-4">Top Students by Attendance</h3>
                   <div className="h-64">
                     {(classSummary.student_statistics || []).length > 0 ? (
@@ -564,8 +566,8 @@ export default function AttendanceReports() {
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                        <Users className="w-12 h-12 mb-2 text-gray-300" />
+                      <div className="h-full flex flex-col items-center justify-center text-fg-soft">
+                        <Users className="w-12 h-12 mb-2 text-fg-faint" />
                         <p className="text-sm">No student data available</p>
                       </div>
                     )}
@@ -574,19 +576,19 @@ export default function AttendanceReports() {
               </div>
 
               {/* Status Breakdown */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-surface rounded-lg shadow-sm p-6">
                 <h3 className="font-semibold mb-4">Status Breakdown</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.entries(classSummary.by_status || {}).map(([status, count]) => (
                     <div key={status} className={`p-4 rounded-lg ${
-                      status === 'present' ? 'bg-emerald-50' :
-                      status === 'late' ? 'bg-yellow-50' :
-                      status === 'absent' ? 'bg-red-50' : 'bg-blue-50'
+                      status === 'present' ? 'bg-fill-emerald-50' :
+                      status === 'late' ? 'bg-fill-yellow-50' :
+                      status === 'absent' ? 'bg-fill-red-50' : 'bg-fill-blue-50'
                     }`}>
                       <div className={`text-sm ${
-                        status === 'present' ? 'text-emerald-700' :
-                        status === 'late' ? 'text-yellow-700' :
-                        status === 'absent' ? 'text-red-700' : 'text-blue-700'
+                        status === 'present' ? 'text-mark-emerald-700' :
+                        status === 'late' ? 'text-mark-yellow-700' :
+                        status === 'absent' ? 'text-mark-red-700' : 'text-mark-blue-700'
                       }`}>{status.charAt(0).toUpperCase() + status.slice(1)}</div>
                       <div className="text-2xl font-bold mt-1">{count}</div>
                     </div>
@@ -600,12 +602,12 @@ export default function AttendanceReports() {
 
       {/* Trends Tab */}
       {selectedClass && activeTab === 'trends' && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-surface rounded-lg shadow-sm p-6">
           <h3 className="font-semibold mb-4">Attendance Trend (Last 30 Days)</h3>
           {trendData.length === 0 ? (
             <div className="text-center py-8">
-              <TrendingUp className="w-12 h-12 text-gray-400 mx-auto" />
-              <p className="mt-4 text-gray-600">No trend data available</p>
+              <TrendingUp className="w-12 h-12 text-fg-faint mx-auto" />
+              <p className="mt-4 text-fg-muted">No trend data available</p>
             </div>
           ) : (
             <div className="h-80">
@@ -619,20 +621,20 @@ export default function AttendanceReports() {
                       if (!active || !payload || !payload.length) return null
                       const data = payload[0]?.payload
                       return (
-                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
-                          <p className="font-medium text-gray-900">{formatDate(label)}</p>
+                        <div className="bg-surface border border-line rounded-lg shadow-lg p-3 text-sm">
+                          <p className="font-medium text-fg">{formatDate(label)}</p>
                           {data?.session_title && (
-                            <p className="text-gray-600 text-xs">{data.session_title}</p>
+                            <p className="text-fg-muted text-xs">{data.session_title}</p>
                           )}
-                          <p className="text-indigo-600 font-semibold mt-1">
+                          <p className="text-mark-indigo-600 font-semibold mt-1">
                             Attendance: {(data?.attendance_rate || 0).toFixed(1)}%
                           </p>
                           {data?.moving_average !== undefined && (
-                            <p className="text-emerald-600">
+                            <p className="text-mark-emerald-600">
                               Moving Avg: {data.moving_average.toFixed(1)}%
                             </p>
                           )}
-                          <p className="text-gray-500 text-xs mt-1">
+                          <p className="text-fg-soft text-xs mt-1">
                             Present: {data?.present || 0} | Late: {data?.late || 0} | Absent: {data?.absent || 0}
                           </p>
                         </div>
@@ -669,64 +671,64 @@ export default function AttendanceReports() {
       {/* Alerts Tab */}
       {selectedClass && activeTab === 'alerts' && (
         <div className="space-y-6">
-          <div className="bg-yellow-50 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div className="bg-fill-yellow-50 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-mark-yellow-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-medium text-yellow-800">Low Attendance Alert</h3>
-              <p className="text-sm text-yellow-700 mt-1">
+              <h3 className="font-medium text-mark-yellow-800">Low Attendance Alert</h3>
+              <p className="text-sm text-mark-yellow-700 mt-1">
                 Students with attendance below 75% may need intervention.
               </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-lg shadow-sm overflow-hidden">
             {alertsError ? (
               <div className="p-8 text-center">
-                <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
-                <h3 className="mt-4 text-gray-700 font-medium">Failed to Load Alerts</h3>
-                <p className="text-sm text-gray-500 mt-1">Something went wrong fetching attendance alerts. Please try again.</p>
+                <AlertTriangle className="w-12 h-12 text-mark-red-500 mx-auto" />
+                <h3 className="mt-4 text-fg-body font-medium">Failed to Load Alerts</h3>
+                <p className="text-sm text-fg-soft mt-1">Something went wrong fetching attendance alerts. Please try again.</p>
               </div>
             ) : lowAttendanceStudents.length === 0 ? (
               <div className="p-8 text-center">
-                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
-                <h3 className="mt-4 text-gray-700 font-medium">No Low Attendance Alerts</h3>
-                <p className="text-sm text-gray-500 mt-1">All students are maintaining acceptable attendance levels</p>
+                <CheckCircle className="w-12 h-12 text-mark-emerald-500 mx-auto" />
+                <h3 className="mt-4 text-fg-body font-medium">No Low Attendance Alerts</h3>
+                <p className="text-sm text-fg-soft mt-1">All students are maintaining acceptable attendance levels</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Student</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">SVC Number</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Class</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Attendance Rate</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Total Sessions</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
+                    <tr className="bg-canvas">
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">Student</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">SVC Number</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">Class</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">Attendance Rate</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">Total Sessions</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-fg-muted">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lowAttendanceStudents.map((student, idx) => (
-                      <tr key={student.id || idx} className="border-t hover:bg-gray-50">
+                      <tr key={student.id || idx} className="border-t hover:bg-canvas">
                         <td className="px-4 py-3 text-sm font-medium">
                           {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{student.svc_number || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{student.class_name || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-muted">{student.svc_number || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-muted">{student.class_name || '—'}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            (student.attendance_rate || 0) < 50 ? 'bg-red-100 text-red-700' :
-                            (student.attendance_rate || 0) < 75 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-emerald-100 text-emerald-700'
+                            (student.attendance_rate || 0) < 50 ? 'bg-fill-red-100 text-mark-red-700' :
+                            (student.attendance_rate || 0) < 75 ? 'bg-fill-yellow-100 text-mark-yellow-700' :
+                            'bg-fill-emerald-100 text-mark-emerald-700'
                           }`}>
                             {(student.attendance_rate || 0).toFixed(1)}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{student.total_sessions || 0}</td>
+                        <td className="px-4 py-3 text-sm text-fg-muted">{student.total_sessions || 0}</td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => { setSelectedStudent(student.id); setActiveTab('student') }}
-                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                            className="text-mark-indigo-600 hover:text-mark-indigo-800 text-sm font-medium"
                           >
                             View Details
                           </button>
@@ -745,12 +747,12 @@ export default function AttendanceReports() {
       {selectedClass && activeTab === 'student' && (
         <div className="space-y-6">
           {/* Student Selector */}
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <label className="block text-sm text-gray-600 mb-2">Select Student</label>
+          <div className="bg-surface rounded-lg shadow-sm p-4">
+            <label className="block text-sm text-fg-muted mb-2">Select Student</label>
             <select
               value={selectedStudent || ''}
               onChange={(e) => setSelectedStudent(e.target.value ? Number(e.target.value) : null)}
-              className="w-full md:w-auto px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full md:w-auto px-4 py-2 border rounded-lg focus:ring-2 focus:ring-edge-indigo-500"
             >
               <option value="">Choose a student...</option>
               {lowAttendanceStudents.map(student => (
@@ -762,46 +764,46 @@ export default function AttendanceReports() {
           </div>
 
           {!selectedStudent ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <Users className="w-12 h-12 text-gray-400 mx-auto" />
-              <h3 className="mt-4 text-gray-700 font-medium">Select a Student</h3>
-              <p className="text-sm text-gray-500 mt-1">Choose a student from the dropdown to view their attendance details</p>
+            <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+              <Users className="w-12 h-12 text-fg-faint mx-auto" />
+              <h3 className="mt-4 text-fg-body font-medium">Select a Student</h3>
+              <p className="text-sm text-fg-soft mt-1">Choose a student from the dropdown to view their attendance details</p>
             </div>
           ) : !studentDetail ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading student details...</p>
+            <div className="bg-surface rounded-lg shadow-sm p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-edge-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+              <p className="mt-4 text-fg-muted">Loading student details...</p>
             </div>
           ) : (
             <>
               {/* Student Summary */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-surface rounded-lg shadow-sm p-6">
                 <h3 className="font-semibold mb-4">
                   {studentDetail.student_name || 'Student'} - Attendance Summary
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600">Attendance Rate</div>
+                  <div className="bg-canvas rounded-lg p-4">
+                    <div className="text-sm text-fg-muted">Attendance Rate</div>
                     <div className="text-2xl font-bold">{(studentDetail.attendance_rate || 0).toFixed(1)}%</div>
                   </div>
-                  <div className="bg-emerald-50 rounded-lg p-4">
-                    <div className="text-sm text-emerald-700">Present</div>
-                    <div className="text-2xl font-bold text-emerald-600">{studentDetail.present_count || 0}</div>
+                  <div className="bg-fill-emerald-50 rounded-lg p-4">
+                    <div className="text-sm text-mark-emerald-700">Present</div>
+                    <div className="text-2xl font-bold text-mark-emerald-600">{studentDetail.present_count || 0}</div>
                   </div>
-                  <div className="bg-yellow-50 rounded-lg p-4">
-                    <div className="text-sm text-yellow-700">Late</div>
-                    <div className="text-2xl font-bold text-yellow-600">{studentDetail.late_count || 0}</div>
+                  <div className="bg-fill-yellow-50 rounded-lg p-4">
+                    <div className="text-sm text-mark-yellow-700">Late</div>
+                    <div className="text-2xl font-bold text-mark-yellow-600">{studentDetail.late_count || 0}</div>
                   </div>
-                  <div className="bg-red-50 rounded-lg p-4">
-                    <div className="text-sm text-red-700">Absent</div>
-                    <div className="text-2xl font-bold text-red-600">{studentDetail.absent_count || 0}</div>
+                  <div className="bg-fill-red-50 rounded-lg p-4">
+                    <div className="text-sm text-mark-red-700">Absent</div>
+                    <div className="text-2xl font-bold text-mark-red-600">{studentDetail.absent_count || 0}</div>
                   </div>
                 </div>
               </div>
 
               {/* Attendance by Class */}
               {studentDetail.by_class && Object.keys(studentDetail.by_class).length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="bg-surface rounded-lg shadow-sm p-6">
                   <h3 className="font-semibold mb-4">Attendance by Class</h3>
                   <div className="space-y-4">
                     {Object.entries(studentDetail.by_class).map(([className, data]) => (
@@ -809,18 +811,18 @@ export default function AttendanceReports() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{className}</span>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            (data.rate || 0) >= 75 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            (data.rate || 0) >= 75 ? 'bg-fill-emerald-100 text-mark-emerald-700' : 'bg-fill-red-100 text-mark-red-700'
                           }`}>
                             {(data.rate || 0).toFixed(1)}%
                           </span>
                         </div>
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-full h-2 bg-surface-2 rounded-full overflow-hidden">
                           <div
-                            className={`h-full ${(data.rate || 0) >= 75 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                            className={`h-full ${(data.rate || 0) >= 75 ? 'bg-fill-emerald-500' : 'bg-fill-red-500'}`}
                             style={{ width: `${data.rate || 0}%` }}
                           />
                         </div>
-                        <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                        <div className="flex gap-4 mt-2 text-sm text-fg-muted">
                           <span>Present: {data.present || 0}</span>
                           <span>Late: {data.late || 0}</span>
                           <span>Absent: {data.absent || 0}</span>

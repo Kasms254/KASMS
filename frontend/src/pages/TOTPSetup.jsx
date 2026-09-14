@@ -8,7 +8,7 @@ import QRCodeDisplay from '../components/QRCodeDisplay'
 const renderIcon = (name, props = {}) => {
   const Comp = LucideIcons[name]
   if (Comp) return <Comp {...props} />
-  return <span className={`${props.className || ''} inline-block w-4 h-4 bg-gray-300 rounded`} />
+  return <span className={`${props.className || ''} inline-block w-4 h-4 bg-surface-4 rounded`} />
 }
 
 export default function TOTPSetup() {
@@ -107,15 +107,15 @@ export default function TOTPSetup() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-canvas to-surface px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-gray-100 w-full">
+        <div className="bg-surface rounded-2xl shadow-xl p-6 lg:p-10 border border-hair w-full">
           <div className="mb-6 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-900 to-rose-800 flex items-center justify-center mb-3 shadow-lg">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-fill-red-900 to-fill-rose-800 flex items-center justify-center mb-3 shadow-lg">
               {renderIcon('ShieldCheck', { className: 'w-8 h-8 text-white' })}
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Set Up Authenticator App</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-2xl font-semibold text-fg">Set Up Authenticator App</h2>
+            <p className="text-sm text-fg-soft mt-1">
               {step === 'password' && 'Confirm your password to begin.'}
               {step === 'scan' && 'Scan the QR code with your authenticator app.'}
               {step === 'done' && 'Two-factor authentication is now enabled.'}
@@ -125,14 +125,14 @@ export default function TOTPSetup() {
           {step === 'password' && (
             <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
               <label className="block">
-                <span className="text-sm font-medium text-gray-700">Password</span>
+                <span className="text-sm font-medium text-fg-body">Password</span>
                 <div className="mt-1.5 relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-3 pr-10 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
+                    className="w-full pl-3 pr-10 py-3 border border-line rounded-lg text-sm placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-red-100 focus:border-edge-red-300"
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     autoFocus
@@ -140,7 +140,7 @@ export default function TOTPSetup() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted transition-colors"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     tabIndex={-1}
                   >
@@ -152,14 +152,14 @@ export default function TOTPSetup() {
               <button
                 type="submit"
                 disabled={loading || !password}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' }) : null}
                 {loading ? 'Please wait...' : 'Continue'}
               </button>
 
               {error && (
-                <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded-lg p-3">
                   {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
                   <p className="flex-1">{error}</p>
                 </div>
@@ -170,27 +170,27 @@ export default function TOTPSetup() {
           {step === 'scan' && (
             <form onSubmit={handleConfirmSubmit} className="space-y-5">
               <div className="flex justify-center">
-                <div className="p-3 bg-white border border-gray-200 rounded-xl">
+                <div className="p-3 bg-surface border border-line rounded-xl">
                   <QRCodeDisplay value={provisioningUri} size={180} />
                 </div>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 text-center mb-1.5">
+                <p className="text-xs text-fg-soft text-center mb-1.5">
                   Can't scan? Enter this code manually:
                 </p>
                 <button
                   type="button"
                   onClick={handleCopySecret}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-canvas border border-line rounded-lg text-sm font-mono text-fg-body hover:bg-surface-2 transition-colors"
                 >
                   {secret}
-                  {renderIcon(copied ? 'Check' : 'Copy', { className: 'w-3.5 h-3.5 text-gray-400 flex-shrink-0' })}
+                  {renderIcon(copied ? 'Check' : 'Copy', { className: 'w-3.5 h-3.5 text-fg-faint flex-shrink-0' })}
                 </button>
               </div>
 
               <div>
-                <p className="text-sm font-medium text-gray-700 text-center mb-2">
+                <p className="text-sm font-medium text-fg-body text-center mb-2">
                   Enter the 6-digit code from the app
                 </p>
                 <div className="flex gap-2 justify-center" onPaste={handlePaste}>
@@ -206,10 +206,10 @@ export default function TOTPSetup() {
                       onKeyDown={e => handleKeyDown(i, e)}
                       className={`w-11 h-14 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
                         error
-                          ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                          ? 'border-edge-red-300 focus:ring-edge-red-200 focus:border-edge-red-400'
                           : digit
-                          ? 'border-red-800 bg-red-50 focus:ring-red-100 focus:border-red-800'
-                          : 'border-gray-200 focus:ring-red-100 focus:border-red-300'
+                          ? 'border-edge-red-800 bg-fill-red-50 focus:ring-edge-red-100 focus:border-edge-red-800'
+                          : 'border-line focus:ring-edge-red-100 focus:border-edge-red-300'
                       }`}
                       aria-label={`Digit ${i + 1} of 6`}
                       autoComplete="one-time-code"
@@ -222,14 +222,14 @@ export default function TOTPSetup() {
               <button
                 type="submit"
                 disabled={loading || digits.join('').length < 6}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? renderIcon('Loader2', { className: 'w-4 h-4 animate-spin' }) : null}
                 {loading ? 'Verifying...' : 'Enable Two-Factor Authentication'}
               </button>
 
               {error && (
-                <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-mark-red-600 bg-fill-red-50 border border-edge-red-200 rounded-lg p-3">
                   {renderIcon('AlertCircle', { className: 'w-5 h-5 flex-shrink-0 mt-0.5' })}
                   <p className="flex-1">{error}</p>
                 </div>
@@ -239,16 +239,16 @@ export default function TOTPSetup() {
 
           {step === 'done' && (
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-700 to-emerald-600 flex items-center justify-center mb-4 mx-auto shadow-lg">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-fill-green-700 to-fill-emerald-600 flex items-center justify-center mb-4 mx-auto shadow-lg">
                 {renderIcon('CheckCircle', { className: 'w-8 h-8 text-white' })}
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-fg-muted">
                 From now on you'll be asked for a code from your authenticator app when you log in.
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/profile', { replace: true })}
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-red-900 to-red-800 text-white font-medium hover:from-red-800 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 py-3 rounded-lg bg-gradient-to-r from-fill-red-900 to-fill-red-800 text-white font-medium hover:from-fill-red-800 hover:to-fill-red-700 transition-all shadow-md hover:shadow-lg"
               >
                 Done
               </button>
@@ -260,7 +260,7 @@ export default function TOTPSetup() {
               <button
                 type="button"
                 onClick={() => navigate('/profile', { replace: true })}
-                className="text-gray-500 hover:text-gray-700 inline-flex items-center gap-1 transition-colors"
+                className="text-fg-soft hover:text-fg-body inline-flex items-center gap-1 transition-colors"
               >
                 {renderIcon('ArrowLeft', { className: 'w-3.5 h-3.5' })}
                 Cancel

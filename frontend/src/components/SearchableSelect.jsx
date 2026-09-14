@@ -87,11 +87,11 @@ export default function SearchableSelect({
         type="button"
         disabled={disabled}
         onClick={() => { if (!disabled) setOpen((o) => !o) }}
-        className={`w-full flex items-center justify-between gap-2 p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 transition ${
-          error ? 'border-rose-500' : 'border-neutral-200'
-        } ${disabled ? 'bg-neutral-100 cursor-not-allowed text-neutral-400' : 'bg-white text-black cursor-pointer hover:border-neutral-300'}`}
+        className={`w-full flex items-center justify-between gap-2 p-2 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 transition ${
+          error ? 'border-edge-rose-500' : 'border-line'
+        } ${disabled ? 'bg-surface-2 cursor-not-allowed text-fg-faint' : 'bg-surface text-fg cursor-pointer hover:border-line-strong'}`}
       >
-        <span className={`truncate ${selectedOption ? 'text-black' : 'text-neutral-400'}`}>
+        <span className={`truncate ${selectedOption ? 'text-fg' : 'text-fg-faint'}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -100,29 +100,29 @@ export default function SearchableSelect({
               role="button"
               tabIndex={-1}
               onClick={handleClear}
-              className="p-0.5 rounded hover:bg-neutral-100 transition"
+              className="p-0.5 rounded hover:bg-surface-2 transition"
             >
-              <X className="w-3.5 h-3.5 text-neutral-400" />
+              <X className="w-3.5 h-3.5 text-fg-faint" />
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-fg-faint transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full bg-surface border border-line rounded-lg shadow-lg overflow-hidden">
           {/* Search input */}
-          <div className="p-2 border-b border-neutral-100">
+          <div className="p-2 border-b border-hair">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200 text-black placeholder-neutral-400"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 text-fg placeholder-fg-faint"
               />
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function SearchableSelect({
           {/* Options list */}
           <ul className="max-h-52 overflow-y-auto">
             {filtered.length === 0 ? (
-              <li className="px-3 py-3 text-sm text-neutral-400 text-center">No results found</li>
+              <li className="px-3 py-3 text-sm text-fg-faint text-center">No results found</li>
             ) : (
               filtered.map((opt) => {
                 const isSelected = String(opt.id) === String(value)
@@ -140,12 +140,12 @@ export default function SearchableSelect({
                     onClick={() => handleSelect(opt.id)}
                     className={`flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer transition ${
                       isSelected
-                        ? 'bg-indigo-50 text-indigo-700 font-medium'
-                        : 'text-black hover:bg-neutral-50'
+                        ? 'bg-fill-indigo-50 text-mark-indigo-700 font-medium'
+                        : 'text-fg hover:bg-canvas'
                     }`}
                   >
                     <span className="truncate">{opt.label}</span>
-                    {isSelected && <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                    {isSelected && <Check className="w-4 h-4 text-mark-indigo-600 flex-shrink-0" />}
                   </li>
                 )
               })
@@ -154,7 +154,7 @@ export default function SearchableSelect({
 
           {/* Result count */}
           {options.length > 5 && (
-            <div className="px-3 py-2 border-t border-neutral-100 text-xs text-neutral-400">
+            <div className="px-3 py-2 border-t border-hair text-xs text-fg-faint">
               {filtered.length} of {options.length} results
             </div>
           )}

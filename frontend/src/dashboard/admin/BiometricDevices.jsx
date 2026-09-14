@@ -42,23 +42,23 @@ function sanitizeInput(value) {
 
 function statusBadge(status) {
   const map = {
-    active: 'bg-indigo-100 text-indigo-700',
-    inactive: 'bg-neutral-100 text-neutral-500',
-    maintenance: 'bg-yellow-100 text-yellow-700',
+    active: 'bg-fill-indigo-100 text-mark-indigo-700',
+    inactive: 'bg-surface-2 text-fg-soft',
+    maintenance: 'bg-fill-yellow-100 text-mark-yellow-700',
   }
   return (
-    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${map[status] || 'bg-neutral-100 text-neutral-500'}`}>
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${map[status] || 'bg-surface-2 text-fg-soft'}`}>
       {status}
     </span>
   )
 }
 
 function syncStatusBadge(device) {
-  if (!device.last_sync_at) return <span className="text-xs text-neutral-400">Never synced</span>
+  if (!device.last_sync_at) return <span className="text-xs text-fg-faint">Never synced</span>
   const delta = (Date.now() - new Date(device.last_sync_at).getTime()) / 1000
-  if (delta < 120) return <span className="text-xs font-medium text-green-600">Online</span>
-  if (delta < 600) return <span className="text-xs font-medium text-yellow-500">Delayed</span>
-  return <span className="text-xs font-medium text-red-500">Offline</span>
+  if (delta < 120) return <span className="text-xs font-medium text-mark-green-600">Online</span>
+  if (delta < 600) return <span className="text-xs font-medium text-mark-yellow-500">Delayed</span>
+  return <span className="text-xs font-medium text-mark-red-500">Offline</span>
 }
 
 function extractErrors(err) {
@@ -393,7 +393,7 @@ export default function BiometricDevices() {
   }
 
   const inputCls = (hasErr) =>
-    `w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${hasErr ? 'border-rose-500' : 'border-neutral-200'}`
+    `w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${hasErr ? 'border-edge-rose-500' : 'border-line'}`
 
   // ── Device Users page (replaces modal for large lists) ───────────────────
   if (deviceUsersView) {
@@ -413,50 +413,50 @@ export default function BiometricDevices() {
           <div>
             <button
               onClick={() => setDeviceUsersView(null)}
-              className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-1 transition"
+              className="flex items-center gap-1 text-sm text-mark-indigo-600 hover:text-mark-indigo-800 mb-1 transition"
             >
               ← Back to Devices
             </button>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">Device Users</h2>
-            <p className="text-xs sm:text-sm text-neutral-500">{device.name} ({device.ip_address}) — users stored on device</p>
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">Device Users</h2>
+            <p className="text-xs sm:text-sm text-fg-soft">{device.name} ({device.ip_address}) — users stored on device</p>
           </div>
-          <div className="text-sm text-neutral-500">
+          <div className="text-sm text-fg-soft">
             {loading ? 'Loading...' : `${filtered.length} of ${users.length} users`}
           </div>
         </header>
 
         {/* Search */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
           <input
             type="text"
             value={deviceUsersSearch}
             onChange={e => { setDeviceUsersSearch(sanitizeInput(e.target.value)); setDeviceUsersPage(1) }}
             placeholder="Search by user ID or name..."
-            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
         </div>
 
         {/* Content */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-neutral-200 p-10 text-center text-sm text-neutral-500">
+          <div className="bg-surface rounded-xl border border-line p-10 text-center text-sm text-fg-soft">
             Loading device users...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-neutral-200 p-10 text-center text-sm text-neutral-400">
+          <div className="bg-surface rounded-xl border border-line p-10 text-center text-sm text-fg-faint">
             {users.length === 0 ? 'No users found on this device' : 'No users match your search'}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
             {/* Mobile cards */}
             <div className="lg:hidden p-4 space-y-3">
               {pageUsers.map((u, i) => (
-                <div key={i} className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                <div key={i} className="bg-canvas rounded-lg p-3 border border-line">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-medium text-sm text-black">{u.name || '—'}</div>
-                      <div className="text-xs text-neutral-500 mt-0.5 font-mono">ID: {u.user_id}</div>
+                      <div className="font-medium text-sm text-fg">{u.name || '—'}</div>
+                      <div className="text-xs text-fg-soft mt-0.5 font-mono">ID: {u.user_id}</div>
                     </div>
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-fill-indigo-100 text-mark-indigo-700 whitespace-nowrap">
                       Privilege {u.privilege ?? '—'}
                     </span>
                   </div>
@@ -467,21 +467,21 @@ export default function BiometricDevices() {
             {/* Desktop table */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full table-auto">
-                <thead className="bg-neutral-50">
+                <thead className="bg-canvas">
                   <tr className="text-left">
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">#</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">User ID</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Privilege</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">#</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">User ID</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Privilege</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 bg-white">
+                <tbody className="divide-y divide-line bg-surface">
                   {pageUsers.map((u, i) => (
-                    <tr key={i} className="hover:bg-neutral-50 transition">
-                      <td className="px-4 py-3 text-sm text-neutral-400">{(safePage - 1) * DEVICE_USERS_PAGE_SIZE + i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-neutral-700">{u.user_id}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-black">{u.name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-500">{u.privilege ?? '—'}</td>
+                    <tr key={i} className="hover:bg-canvas transition">
+                      <td className="px-4 py-3 text-sm text-fg-faint">{(safePage - 1) * DEVICE_USERS_PAGE_SIZE + i + 1}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-fg-body">{u.user_id}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-fg">{u.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-fg-soft">{u.privilege ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -492,18 +492,18 @@ export default function BiometricDevices() {
 
         {/* Pagination */}
         {!loading && filtered.length > DEVICE_USERS_PAGE_SIZE && (
-          <div className="mt-4 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-line p-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-sm text-neutral-600">
-                Showing <span className="font-semibold text-black">{Math.min((safePage - 1) * DEVICE_USERS_PAGE_SIZE + 1, filtered.length)}</span> to{' '}
-                <span className="font-semibold text-black">{Math.min(safePage * DEVICE_USERS_PAGE_SIZE, filtered.length)}</span> of{' '}
-                <span className="font-semibold text-black">{filtered.length}</span> users
+              <div className="text-sm text-fg-muted">
+                Showing <span className="font-semibold text-fg">{Math.min((safePage - 1) * DEVICE_USERS_PAGE_SIZE + 1, filtered.length)}</span> to{' '}
+                <span className="font-semibold text-fg">{Math.min(safePage * DEVICE_USERS_PAGE_SIZE, filtered.length)}</span> of{' '}
+                <span className="font-semibold text-fg">{filtered.length}</span> users
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setDeviceUsersPage(p => Math.max(1, p - 1))}
                   disabled={safePage === 1}
-                  className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="px-3 py-1.5 rounded-lg border border-line bg-surface text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   Previous
                 </button>
@@ -516,18 +516,18 @@ export default function BiometricDevices() {
                   }, [])
                   .map((p, idx) =>
                     p === '…'
-                      ? <span key={`e${idx}`} className="px-2 text-neutral-400">…</span>
+                      ? <span key={`e${idx}`} className="px-2 text-fg-faint">…</span>
                       : <button
                           key={p}
                           onClick={() => setDeviceUsersPage(p)}
-                          className={`px-3 py-1.5 text-sm rounded-lg transition ${safePage === p ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition ${safePage === p ? 'bg-fill-indigo-600 text-white font-semibold shadow-sm' : 'border border-line bg-surface text-fg hover:bg-canvas'}`}
                         >{p}</button>
                   )
                 }
                 <button
                   onClick={() => setDeviceUsersPage(p => Math.min(totalPages, p + 1))}
                   disabled={safePage >= totalPages}
-                  className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  className="px-3 py-1.5 rounded-lg border border-line bg-surface text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   Next
                 </button>
@@ -545,18 +545,18 @@ export default function BiometricDevices() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-black">Biometric Devices</h2>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">Manage ZKTeco fingerprint devices and student mappings for biometric attendance.</p>
+          <h2 className="text-lg sm:text-xl font-semibold text-fg">Biometric Devices</h2>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">Manage ZKTeco fingerprint devices and student mappings for biometric attendance.</p>
         </div>
         {tab === 'devices' && (
-          <button onClick={openAdd} className="whitespace-nowrap bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition">
+          <button onClick={openAdd} className="whitespace-nowrap bg-fill-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-fill-indigo-700 transition">
             Add Device
           </button>
         )}
         {tab === 'mappings' && (
           <button
             onClick={() => { setMappingForm({ device: '', device_user_id: '', device_user_name: '', student: '' }); setMappingErrors({}); setMappingFormError(''); loadStudents(); setMappingModal(true) }}
-            className="whitespace-nowrap bg-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition"
+            className="whitespace-nowrap bg-fill-indigo-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-md hover:bg-fill-indigo-700 transition"
           >
             Add Mapping
           </button>
@@ -564,12 +564,12 @@ export default function BiometricDevices() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-neutral-200">
+      <div className="flex gap-1 mb-4 border-b border-line">
         {[{ key: 'devices', label: 'Devices' }, { key: 'mappings', label: 'User Mappings' }].map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-edge-indigo-600 text-mark-indigo-600' : 'border-transparent text-fg-soft hover:text-fg-body'}`}
           >
             {t.label}
           </button>
@@ -586,12 +586,12 @@ export default function BiometricDevices() {
               placeholder="Search name, IP, serial..."
               value={search}
               onChange={e => { setSearch(sanitizeInput(e.target.value)); }}
-              className="w-48 p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-48 p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
             <select
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value)}
-              className="p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             >
               <option value="">All Statuses</option>
               <option value="active">Active</option>
@@ -601,7 +601,7 @@ export default function BiometricDevices() {
             <select
               value={filterActive}
               onChange={e => setFilterActive(e.target.value)}
-              className="p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             >
               <option value="">Active &amp; Inactive</option>
               <option value="true">Active Only</option>
@@ -610,53 +610,53 @@ export default function BiometricDevices() {
           </div>
 
           {/* Desktop Table */}
-          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+          <div className="hidden lg:block bg-surface rounded-xl border border-line shadow-sm overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
-                <tr className="text-left bg-neutral-50">
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Device</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">IP / Port</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Type</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Status</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Sync</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Last Synced</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Records</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Actions</th>
+                <tr className="text-left bg-canvas">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Device</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">IP / Port</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Type</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Sync</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Last Synced</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Records</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {devicesLoading ? (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-neutral-500">Loading...</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-fg-soft">Loading...</td></tr>
                 ) : devices.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-neutral-400">No biometric devices found</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-fg-faint">No biometric devices found</td></tr>
                 ) : devices.map(device => (
-                  <tr key={device.id} className="border-t last:border-b hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm text-neutral-700">
-                      <div className="font-medium text-black">{device.name}</div>
-                      {device.location_description && <div className="text-xs text-neutral-400 mt-0.5">{device.location_description}</div>}
+                  <tr key={device.id} className="border-t last:border-b hover:bg-canvas">
+                    <td className="px-4 py-3 text-sm text-fg-body">
+                      <div className="font-medium text-fg">{device.name}</div>
+                      {device.location_description && <div className="text-xs text-fg-faint mt-0.5">{device.location_description}</div>}
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-500 font-mono">{device.ip_address}:{device.port}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-500">{device.device_type}</td>
+                    <td className="px-4 py-3 text-sm text-fg-soft font-mono">{device.ip_address}:{device.port}</td>
+                    <td className="px-4 py-3 text-sm text-fg-soft">{device.device_type}</td>
                     <td className="px-4 py-3">{statusBadge(device.status)}</td>
                     <td className="px-4 py-3">{syncStatusBadge(device)}</td>
-                    <td className="px-4 py-3 text-xs text-neutral-400">{device.last_sync_at ? new Date(device.last_sync_at).toLocaleString() : '—'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-600">{device.total_synced_records ?? 0}</td>
+                    <td className="px-4 py-3 text-xs text-fg-faint">{device.last_sync_at ? new Date(device.last_sync_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-muted">{device.total_synced_records ?? 0}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        <button onClick={() => handleAction(device.id, 'sync_now')} disabled={isActing(device.id, 'sync_now')} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 disabled:opacity-50 transition">
+                        <button onClick={() => handleAction(device.id, 'sync_now')} disabled={isActing(device.id, 'sync_now')} className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-xs hover:bg-fill-indigo-700 disabled:opacity-50 transition">
                           {isActing(device.id, 'sync_now') ? 'Syncing...' : 'Sync Now'}
                         </button>
-                        <button onClick={() => handleAction(device.id, 'trigger_sync')} disabled={isActing(device.id, 'trigger_sync')} className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs hover:bg-blue-100 disabled:opacity-50 transition">
+                        <button onClick={() => handleAction(device.id, 'trigger_sync')} disabled={isActing(device.id, 'trigger_sync')} className="px-2 py-1 rounded-md bg-fill-blue-50 text-mark-blue-700 text-xs hover:bg-fill-blue-100 disabled:opacity-50 transition">
                           {isActing(device.id, 'trigger_sync') ? '...' : 'Queue Sync'}
                         </button>
-                        <button onClick={() => handleAction(device.id, 'auto_map')} disabled={isActing(device.id, 'auto_map')} className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100 disabled:opacity-50 transition">
+                        <button onClick={() => handleAction(device.id, 'auto_map')} disabled={isActing(device.id, 'auto_map')} className="px-2 py-1 rounded-md bg-fill-emerald-50 text-mark-emerald-700 text-xs hover:bg-fill-emerald-100 disabled:opacity-50 transition">
                           {isActing(device.id, 'auto_map') ? '...' : 'Auto-Map'}
                         </button>
-                        <button onClick={() => handleAction(device.id, 'sync_clock')} disabled={isActing(device.id, 'sync_clock')} className="px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs hover:bg-amber-100 disabled:opacity-50 transition">
+                        <button onClick={() => handleAction(device.id, 'sync_clock')} disabled={isActing(device.id, 'sync_clock')} className="px-2 py-1 rounded-md bg-fill-amber-50 text-mark-amber-700 text-xs hover:bg-fill-amber-100 disabled:opacity-50 transition">
                           {isActing(device.id, 'sync_clock') ? '...' : 'Sync Clock'}
                         </button>
-                        <button onClick={() => handleViewDeviceUsers(device)} className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-xs hover:bg-violet-100 transition">Users</button>
-                        <button onClick={() => openEdit(device)} className="px-2 py-1 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">Edit</button>
+                        <button onClick={() => handleViewDeviceUsers(device)} className="px-2 py-1 rounded-md bg-fill-violet-50 text-mark-violet-700 text-xs hover:bg-fill-violet-100 transition">Users</button>
+                        <button onClick={() => openEdit(device)} className="px-2 py-1 rounded-md bg-surface-2 text-fg-body text-xs hover:bg-surface-3 transition">Edit</button>
                       </div>
                     </td>
                   </tr>
@@ -668,39 +668,39 @@ export default function BiometricDevices() {
           {/* Mobile Cards */}
           <div className="lg:hidden space-y-3">
             {devicesLoading ? (
-              <div className="text-sm text-neutral-500">Loading...</div>
+              <div className="text-sm text-fg-soft">Loading...</div>
             ) : devices.length === 0 ? (
-              <div className="text-sm text-neutral-400">No biometric devices found</div>
+              <div className="text-sm text-fg-faint">No biometric devices found</div>
             ) : devices.map(device => (
-              <div key={device.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+              <div key={device.id} className="bg-surface rounded-xl border border-line shadow-sm p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
-                    <div className="font-medium text-sm text-black">{device.name}</div>
-                    {device.location_description && <div className="text-xs text-neutral-400 mt-0.5">{device.location_description}</div>}
-                    <div className="text-xs text-neutral-500 mt-1 font-mono">{device.ip_address}:{device.port}</div>
+                    <div className="font-medium text-sm text-fg">{device.name}</div>
+                    {device.location_description && <div className="text-xs text-fg-faint mt-0.5">{device.location_description}</div>}
+                    <div className="text-xs text-fg-soft mt-1 font-mono">{device.ip_address}:{device.port}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {statusBadge(device.status)}
                     {syncStatusBadge(device)}
                   </div>
                 </div>
-                <div className="text-xs text-neutral-400 mb-3">{device.total_synced_records ?? 0} records &bull; Last: {device.last_sync_at ? new Date(device.last_sync_at).toLocaleString() : 'never'}</div>
+                <div className="text-xs text-fg-faint mb-3">{device.total_synced_records ?? 0} records &bull; Last: {device.last_sync_at ? new Date(device.last_sync_at).toLocaleString() : 'never'}</div>
                 <div className="flex flex-wrap gap-1">
-                  <button onClick={() => handleAction(device.id, 'sync_now')} disabled={isActing(device.id, 'sync_now')} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 disabled:opacity-50 transition">
+                  <button onClick={() => handleAction(device.id, 'sync_now')} disabled={isActing(device.id, 'sync_now')} className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-xs hover:bg-fill-indigo-700 disabled:opacity-50 transition">
                     {isActing(device.id, 'sync_now') ? 'Syncing...' : 'Sync Now'}
                   </button>
-                  <button onClick={() => handleAction(device.id, 'trigger_sync')} disabled={isActing(device.id, 'trigger_sync')} className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs hover:bg-blue-100 disabled:opacity-50 transition">
+                  <button onClick={() => handleAction(device.id, 'trigger_sync')} disabled={isActing(device.id, 'trigger_sync')} className="px-2 py-1 rounded-md bg-fill-blue-50 text-mark-blue-700 text-xs hover:bg-fill-blue-100 disabled:opacity-50 transition">
                     {isActing(device.id, 'trigger_sync') ? '...' : 'Queue Sync'}
                   </button>
-                  <button onClick={() => handleAction(device.id, 'auto_map')} disabled={isActing(device.id, 'auto_map')} className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs hover:bg-emerald-100 disabled:opacity-50 transition">
+                  <button onClick={() => handleAction(device.id, 'auto_map')} disabled={isActing(device.id, 'auto_map')} className="px-2 py-1 rounded-md bg-fill-emerald-50 text-mark-emerald-700 text-xs hover:bg-fill-emerald-100 disabled:opacity-50 transition">
                     {isActing(device.id, 'auto_map') ? '...' : 'Auto-Map'}
                   </button>
-                  <button onClick={() => handleAction(device.id, 'sync_clock')} disabled={isActing(device.id, 'sync_clock')} className="px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs hover:bg-amber-100 disabled:opacity-50 transition">
+                  <button onClick={() => handleAction(device.id, 'sync_clock')} disabled={isActing(device.id, 'sync_clock')} className="px-2 py-1 rounded-md bg-fill-amber-50 text-mark-amber-700 text-xs hover:bg-fill-amber-100 disabled:opacity-50 transition">
                     {isActing(device.id, 'sync_clock') ? '...' : 'Sync Clock'}
                   </button>
-                  <button onClick={() => handleViewDeviceUsers(device)} className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-xs hover:bg-violet-100 transition">Users</button>
-                  <button onClick={() => openEdit(device)} className="px-2 py-1 rounded-md bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition">Edit</button>
-                  <button onClick={() => setConfirmDelete(device)} className="px-2 py-1 rounded-md bg-red-50 text-red-600 text-xs hover:bg-red-100 transition">Delete</button>
+                  <button onClick={() => handleViewDeviceUsers(device)} className="px-2 py-1 rounded-md bg-fill-violet-50 text-mark-violet-700 text-xs hover:bg-fill-violet-100 transition">Users</button>
+                  <button onClick={() => openEdit(device)} className="px-2 py-1 rounded-md bg-surface-2 text-fg-body text-xs hover:bg-surface-3 transition">Edit</button>
+                  <button onClick={() => setConfirmDelete(device)} className="px-2 py-1 rounded-md bg-fill-red-50 text-mark-red-600 text-xs hover:bg-fill-red-100 transition">Delete</button>
                 </div>
               </div>
             ))}
@@ -716,7 +716,7 @@ export default function BiometricDevices() {
             <select
               value={filterMappingDevice}
               onChange={e => setFilterMappingDevice(e.target.value)}
-              className="p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             >
               <option value="">All Devices</option>
               {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -724,52 +724,52 @@ export default function BiometricDevices() {
             <select
               value={filterMappingActive}
               onChange={e => setFilterMappingActive(e.target.value)}
-              className="p-2 text-sm text-black rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="p-2 text-sm text-fg rounded-md border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             >
               <option value="">All Mappings</option>
               <option value="true">Active Only</option>
               <option value="false">Inactive Only</option>
             </select>
           </div>
-          <p className="text-xs text-neutral-500 mb-3">Map device user IDs to students. Use <strong>Auto-Map</strong> on a device to link by service number, or add manually.</p>
+          <p className="text-xs text-fg-soft mb-3">Map device user IDs to students. Use <strong>Auto-Map</strong> on a device to link by service number, or add manually.</p>
 
           {/* Desktop Table */}
-          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+          <div className="hidden lg:block bg-surface rounded-xl border border-line shadow-sm overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
-                <tr className="text-left bg-neutral-50">
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Device</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Device User ID</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Device Name</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Student</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Svc No.</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Active</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Mapped At</th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">Actions</th>
+                <tr className="text-left bg-canvas">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Device</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Device User ID</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Device Name</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Student</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Svc No.</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Active</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Mapped At</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {mappingsLoading ? (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-neutral-500">Loading...</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-fg-soft">Loading...</td></tr>
                 ) : mappings.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-neutral-400">No user mappings found</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-fg-faint">No user mappings found</td></tr>
                 ) : mappings.map(m => (
-                  <tr key={m.id} className="border-t last:border-b hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm text-neutral-500">{devices.find(d => d.id === m.device)?.name || m.device}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 font-mono">{m.device_user_id}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-500">{m.device_user_name || '—'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-black">{m.student_name || m.student}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-500">{m.student_svc || '—'}</td>
+                  <tr key={m.id} className="border-t last:border-b hover:bg-canvas">
+                    <td className="px-4 py-3 text-sm text-fg-soft">{devices.find(d => d.id === m.device)?.name || m.device}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body font-mono">{m.device_user_id}</td>
+                    <td className="px-4 py-3 text-sm text-fg-soft">{m.device_user_name || '—'}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-fg">{m.student_name || m.student}</td>
+                    <td className="px-4 py-3 text-sm text-fg-soft">{m.student_svc || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-fill-indigo-100 text-mark-indigo-700' : 'bg-surface-2 text-fg-soft'}`}>
                         {m.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-neutral-400">{m.mapped_at ? new Date(m.mapped_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-fg-faint">{m.mapped_at ? new Date(m.mapped_at).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        <button onClick={() => openEditMapping(m)} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition">Edit</button>
-                        <button onClick={() => setConfirmDeleteMapping(m)} className="px-2 py-1 rounded-md bg-red-600 text-white text-xs hover:bg-red-700 transition">Remove</button>
+                        <button onClick={() => openEditMapping(m)} className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-xs hover:bg-fill-indigo-700 transition">Edit</button>
+                        <button onClick={() => setConfirmDeleteMapping(m)} className="px-2 py-1 rounded-md bg-fill-red-600 text-white text-xs hover:bg-fill-red-700 transition">Remove</button>
                       </div>
                     </td>
                   </tr>
@@ -781,25 +781,25 @@ export default function BiometricDevices() {
           {/* Mobile Cards */}
           <div className="lg:hidden space-y-3">
             {mappingsLoading ? (
-              <div className="text-sm text-neutral-500">Loading...</div>
+              <div className="text-sm text-fg-soft">Loading...</div>
             ) : mappings.length === 0 ? (
-              <div className="text-sm text-neutral-400">No user mappings found</div>
+              <div className="text-sm text-fg-faint">No user mappings found</div>
             ) : mappings.map(m => (
-              <div key={m.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+              <div key={m.id} className="bg-surface rounded-xl border border-line shadow-sm p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="font-medium text-sm text-black">{m.student_name || m.student}</div>
-                    <div className="text-xs text-neutral-500 mt-0.5">{m.student_svc || ''}</div>
-                    <div className="text-xs text-neutral-400 mt-1">Device ID: <span className="font-mono">{m.device_user_id}</span></div>
-                    <div className="text-xs text-neutral-400">{devices.find(d => d.id === m.device)?.name || ''}</div>
+                    <div className="font-medium text-sm text-fg">{m.student_name || m.student}</div>
+                    <div className="text-xs text-fg-soft mt-0.5">{m.student_svc || ''}</div>
+                    <div className="text-xs text-fg-faint mt-1">Device ID: <span className="font-mono">{m.device_user_id}</span></div>
+                    <div className="text-xs text-fg-faint">{devices.find(d => d.id === m.device)?.name || ''}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-indigo-100 text-indigo-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-fill-indigo-100 text-mark-indigo-700' : 'bg-surface-2 text-fg-soft'}`}>
                       {m.is_active ? 'Active' : 'Inactive'}
                     </span>
                     <div className="flex gap-1">
-                      <button onClick={() => openEditMapping(m)} className="px-2 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700 transition">Edit</button>
-                      <button onClick={() => setConfirmDeleteMapping(m)} className="px-2 py-1 rounded-md bg-red-600 text-white text-xs hover:bg-red-700 transition">Remove</button>
+                      <button onClick={() => openEditMapping(m)} className="px-2 py-1 rounded-md bg-fill-indigo-600 text-white text-xs hover:bg-fill-indigo-700 transition">Edit</button>
+                      <button onClick={() => setConfirmDeleteMapping(m)} className="px-2 py-1 rounded-md bg-fill-red-600 text-white text-xs hover:bg-fill-red-700 transition">Remove</button>
                     </div>
                   </div>
                 </div>
@@ -814,52 +814,52 @@ export default function BiometricDevices() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAddModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">{editDevice ? 'Edit Device' : 'Add Biometric Device'}</h4>
-                  <p className="text-sm text-neutral-500">{editDevice ? 'Update device configuration' : 'Register a new ZKTeco or fingerprint device'}</p>
+                  <h4 className="text-lg text-fg font-medium">{editDevice ? 'Edit Device' : 'Add Biometric Device'}</h4>
+                  <p className="text-sm text-fg-soft">{editDevice ? 'Update device configuration' : 'Register a new ZKTeco or fingerprint device'}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setAddModalOpen(false)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
 
               {deviceFormError && (
-                <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700">{deviceFormError}</div>
+                <div className="mb-4 p-3 rounded-md bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">{deviceFormError}</div>
               )}
 
               <form onSubmit={handleSaveDevice}>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Device Name *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Device Name *</label>
                     <input className={inputCls(deviceErrors.name)} placeholder="e.g. Main Gate Scanner" value={deviceForm.name} maxLength={200} onChange={e => setDeviceForm(f => ({ ...f, name: sanitizeInput(e.target.value).slice(0, 200) }))} />
-                    {deviceErrors.name && <div className="text-xs text-rose-600 mt-1">{deviceErrors.name}</div>}
+                    {deviceErrors.name && <div className="text-xs text-mark-rose-600 mt-1">{deviceErrors.name}</div>}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">IP Address *</label>
+                      <label className="text-sm text-fg-muted mb-1 block">IP Address *</label>
                       <input className={inputCls(deviceErrors.ip_address)} placeholder="192.168.1.100" value={deviceForm.ip_address} onChange={e => setDeviceForm(f => ({ ...f, ip_address: sanitizeInput(e.target.value) }))} />
-                      {deviceErrors.ip_address && <div className="text-xs text-rose-600 mt-1">{deviceErrors.ip_address}</div>}
+                      {deviceErrors.ip_address && <div className="text-xs text-mark-rose-600 mt-1">{deviceErrors.ip_address}</div>}
                     </div>
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Port *</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Port *</label>
                       <input type="number" className={inputCls(deviceErrors.port)} value={deviceForm.port} onChange={e => setDeviceForm(f => ({ ...f, port: e.target.value }))} />
-                      {deviceErrors.port && <div className="text-xs text-rose-600 mt-1">{deviceErrors.port}</div>}
+                      {deviceErrors.port && <div className="text-xs text-mark-rose-600 mt-1">{deviceErrors.port}</div>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Device Type</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Device Type</label>
                       <input className={inputCls(false)} placeholder="zkteco_f22" value={deviceForm.device_type} onChange={e => setDeviceForm(f => ({ ...f, device_type: sanitizeInput(e.target.value) }))} />
                     </div>
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Serial Number</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Serial Number</label>
                       <input className={inputCls(deviceErrors.serial_number)} placeholder="e.g. ABC1234567" value={deviceForm.serial_number} maxLength={100} onChange={e => setDeviceForm(f => ({ ...f, serial_number: sanitizeInput(e.target.value).slice(0, 100) }))} />
-                      {deviceErrors.serial_number && <div className="text-xs text-rose-600 mt-1">{deviceErrors.serial_number}</div>}
+                      {deviceErrors.serial_number && <div className="text-xs text-mark-rose-600 mt-1">{deviceErrors.serial_number}</div>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Status</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Status</label>
                       <select className={inputCls(false)} value={deviceForm.status} onChange={e => setDeviceForm(f => ({ ...f, status: e.target.value }))}>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -868,35 +868,35 @@ export default function BiometricDevices() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" id="device-is-active" checked={deviceForm.is_active} onChange={e => setDeviceForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded border-neutral-300" />
-                    <label htmlFor="device-is-active" className="text-sm text-neutral-600 select-none cursor-pointer">Device is active (enabled for syncing)</label>
+                    <input type="checkbox" id="device-is-active" checked={deviceForm.is_active} onChange={e => setDeviceForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded border-line-strong" />
+                    <label htmlFor="device-is-active" className="text-sm text-fg-muted select-none cursor-pointer">Device is active (enabled for syncing)</label>
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Location Description</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Location Description</label>
                     <input className={inputCls(false)} placeholder="e.g. Main entrance, Building A" value={deviceForm.location_description} maxLength={300} onChange={e => setDeviceForm(f => ({ ...f, location_description: sanitizeInput(e.target.value).slice(0, 300) }))} />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Sync Interval (s)</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Sync Interval (s)</label>
                       <input type="number" className={inputCls(false)} value={deviceForm.sync_interval_seconds} onChange={e => setDeviceForm(f => ({ ...f, sync_interval_seconds: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Time Offset (s)</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Time Offset (s)</label>
                       <input type="number" className={inputCls(false)} value={deviceForm.time_offset_seconds} onChange={e => setDeviceForm(f => ({ ...f, time_offset_seconds: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="text-sm text-neutral-600 mb-1 block">Timeout (s)</label>
+                      <label className="text-sm text-fg-muted mb-1 block">Timeout (s)</label>
                       <input type="number" className={inputCls(false)} value={deviceForm.connection_timeout} onChange={e => setDeviceForm(f => ({ ...f, connection_timeout: e.target.value }))} />
                     </div>
                   </div>
                 </div>
                 <div className="flex justify-between gap-2 mt-4">
                   {editDevice ? (
-                    <button type="button" onClick={() => { setAddModalOpen(false); setConfirmDelete(editDevice) }} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Delete</button>
+                    <button type="button" onClick={() => { setAddModalOpen(false); setConfirmDelete(editDevice) }} className="px-4 py-2 rounded-md text-sm bg-fill-red-600 text-white hover:bg-fill-red-700 transition">Delete</button>
                   ) : <div />}
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                    <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                       {isSaving ? 'Saving...' : editDevice ? 'Save Changes' : 'Add Device'}
                     </button>
                   </div>
@@ -912,22 +912,22 @@ export default function BiometricDevices() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
-                    <span className="text-red-600 text-lg font-bold">!</span>
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-fill-red-100">
+                    <span className="text-mark-red-600 text-lg font-bold">!</span>
                   </div>
-                  <h4 className="text-lg font-medium text-black">Delete Device</h4>
+                  <h4 className="text-lg font-medium text-fg">Delete Device</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDelete(null)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">
+              <p className="text-sm text-fg-muted mb-4">
                 Are you sure you want to delete <strong>{confirmDelete.name}</strong>? All associated user mappings will also be removed. This action cannot be undone.
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button onClick={handleDeleteDevice} disabled={isDeleting} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
+                <button onClick={handleDeleteDevice} disabled={isDeleting} className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {isDeleting ? 'Deleting...' : 'Delete Device'}
                 </button>
               </div>
@@ -942,40 +942,40 @@ export default function BiometricDevices() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMappingModal(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-lg">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Add User Mapping</h4>
-                  <p className="text-sm text-neutral-500">Link a device user ID to a student account</p>
+                  <h4 className="text-lg text-fg font-medium">Add User Mapping</h4>
+                  <p className="text-sm text-fg-soft">Link a device user ID to a student account</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setMappingModal(false)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setMappingModal(false)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
 
               {mappingFormError && (
-                <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700">{mappingFormError}</div>
+                <div className="mb-4 p-3 rounded-md bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">{mappingFormError}</div>
               )}
 
               <form onSubmit={handleSaveMapping}>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Device *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Device *</label>
                     <select value={mappingForm.device} onChange={e => setMappingForm(f => ({ ...f, device: e.target.value }))} className={inputCls(mappingErrors.device)}>
                       <option value="">Select device...</option>
                       {devices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>)}
                     </select>
-                    {mappingErrors.device && <div className="text-xs text-rose-600 mt-1">{mappingErrors.device}</div>}
+                    {mappingErrors.device && <div className="text-xs text-mark-rose-600 mt-1">{mappingErrors.device}</div>}
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Device User ID *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Device User ID *</label>
                     <input className={inputCls(mappingErrors.device_user_id)} placeholder="User ID stored on device" value={mappingForm.device_user_id} onChange={e => setMappingForm(f => ({ ...f, device_user_id: sanitizeInput(e.target.value) }))} />
-                    {mappingErrors.device_user_id && <div className="text-xs text-rose-600 mt-1">{mappingErrors.device_user_id}</div>}
+                    {mappingErrors.device_user_id && <div className="text-xs text-mark-rose-600 mt-1">{mappingErrors.device_user_id}</div>}
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Device User Name</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Device User Name</label>
                     <input className={inputCls(false)} placeholder="Name on device (optional)" value={mappingForm.device_user_name} onChange={e => setMappingForm(f => ({ ...f, device_user_name: sanitizeInput(e.target.value) }))} />
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Student *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Student *</label>
                     <SearchableSelect
                       value={mappingForm.student}
                       onChange={val => setMappingForm(f => ({ ...f, student: val }))}
@@ -985,12 +985,12 @@ export default function BiometricDevices() {
                       error={!!mappingErrors.student}
                       disabled={studentsLoading}
                     />
-                    {mappingErrors.student && <div className="text-xs text-rose-600 mt-1">{mappingErrors.student}</div>}
+                    {mappingErrors.student && <div className="text-xs text-mark-rose-600 mt-1">{mappingErrors.student}</div>}
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setMappingModal(false)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSavingMapping} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  <button type="button" onClick={() => setMappingModal(false)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={isSavingMapping} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {isSavingMapping ? 'Saving...' : 'Create Mapping'}
                   </button>
                 </div>
@@ -1005,36 +1005,36 @@ export default function BiometricDevices() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditMapping(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit Mapping</h4>
-                  <p className="text-sm text-neutral-500">{editMapping.student_name} — device ID {editMapping.device_user_id}</p>
+                  <h4 className="text-lg text-fg font-medium">Edit Mapping</h4>
+                  <p className="text-sm text-fg-soft">{editMapping.student_name} — device ID {editMapping.device_user_id}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setEditMapping(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setEditMapping(null)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
 
               {editMappingFormError && (
-                <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700">{editMappingFormError}</div>
+                <div className="mb-4 p-3 rounded-md bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">{editMappingFormError}</div>
               )}
 
               <form onSubmit={handleSaveEditMapping}>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Device User Name</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Device User Name</label>
                     <input className={inputCls(editMappingErrors.device_user_name)} placeholder="Name on device" value={editMappingForm.device_user_name} onChange={e => setEditMappingForm(f => ({ ...f, device_user_name: sanitizeInput(e.target.value) }))} />
-                    {editMappingErrors.device_user_name && <div className="text-xs text-rose-600 mt-1">{editMappingErrors.device_user_name}</div>}
+                    {editMappingErrors.device_user_name && <div className="text-xs text-mark-rose-600 mt-1">{editMappingErrors.device_user_name}</div>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" id="mapping-active" checked={editMappingForm.is_active} onChange={e => setEditMappingForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded border-neutral-300" />
-                    <label htmlFor="mapping-active" className="text-sm text-neutral-600">Active</label>
+                    <input type="checkbox" id="mapping-active" checked={editMappingForm.is_active} onChange={e => setEditMappingForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded border-line-strong" />
+                    <label htmlFor="mapping-active" className="text-sm text-fg-muted">Active</label>
                   </div>
                 </div>
                 <div className="flex justify-between gap-2 mt-4">
-                  <button type="button" onClick={() => { setEditMapping(null); setConfirmDeleteMapping(editMapping) }} className="px-4 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 transition">Remove</button>
+                  <button type="button" onClick={() => { setEditMapping(null); setConfirmDeleteMapping(editMapping) }} className="px-4 py-2 rounded-md text-sm bg-fill-red-600 text-white hover:bg-fill-red-700 transition">Remove</button>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setEditMapping(null)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                    <button type="submit" disabled={isSavingEditMapping} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                    <button type="button" onClick={() => setEditMapping(null)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                    <button type="submit" disabled={isSavingEditMapping} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                       {isSavingEditMapping ? 'Saving...' : 'Save Changes'}
                     </button>
                   </div>
@@ -1050,22 +1050,22 @@ export default function BiometricDevices() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDeleteMapping(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
-                    <span className="text-red-600 text-lg font-bold">!</span>
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-fill-red-100">
+                    <span className="text-mark-red-600 text-lg font-bold">!</span>
                   </div>
-                  <h4 className="text-lg font-medium text-black">Remove Mapping</h4>
+                  <h4 className="text-lg font-medium text-fg">Remove Mapping</h4>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setConfirmDeleteMapping(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setConfirmDeleteMapping(null)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">
+              <p className="text-sm text-fg-muted mb-4">
                 Remove mapping for <strong>{confirmDeleteMapping.student_name || confirmDeleteMapping.student}</strong> (device ID: <span className="font-mono">{confirmDeleteMapping.device_user_id}</span>)? This action cannot be undone.
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmDeleteMapping(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                <button onClick={handleDeleteMapping} disabled={isDeletingMapping} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                <button onClick={() => setConfirmDeleteMapping(null)} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
+                <button onClick={handleDeleteMapping} disabled={isDeletingMapping} className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                   {isDeletingMapping ? 'Removing...' : 'Remove Mapping'}
                 </button>
               </div>

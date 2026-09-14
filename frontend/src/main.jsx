@@ -4,7 +4,8 @@ import './index.css'
 import App from './App.jsx'
 import ScrollToTop from './components/ScrollToTop'
 import { BrowserRouter } from 'react-router'
-import { ThemeProvider } from './context/themeContext'
+import { ColorSchemeProvider } from './context/ColorSchemeProvider'
+import { ThemeProvider } from './context/ThemeProvider'
 import { AuthProvider } from './context/AuthProvider'
 import ToastProvider from './components/ToastProvider'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -53,13 +54,17 @@ createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ScrollToTop />
-        <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        {/* ColorSchemeProvider wraps ThemeProvider: school branding is
+            luminance-corrected against the resolved light/dark scheme. */}
+        <ColorSchemeProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </ColorSchemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

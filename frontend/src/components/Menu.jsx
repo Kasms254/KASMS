@@ -465,7 +465,7 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
     <nav className="mt-4 text-sm">
       {menuItems.map((section) => (
         <div className="flex flex-col gap-2" key={section.title}>
-          <span className={`${collapsed ? 'hidden' : 'text-gray-300 font-medium my-3 hidden lg:block'}`}>{section.title}</span>
+          <span className={`${collapsed ? 'hidden' : 'text-fg-faint font-medium my-3 hidden lg:block'}`}>{section.title}</span>
           {(collapsed ? section.items.flatMap((item) => item.children || [item]) : section.items).map((item) => {
             if (!item.visible.includes(role)) return null
             if (item.hodOnly && !auth.user?.is_hod) return null
@@ -535,11 +535,11 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                       title={item.label}
                       aria-label={item.label}
                       onClick={() => setLogoutModalOpen(true)}
-                      className="group relative flex items-center justify-center gap-3 text-red-300 py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
+                      className="group relative flex items-center justify-center gap-3 text-mark-red-300 py-2 px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-fill-red-500/20 hover:text-mark-red-200 no-underline"
                     >
                       {(() => {
                         const Icon = LucideIcons[item.icon] || LucideIcons.FileText
-                        return <Icon className="w-6 h-6 text-red-300 group-hover:text-red-200" strokeWidth={1.5} />
+                        return <Icon className="w-6 h-6 text-mark-red-300 group-hover:text-mark-red-200" strokeWidth={1.5} />
                       })()}
                     </button>
                   ) : (
@@ -571,11 +571,11 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
                   title={item.label}
                   aria-label={item.label}
                   onClick={() => setLogoutModalOpen(true)}
-                  className="group relative flex items-center justify-start gap-3 text-red-300 py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-red-500/20 hover:text-red-200 no-underline"
+                  className="group relative flex items-center justify-start gap-3 text-mark-red-300 py-2 px-3 md:px-2 rounded-md transition-all duration-150 transform hover:scale-[1.02] hover:bg-fill-red-500/20 hover:text-mark-red-200 no-underline"
                 >
                   {(() => {
                     const Icon = LucideIcons[item.icon] || LucideIcons.FileText
-                    return <Icon className="w-6 h-6 text-red-300 group-hover:text-red-200" strokeWidth={1.5} />
+                    return <Icon className="w-6 h-6 text-mark-red-300 group-hover:text-mark-red-200" strokeWidth={1.5} />
                   })()}
 
                   <span className={`${'block'}`}>{item.label}</span>
@@ -611,24 +611,24 @@ export default function Menu({ role = 'admin', collapsed = false, onMobileMenuCl
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setLogoutModalOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                  <LucideIcons.LogOut className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center">
+                  <LucideIcons.LogOut className="w-5 h-5 text-mark-red-600" />
                 </div>
-                <h4 className="text-lg font-semibold text-black">Confirm Logout</h4>
+                <h4 className="text-lg font-semibold text-fg">Confirm Logout</h4>
               </div>
-              <p className="text-sm text-neutral-600 mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
+              <p className="text-sm text-fg-muted mb-6">Are you sure you want to logout? You will need to sign in again to access your account.</p>
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setLogoutModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                  className="px-4 py-2 rounded-lg text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="px-4 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 transition"
+                  className="px-4 py-2 rounded-lg text-sm bg-fill-red-600 text-white hover:bg-fill-red-700 transition"
                 >
                   Logout
                 </button>

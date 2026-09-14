@@ -75,18 +75,18 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
   const displaySelected = selectedProp || selected
 
   return (
-    <div className="bg-white rounded-xl p-4 border border-neutral-200">
+    <div className="bg-surface rounded-xl p-4 border border-line">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="font-medium text-black">{monthLabel}</h4>
+        <h4 className="font-medium text-fg">{monthLabel}</h4>
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="p-1 rounded-md text-neutral-600 hover:bg-neutral-100">◀</button>
-          <button onClick={nextMonth} className="p-1 rounded-md text-neutral-600 hover:bg-neutral-100">▶</button>
+          <button onClick={prevMonth} className="p-1 rounded-md text-fg-muted hover:bg-surface-2">◀</button>
+          <button onClick={nextMonth} className="p-1 rounded-md text-fg-muted hover:bg-surface-2">▶</button>
         </div>
       </div>
 
       <div className="grid grid-cols-7 text-xs text-center mb-2">
         {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
-          <div key={d} className={d === 'Sat' || d === 'Sun' ? 'text-rose-600' : 'text-black'}>{d}</div>
+          <div key={d} className={d === 'Sat' || d === 'Sun' ? 'text-mark-rose-600' : 'text-fg'}>{d}</div>
         ))}
       </div>
 
@@ -104,15 +104,15 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
           const numberClass = isSelected
             ? 'text-white'
             : hasEvents
-            ? 'text-black'
-            : `${isWeekend ? 'text-rose-600' : 'text-black'}`
+            ? 'text-fg'
+            : `${isWeekend ? 'text-mark-rose-600' : 'text-fg'}`
 
           // Build button classes: today gets a ring, selected gets filled background
           const buttonClass = isSelected
-            ? 'bg-indigo-500'
+            ? 'bg-fill-indigo-500'
             : isToday
-            ? 'ring-2 ring-indigo-500 ring-inset hover:bg-indigo-50'
-            : 'hover:bg-neutral-100'
+            ? 'ring-2 ring-edge-indigo-500 ring-inset hover:bg-fill-indigo-50'
+            : 'hover:bg-surface-2'
 
           return (
             <button
@@ -123,8 +123,8 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
               }}
               className={`h-10 flex items-center justify-center rounded-md transition ${buttonClass}`}>
               <div className="flex flex-col items-center">
-                <span className={`text-sm leading-4 font-medium ${isToday && !isSelected ? 'text-indigo-600' : numberClass}`}>{d.getDate()}</span>
-                {hasEvents && <span className={`${isWeekend ? 'bg-rose-500' : 'bg-indigo-500'} w-1.5 h-1.5 rounded-full mt-1`} />}
+                <span className={`text-sm leading-4 font-medium ${isToday && !isSelected ? 'text-mark-indigo-600' : numberClass}`}>{d.getDate()}</span>
+                {hasEvents && <span className={`${isWeekend ? 'bg-fill-rose-500' : 'bg-fill-indigo-500'} w-1.5 h-1.5 rounded-full mt-1`} />}
               </div>
             </button>
           )
@@ -138,73 +138,73 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
 
         return (
         <div className="mt-4">
-          <h5 className="text-sm font-medium text-black">
+          <h5 className="text-sm font-medium text-fg">
             Events on {displaySelected}
             {allEvents.length > 0 && (
-              <span className="ml-2 text-xs text-neutral-500">({allEvents.length} total)</span>
+              <span className="ml-2 text-xs text-fg-soft">({allEvents.length} total)</span>
             )}
           </h5>
           <ul className="mt-2">
                   {allEvents.length === 0 && (
-                    <li className="text-sm text-black">No events</li>
+                    <li className="text-sm text-fg">No events</li>
                   )}
                   {urgentEvents.map((ev, idx) => (
-                    <li key={idx} className="py-1 text-sm text-black">
+                    <li key={idx} className="py-1 text-sm text-fg">
                       {typeof ev === 'string' ? (
                         <>
                           • {ev}
                         </>
                       ) : (
                         <div className="flex items-center gap-3">
-                          <span className="text-neutral-500">•</span>
+                          <span className="text-fg-soft">•</span>
                           <div className="flex items-center flex-wrap gap-2">
                             {/* Priority badge for urgent/high priority */}
                             {(ev.priority === 'urgent' || ev.priority === 'high') && (
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${ev.priority === 'urgent' ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-orange-100 text-orange-800 border border-orange-200'}`}>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${ev.priority === 'urgent' ? 'bg-fill-red-100 text-mark-red-800 border border-edge-red-200' : 'bg-fill-orange-100 text-mark-orange-800 border border-edge-orange-200'}`}>
                                 {ev.priority}
                               </span>
                             )}
                             {/** Notice */}
                             {ev.kind === 'notice' ? (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-fill-amber-50 text-mark-amber-800 border border-edge-amber-100">
                                 {`notice: ${ev.title || 'Notice'}`}
                               </span>
                             ) : ev.kind === 'class' ? (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-fill-emerald-50 text-mark-emerald-800 border border-edge-emerald-100">
                                 {`class: ${ev.title || ev.className || ev.class_name || 'Class'}`}
                               </span>
                             ) : (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100">
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-fill-sky-50 text-mark-sky-800 border border-edge-sky-100">
                                 {`exam: ${ev.title || ev.kind || 'Exam'}`}
                               </span>
                             )}
 
                             {ev.subject && (
-                              <span className="text-xs px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100">
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-fill-amber-50 text-mark-amber-800 border border-edge-amber-100">
                                 {`subject: ${ev.subject}`}
                               </span>
                             )}
 
                             {(ev.className || ev.class_name) && ev.kind !== 'class' && (
-                              <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-fill-emerald-50 text-mark-emerald-800 border border-edge-emerald-100">
                                 {`class: ${ev.className || ev.class_name}`}
                               </span>
                             )}
 
                             {ev.course && (
-                              <span className="text-xs px-2 py-0.5 rounded-md bg-neutral-50 text-neutral-800 border border-neutral-100">
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-canvas text-fg border border-hair">
                                 {`course: ${ev.course}`}
                               </span>
                             )}
                             {/* Title / link / duration */}
                             <div className="w-full mt-2 flex items-center justify-between">
-                              <div className="text-sm font-medium text-black truncate">{ev.title || 'Exam'}</div>
+                              <div className="text-sm font-medium text-fg truncate">{ev.title || 'Exam'}</div>
                               <div className="flex items-center gap-2">
                                 {ev.duration ? (
-                                  <span className="text-xs text-neutral-500">{`Duration: ${String(ev.duration)}`}</span>
+                                  <span className="text-xs text-fg-soft">{`Duration: ${String(ev.duration)}`}</span>
                                 ) : null}
                                 {ev.url ? (
-                                  <a href={ev.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">View</a>
+                                  <a href={ev.url} target="_blank" rel="noopener noreferrer" className="text-xs text-mark-indigo-600 hover:underline">View</a>
                                 ) : null}
                               </div>
                             </div>
@@ -214,7 +214,7 @@ export default function Calendar({ events = {}, selected: selectedProp, onSelect
                     </li>
                   ))}
                   {remainingCount > 0 && (
-                    <li className="py-2 text-xs text-neutral-500 italic border-t border-neutral-100 mt-2">
+                    <li className="py-2 text-xs text-fg-soft italic border-t border-hair mt-2">
                       +{remainingCount} more event{remainingCount > 1 ? 's' : ''} (showing most urgent)
                     </li>
                   )}

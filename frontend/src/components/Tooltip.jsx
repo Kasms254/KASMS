@@ -45,7 +45,7 @@ export default function Tooltip({ children, content, placement = 'top', delay = 
         <span
           id={id}
           role="tooltip"
-          className={`z-50 pointer-events-none select-none absolute ${placementClasses[placement] || placementClasses.top} ${multiline ? 'max-w-xs whitespace-pre-wrap text-left' : 'whitespace-nowrap'} rounded bg-gray-900 text-white text-xs py-1 px-2 shadow-lg transition-opacity duration-150 ease-out opacity-100 transform scale-100`}
+          className={`z-50 pointer-events-none select-none absolute ${placementClasses[placement] || placementClasses.top} ${multiline ? 'max-w-xs whitespace-pre-wrap text-left' : 'whitespace-nowrap'} rounded bg-inverse text-white text-xs py-1 px-2 shadow-lg transition-opacity duration-150 ease-out opacity-100 transform scale-100`}
         >
           {content}
         </span>

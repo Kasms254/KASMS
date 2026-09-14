@@ -220,21 +220,21 @@ export default function ClassStudents() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <button onClick={() => navigate(-1)} className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" title="Back">
+            <button onClick={() => navigate(-1)} className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition" title="Back">
               <LucideIcons.ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">{className ? `${className} — Students` : 'Class Students'}</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">{className ? `${className} — Students` : 'Class Students'}</h2>
           </div>
-          <p className="text-xs sm:text-sm text-neutral-500">Students enrolled in this class ({filtered.length}{searchTerm ? ` of ${students.length}` : ''})</p>
+          <p className="text-xs sm:text-sm text-fg-soft">Students enrolled in this class ({filtered.length}{searchTerm ? ` of ${students.length}` : ''})</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {students.length > 0 && (
             <>
-              <button onClick={() => setConfirmRenumber(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm whitespace-nowrap">
+              <button onClick={() => setConfirmRenumber(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 transition shadow-sm whitespace-nowrap">
                 <LucideIcons.ListOrdered className="w-4 h-4" />
                 Renumber Students
               </button>
-              <button onClick={downloadCSV} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition shadow-sm whitespace-nowrap">
+              <button onClick={downloadCSV} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-fill-green-600 text-white hover:bg-fill-green-700 transition shadow-sm whitespace-nowrap">
                 <LucideIcons.Download className="w-4 h-4" />
                 Download CSV
               </button>
@@ -244,21 +244,21 @@ export default function ClassStudents() {
       </header>
 
       {/* Search Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <div className="relative flex-1">
-            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by index number, name, service number, or rank..."
-              className="w-full border border-neutral-200 rounded-lg pl-9 pr-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
           </div>
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+              className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
             >
               Clear
             </button>
@@ -268,15 +268,15 @@ export default function ClassStudents() {
 
       {/* Content */}
       {error ? (
-        <div className="p-6 bg-white rounded-xl border border-red-200">
+        <div className="p-6 bg-surface rounded-xl border border-edge-red-200">
           <EmptyState icon="AlertCircle" title="Error loading students" description={error.message || String(error)} variant="minimal" />
         </div>
       ) : loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200">
+        <div className="p-6 bg-surface rounded-xl border border-line">
           <EmptyState icon="Loader2" title="Loading students..." variant="minimal" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="bg-surface rounded-xl border border-line">
           <EmptyState
             icon="Users"
             title="No students found"
@@ -284,28 +284,28 @@ export default function ClassStudents() {
           />
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
           {/* Mobile Card View */}
           <div className="lg:hidden p-4 space-y-3">
             {paginatedStudents.map((st) => (
-              <div key={st.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
+              <div key={st.id} className="bg-canvas rounded-lg p-3 sm:p-4 border border-line">
                 <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
                     {initials(st.name || st.svc_number)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <div className="font-medium text-sm sm:text-base text-black truncate">{st.name || '-'}</div>
+                      <div className="font-medium text-sm sm:text-base text-fg truncate">{st.name || '-'}</div>
                       {st.formatted_index && (
-                        <span className="inline-block bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">{st.formatted_index}</span>
+                        <span className="inline-block bg-fill-indigo-50 text-mark-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">{st.formatted_index}</span>
                       )}
                     </div>
-                    <div className="text-xs text-neutral-600">{st.svc_number || '-'}</div>
-                    {st.rank && <div className="text-xs text-neutral-500">{shortRank(getRankDisplay(st.rank))}</div>}
+                    <div className="text-xs text-fg-muted">{st.svc_number || '-'}</div>
+                    {st.rank && <div className="text-xs text-fg-soft">{shortRank(getRankDisplay(st.rank))}</div>}
                   </div>
                   <button
                     onClick={() => openEditIndex(st)}
-                    className="p-1.5 rounded-md text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition flex-shrink-0"
+                    className="p-1.5 rounded-md text-fg-faint hover:text-mark-indigo-600 hover:bg-fill-indigo-50 transition flex-shrink-0"
                     title="Edit index number"
                   >
                     <LucideIcons.Pencil className="w-4 h-4" />
@@ -318,33 +318,33 @@ export default function ClassStudents() {
           {/* Desktop Table View */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full table-auto">
-              <thead className="bg-neutral-50">
+              <thead className="bg-canvas">
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Index No</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Service No</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider"></th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Index No</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Service No</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Rank</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200 bg-white">
+              <tbody className="divide-y divide-line bg-surface">
                 {paginatedStudents.map((st) => (
-                  <tr key={st.id} className="hover:bg-neutral-50 transition">
-                    <td className="px-4 py-3 text-sm font-medium text-indigo-700 whitespace-nowrap">{st.formatted_index || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">{st.svc_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(getRankDisplay(st.rank)) || '-'}</td>
+                  <tr key={st.id} className="hover:bg-canvas transition">
+                    <td className="px-4 py-3 text-sm font-medium text-mark-indigo-700 whitespace-nowrap">{st.formatted_index || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap">{st.svc_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{shortRank(getRankDisplay(st.rank)) || '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs flex-shrink-0">
                           {initials(st.name || st.svc_number)}
                         </div>
-                        <div className="font-medium text-sm text-black">{st.name || '-'}</div>
+                        <div className="font-medium text-sm text-fg">{st.name || '-'}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => openEditIndex(st)}
-                        className="p-1.5 rounded-md text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                        className="p-1.5 rounded-md text-fg-faint hover:text-mark-indigo-600 hover:bg-fill-indigo-50 transition"
                         title="Edit index number"
                       >
                         <LucideIcons.Pencil className="w-4 h-4" />
@@ -360,12 +360,12 @@ export default function ClassStudents() {
 
       {/* Pagination */}
       {!loading && totalCount > 0 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-6 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-neutral-600">
-              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
-              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
-              <span className="font-semibold text-black">{totalCount}</span> students
+            <div className="text-sm text-fg-muted">
+              Showing <span className="font-semibold text-fg">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-fg">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-fg">{totalCount}</span> students
             </div>
             <div className="flex items-center gap-2">
               {totalPages > 1 && (
@@ -373,10 +373,10 @@ export default function ClassStudents() {
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     aria-label="Previous page"
                   >
-                    <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                    <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
                   </button>
 
                   <div className="flex items-center gap-1">
@@ -390,19 +390,19 @@ export default function ClassStudents() {
                       }
                       if (startPage > 1) {
                         pages.push(
-                          <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">1</button>
+                          <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">1</button>
                         )
-                        if (startPage > 2) pages.push(<span key="e1" className="px-2 text-neutral-400">...</span>)
+                        if (startPage > 2) pages.push(<span key="e1" className="px-2 text-fg-faint">...</span>)
                       }
                       for (let i = startPage; i <= endPage; i++) {
                         pages.push(
-                          <button key={i} onClick={() => setPage(i)} className={`px-3 py-1.5 text-sm rounded-lg transition ${page === i ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'}`}>{i}</button>
+                          <button key={i} onClick={() => setPage(i)} className={`px-3 py-1.5 text-sm rounded-lg transition ${page === i ? 'bg-fill-indigo-600 text-white font-semibold shadow-sm' : 'border border-line bg-surface text-fg hover:bg-canvas'}`}>{i}</button>
                         )
                       }
                       if (endPage < totalPages) {
-                        if (endPage < totalPages - 1) pages.push(<span key="e2" className="px-2 text-neutral-400">...</span>)
+                        if (endPage < totalPages - 1) pages.push(<span key="e2" className="px-2 text-fg-faint">...</span>)
                         pages.push(
-                          <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">{totalPages}</button>
+                          <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">{totalPages}</button>
                         )
                       }
                       return pages
@@ -412,20 +412,20 @@ export default function ClassStudents() {
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     aria-label="Next page"
                   >
-                    <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                    <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
                   </button>
                 </>
               )}
 
               <div className="ml-2 flex items-center gap-2">
-                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <span className="text-sm text-fg-muted hidden sm:inline">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
-                  className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                  className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 transition"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -442,18 +442,18 @@ export default function ClassStudents() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingStudent(null)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-sm">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h4 className="text-base font-medium text-black">Edit Index Number</h4>
-                  <p className="text-sm text-neutral-500 mt-0.5">{editingStudent.name || editingStudent.svc_number}</p>
+                  <h4 className="text-base font-medium text-fg">Edit Index Number</h4>
+                  <p className="text-sm text-fg-soft mt-0.5">{editingStudent.name || editingStudent.svc_number}</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={() => setEditingStudent(null)} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={() => setEditingStudent(null)} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
               <form onSubmit={handleEditIndexSubmit}>
-                <label className="text-sm text-neutral-600 mb-1 block">
+                <label className="text-sm text-fg-muted mb-1 block">
                   New index number
-                  {indexPrefix && <span className="ml-1 text-neutral-400">(will display as {indexPrefix}/NNN)</span>}
+                  {indexPrefix && <span className="ml-1 text-fg-faint">(will display as {indexPrefix}/NNN)</span>}
                 </label>
                 <input
                   type="number"
@@ -461,13 +461,13 @@ export default function ClassStudents() {
                   autoFocus
                   value={editIndexValue}
                   onChange={(e) => { setEditIndexValue(e.target.value); setEditIndexError('') }}
-                  className={`w-full p-2 rounded-md text-black text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-200 ${editIndexError ? 'border-rose-500' : 'border-neutral-200'}`}
+                  className={`w-full p-2 rounded-md text-fg text-sm border focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${editIndexError ? 'border-edge-rose-500' : 'border-line'}`}
                   placeholder="e.g. 5"
                 />
-                {editIndexError && <p className="text-xs text-rose-600 mt-1">{editIndexError}</p>}
+                {editIndexError && <p className="text-xs text-mark-rose-600 mt-1">{editIndexError}</p>}
                 <div className="flex justify-end gap-2 mt-4">
-                  <button type="button" onClick={() => setEditingStudent(null)} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editIndexSaving} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  <button type="button" onClick={() => setEditingStudent(null)} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={editIndexSaving} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {editIndexSaving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
@@ -482,26 +482,26 @@ export default function ClassStudents() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !renumbering && setConfirmRenumber(false)} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                  <LucideIcons.ListOrdered className="w-5 h-5 text-amber-600" />
+                <div className="w-10 h-10 rounded-full bg-fill-amber-100 flex items-center justify-center flex-shrink-0">
+                  <LucideIcons.ListOrdered className="w-5 h-5 text-mark-amber-600" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-black">Renumber Students</h4>
-                  <p className="text-sm text-neutral-500">This will change index numbers.</p>
+                  <h4 className="text-lg font-semibold text-fg">Renumber Students</h4>
+                  <p className="text-sm text-fg-soft">This will change index numbers.</p>
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 mb-4">
+              <p className="text-sm text-fg-muted mb-4">
                 This re-assigns every enrolled student's index number in this class, keeping their current order, starting from{' '}
-                <strong className="text-black">
+                <strong className="text-fg">
                   {indexPrefix ? `${indexPrefix}/` : ''}{String(indexStartFrom ?? 1).padStart(3, '0')}
                 </strong>
                 {' '}(the class's "Index starts from" setting). Any index numbers already shared elsewhere (printed rosters, certificates) will no longer match.
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmRenumber(false)} disabled={renumbering} className="px-4 py-2 rounded-lg text-sm border border-neutral-200 text-neutral-700 hover:bg-neutral-100 transition disabled:opacity-50">Cancel</button>
-                <button onClick={handleRenumber} disabled={renumbering} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                <button onClick={() => setConfirmRenumber(false)} disabled={renumbering} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-body hover:bg-surface-2 transition disabled:opacity-50">Cancel</button>
+                <button onClick={handleRenumber} disabled={renumbering} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-fill-indigo-600 text-white hover:bg-fill-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                   {renumbering ? <LucideIcons.Loader2 className="w-4 h-4 animate-spin" /> : <LucideIcons.ListOrdered className="w-4 h-4" />}
                   {renumbering ? 'Renumbering...' : 'Renumber'}
                 </button>

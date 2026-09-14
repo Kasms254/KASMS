@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
@@ -21,7 +21,7 @@ function sanitizeInput(value) {
 
 export default function SubjectsPage() {
   const navigate = useNavigate()
-  const [error, setError] = useState(null)
+  const [error] = useState(null)
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -215,8 +215,8 @@ export default function SubjectsPage() {
   }
 
   function SortIcon({ field }) {
-    if (sortField !== field) return <LucideIcons.ChevronsUpDown className="w-4 h-4 text-neutral-400" />
-    return sortDirection === 'asc' ? <LucideIcons.ChevronUp className="w-4 h-4 text-indigo-600" /> : <LucideIcons.ChevronDown className="w-4 h-4 text-indigo-600" />
+    if (sortField !== field) return <LucideIcons.ChevronsUpDown className="w-4 h-4 text-fg-faint" />
+    return sortDirection === 'asc' ? <LucideIcons.ChevronUp className="w-4 h-4 text-mark-indigo-600" /> : <LucideIcons.ChevronDown className="w-4 h-4 text-mark-indigo-600" />
   }
 
   function openEdit(subj) {
@@ -351,16 +351,16 @@ export default function SubjectsPage() {
     <div className="w-full px-4 sm:px-6 lg:px-8">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">Subjects</h2>
-          <p className="text-sm text-neutral-500">Manage subjects with sorting and filters</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">Subjects</h2>
+          <p className="text-sm text-fg-soft">Manage subjects with sorting and filters</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => openAddSubjectModal()} className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition shadow-sm whitespace-nowrap">Add Subject</button>
+          <button onClick={() => openAddSubjectModal()} className="bg-fill-green-600 text-white px-3 py-2 rounded-md hover:bg-fill-green-700 transition shadow-sm whitespace-nowrap">Add Subject</button>
         </div>
       </header>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 mb-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4 mb-4">
         <div className="flex flex-col gap-3">
           {/* Search input and filters */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -372,7 +372,7 @@ export default function SubjectsPage() {
                   setPage(1)
                 }}
                 placeholder="Search subjects, classes, instructors, service numbers, or ranks..."
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               />
             </div>
             <div className="w-full sm:w-48">
@@ -382,7 +382,7 @@ export default function SubjectsPage() {
                   setSelectedClass(e.target.value)
                   setPage(1)
                 }}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               >
                 <option value="all">All Classes</option>
                 {classes.filter(c => showInactive || c.is_active).map((cls) => (
@@ -399,7 +399,7 @@ export default function SubjectsPage() {
                   setSelectedInstructor(e.target.value)
                   setPage(1)
                 }}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               >
                 <option value="all">All Instructors</option>
                 {instructors.map((ins) => (
@@ -413,7 +413,7 @@ export default function SubjectsPage() {
 
           {/* Action buttons */}
           <div className="flex items-center justify-between gap-2">
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <label className="flex items-center gap-2 text-sm text-fg-muted">
               <input type="checkbox" checked={showInactive} onChange={(e) => {
                 setShowInactive(e.target.checked)
                 setPage(1)
@@ -427,7 +427,7 @@ export default function SubjectsPage() {
                 setSelectedInstructor('all')
                 setPage(1)
               }}
-              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm hover:bg-gray-300 transition whitespace-nowrap"
+              className="px-4 py-2 rounded-lg bg-surface-3 text-fg-body text-xs sm:text-sm hover:bg-surface-4 transition whitespace-nowrap"
             >
               Clear Filters
             </button>
@@ -435,28 +435,28 @@ export default function SubjectsPage() {
 
           {/* Filter summary badges */}
           {(searchTerm || selectedClass !== 'all' || selectedInstructor !== 'all') && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-200">
-              <span className="text-xs text-neutral-600">Active filters:</span>
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-line">
+              <span className="text-xs text-fg-muted">Active filters:</span>
               {searchTerm && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-fill-indigo-50 text-mark-indigo-700 text-xs">
                   Search: "{searchTerm}"
-                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                  <button onClick={() => { setSearchTerm(''); setPage(1) }} className="hover:bg-fill-indigo-100 rounded-full p-0.5">
                     <LucideIcons.X className="w-3 h-3" />
                   </button>
                 </span>
               )}
               {selectedClass !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-fill-indigo-50 text-mark-indigo-700 text-xs">
                   Class: {classes.find(c => String(c.id) === String(selectedClass))?.name || 'Unknown'}
-                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                  <button onClick={() => { setSelectedClass('all'); setPage(1) }} className="hover:bg-fill-indigo-100 rounded-full p-0.5">
                     <LucideIcons.X className="w-3 h-3" />
                   </button>
                 </span>
               )}
               {selectedInstructor !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-fill-indigo-50 text-mark-indigo-700 text-xs">
                   Instructor: {instructors.find(i => String(i.id) === String(selectedInstructor))?.full_name || 'Unknown'}
-                  <button onClick={() => { setSelectedInstructor('all'); setPage(1) }} className="hover:bg-indigo-100 rounded-full p-0.5">
+                  <button onClick={() => { setSelectedInstructor('all'); setPage(1) }} className="hover:bg-fill-indigo-100 rounded-full p-0.5">
                     <LucideIcons.X className="w-3 h-3" />
                   </button>
                 </span>
@@ -467,83 +467,83 @@ export default function SubjectsPage() {
       </div>
 
       {error ? (
-        <div className="p-6 bg-white rounded-xl border border-red-200 text-red-700 text-center">Error loading subjects: {error.message || String(error)}</div>
+        <div className="p-6 bg-surface rounded-xl border border-edge-red-200 text-mark-red-700 text-center">Error loading subjects: {error.message || String(error)}</div>
       ) : loading ? (
-        <div className="p-6 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">Loading subjects…</div>
+        <div className="p-6 bg-surface rounded-xl border border-line text-fg-soft text-center">Loading subjects…</div>
       ) : totalCount === 0 ? (
-        <div className="p-8 bg-white rounded-xl border border-neutral-200 text-neutral-500 text-center">No subjects found.</div>
+        <div className="p-8 bg-surface rounded-xl border border-line text-fg-soft text-center">No subjects found.</div>
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="hidden lg:block bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+          <div className="hidden lg:block bg-surface rounded-xl border border-line shadow-sm overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
-                <tr className="text-left bg-neutral-50">
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                <tr className="text-left bg-canvas">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Subject Name <SortIcon field="name" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Subject Code <SortIcon field="code" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Class <SortIcon field="class" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Service No <SortIcon field="svcNumber" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('rank')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('rank')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Rank <SortIcon field="rank" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Instructor <SortIcon field="instructor" />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                  <th className="px-4 py-3 text-sm text-fg-muted whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedSubjects.map((s) => (
-                  <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-sm text-neutral-700 font-medium">
+                  <tr key={s.id} className="border-t last:border-b hover:bg-canvas">
+                    <td className="px-4 py-3 text-sm text-fg-body font-medium">
                       <div>{s.name ?? s.title ?? 'Untitled'}</div>
-                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
+                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-fill-amber-50 text-mark-amber-700' : 'bg-surface-2 text-fg-soft'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{s.subject_code ?? s.code ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{s.subject_code ?? s.code ?? '-'}</td>
                     <td className="px-4 py-3 text-sm">
-                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                      <span className="inline-block px-2 py-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full text-xs">{s.className}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorSvcNumber}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{shortRank(s.instructorRank)}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-700">{s.instructorName}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{s.instructorSvcNumber}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{shortRank(s.instructorRank)}</td>
+                    <td className="px-4 py-3 text-sm text-fg-body">{s.instructorName}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {s.grading_mode === 'POLICY' && (
                           <button
                             onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
-                            className="px-3 py-1.5 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition"
+                            className="px-3 py-1.5 rounded-md bg-fill-amber-600 text-sm text-white hover:bg-fill-amber-700 transition"
                             aria-label={`Manage components for ${s.name || s.title || 'subject'}`}
                           >Components</button>
                         )}
                         <button
                           onClick={() => openEdit(s)}
-                          className="px-3 py-1.5 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+                          className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-sm text-white hover:bg-fill-indigo-700 transition"
                           aria-label={`Edit ${s.name || s.title || 'subject'}`}
                         >Edit</button>
                         <button
                           disabled={deletingId === s.id}
                           onClick={() => handleDelete(s)}
-                          className="px-3 py-1.5 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                          className="px-3 py-1.5 rounded-md bg-fill-red-600 text-sm text-white hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                           aria-label={`Remove ${s.name || s.title || 'subject'}`}
                         >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                       </div>
@@ -555,70 +555,70 @@ export default function SubjectsPage() {
           </div>
 
           {/* Tablet View */}
-          <div className="hidden md:block lg:hidden bg-white rounded-xl border border-neutral-200 shadow-sm overflow-x-auto">
+          <div className="hidden md:block lg:hidden bg-surface rounded-xl border border-line shadow-sm overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
-                <tr className="text-left bg-neutral-50">
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                <tr className="text-left bg-canvas">
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Subject <SortIcon field="name" />
                     </button>
                   </th>
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('code')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Code <SortIcon field="code" />
                     </button>
                   </th>
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('class')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Class <SortIcon field="class" />
                     </button>
                   </th>
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('svcNumber')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Service No <SortIcon field="svcNumber" />
                     </button>
                   </th>
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap">
-                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-indigo-600 transition">
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap">
+                    <button onClick={() => handleSort('instructor')} className="flex items-center gap-1 hover:text-mark-indigo-600 transition">
                       Instructor <SortIcon field="instructor" />
                     </button>
                   </th>
-                  <th className="px-3 py-3 text-sm text-neutral-600 whitespace-nowrap text-right">Actions</th>
+                  <th className="px-3 py-3 text-sm text-fg-muted whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedSubjects.map((s) => (
-                  <tr key={s.id} className="border-t last:border-b hover:bg-neutral-50">
+                  <tr key={s.id} className="border-t last:border-b hover:bg-canvas">
                     <td className="px-3 py-3">
-                      <div className="font-medium text-black text-sm">{s.name ?? s.title ?? 'Untitled'}</div>
-                      <div className="text-xs text-neutral-500">{s.subject_code ?? s.code ?? '-'}</div>
-                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
+                      <div className="font-medium text-fg text-sm">{s.name ?? s.title ?? 'Untitled'}</div>
+                      <div className="text-xs text-fg-soft">{s.subject_code ?? s.code ?? '-'}</div>
+                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-fill-amber-50 text-mark-amber-700' : 'bg-surface-2 text-fg-soft'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
                     </td>
                     <td className="px-3 py-3 text-sm">
-                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                      <span className="inline-block px-2 py-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full text-xs">{s.className}</span>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="text-sm text-neutral-700">{s.instructorSvcNumber}</div>
-                      <div className="text-xs text-neutral-500">{shortRank(s.instructorRank)}</div>
+                      <div className="text-sm text-fg-body">{s.instructorSvcNumber}</div>
+                      <div className="text-xs text-fg-soft">{shortRank(s.instructorRank)}</div>
                     </td>
-                    <td className="px-3 py-3 text-sm text-neutral-700">{s.instructorName}</td>
+                    <td className="px-3 py-3 text-sm text-fg-body">{s.instructorName}</td>
                     <td className="px-3 py-3">
                       <div className="flex flex-col items-stretch gap-1.5">
                         {s.grading_mode === 'POLICY' && (
                           <button
                             onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
-                            className="px-3 py-1.5 rounded-md bg-amber-600 text-xs text-white hover:bg-amber-700 transition whitespace-nowrap text-center"
+                            className="px-3 py-1.5 rounded-md bg-fill-amber-600 text-xs text-white hover:bg-fill-amber-700 transition whitespace-nowrap text-center"
                           >Components</button>
                         )}
                         <button
                           onClick={() => openEdit(s)}
-                          className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition whitespace-nowrap text-center"
+                          className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-xs text-white hover:bg-fill-indigo-700 transition whitespace-nowrap text-center"
                         >Edit</button>
                         <button
                           disabled={deletingId === s.id}
                           onClick={() => handleDelete(s)}
-                          className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap text-center"
+                          className="px-3 py-1.5 rounded-md bg-fill-red-600 text-xs text-white hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition whitespace-nowrap text-center"
                         >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                       </div>
                     </td>
@@ -631,50 +631,50 @@ export default function SubjectsPage() {
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
             {paginatedSubjects.map((s) => (
-              <div key={s.id} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4">
+              <div key={s.id} className="bg-surface rounded-xl border border-line shadow-sm p-4">
                 <div className="space-y-3">
                   <div>
-                    <div className="font-medium text-black text-lg">{s.name ?? s.title ?? 'Untitled'}</div>
+                    <div className="font-medium text-fg text-lg">{s.name ?? s.title ?? 'Untitled'}</div>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Class:</span>
-                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs">{s.className}</span>
+                      <span className="text-xs text-fg-soft w-24 flex-shrink-0">Class:</span>
+                      <span className="inline-block px-2 py-1 bg-fill-indigo-50 text-mark-indigo-700 rounded-full text-xs">{s.className}</span>
                     </div>
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Grading:</span>
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
+                      <span className="text-xs text-fg-soft w-24 flex-shrink-0">Grading:</span>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${s.grading_mode === 'POLICY' ? 'bg-fill-amber-50 text-mark-amber-700' : 'bg-surface-2 text-fg-soft'}`}>{s.grading_mode === 'POLICY' ? 'Policy' : 'Legacy'}</span>
                     </div>
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Service No:</span>
-                      <span className="text-sm text-neutral-700">{s.instructorSvcNumber}</span>
+                      <span className="text-xs text-fg-soft w-24 flex-shrink-0">Service No:</span>
+                      <span className="text-sm text-fg-body">{s.instructorSvcNumber}</span>
                     </div>
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Rank:</span>
-                      <span className="text-sm text-neutral-700">{shortRank(s.instructorRank)}</span>
+                      <span className="text-xs text-fg-soft w-24 flex-shrink-0">Rank:</span>
+                      <span className="text-sm text-fg-body">{shortRank(s.instructorRank)}</span>
                     </div>
                     <div className="flex items-start">
-                      <span className="text-xs text-neutral-500 w-24 flex-shrink-0">Instructor:</span>
-                      <span className="text-sm text-neutral-700">{s.instructorName}</span>
+                      <span className="text-xs text-fg-soft w-24 flex-shrink-0">Instructor:</span>
+                      <span className="text-sm text-fg-body">{s.instructorName}</span>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-neutral-100 flex-wrap">
+                  <div className="flex gap-2 pt-3 border-t border-hair flex-wrap">
                     {s.grading_mode === 'POLICY' && (
                       <button
                         onClick={() => navigate(`/list/assessment-components?subject_id=${s.id}`)}
-                        className="flex-1 px-3 py-2 rounded-md bg-amber-600 text-sm text-white hover:bg-amber-700 transition whitespace-nowrap"
+                        className="flex-1 px-3 py-2 rounded-md bg-fill-amber-600 text-sm text-white hover:bg-fill-amber-700 transition whitespace-nowrap"
                       >Components</button>
                     )}
                     <button
                       onClick={() => openEdit(s)}
-                      className="flex-1 px-3 py-2 rounded-md bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition"
+                      className="flex-1 px-3 py-2 rounded-md bg-fill-indigo-600 text-sm text-white hover:bg-fill-indigo-700 transition"
                     >Edit</button>
                     <button
                       disabled={deletingId === s.id}
                       onClick={() => handleDelete(s)}
-                      className="flex-1 px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                      className="flex-1 px-3 py-2 rounded-md bg-fill-red-600 text-sm text-white hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                     >{deletingId === s.id ? 'Deleting...' : 'Remove'}</button>
                   </div>
                 </div>
@@ -686,13 +686,13 @@ export default function SubjectsPage() {
 
       {/* Pagination Controls */}
       {!loading && totalCount > 0 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="mt-6 bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Results info */}
-            <div className="text-sm text-neutral-600">
-              Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
-              <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
-              <span className="font-semibold text-black">{totalCount}</span> subjects
+            <div className="text-sm text-fg-muted">
+              Showing <span className="font-semibold text-fg">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+              <span className="font-semibold text-fg">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+              <span className="font-semibold text-fg">{totalCount}</span> subjects
             </div>
 
             {/* Pagination controls */}
@@ -701,9 +701,9 @@ export default function SubjectsPage() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page numbers */}
@@ -720,8 +720,8 @@ export default function SubjectsPage() {
                           onClick={() => setPage(i)}
                           className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                             page === i
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                              ? 'bg-fill-indigo-600 text-white shadow-sm'
+                              : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                           }`}
                         >
                           {i}
@@ -736,8 +736,8 @@ export default function SubjectsPage() {
                         onClick={() => setPage(1)}
                         className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                           page === 1
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                            ? 'bg-fill-indigo-600 text-white shadow-sm'
+                            : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                         }`}
                       >
                         1
@@ -746,7 +746,7 @@ export default function SubjectsPage() {
 
                     // Show ellipsis if needed
                     if (page > 3) {
-                      pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis1" className="px-2 text-fg-faint">...</span>)
                     }
 
                     // Show pages around current page
@@ -759,8 +759,8 @@ export default function SubjectsPage() {
                           onClick={() => setPage(i)}
                           className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                             page === i
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                              ? 'bg-fill-indigo-600 text-white shadow-sm'
+                              : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                           }`}
                         >
                           {i}
@@ -770,7 +770,7 @@ export default function SubjectsPage() {
 
                     // Show ellipsis if needed
                     if (page < totalPages - 2) {
-                      pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                      pages.push(<span key="ellipsis2" className="px-2 text-fg-faint">...</span>)
                     }
 
                     // Always show last page
@@ -780,8 +780,8 @@ export default function SubjectsPage() {
                         onClick={() => setPage(totalPages)}
                         className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-medium transition ${
                           page === totalPages
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                            ? 'bg-fill-indigo-600 text-white shadow-sm'
+                            : 'bg-surface border border-line text-fg-body hover:bg-canvas'
                         }`}
                       >
                         {totalPages}
@@ -797,21 +797,21 @@ export default function SubjectsPage() {
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
 
               {/* Page size selector */}
               <div className="ml-2 flex items-center gap-2">
-                <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                <span className="text-sm text-fg-muted hidden sm:inline">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value))
                     setPage(1)
                   }}
-                  className="border border-neutral-200 rounded-lg px-2 py-1 text-sm text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  className="border border-line rounded-lg px-2 py-1 text-sm text-fg bg-surface focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -828,30 +828,30 @@ export default function SubjectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl">
-            <div ref={modalRef} className="transform transition-all duration-200 bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <div ref={modalRef} className="transform transition-all duration-200 bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Add subject</h4>
-                  <p className="text-sm text-neutral-500">Create a new subject and assign it to a class.</p>
+                  <h4 className="text-lg text-fg font-medium">Add subject</h4>
+                  <p className="text-sm text-fg-soft">Create a new subject and assign it to a class.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={closeModal} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
 
               <form onSubmit={handleAddSubject}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Subject name *</label>
-                    <input value={form.name} maxLength={50} onChange={(e) => setForm({ ...form, name: sanitizeInput(e.target.value).slice(0, 50) })} placeholder="e.g. Mathematics" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" required />
+                    <label className="text-sm text-fg-muted mb-1 block">Subject name *</label>
+                    <input value={form.name} maxLength={50} onChange={(e) => setForm({ ...form, name: sanitizeInput(e.target.value).slice(0, 50) })} placeholder="e.g. Mathematics" className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200" required />
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Subject code</label>
-                    <input value={form.subject_code} maxLength={20} onChange={(e) => setForm({ ...form, subject_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. MATH101" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                    <label className="text-sm text-fg-muted mb-1 block">Subject code</label>
+                    <input value={form.subject_code} maxLength={20} onChange={(e) => setForm({ ...form, subject_code: sanitizeInput(e.target.value).slice(0, 20) })} placeholder="e.g. MATH101" className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200" />
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Class *</label>
-                    <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" required>
+                    <label className="text-sm text-fg-muted mb-1 block">Class *</label>
+                    <select value={form.class_obj} onChange={(e) => setForm({ ...form, class_obj: e.target.value })} className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200" required>
                       <option value="">— Select class —</option>
                       {classes.filter(c => showInactive || c.is_active).map(cl => (
                         <option key={cl.id} value={cl.id}>{cl.name || cl.class_code}</option>
@@ -860,7 +860,7 @@ export default function SubjectsPage() {
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Instructor *</label>
+                    <label className="text-sm text-fg-muted mb-1 block">Instructor *</label>
                     <SearchableSelect
                       value={form.instructor}
                       onChange={(val) => setForm({ ...form, instructor: val })}
@@ -871,27 +871,27 @@ export default function SubjectsPage() {
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Grading mode</label>
-                    <select value={form.grading_mode} onChange={(e) => setForm({ ...form, grading_mode: e.target.value })} className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                    <label className="text-sm text-fg-muted mb-1 block">Grading mode</label>
+                    <select value={form.grading_mode} onChange={(e) => setForm({ ...form, grading_mode: e.target.value })} className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200">
                       <option value="LEGACY">Legacy (Final Exam Only)</option>
                       <option value="POLICY">Policy (Component-Based)</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-sm text-neutral-600 mb-1 block">Pass mark (%){form.grading_mode === 'POLICY' ? ' *' : ''}</label>
-                    <input type="number" min="0" max="100" step="0.01" value={form.pass_mark} onChange={(e) => setForm({ ...form, pass_mark: e.target.value })} placeholder="50" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                    <label className="text-sm text-fg-muted mb-1 block">Pass mark (%){form.grading_mode === 'POLICY' ? ' *' : ''}</label>
+                    <input type="number" min="0" max="100" step="0.01" value={form.pass_mark} onChange={(e) => setForm({ ...form, pass_mark: e.target.value })} placeholder="50" className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200" />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-600 mb-1 block">Description *</label>
-                    <textarea value={form.description} maxLength={150} onChange={(e) => setForm({ ...form, description: sanitizeInput(e.target.value).slice(0, 150) })} placeholder="Short description of the subject" className="w-full p-2 rounded-md text-black text-sm border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-indigo-200" rows={3} required />
+                    <label className="text-sm text-fg-muted mb-1 block">Description *</label>
+                    <textarea value={form.description} maxLength={150} onChange={(e) => setForm({ ...form, description: sanitizeInput(e.target.value).slice(0, 150) })} placeholder="Short description of the subject" className="w-full p-2 rounded-md text-fg text-sm border border-line focus:outline-none focus:ring-2 focus:ring-edge-indigo-200" rows={3} required />
                   </div>
                 </div>
 
                 <div className="flex justify-end gap-3 mt-4">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add subject'}</button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 rounded-md bg-fill-green-600 text-white text-sm hover:bg-fill-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{isSaving ? 'Saving...' : 'Add subject'}</button>
                 </div>
               </form>
             </div>
@@ -903,25 +903,25 @@ export default function SubjectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeEdit} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md">
-            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
+            <form onSubmit={submitEdit} className="transform transition-all duration-200 bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h4 className="text-lg text-black font-medium">Edit subject</h4>
-                  <p className="text-sm text-neutral-500">Update subject details.</p>
+                  <h4 className="text-lg text-fg font-medium">Edit subject</h4>
+                  <p className="text-sm text-fg-soft">Update subject details.</p>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">✕</button>
+                <button type="button" aria-label="Close" onClick={closeEdit} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">✕</button>
               </div>
               <div className="mt-4">
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Name</div>
-                  <input value={editForm.name} maxLength={50} onChange={(e) => handleEditChange('name', sanitizeInput(e.target.value).slice(0, 50))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  <div className="text-sm text-fg-muted mb-1">Name</div>
+                  <input value={editForm.name} maxLength={50} onChange={(e) => handleEditChange('name', sanitizeInput(e.target.value).slice(0, 50))} className="w-full border border-line rounded px-3 py-2 text-fg" />
                 </label>
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Code</div>
-                  <input value={editForm.code} maxLength={20} onChange={(e) => handleEditChange('code', sanitizeInput(e.target.value).slice(0, 20))} className="w-full border border-neutral-200 rounded px-3 py-2 text-black" />
+                  <div className="text-sm text-fg-muted mb-1">Code</div>
+                  <input value={editForm.code} maxLength={20} onChange={(e) => handleEditChange('code', sanitizeInput(e.target.value).slice(0, 20))} className="w-full border border-line rounded px-3 py-2 text-fg" />
                 </label>
                 <div className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Instructor</div>
+                  <div className="text-sm text-fg-muted mb-1">Instructor</div>
                   <SearchableSelect
                     value={editForm.instructor}
                     onChange={(val) => handleEditChange('instructor', val)}
@@ -931,20 +931,20 @@ export default function SubjectsPage() {
                   />
                 </div>
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Grading mode</div>
-                  <select value={editForm.grading_mode} onChange={(e) => handleEditChange('grading_mode', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                  <div className="text-sm text-fg-muted mb-1">Grading mode</div>
+                  <select value={editForm.grading_mode} onChange={(e) => handleEditChange('grading_mode', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm">
                     <option value="LEGACY">Legacy (Final Exam Only)</option>
                     <option value="POLICY">Policy (Component-Based)</option>
                   </select>
                 </label>
                 <label className="block mb-3">
-                  <div className="text-sm text-neutral-600 mb-1">Pass mark (%)</div>
-                  <input type="number" min="0" max="100" step="0.01" value={editForm.pass_mark} onChange={(e) => handleEditChange('pass_mark', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <div className="text-sm text-fg-muted mb-1">Pass mark (%)</div>
+                  <input type="number" min="0" max="100" step="0.01" value={editForm.pass_mark} onChange={(e) => handleEditChange('pass_mark', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </label>
               </div>
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Cancel</button>
-                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
+                <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md text-sm bg-surface-3 text-fg-body hover:bg-surface-4 transition">Cancel</button>
+                <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{editLoading ? 'Saving...' : 'Save changes'}</button>
               </div>
             </form>
           </div>
@@ -955,12 +955,12 @@ export default function SubjectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5">
-              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
-              <p className="text-sm text-neutral-600 mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.subject_code || confirmDelete.code || confirmDelete.id}</strong>? This action cannot be undone.</p>
+            <div className="bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair">
+              <h4 className="text-lg font-medium text-fg">Confirm delete</h4>
+              <p className="text-sm text-fg-muted mt-2">Are you sure you want to delete <strong>{confirmDelete.name || confirmDelete.subject_code || confirmDelete.code || confirmDelete.id}</strong>? This action cannot be undone.</p>
               <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 text-sm transition">Cancel</button>
-                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body hover:bg-surface-4 text-sm transition">Cancel</button>
+                <button onClick={() => performDelete(confirmDelete)} disabled={deletingId === confirmDelete.id} className="px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition">{deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>

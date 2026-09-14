@@ -401,15 +401,15 @@ export default function AdminLeadershipUsers() {
     <div className="w-full px-3 sm:px-4 md:px-6 space-y-4">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-black">Leadership Users</h2>
-          <p className="text-xs sm:text-sm text-neutral-500">Manage Admin, CO, CI, and OIC accounts in one page.</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-fg">Leadership Users</h2>
+          <p className="text-xs sm:text-sm text-fg-soft">Manage Admin, CO, CI, and OIC accounts in one page.</p>
         </div>
       </header>
 
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-line p-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
             <input
               type="text"
               value={searchTerm}
@@ -418,7 +418,7 @@ export default function AdminLeadershipUsers() {
                 setPage(1)
               }}
               placeholder="Search by name, service number, or email"
-              className="w-full pl-9 pr-3 py-2 border border-neutral-200 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="w-full pl-9 pr-3 py-2 border border-line rounded-lg text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
             />
           </div>
           <select
@@ -427,7 +427,7 @@ export default function AdminLeadershipUsers() {
               setSelectedRole(e.target.value)
               setPage(1)
             }}
-            className="w-full sm:w-64 px-3 py-2 border border-neutral-200 rounded-lg text-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full sm:w-64 px-3 py-2 border border-line rounded-lg text-fg text-sm focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           >
             <option value="all">Admin & Leadership Roles</option>
             {LEADERSHIP_ROLES.map((role) => (
@@ -437,7 +437,7 @@ export default function AdminLeadershipUsers() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
         {isPending ? (
           <div className="p-6">
             <EmptyState icon="Loader2" title="Loading leadership users..." variant="minimal" />
@@ -457,33 +457,33 @@ export default function AdminLeadershipUsers() {
               {pagedUsers.map((user) => {
                 const fullName = user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
                 return (
-                  <div key={user.id} className="bg-neutral-50 rounded-lg p-3 sm:p-4 border border-neutral-200">
+                  <div key={user.id} className="bg-canvas rounded-lg p-3 sm:p-4 border border-line">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
                           {initials(fullName || user.svc_number)}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-sm sm:text-base text-black truncate">{fullName || '-'}</div>
-                          <div className="text-xs text-neutral-600">{user.svc_number || '-'}</div>
-                          <div className="text-xs text-neutral-500">{ROLE_LABEL[user.role] || user.role}</div>
+                          <div className="font-medium text-sm sm:text-base text-fg truncate">{fullName || '-'}</div>
+                          <div className="text-xs text-fg-muted">{user.svc_number || '-'}</div>
+                          <div className="text-xs text-fg-soft">{ROLE_LABEL[user.role] || user.role}</div>
                         </div>
                       </div>
-                      <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full flex-shrink-0 ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`text-[10px] sm:text-xs px-2 py-1 rounded-full flex-shrink-0 ${user.is_active ? 'bg-fill-green-100 text-mark-green-700' : 'bg-fill-red-100 text-mark-red-700'}`}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </div>
 
                     <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm mb-3">
-                      <div className="flex justify-between gap-2"><span className="text-neutral-600 flex-shrink-0">Email:</span><span className="text-black truncate">{user.email || '-'}</span></div>
-                      <div className="flex justify-between gap-2"><span className="text-neutral-600 flex-shrink-0">Phone:</span><span className="text-black truncate">{user.phone_number || '-'}</span></div>
+                      <div className="flex justify-between gap-2"><span className="text-fg-muted flex-shrink-0">Email:</span><span className="text-fg truncate">{user.email || '-'}</span></div>
+                      <div className="flex justify-between gap-2"><span className="text-fg-muted flex-shrink-0">Phone:</span><span className="text-fg truncate">{user.phone_number || '-'}</span></div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-200">
-                      <button onClick={() => openEdit(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-indigo-600 text-xs sm:text-sm text-white hover:bg-indigo-700 transition">
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-line">
+                      <button onClick={() => openEdit(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-fill-indigo-600 text-xs sm:text-sm text-white hover:bg-fill-indigo-700 transition">
                         Edit
                       </button>
-                      <button onClick={() => handleDelete(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-red-600 text-xs sm:text-sm text-white hover:bg-red-700 transition">
+                      <button onClick={() => handleDelete(user)} className="flex-1 min-w-[70px] px-3 sm:px-4 py-1.5 sm:py-2 rounded-md bg-fill-red-600 text-xs sm:text-sm text-white hover:bg-fill-red-700 transition">
                         Delete
                       </button>
                     </div>
@@ -495,45 +495,45 @@ export default function AdminLeadershipUsers() {
             {/* Desktop Table View */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full table-auto">
-                <thead className="bg-neutral-50">
+                <thead className="bg-canvas">
                   <tr className="text-left">
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">User</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Role</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Service No</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Email</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Phone</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider text-right">Actions</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">User</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Role</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Service No</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Phone</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 bg-white">
+                <tbody className="divide-y divide-line bg-surface">
                   {pagedUsers.map((user) => {
                     const fullName = user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
                     return (
-                      <tr key={user.id} className="hover:bg-neutral-50 transition">
+                      <tr key={user.id} className="hover:bg-canvas transition">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
+                            <div className="w-8 h-8 rounded-full bg-fill-indigo-100 text-mark-indigo-700 flex items-center justify-center text-xs font-semibold">
                               {initials(fullName || user.svc_number)}
                             </div>
-                            <div className="text-sm font-medium text-black">{fullName || '-'}</div>
+                            <div className="text-sm font-medium text-fg">{fullName || '-'}</div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">{ROLE_LABEL[user.role] || user.role}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">{user.svc_number || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">{user.email || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-neutral-700">{user.phone_number || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{ROLE_LABEL[user.role] || user.role}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{user.svc_number || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{user.email || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-fg-body">{user.phone_number || '-'}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.is_active ? 'bg-fill-green-100 text-mark-green-700' : 'bg-fill-red-100 text-mark-red-700'}`}>
                             {user.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-2">
-                            <button onClick={() => openEdit(user)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-xs text-white hover:bg-indigo-700 transition">
+                            <button onClick={() => openEdit(user)} className="px-3 py-1.5 rounded-md bg-fill-indigo-600 text-xs text-white hover:bg-fill-indigo-700 transition">
                               Edit
                             </button>
-                            <button onClick={() => handleDelete(user)} className="px-3 py-1.5 rounded-md bg-red-600 text-xs text-white hover:bg-red-700 transition">
+                            <button onClick={() => handleDelete(user)} className="px-3 py-1.5 rounded-md bg-fill-red-600 text-xs text-white hover:bg-fill-red-700 transition">
                               Delete
                             </button>
                           </div>
@@ -549,27 +549,27 @@ export default function AdminLeadershipUsers() {
       </div>
 
       {leadershipUsers.length > PAGE_SIZE && (
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-neutral-600 text-center sm:text-left">
-              Showing <span className="font-semibold text-black">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-semibold text-black">{Math.min(currentPage * PAGE_SIZE, leadershipUsers.length)}</span> of <span className="font-semibold text-black">{leadershipUsers.length}</span> users
+            <div className="text-sm text-fg-muted text-center sm:text-left">
+              Showing <span className="font-semibold text-fg">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-semibold text-fg">{Math.min(currentPage * PAGE_SIZE, leadershipUsers.length)}</span> of <span className="font-semibold text-fg">{leadershipUsers.length}</span> users
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage <= 1}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronLeft className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronLeft className="w-5 h-5 text-fg-muted" />
               </button>
-              <span className="text-sm text-neutral-600 px-2">{currentPage}/{totalPages}</span>
+              <span className="text-sm text-fg-muted px-2">{currentPage}/{totalPages}</span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage >= totalPages}
-                className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                <LucideIcons.ChevronRight className="w-5 h-5 text-neutral-600" />
+                <LucideIcons.ChevronRight className="w-5 h-5 text-fg-muted" />
               </button>
             </div>
           </div>
@@ -581,19 +581,19 @@ export default function AdminLeadershipUsers() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeEdit} />
 
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-2xl animate-in zoom-in-95 duration-200">
-            <form onSubmit={submitEdit} className="transform bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <form onSubmit={submitEdit} className="transform bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h4 className="text-lg font-medium text-black">Edit leadership user</h4>
-                  <p className="text-sm text-neutral-500">Update role and profile details.</p>
+                  <h4 className="text-lg font-medium text-fg">Edit leadership user</h4>
+                  <p className="text-sm text-fg-soft">Update role and profile details.</p>
                 </div>
-                <button type="button" onClick={closeEdit} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition" aria-label="Close">
+                <button type="button" onClick={closeEdit} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition" aria-label="Close">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
 
               {editError && (
-                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                <div className="flex items-start gap-2 p-3 mb-1 rounded-lg bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">
                   <LucideIcons.AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>{editError}</span>
                 </div>
@@ -601,36 +601,36 @@ export default function AdminLeadershipUsers() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">First name</label>
-                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">First name</label>
+                  <input value={editForm.first_name} onChange={(e) => handleEditChange('first_name', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Last name</label>
-                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">Last name</label>
+                  <input value={editForm.last_name} onChange={(e) => handleEditChange('last_name', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Service No</label>
-                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={14} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">Service No</label>
+                  <input value={editForm.svc_number} onChange={(e) => handleEditChange('svc_number', e.target.value)} maxLength={14} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Role</label>
-                  <select value={editForm.role} onChange={(e) => handleEditChange('role', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                  <label className="text-sm text-fg-muted mb-1 block">Role</label>
+                  <select value={editForm.role} onChange={(e) => handleEditChange('role', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm">
                     {EDITABLE_ROLE_OPTIONS.map((role) => (
                       <option key={role.value} value={role.value}>{role.label}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Email</label>
-                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">Email</label>
+                  <input value={editForm.email} onChange={(e) => handleEditChange('email', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Phone</label>
-                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">Phone</label>
+                  <input value={editForm.phone_number} onChange={(e) => handleEditChange('phone_number', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Rank</label>
-                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm">
+                  <label className="text-sm text-fg-muted mb-1 block">Rank</label>
+                  <select value={editForm.rank || ''} onChange={(e) => handleEditChange('rank', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm">
                     <option value="">Unassigned</option>
                     {RANK_OPTIONS.map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
@@ -638,19 +638,19 @@ export default function AdminLeadershipUsers() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-neutral-600 mb-1 block">Unit</label>
-                  <input value={editForm.unit || ''} onChange={(e) => handleEditChange('unit', e.target.value)} className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm" />
+                  <label className="text-sm text-fg-muted mb-1 block">Unit</label>
+                  <input value={editForm.unit || ''} onChange={(e) => handleEditChange('unit', e.target.value)} className="w-full border border-line rounded px-3 py-2 text-fg text-sm" />
                 </div>
 
                 {editForm.role === 'student' && (
                   <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-600 mb-1 block">
-                      Class <span className="text-neutral-400 font-normal">(assign the student to a class)</span>
+                    <label className="text-sm text-fg-muted mb-1 block">
+                      Class <span className="text-fg-faint font-normal">(assign the student to a class)</span>
                     </label>
                     <select
                       value={editForm.class_obj || ''}
                       onChange={(e) => handleEditChange('class_obj', e.target.value)}
-                      className="w-full border border-neutral-200 rounded px-3 py-2 text-black text-sm"
+                      className="w-full border border-line rounded px-3 py-2 text-fg text-sm"
                     >
                       <option value="">— Select a class —</option>
                       {classesList.map((c) => (
@@ -658,28 +658,28 @@ export default function AdminLeadershipUsers() {
                       ))}
                     </select>
                     {!editForm.class_obj && (
-                      <p className="text-xs text-amber-600 mt-1">No class selected — student will be unassigned.</p>
+                      <p className="text-xs text-mark-amber-600 mt-1">No class selected — student will be unassigned.</p>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center mt-4 pt-4 border-t border-neutral-200">
+              <div className="flex items-center mt-4 pt-4 border-t border-line">
                 <label className="inline-flex items-center gap-2">
                   <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />
-                  <span className="text-sm text-neutral-700">Active</span>
+                  <span className="text-sm text-fg-body">Active</span>
                 </label>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => openResetPassword(editingUser)} className="px-3 py-2 rounded-md bg-purple-600 text-sm text-white hover:bg-purple-700 transition">
+                  <button type="button" onClick={() => openResetPassword(editingUser)} className="px-3 py-2 rounded-md bg-fill-purple-600 text-sm text-white hover:bg-fill-purple-700 transition">
                     <LucideIcons.Key className="w-4 h-4 inline mr-1" />Reset Password
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
+                  <button type="button" onClick={closeEdit} className="px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
+                  <button type="submit" disabled={editLoading} className="px-4 py-2 rounded-md bg-fill-indigo-600 text-white text-sm hover:bg-fill-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
                     {editLoading ? 'Saving...' : 'Save changes'}
                   </button>
                 </div>
@@ -695,40 +695,40 @@ export default function AdminLeadershipUsers() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeResetPassword} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
-            <form onSubmit={submitResetPassword} className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
+            <form onSubmit={submitResetPassword} className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100">
-                    <LucideIcons.Key className="w-5 h-5 text-purple-600" />
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-fill-purple-100">
+                    <LucideIcons.Key className="w-5 h-5 text-mark-purple-600" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-medium text-black">Reset Password</h4>
-                    <p className="text-sm text-neutral-500">
+                    <h4 className="text-lg font-medium text-fg">Reset Password</h4>
+                    <p className="text-sm text-fg-soft">
                       {resetPasswordUser.full_name
                         || `${resetPasswordUser.first_name || ''} ${resetPasswordUser.last_name || ''}`.trim()
                         || resetPasswordUser.svc_number}
                     </p>
                   </div>
                 </div>
-                <button type="button" aria-label="Close" onClick={closeResetPassword} className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition">
+                <button type="button" aria-label="Close" onClick={closeResetPassword} className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition">
                   <LucideIcons.X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <span className="text-sm text-neutral-600 mb-1 block">New Password</span>
+                  <span className="text-sm text-fg-muted mb-1 block">New Password</span>
                   <div className="relative">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={handleNewPasswordChange}
-                      className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      className="w-full border border-line rounded-lg px-3 py-2 pr-10 text-fg focus:outline-none focus:ring-2 focus:ring-edge-purple-200"
                       placeholder="Enter new password"
                       required
                       minLength={8}
                     />
-                    <button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                    <button type="button" onClick={() => setShowNewPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                       {showNewPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -736,41 +736,41 @@ export default function AdminLeadershipUsers() {
 
                 {/* Password Requirements */}
                 {newPassword && (
-                  <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
-                    <p className="text-xs font-medium text-neutral-500 mb-2">Password Requirements:</p>
+                  <div className="bg-canvas rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-medium text-fg-soft mb-2">Password Requirements:</p>
                     {passwordStrength.feedback.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-xs">
                         {item.met ? (
-                          <LucideIcons.Check className="w-3.5 h-3.5 text-green-600" />
+                          <LucideIcons.Check className="w-3.5 h-3.5 text-mark-green-600" />
                         ) : (
-                          <LucideIcons.X className="w-3.5 h-3.5 text-red-500" />
+                          <LucideIcons.X className="w-3.5 h-3.5 text-mark-red-500" />
                         )}
-                        <span className={item.met ? 'text-green-700' : 'text-neutral-600'}>{item.text}</span>
+                        <span className={item.met ? 'text-mark-green-700' : 'text-fg-muted'}>{item.text}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
                 <div>
-                  <span className="text-sm text-neutral-600 mb-1 block">Confirm Password</span>
+                  <span className="text-sm text-fg-muted mb-1 block">Confirm Password</span>
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full border border-neutral-200 rounded-lg px-3 py-2 pr-10 text-black focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      className="w-full border border-line rounded-lg px-3 py-2 pr-10 text-fg focus:outline-none focus:ring-2 focus:ring-edge-purple-200"
                       placeholder="Confirm new password"
                       required
                       minLength={8}
                     />
-                    <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 transition" tabIndex={-1}>
+                    <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted transition" tabIndex={-1}>
                       {showConfirmPassword ? <LucideIcons.EyeOff className="w-4 h-4" /> : <LucideIcons.Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
                 {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
+                  <p className="text-sm text-mark-red-600 flex items-center gap-1">
                     <LucideIcons.AlertCircle className="w-4 h-4" />
                     Passwords do not match
                   </p>
@@ -778,11 +778,11 @@ export default function AdminLeadershipUsers() {
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-6">
-                <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button type="button" onClick={closeResetPassword} className="w-full sm:w-auto px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
                 <button
                   type="submit"
                   disabled={resetLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword || passwordStrength.score < 4}
-                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-fill-purple-600 text-white text-sm hover:bg-fill-purple-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {resetLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
@@ -797,9 +797,9 @@ export default function AdminLeadershipUsers() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative z-10 w-full max-w-md">
-            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-black/5">
-              <h4 className="text-lg font-medium text-black">Confirm delete</h4>
-              <p className="text-sm text-neutral-600 mt-2">
+            <div className="bg-surface rounded-xl p-4 sm:p-6 shadow-2xl ring-1 ring-hair">
+              <h4 className="text-lg font-medium text-fg">Confirm delete</h4>
+              <p className="text-sm text-fg-muted mt-2">
                 Are you sure you want to delete{' '}
                 <strong>
                   {confirmDelete.first_name
@@ -810,11 +810,11 @@ export default function AdminLeadershipUsers() {
               </p>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4">
-                <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition">Cancel</button>
+                <button onClick={() => setConfirmDelete(null)} className="w-full sm:w-auto px-4 py-2 rounded-md bg-surface-3 text-fg-body text-sm hover:bg-surface-4 transition">Cancel</button>
                 <button
                   onClick={() => performDelete(confirmDelete)}
                   disabled={deletingId === confirmDelete.id}
-                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="w-full sm:w-auto px-4 py-2 rounded-md bg-fill-red-600 text-white text-sm hover:bg-fill-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {deletingId === confirmDelete.id ? 'Deleting...' : 'Delete'}
                 </button>

@@ -79,12 +79,12 @@ function Avatar({ first = '', last = '', size = 'md', photoUrl = null }) {
       <img
         src={photoUrl}
         alt={`${first} ${last}`.trim() || 'Student photo'}
-        className={`${cls} rounded-full object-cover flex-shrink-0 border border-neutral-200`}
+        className={`${cls} rounded-full object-cover flex-shrink-0 border border-line`}
       />
     )
   }
   return (
-    <div className={`${cls} rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0`}>
+    <div className={`${cls} rounded-full bg-fill-indigo-100 text-mark-indigo-700 flex items-center justify-center flex-shrink-0`}>
       {letters}
     </div>
   )
@@ -92,20 +92,20 @@ function Avatar({ first = '', last = '', size = 'md', photoUrl = null }) {
 
 function RosterBadge({ status }) {
   if (status === 'signed') return (
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-green-700 bg-green-100 px-2 py-0.5 rounded-full">SIGNED</span>
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-mark-green-700 bg-fill-green-100 px-2 py-0.5 rounded-full">SIGNED</span>
   )
   if (status === 'awaiting') return (
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">AWAITING REVIEW</span>
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-mark-amber-700 bg-fill-amber-100 px-2 py-0.5 rounded-full">AWAITING REVIEW</span>
   )
   return (
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">DRAFT</span>
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-soft bg-surface-2 px-2 py-0.5 rounded-full">DRAFT</span>
   )
 }
 
 function StatusChip({ label, value, valueColor }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">{label}</span>
       <span className={`text-xs font-semibold ${valueColor}`}>{value}</span>
     </div>
   )
@@ -113,10 +113,10 @@ function StatusChip({ label, value, valueColor }) {
 
 function GradeChip({ grade }) {
   const color = grade === 'F'
-    ? 'text-red-700'
-    : grade?.startsWith('A') ? 'text-green-700'
-    : grade?.startsWith('B') ? 'text-blue-700'
-    : 'text-neutral-700'
+    ? 'text-mark-red-700'
+    : grade?.startsWith('A') ? 'text-mark-green-700'
+    : grade?.startsWith('B') ? 'text-mark-blue-700'
+    : 'text-fg-body'
   return <span className={`font-semibold ${color}`}>{grade || '—'}</span>
 }
 
@@ -162,27 +162,27 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
   const draftCount    = reports.filter(r => rosterStatus(r.status) === 'draft').length
 
   return (
-    <aside className="w-72 flex-shrink-0 flex flex-col border-r border-neutral-200 bg-white overflow-hidden">
+    <aside className="w-72 flex-shrink-0 flex flex-col border-r border-line bg-surface overflow-hidden">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-neutral-100">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Class Students</p>
+      <div className="px-4 pt-4 pb-3 border-b border-hair">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-fg-faint mb-1">Class Students</p>
         <div className="flex items-center gap-3 text-xs font-medium flex-wrap">
-          <span className="text-green-700">{signedCount} signed</span>
-          <span className="text-amber-600">{awaitingCount} awaiting</span>
-          <span className="text-neutral-500">{draftCount} in draft</span>
+          <span className="text-mark-green-700">{signedCount} signed</span>
+          <span className="text-mark-amber-600">{awaitingCount} awaiting</span>
+          <span className="text-fg-soft">{draftCount} in draft</span>
         </div>
       </div>
 
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
-          <LucideIcons.Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
+          <LucideIcons.Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-faint" />
           <input
             type="text"
             placeholder="Search name or rank..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-7 pr-2 py-1.5 text-xs text-black border border-neutral-200 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+            className="w-full pl-7 pr-2 py-1.5 text-xs text-fg border border-line rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200"
           />
         </div>
       </div>
@@ -200,8 +200,8 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
             onClick={() => { setFilter(t.key); setPage(1) }}
             className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition focus:outline-none ${
               filter === t.key
-                ? 'bg-indigo-600 text-white'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                ? 'bg-fill-indigo-600 text-white'
+                : 'bg-surface-2 text-fg-muted hover:bg-surface-3'
             }`}
           >
             {t.label}
@@ -214,10 +214,10 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
         <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <LucideIcons.RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+            <LucideIcons.RefreshCw className="w-5 h-5 animate-spin text-mark-indigo-400" />
           </div>
         ) : pageItems.length === 0 ? (
-          <div className="text-center py-10 text-xs text-neutral-400">No students match</div>
+          <div className="text-center py-10 text-xs text-fg-faint">No students match</div>
         ) : (
           pageItems.map((r) => {
             const firstName  = r.student?.first_name || ''
@@ -231,10 +231,10 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
               <button
                 key={r.id}
                 onClick={() => onSelect(r.id)}
-                className={`w-full text-left border-b border-neutral-100 transition focus:outline-none ${
+                className={`w-full text-left border-b border-hair transition focus:outline-none ${
                   isSelected
-                    ? 'bg-indigo-50 border-l-[3px] border-l-indigo-500'
-                    : 'hover:bg-neutral-50 border-l-[3px] border-l-transparent'
+                    ? 'bg-fill-indigo-50 border-l-[3px] border-l-indigo-500'
+                    : 'hover:bg-canvas border-l-[3px] border-l-transparent'
                 }`}
               >
                 <div className="px-3 py-3">
@@ -242,11 +242,11 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
                     <Avatar first={r.student?.first_name} last={r.student?.last_name} size="sm" photoUrl={r.photo_url} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-indigo-700' : 'text-black'}`}>
+                        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-mark-indigo-700' : 'text-fg'}`}>
                           {rank !== '—' ? `${rank} ` : ''}{name || '—'}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-[11px] text-neutral-500">
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-fg-soft">
                         <span className="font-mono truncate">{r.student?.svc_number || '—'}</span>
                         <span>·</span>
                         <span className="capitalize truncate">{rs.replace(/_/g, ' ')}</span>
@@ -254,7 +254,7 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <RosterBadge status={rs} />
-                      <span className="text-[10px] text-neutral-400">#{position}</span>
+                      <span className="text-[10px] text-fg-faint">#{position}</span>
                     </div>
                   </div>
                 </div>
@@ -266,22 +266,22 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
 
         {/* Pagination — pinned at bottom, only shown when needed */}
         {totalPages > 1 && (
-          <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-t border-neutral-200 bg-white">
+          <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-t border-line bg-surface">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={safePage === 1}
-              className="p-1.5 rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="p-1.5 rounded-md border border-line text-fg-soft hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <LucideIcons.ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[11px] text-neutral-500">
-              Page <span className="font-semibold text-black">{safePage}</span> / {totalPages}
-              <span className="ml-1 text-neutral-400">({filtered.length} total)</span>
+            <span className="text-[11px] text-fg-soft">
+              Page <span className="font-semibold text-fg">{safePage}</span> / {totalPages}
+              <span className="ml-1 text-fg-faint">({filtered.length} total)</span>
             </span>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={safePage === totalPages}
-              className="p-1.5 rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="p-1.5 rounded-md border border-line text-fg-soft hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <LucideIcons.ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -482,9 +482,9 @@ function ReportPanel({ reportId, user, onReportChange }) {
 
   if (!reportId) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-neutral-400 bg-neutral-50">
-        <LucideIcons.FileText className="w-12 h-12 mb-3 text-neutral-200" />
-        <p className="font-medium text-neutral-500">Select a student from the roster</p>
+      <div className="flex-1 flex flex-col items-center justify-center text-fg-faint bg-canvas">
+        <LucideIcons.FileText className="w-12 h-12 mb-3 text-fg-faint" />
+        <p className="font-medium text-fg-soft">Select a student from the roster</p>
         <p className="text-sm mt-1">Their course report will appear here</p>
       </div>
     )
@@ -492,7 +492,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-neutral-50">
+      <div className="flex-1 flex items-center justify-center bg-canvas">
         <LucideIcons.RefreshCw className="w-6 h-6 animate-spin text-[#3d5a30]" />
       </div>
     )
@@ -523,17 +523,17 @@ function ReportPanel({ reportId, user, onReportChange }) {
           <img
             src={theme.logo_url || '/ka.png'}
             alt={`${theme.school_name || 'School'} logo`}
-            className="w-12 h-12 object-contain rounded-md border border-neutral-200 bg-white flex-shrink-0"
+            className="w-12 h-12 object-contain rounded-md border border-line bg-surface flex-shrink-0"
           />
           <div>
-            <h2 className="text-lg font-bold text-black leading-tight">{theme.school_name || 'KASMS'}</h2>
-            <p className="text-xs text-neutral-500 uppercase tracking-wide">Course Report</p>
+            <h2 className="text-lg font-bold text-fg leading-tight">{theme.school_name || 'KASMS'}</h2>
+            <p className="text-xs text-fg-soft uppercase tracking-wide">Course Report</p>
           </div>
         </div>
 
         {/* ── Status pipeline ── */}
-        <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-          <div className="grid grid-cols-5 divide-x divide-neutral-100">
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="grid grid-cols-5 divide-x divide-hair">
             {PIPELINE.map(stage => {
               const draftIdx     = STATUS_ORDER.indexOf(stage.draft)
               const submittedIdx = STATUS_ORDER.indexOf(stage.submitted)
@@ -545,12 +545,12 @@ function ReportPanel({ reportId, user, onReportChange }) {
                     {isDone
                       ? <LucideIcons.CheckCircle className="w-3.5 h-3.5 text-[#3d5a30]" />
                       : isActive
-                        ? <LucideIcons.Clock className="w-3.5 h-3.5 text-amber-500" />
-                        : <LucideIcons.Circle className="w-3.5 h-3.5 text-neutral-300" />
+                        ? <LucideIcons.Clock className="w-3.5 h-3.5 text-mark-amber-500" />
+                        : <LucideIcons.Circle className="w-3.5 h-3.5 text-fg-faint" />
                     }
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{stage.label}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-fg-faint">{stage.label}</span>
                   </div>
-                  <p className={`text-xs font-semibold ${isDone ? 'text-[#3d5a30]' : isActive ? 'text-amber-600' : 'text-neutral-400'}`}>
+                  <p className={`text-xs font-semibold ${isDone ? 'text-[#3d5a30]' : isActive ? 'text-mark-amber-600' : 'text-fg-faint'}`}>
                     {isDone ? 'Submitted' : isActive ? 'In progress' : 'Not started'}
                   </p>
                 </div>
@@ -560,16 +560,16 @@ function ReportPanel({ reportId, user, onReportChange }) {
             <div className="px-4 py-3 flex items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <LucideIcons.Download className={`w-3.5 h-3.5 ${can_download ? 'text-[#3d5a30]' : 'text-neutral-300'}`} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Download</span>
+                  <LucideIcons.Download className={`w-3.5 h-3.5 ${can_download ? 'text-[#3d5a30]' : 'text-fg-faint'}`} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-fg-faint">Download</span>
                 </div>
-                <p className={`text-xs font-semibold ${can_download ? 'text-[#3d5a30]' : 'text-neutral-400'}`}>
+                <p className={`text-xs font-semibold ${can_download ? 'text-[#3d5a30]' : 'text-fg-faint'}`}>
                   {can_download ? 'Available' : 'Locked'}
                 </p>
               </div>
               {can_download && (
                 <button onClick={handleDownload} disabled={downloading}
-                  className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition">
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-fill-green-600 text-white text-xs font-medium hover:bg-fill-green-700 disabled:opacity-50 transition">
                   <LucideIcons.Download className="w-3 h-3" />
                   {downloading ? '…' : 'PDF'}
                 </button>
@@ -579,12 +579,12 @@ function ReportPanel({ reportId, user, onReportChange }) {
         </div>
 
         {/* ── SECTION 1: PARTICULARS OF THE STUDENT ── */}
-        <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
           <SectionHeader num="1" title="Particulars of the Student" tag="From student record" />
           <div className="p-5">
             <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)] items-start">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-[132px] h-[148px] rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden flex flex-col items-center justify-center gap-2 flex-shrink-0">
+                <div className="w-[132px] h-[148px] rounded-xl border border-line bg-canvas overflow-hidden flex flex-col items-center justify-center gap-2 flex-shrink-0">
                   {photo_url ? (
                     <img
                       src={photo_url}
@@ -594,7 +594,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
                   ) : (
                     <>
                       <Avatar first={student?.first_name} last={student?.last_name} size="xl" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">No photo on file</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint">No photo on file</span>
                     </>
                   )}
                 </div>
@@ -610,7 +610,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
                     <button
                       onClick={handlePhotoPick}
                       disabled={photoBusy}
-                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-neutral-200 text-xs font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
+                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-line text-xs font-medium text-fg bg-surface hover:bg-canvas disabled:opacity-50 transition"
                     >
                       <LucideIcons.Upload className="w-3 h-3" />
                       {photoBusy ? '…' : photo_url ? 'Replace' : 'Upload'}
@@ -619,7 +619,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
                       <button
                         onClick={handlePhotoRemove}
                         disabled={photoBusy}
-                        className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 transition"
+                        className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-edge-red-200 text-xs font-medium text-mark-red-700 bg-surface hover:bg-fill-red-50 disabled:opacity-50 transition"
                       >
                         <LucideIcons.Trash2 className="w-3 h-3" />
                         Remove
@@ -631,26 +631,26 @@ function ReportPanel({ reportId, user, onReportChange }) {
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 mb-0.5">Svc No</p>
-                    <p className="text-sm font-semibold text-black font-mono">{student?.svc_number || '—'}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint mb-0.5">Svc No</p>
+                    <p className="text-sm font-semibold text-fg font-mono">{student?.svc_number || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 mb-0.5">Rank</p>
-                    <p className="text-sm font-semibold text-black">{rankName}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint mb-0.5">Rank</p>
+                    <p className="text-sm font-semibold text-fg">{rankName}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 mb-0.5">Name(s)</p>
-                    <p className="text-sm font-semibold text-black">{fullName}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint mb-0.5">Name(s)</p>
+                    <p className="text-sm font-semibold text-fg">{fullName}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 mb-0.5">Corps</p>
-                    <p className="text-sm font-semibold text-black">{student?.unit || '—'}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint mb-0.5">Corps</p>
+                    <p className="text-sm font-semibold text-fg">{student?.unit || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 mb-0.5">Unit</p>
-                    <p className="text-sm font-semibold text-black">{report?.school_short_name || '—'}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-faint mb-0.5">Unit</p>
+                    <p className="text-sm font-semibold text-fg">{report?.school_short_name || '—'}</p>
                   </div>
                 </div>
               </div>
@@ -659,11 +659,11 @@ function ReportPanel({ reportId, user, onReportChange }) {
         </section>
 
         {/* ── SECTION 2: COURSE DETAILS / SUMMARY OF ASSESSMENT RESULTS ── */}
-        <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
           <SectionHeader num="2" title="Course Details / Summary of Assessment Results" />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-[11px] font-semibold text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
+              <thead className="bg-canvas text-[11px] font-semibold text-fg-soft uppercase tracking-wide border-b border-line">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Course Title</th>
                   <th className="px-4 py-2.5 text-center">Code</th>
@@ -676,12 +676,12 @@ function ReportPanel({ reportId, user, onReportChange }) {
               </thead>
               <tbody>
                 <tr>
-                  <td className="px-4 py-3 text-black">{course_name || '—'}</td>
-                  <td className="px-4 py-3 text-center text-neutral-600">{report?.class_code || '—'}</td>
-                  <td className="px-4 py-3 text-center text-neutral-600">{report?.start_date || '—'}</td>
-                  <td className="px-4 py-3 text-center text-neutral-600">{report?.end_date || '—'}</td>
-                  <td className="px-4 py-3 text-center font-medium text-black">{academic_data?.class_size ?? '—'}</td>
-                  <td className="px-4 py-3 text-center font-medium text-black">{academic_data?.class_position ? `#${academic_data.class_position}` : '—'}</td>
+                  <td className="px-4 py-3 text-fg">{course_name || '—'}</td>
+                  <td className="px-4 py-3 text-center text-fg-muted">{report?.class_code || '—'}</td>
+                  <td className="px-4 py-3 text-center text-fg-muted">{report?.start_date || '—'}</td>
+                  <td className="px-4 py-3 text-center text-fg-muted">{report?.end_date || '—'}</td>
+                  <td className="px-4 py-3 text-center font-medium text-fg">{academic_data?.class_size ?? '—'}</td>
+                  <td className="px-4 py-3 text-center font-medium text-fg">{academic_data?.class_position ? `#${academic_data.class_position}` : '—'}</td>
                   <td className="px-4 py-3 text-center"><GradeChip grade={academic_data?.overall_grade} /></td>
                 </tr>
               </tbody>
@@ -690,19 +690,19 @@ function ReportPanel({ reportId, user, onReportChange }) {
         </section>
 
         {/* ── SECTION 3: INSTRUCTOR'S REMARKS ── */}
-        <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
           <SectionHeader num="3" title="Instructor's Remarks" />
           {can_edit && isInstructor ? (
             <div className="px-5 pt-4 pb-5 space-y-4">
               <div className="flex items-center gap-2 mb-1">
                 <LucideIcons.PenLine className="w-4 h-4 text-[#3d5a30]" />
-                <span className="text-sm font-semibold text-black">Your Remarks</span>
+                <span className="text-sm font-semibold text-fg">Your Remarks</span>
                 {instrRemark?.is_submitted ? (
-                  <span className="ml-auto text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+                  <span className="ml-auto text-xs text-mark-blue-700 bg-fill-blue-100 px-2 py-0.5 rounded-full font-medium">
                     Submitted — editing makes a correction
                   </span>
                 ) : draftRemark && (
-                  <span className="ml-auto text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
+                  <span className="ml-auto text-xs text-mark-amber-700 bg-fill-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
                 )}
               </div>
               <InstructorForm fields={instructorFields} setFields={setIF} />
@@ -712,31 +712,31 @@ function ReportPanel({ reportId, user, onReportChange }) {
                 const rated = PAD_SUBJECTS.filter(({ key }) => padScores[key]).length
                 const allDone = rated === PAD_SUBJECTS.length
                 return (
-                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${allDone ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${allDone ? 'bg-fill-green-50 border-edge-green-200' : 'bg-fill-amber-50 border-edge-amber-200'}`}>
                     {allDone
-                      ? <LucideIcons.CheckCircle className="w-4 h-4 flex-shrink-0 text-green-500" />
-                      : <LucideIcons.AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-500" />
+                      ? <LucideIcons.CheckCircle className="w-4 h-4 flex-shrink-0 text-mark-green-500" />
+                      : <LucideIcons.AlertCircle className="w-4 h-4 flex-shrink-0 text-mark-amber-500" />
                     }
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-semibold ${allDone ? 'text-green-800' : 'text-amber-800'}`}>
+                      <p className={`text-xs font-semibold ${allDone ? 'text-mark-green-800' : 'text-mark-amber-800'}`}>
                         {allDone ? 'PAD scores complete' : 'Also complete Personal Ability Dimension (PAD) below'}
                       </p>
                       {!allDone && (
-                        <p className="text-[11px] text-amber-700 mt-0.5">
+                        <p className="text-[11px] text-mark-amber-700 mt-0.5">
                           Scroll down to the Final Performance Report section and rate each of the {PAD_SUBJECTS.length} dimensions (1–5)
                         </p>
                       )}
                     </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${allDone ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${allDone ? 'bg-fill-green-100 text-mark-green-700' : 'bg-fill-amber-100 text-mark-amber-700'}`}>
                       {rated}/{PAD_SUBJECTS.length}
                     </span>
                   </div>
                 )
               })()}
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-hair">
                 <button onClick={handleSaveDraft} disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition">
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-line text-sm font-medium text-fg bg-surface hover:bg-canvas disabled:opacity-50 transition">
                   <LucideIcons.Save className="w-4 h-4" />
                   {saving ? 'Saving…' : 'Save Draft'}
                 </button>
@@ -760,19 +760,19 @@ function ReportPanel({ reportId, user, onReportChange }) {
                 ['f. Recommended for Deployment',       instrRemark.deployment_recommendation],
               ].filter(([, v]) => v).map(([label, val]) => (
                 <div key={label}>
-                  <div className="bg-neutral-50 border border-neutral-200 text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-t-md text-neutral-500">{label}</div>
-                  <div className="border border-t-0 border-neutral-200 rounded-b-md px-3 py-2.5 text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{val}</div>
+                  <div className="bg-canvas border border-line text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 rounded-t-md text-fg-soft">{label}</div>
+                  <div className="border border-t-0 border-line rounded-b-md px-3 py-2.5 text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{val}</div>
                 </div>
               ))}
               {instrRemark.author_name && (
-                <p className="text-[11px] text-neutral-400 flex items-center gap-1.5">
-                  <LucideIcons.CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                <p className="text-[11px] text-fg-faint flex items-center gap-1.5">
+                  <LucideIcons.CheckCircle className="w-3.5 h-3.5 text-mark-green-600" />
                   Submitted by {instrRemark.author_rank ? `${instrRemark.author_rank} ` : ''}{instrRemark.author_name}
                 </p>
               )}
             </div>
           ) : (
-            <div className="px-5 py-6 flex items-center gap-2 text-neutral-400">
+            <div className="px-5 py-6 flex items-center gap-2 text-fg-faint">
               <LucideIcons.Lock className="w-4 h-4" />
               <span className="text-sm">Instructor remarks not yet submitted</span>
             </div>
@@ -780,9 +780,9 @@ function ReportPanel({ reportId, user, onReportChange }) {
         </section>
 
         {/* ── SECTION 4: RECOMMENDATIONS ── */}
-        <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
           <SectionHeader num="4" title="Recommendations" />
-          <div className="divide-y divide-neutral-200">
+          <div className="divide-y divide-line">
             <RecommendationBlock
               label="a. Course OIC Remarks"
               remark={oicRemark}
@@ -819,10 +819,10 @@ function ReportPanel({ reportId, user, onReportChange }) {
           </div>
           {/* Advance for roles that don't write remarks */}
           {can_advance && !can_edit && !['oic', 'chief_instructor', 'commandant'].includes(user?.role) && (
-            <div className="px-5 py-4 flex items-center justify-between gap-4 bg-neutral-50 border-t border-neutral-200">
+            <div className="px-5 py-4 flex items-center justify-between gap-4 bg-canvas border-t border-line">
               <div className="flex items-center gap-2">
                 <LucideIcons.ArrowRight className="w-4 h-4 text-[#3d5a30]" />
-                <p className="text-sm text-neutral-700 font-medium">Previous stage submitted — advance this report</p>
+                <p className="text-sm text-fg-body font-medium">Previous stage submitted — advance this report</p>
               </div>
               <button onClick={handleAdvance} disabled={advancing}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#3d5a30] text-white text-sm font-medium hover:bg-[#2e4424] disabled:opacity-50 transition">
@@ -831,7 +831,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
             </div>
           )}
           {status === 'approved' && (
-            <div className="px-5 py-4 flex items-center gap-3 text-green-700 border-t border-neutral-100">
+            <div className="px-5 py-4 flex items-center gap-3 text-mark-green-700 border-t border-hair">
               <LucideIcons.CheckCircle className="w-5 h-5" />
               <span className="text-sm font-medium">Report fully approved and signed</span>
             </div>
@@ -839,20 +839,20 @@ function ReportPanel({ reportId, user, onReportChange }) {
         </section>
 
         {/* ── FINAL PERFORMANCE REPORT ── */}
-        <section className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-          <div className="bg-neutral-50 border-b border-neutral-200 px-5 py-3">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-neutral-700">Final Performance Report</h3>
+        <section className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="bg-canvas border-b border-line px-5 py-3">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-fg-body">Final Performance Report</h3>
           </div>
 
           {/* 1. ACADEMICS */}
-          <div className="border-b border-neutral-200">
-            <div className="bg-neutral-50 border-b border-neutral-200 px-5 py-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wide text-neutral-700">1 · Academics</h4>
+          <div className="border-b border-line">
+            <div className="bg-canvas border-b border-line px-5 py-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-fg-body">1 · Academics</h4>
             </div>
             {academic_data?.rows?.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 text-[11px] font-semibold text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
+                  <thead className="bg-canvas text-[11px] font-semibold text-fg-soft uppercase tracking-wide border-b border-line">
                     <tr>
                       <th className="px-4 py-2.5 text-left w-8">Ser</th>
                       <th className="px-4 py-2.5 text-left">Subject</th>
@@ -862,36 +862,36 @@ function ReportPanel({ reportId, user, onReportChange }) {
                       <th className="px-4 py-2.5 text-left">Remarks</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody className="divide-y divide-hair">
                     {academic_data.rows.map((row, i) => (
-                      <tr key={i} className="hover:bg-neutral-50">
-                        <td className="px-4 py-2.5 text-neutral-400 text-[11px]">{i + 1}.</td>
-                        <td className="px-4 py-2.5 text-black capitalize">
+                      <tr key={i} className="hover:bg-canvas">
+                        <td className="px-4 py-2.5 text-fg-faint text-[11px]">{i + 1}.</td>
+                        <td className="px-4 py-2.5 text-fg capitalize">
                           {row.subject_name?.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}
                         </td>
-                        <td className="px-4 py-2.5 text-center text-neutral-600">{row.hps}</td>
-                        <td className="px-4 py-2.5 text-center font-medium text-black">
-                          {row.score === '—' ? <span className="text-neutral-300">—</span> : row.score}
+                        <td className="px-4 py-2.5 text-center text-fg-muted">{row.hps}</td>
+                        <td className="px-4 py-2.5 text-center font-medium text-fg">
+                          {row.score === '—' ? <span className="text-fg-faint">—</span> : row.score}
                         </td>
                         <td className="px-4 py-2.5 text-center"><GradeChip grade={row.grade} /></td>
-                        <td className="px-4 py-2.5 text-xs text-neutral-600">{row.remarks || '—'}</td>
+                        <td className="px-4 py-2.5 text-xs text-fg-muted">{row.remarks || '—'}</td>
                       </tr>
                     ))}
-                    <tr className="bg-neutral-50 font-semibold text-sm border-t-2 border-neutral-200">
-                      <td colSpan={2} className="px-4 py-2.5 text-black">Total Score</td>
-                      <td className="px-4 py-2.5 text-center text-black">{academic_data.total_hps}</td>
-                      <td className="px-4 py-2.5 text-center text-black">{academic_data.total_score}</td>
+                    <tr className="bg-canvas font-semibold text-sm border-t-2 border-line">
+                      <td colSpan={2} className="px-4 py-2.5 text-fg">Total Score</td>
+                      <td className="px-4 py-2.5 text-center text-fg">{academic_data.total_hps}</td>
+                      <td className="px-4 py-2.5 text-center text-fg">{academic_data.total_score}</td>
                       <td colSpan={2} />
                     </tr>
-                    <tr className="bg-neutral-50 font-semibold text-sm">
-                      <td colSpan={2} className="px-4 py-2.5 text-black">Mean Score</td>
-                      <td colSpan={2} className="px-4 py-2.5 text-center text-black">{academic_data.mean_score}</td>
+                    <tr className="bg-canvas font-semibold text-sm">
+                      <td colSpan={2} className="px-4 py-2.5 text-fg">Mean Score</td>
+                      <td colSpan={2} className="px-4 py-2.5 text-center text-fg">{academic_data.mean_score}</td>
                       <td className="px-4 py-2.5 text-center"><GradeChip grade={academic_data.overall_grade} /></td>
-                      <td className="px-4 py-2.5 text-xs text-neutral-600">{academic_data.grade_descriptor}</td>
+                      <td className="px-4 py-2.5 text-xs text-fg-muted">{academic_data.grade_descriptor}</td>
                     </tr>
-                    <tr className="bg-neutral-50 font-semibold text-sm">
-                      <td colSpan={2} className="px-4 py-2.5 text-black">Class Position</td>
-                      <td colSpan={4} className="px-4 py-2.5 text-black">
+                    <tr className="bg-canvas font-semibold text-sm">
+                      <td colSpan={2} className="px-4 py-2.5 text-fg">Class Position</td>
+                      <td colSpan={4} className="px-4 py-2.5 text-fg">
                         {academic_data.class_position ? `#${academic_data.class_position}` : '—'} of {academic_data.class_size}
                       </td>
                     </tr>
@@ -899,7 +899,7 @@ function ReportPanel({ reportId, user, onReportChange }) {
                 </table>
               </div>
             ) : (
-              <div className="px-5 py-6 text-center text-sm text-neutral-400">No exam results recorded yet</div>
+              <div className="px-5 py-6 text-center text-sm text-fg-faint">No exam results recorded yet</div>
             )}
           </div>
 
@@ -907,30 +907,30 @@ function ReportPanel({ reportId, user, onReportChange }) {
           <div>
             <div className={`border-b px-5 py-2.5 flex items-center justify-between ${
               can_edit && isInstructor
-                ? 'bg-amber-50 border-amber-200'
-                : 'bg-neutral-50 border-neutral-200'
+                ? 'bg-fill-amber-50 border-edge-amber-200'
+                : 'bg-canvas border-line'
             }`}>
               <div className="flex items-center gap-2">
                 {can_edit && isInstructor && (
-                  <LucideIcons.Star className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                  <LucideIcons.Star className="w-3.5 h-3.5 text-mark-amber-500 flex-shrink-0" />
                 )}
-                <h4 className="text-xs font-bold uppercase tracking-wide text-neutral-700">2 · Personal Ability Dimension</h4>
+                <h4 className="text-xs font-bold uppercase tracking-wide text-fg-body">2 · Personal Ability Dimension</h4>
                 {can_edit && isInstructor && (
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-semibold text-mark-amber-700 bg-fill-amber-100 px-2 py-0.5 rounded-full">
                     Fill in scores
                   </span>
                 )}
               </div>
-              <span className="text-[11px] text-neutral-400 font-medium">1 Exceptional · 5 Below Average</span>
+              <span className="text-[11px] text-fg-faint font-medium">1 Exceptional · 5 Below Average</span>
             </div>
-            <div className="divide-y divide-neutral-100">
+            <div className="divide-y divide-hair">
               {PAD_SUBJECTS.map(({ key, label }) => {
                 const submittedInstr = visible_remarks.find(r => r.stage === 'instructor' && r.is_submitted)
                 const savedScore = submittedInstr?.pad_scores?.[key] ?? (can_edit && isInstructor ? padScores[key] : undefined)
                 const isEditable = can_edit && isInstructor
                 return (
                   <div key={key} className="flex items-center justify-between px-5 py-3">
-                    <span className={`text-sm ${savedScore ? 'text-black' : 'text-neutral-500'}`}>{label}</span>
+                    <span className={`text-sm ${savedScore ? 'text-fg' : 'text-fg-soft'}`}>{label}</span>
                     <div className="flex items-center gap-1.5">
                       {[1, 2, 3, 4, 5].map(n => {
                         const active = savedScore === n
@@ -942,8 +942,8 @@ function ReportPanel({ reportId, user, onReportChange }) {
                               active
                                 ? 'bg-[#3d5a30] text-white border-[#3d5a30]'
                                 : isEditable
-                                  ? 'bg-white text-neutral-600 border-neutral-300 hover:border-[#3d5a30] hover:text-[#3d5a30]'
-                                  : 'bg-neutral-50 text-neutral-300 border-neutral-100 cursor-default'
+                                  ? 'bg-surface text-fg-muted border-line-strong hover:border-[#3d5a30] hover:text-[#3d5a30]'
+                                  : 'bg-canvas text-fg-faint border-hair cursor-default'
                             }`}>
                             {n}
                           </button>
@@ -955,9 +955,9 @@ function ReportPanel({ reportId, user, onReportChange }) {
               })}
             </div>
             {can_edit && isInstructor && (
-              <div className="px-5 py-3 border-t border-amber-100 bg-amber-50 flex items-center gap-2">
-                <LucideIcons.ArrowUp className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                <p className="text-xs text-amber-800 font-medium">
+              <div className="px-5 py-3 border-t border-edge-amber-100 bg-fill-amber-50 flex items-center gap-2">
+                <LucideIcons.ArrowUp className="w-3.5 h-3.5 text-mark-amber-500 flex-shrink-0" />
+                <p className="text-xs text-mark-amber-800 font-medium">
                   PAD scores are submitted together with your Section 3 remarks. Use <strong>Save Draft</strong> or <strong>Submit</strong> above when ready.
                 </p>
               </div>
@@ -974,8 +974,8 @@ function ReportPanel({ reportId, user, onReportChange }) {
 
 function SectionHeader({ num, title, tag }) {
   return (
-    <div className="bg-neutral-50 border-b border-neutral-200 px-5 py-3 flex items-center justify-between">
-      <h3 className="text-sm font-bold text-black uppercase tracking-wide">
+    <div className="bg-canvas border-b border-line px-5 py-3 flex items-center justify-between">
+      <h3 className="text-sm font-bold text-fg uppercase tracking-wide">
         {num} · <span className="text-[#3d5a30]">{title}</span>
       </h3>
       {tag && (
@@ -999,19 +999,19 @@ function RecommendationBlock({
   return (
     <div className="px-5 py-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-bold uppercase tracking-wide text-neutral-600">{label}</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">{label}</span>
         {isSubmitted && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium">
+          <span className="inline-flex items-center gap-1 text-[10px] text-mark-green-700 bg-fill-green-100 px-2 py-0.5 rounded-full font-medium">
             <LucideIcons.CheckCircle className="w-2.5 h-2.5" /> Submitted
           </span>
         )}
         {isMyTurn && isSubmitted && (
-          <span className="ml-auto text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+          <span className="ml-auto text-xs text-mark-blue-700 bg-fill-blue-100 px-2 py-0.5 rounded-full font-medium">
             Editing makes a correction
           </span>
         )}
         {isMyTurn && draftRemark && !isSubmitted && (
-          <span className="ml-auto text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
+          <span className="ml-auto text-xs text-mark-amber-700 bg-fill-amber-100 px-2 py-0.5 rounded-full font-medium">Draft saved</span>
         )}
       </div>
 
@@ -1022,12 +1022,12 @@ function RecommendationBlock({
             onChange={e => setContent(e.target.value)}
             rows={6}
             placeholder="Write your assessment here… (minimum 10 characters)"
-            className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white"
+            className="w-full border border-line rounded-lg px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface"
           />
-          <p className="text-xs text-neutral-400">{(remarkContent || '').length} / 10 000</p>
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-100">
+          <p className="text-xs text-fg-faint">{(remarkContent || '').length} / 10 000</p>
+          <div className="flex items-center justify-end gap-2 pt-1 border-t border-hair">
             <button onClick={onSave} disabled={saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition">
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-line text-sm font-medium text-fg bg-surface hover:bg-canvas disabled:opacity-50 transition">
               <LucideIcons.Save className="w-4 h-4" />
               {saving ? 'Saving…' : 'Save Draft'}
             </button>
@@ -1042,18 +1042,18 @@ function RecommendationBlock({
         </div>
       ) : isSubmitted ? (
         <div className="space-y-1">
-          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content || <em className="text-neutral-300">No content</em>}</p>
+          <p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.content || <em className="text-fg-faint">No content</em>}</p>
           {remark.author_name && (
-            <p className="text-[11px] text-neutral-400 pt-1">
+            <p className="text-[11px] text-fg-faint pt-1">
               — {remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}
             </p>
           )}
         </div>
       ) : canAdvance ? (
-        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-neutral-50 rounded-lg border border-neutral-200">
+        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-canvas rounded-lg border border-line">
           <div className="flex items-center gap-2">
             <LucideIcons.ArrowRight className="w-4 h-4 text-[#3d5a30]" />
-            <p className="text-sm text-neutral-700 font-medium">Previous stage submitted — advance this report</p>
+            <p className="text-sm text-fg-body font-medium">Previous stage submitted — advance this report</p>
           </div>
           <button onClick={onAdvance} disabled={advancing}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#3d5a30] text-white text-sm font-medium hover:bg-[#2e4424] disabled:opacity-50 transition">
@@ -1061,7 +1061,7 @@ function RecommendationBlock({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-neutral-400">
+        <div className="flex items-center gap-2 text-fg-faint">
           <LucideIcons.Lock className="w-3.5 h-3.5" />
           <span className="text-sm italic">Not yet submitted</span>
         </div>
@@ -1077,96 +1077,96 @@ function InstructorForm({ fields, setFields }) {
   return (
     <div className="space-y-4">
       {/* A */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden">
-        <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">A</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Character &amp; Personality</span>
-          <span className="ml-auto text-[10px] text-neutral-400">{(fields.character_and_personality || '').length} / 5 000</span>
+      <div className="border border-line rounded-lg overflow-hidden">
+        <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">A</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Character &amp; Personality</span>
+          <span className="ml-auto text-[10px] text-fg-faint">{(fields.character_and_personality || '').length} / 5 000</span>
         </div>
         <textarea
           value={fields.character_and_personality || ''}
           onChange={e => setFields(p => ({ ...p, character_and_personality: e.target.value }))}
           rows={4}
           placeholder="Describe temperament, social conduct, and how they fit within the section…"
-          className="w-full px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white border-0"
+          className="w-full px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface border-0"
         />
       </div>
 
       {/* B */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden">
-        <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">B</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Knowledge &amp; Ability</span>
-          <span className="ml-auto text-[10px] text-neutral-400">{(fields.knowledge_and_ability || '').length} / 5 000</span>
+      <div className="border border-line rounded-lg overflow-hidden">
+        <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">B</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Knowledge &amp; Ability</span>
+          <span className="ml-auto text-[10px] text-fg-faint">{(fields.knowledge_and_ability || '').length} / 5 000</span>
         </div>
         <textarea
           value={fields.knowledge_and_ability || ''}
           onChange={e => setFields(p => ({ ...p, knowledge_and_ability: e.target.value }))}
           rows={4}
           placeholder="Command of subject matter, technical competence…"
-          className="w-full px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white border-0"
+          className="w-full px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface border-0"
         />
       </div>
 
       {/* C */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden">
-        <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">C</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Command &amp; Leadership</span>
-          <span className="ml-auto text-[10px] text-neutral-400">{(fields.command_and_leadership || '').length} / 5 000</span>
+      <div className="border border-line rounded-lg overflow-hidden">
+        <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">C</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Command &amp; Leadership</span>
+          <span className="ml-auto text-[10px] text-fg-faint">{(fields.command_and_leadership || '').length} / 5 000</span>
         </div>
         <textarea
           value={fields.command_and_leadership || ''}
           onChange={e => setFields(p => ({ ...p, command_and_leadership: e.target.value }))}
           rows={4}
           placeholder="Leadership style, ability to manage group dynamics…"
-          className="w-full px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white border-0"
+          className="w-full px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface border-0"
         />
       </div>
 
       {/* D + E side by side */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="border border-neutral-200 rounded-lg overflow-hidden">
-          <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">D</span>
-            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Strengths</span>
-            <span className="ml-auto text-[10px] text-neutral-400">{(fields.strengths || '').length} / 5k</span>
+        <div className="border border-line rounded-lg overflow-hidden">
+          <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">D</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Strengths</span>
+            <span className="ml-auto text-[10px] text-fg-faint">{(fields.strengths || '').length} / 5k</span>
           </div>
           <textarea
             value={fields.strengths || ''}
             onChange={e => setFields(p => ({ ...p, strengths: e.target.value }))}
             rows={5}
             placeholder="Top-performing areas and standout skills…"
-            className="w-full px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white border-0"
+            className="w-full px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface border-0"
           />
         </div>
-        <div className="border border-neutral-200 rounded-lg overflow-hidden">
-          <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">E</span>
-            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Weaknesses</span>
-            <span className="ml-auto text-[10px] text-neutral-400">{(fields.weaknesses || '').length} / 5k</span>
+        <div className="border border-line rounded-lg overflow-hidden">
+          <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">E</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Weaknesses</span>
+            <span className="ml-auto text-[10px] text-fg-faint">{(fields.weaknesses || '').length} / 5k</span>
           </div>
           <textarea
             value={fields.weaknesses || ''}
             onChange={e => setFields(p => ({ ...p, weaknesses: e.target.value }))}
             rows={5}
             placeholder="Development areas and remedial recommendations…"
-            className="w-full px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 resize-y bg-white border-0"
+            className="w-full px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 resize-y bg-surface border-0"
           />
         </div>
       </div>
 
       {/* F: Deployment recommendation dropdown */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden">
-        <div className="bg-neutral-50 border-b border-neutral-200 px-3 py-1.5 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[11px] font-bold">F</span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Recommended for Deployment</span>
+      <div className="border border-line rounded-lg overflow-hidden">
+        <div className="bg-canvas border-b border-line px-3 py-1.5 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted flex items-center justify-center text-[11px] font-bold">F</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Recommended for Deployment</span>
         </div>
         <div className="px-3 py-3">
           <select
             value={fields.deployment_recommendation || ''}
             onChange={e => setFields(p => ({ ...p, deployment_recommendation: e.target.value }))}
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm text-black focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 bg-white"
+            className="w-full border border-line rounded-md px-3 py-2 text-sm text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-indigo-200 bg-surface"
           >
             <option value="">— Select recommendation —</option>
             {DEPLOYMENT_OPTIONS.map(opt => (
@@ -1186,15 +1186,15 @@ function InstructorForm({ fields, setFields }) {
 function SubmittedRemark({ remark }) {
   const isInstr = remark.stage === 'instructor'
   return (
-    <div className="border border-neutral-200 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border-b border-neutral-200">
+    <div className="border border-line rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-canvas border-b border-line">
         <LucideIcons.Shield className="w-3.5 h-3.5 text-[#3d5a30]" />
-        <span className="text-xs font-semibold text-black">{STAGE_LABEL[remark.stage] || remark.stage}</span>
-        <span className="inline-flex items-center gap-1 text-[10px] text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium ml-1">
+        <span className="text-xs font-semibold text-fg">{STAGE_LABEL[remark.stage] || remark.stage}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] text-mark-green-700 bg-fill-green-100 px-2 py-0.5 rounded-full font-medium ml-1">
           <LucideIcons.CheckCircle className="w-2.5 h-2.5" /> Submitted
         </span>
         {remark.author_name && (
-          <span className="ml-auto text-[11px] text-neutral-400">
+          <span className="ml-auto text-[11px] text-fg-faint">
             {remark.author_rank ? `${remark.author_rank} ` : ''}{remark.author_name}
           </span>
         )}
@@ -1211,13 +1211,13 @@ function SubmittedRemark({ remark }) {
               ['F · Deployment Recommendation', remark.deployment_recommendation],
             ].filter(([, v]) => v).map(([label, val]) => (
               <div key={label}>
-                <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</p>
-                <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{val}</p>
+                <p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">{label}</p>
+                <p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{val}</p>
               </div>
             ))}
           </>
         ) : (
-          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content}</p>
+          <p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.content}</p>
         )}
       </div>
     </div>
@@ -1280,16 +1280,16 @@ export default function CourseRoster() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-neutral-200 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 bg-surface border-b border-line flex-shrink-0">
         <button
           onClick={() => navigate(getListPath())}
-          className="p-1.5 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition"
+          className="p-1.5 rounded-md text-fg-faint hover:text-fg-body hover:bg-surface-2 transition"
         >
           <LucideIcons.ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-base font-bold text-black leading-tight">{className || 'Course Reports'}</h1>
-          <p className="text-xs text-neutral-500">{reports.length} student{reports.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-base font-bold text-fg leading-tight">{className || 'Course Reports'}</h1>
+          <p className="text-xs text-fg-soft">{reports.length} student{reports.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
 

@@ -14,18 +14,18 @@ import { shortRank } from '../../lib/rankUtils'
 const DEFAULT_PAGE_SIZE = 10
 
 const STATUS_META = {
-  instructor_draft:     { label: 'Instructor Draft',     color: 'bg-gray-100 text-gray-700' },
-  instructor_submitted: { label: 'Instructor Submitted', color: 'bg-blue-100 text-blue-700' },
-  oic_draft:            { label: 'OIC Draft',            color: 'bg-yellow-100 text-yellow-800' },
-  oic_submitted:        { label: 'OIC Submitted',        color: 'bg-blue-100 text-blue-700' },
-  ci_draft:             { label: 'CI Draft',             color: 'bg-orange-100 text-orange-800' },
-  ci_submitted:         { label: 'CI Submitted',         color: 'bg-blue-100 text-blue-700' },
-  commandant_draft:     { label: 'Commandant Draft',     color: 'bg-purple-100 text-purple-800' },
-  approved:             { label: 'Approved',             color: 'bg-green-100 text-green-800' },
+  instructor_draft:     { label: 'Instructor Draft',     color: 'bg-surface-2 text-fg-body' },
+  instructor_submitted: { label: 'Instructor Submitted', color: 'bg-fill-blue-100 text-mark-blue-700' },
+  oic_draft:            { label: 'OIC Draft',            color: 'bg-fill-yellow-100 text-mark-yellow-800' },
+  oic_submitted:        { label: 'OIC Submitted',        color: 'bg-fill-blue-100 text-mark-blue-700' },
+  ci_draft:             { label: 'CI Draft',             color: 'bg-fill-orange-100 text-mark-orange-800' },
+  ci_submitted:         { label: 'CI Submitted',         color: 'bg-fill-blue-100 text-mark-blue-700' },
+  commandant_draft:     { label: 'Commandant Draft',     color: 'bg-fill-purple-100 text-mark-purple-800' },
+  approved:             { label: 'Approved',             color: 'bg-fill-green-100 text-mark-green-800' },
 }
 
 function StatusBadge({ status }) {
-  const meta = STATUS_META[status] || { label: status, color: 'bg-gray-100 text-gray-700' }
+  const meta = STATUS_META[status] || { label: status, color: 'bg-surface-2 text-fg-body' }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${meta.color}`}>
       {meta.label}
@@ -174,13 +174,13 @@ export default function CourseReports() {
   const approvedCount = reports.filter(r => r.status === 'approved').length
 
   return (
-    <div className="p-4 md:p-6 text-black space-y-5">
+    <div className="p-4 md:p-6 text-fg space-y-5">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-black">Course Reports</h1>
-          <p className="text-sm text-neutral-600 mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fg">Course Reports</h1>
+          <p className="text-sm text-fg-muted mt-0.5">
             {totalCount} report{totalCount !== 1 ? 's' : ''} total
           </p>
         </div>
@@ -188,7 +188,7 @@ export default function CourseReports() {
           {isInstructor && (
             <button
               onClick={() => setShowInitiateModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fill-indigo-600 text-white text-sm font-medium hover:bg-fill-indigo-700 transition"
             >
               <Plus className="w-4 h-4" />
               Initiate Reports
@@ -198,7 +198,7 @@ export default function CourseReports() {
             <button
               onClick={handleBulkSubmit}
               disabled={bulkLoading || !selectedClass}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black hover:bg-neutral-50 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line text-sm font-medium text-fg hover:bg-canvas disabled:opacity-50 transition"
             >
               <Send className="w-4 h-4" />
               Bulk Submit
@@ -208,7 +208,7 @@ export default function CourseReports() {
             <button
               onClick={handleBulkAdvance}
               disabled={bulkLoading || !selectedClass}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black hover:bg-neutral-50 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line text-sm font-medium text-fg hover:bg-canvas disabled:opacity-50 transition"
             >
               <Send className="w-4 h-4" />
               Bulk Advance
@@ -217,7 +217,7 @@ export default function CourseReports() {
           <button
             onClick={loadReports}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black hover:bg-neutral-50 disabled:opacity-50 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line text-sm font-medium text-fg hover:bg-canvas disabled:opacity-50 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -228,38 +228,38 @@ export default function CourseReports() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total',    value: totalCount,    icon: FileText,    color: 'text-indigo-600 bg-indigo-50' },
-          { label: 'Pending',  value: pendingCount,  icon: Clock,       color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Approved', value: approvedCount, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-          { label: 'Classes',  value: classes.length,icon: Users,       color: 'text-blue-600 bg-blue-50' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-neutral-200 p-4 flex items-center gap-3">
+          { label: 'Total',    value: totalCount,    icon: FileText,    color: 'text-mark-indigo-600 bg-fill-indigo-50' },
+          { label: 'Pending',  value: pendingCount,  icon: Clock,       color: 'text-mark-yellow-600 bg-fill-yellow-50' },
+          { label: 'Approved', value: approvedCount, icon: CheckCircle, color: 'text-mark-green-600 bg-fill-green-50' },
+          { label: 'Classes',  value: classes.length,icon: Users,       color: 'text-mark-blue-600 bg-fill-blue-50' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-surface rounded-xl border border-line p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
               <Icon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-neutral-500">{label}</p>
-              <p className="text-lg font-semibold text-black">{value}</p>
+              <p className="text-xs text-fg-soft">{label}</p>
+              <p className="text-lg font-semibold text-fg">{value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-4 flex flex-col sm:flex-row gap-3">
+      <div className="bg-surface rounded-xl border border-line p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
           <input
             type="text"
             placeholder="Search student name or svc number…"
             onChange={handleSearchChange}
-            className="w-full pl-9 pr-3 py-2 text-sm text-black border border-neutral-200 rounded-lg placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full pl-9 pr-3 py-2 text-sm text-fg border border-line rounded-lg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
         </div>
         <select
           value={selectedClass}
           onChange={e => { setSelectedClass(e.target.value); setPage(1) }}
-          className="text-sm text-black border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white"
+          className="text-sm text-fg border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 bg-surface"
         >
           <option value="">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -267,7 +267,7 @@ export default function CourseReports() {
         <select
           value={selectedStatus}
           onChange={e => { setSelectedStatus(e.target.value); setPage(1) }}
-          className="text-sm text-black border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white"
+          className="text-sm text-fg border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 bg-surface"
         >
           <option value="">All Statuses</option>
           {Object.entries(STATUS_META).map(([val, { label }]) => (
@@ -278,22 +278,22 @@ export default function CourseReports() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 bg-white rounded-xl border border-neutral-200">
-          <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+        <div className="flex items-center justify-center py-20 bg-surface rounded-xl border border-line">
+          <RefreshCw className="w-6 h-6 animate-spin text-mark-indigo-500" />
         </div>
       ) : reports.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-neutral-200">
-          <AlertCircle className="w-10 h-10 mb-2 text-neutral-300" />
-          <p className="font-medium text-black">No course reports found</p>
-          <p className="text-sm mt-1 text-neutral-600">
+        <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-xl border border-line">
+          <AlertCircle className="w-10 h-10 mb-2 text-fg-faint" />
+          <p className="font-medium text-fg">No course reports found</p>
+          <p className="text-sm mt-1 text-fg-muted">
             {isInstructor ? 'Use "Initiate Reports" to create reports for a class.' : 'No reports match your filters.'}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+        <div className="bg-surface rounded-xl border border-line overflow-hidden">
 
           {/* Mobile / tablet cards — hidden on lg+ */}
-          <div className="lg:hidden divide-y divide-neutral-200">
+          <div className="lg:hidden divide-y divide-line">
             {reports.map(report => {
               const name = `${report.student?.first_name || ''} ${report.student?.last_name || ''}`.trim()
               const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
@@ -301,17 +301,17 @@ export default function CourseReports() {
                 <div
                   key={report.id}
                   onClick={() => navigate(getDetailPath(report))}
-                  className="bg-neutral-50 p-3 sm:p-4 cursor-pointer hover:bg-neutral-100 transition"
+                  className="bg-canvas p-3 sm:p-4 cursor-pointer hover:bg-surface-2 transition"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs sm:text-sm flex-shrink-0">
                         {initials}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-medium text-sm sm:text-base text-black truncate">{name || '—'}</div>
-                        <div className="text-xs text-neutral-600">{report.student?.svc_number || '—'}</div>
-                        <div className="text-xs text-neutral-500">{report.class_name || '—'}</div>
+                        <div className="font-medium text-sm sm:text-base text-fg truncate">{name || '—'}</div>
+                        <div className="text-xs text-fg-muted">{report.student?.svc_number || '—'}</div>
+                        <div className="text-xs text-fg-soft">{report.class_name || '—'}</div>
                       </div>
                     </div>
                     <StatusBadge status={report.status} />
@@ -319,17 +319,17 @@ export default function CourseReports() {
                   <div className="space-y-1.5 text-xs sm:text-sm">
                     {report.student?.rank && (
                       <div className="flex justify-between gap-2">
-                        <span className="text-neutral-600">Rank:</span>
-                        <span className="text-black">{shortRank(report.student.rank)}</span>
+                        <span className="text-fg-muted">Rank:</span>
+                        <span className="text-fg">{shortRank(report.student.rank)}</span>
                       </div>
                     )}
                     <div className="flex justify-between gap-2">
-                      <span className="text-neutral-600">Course:</span>
-                      <span className="text-black truncate ml-2">{report.course_name || '—'}</span>
+                      <span className="text-fg-muted">Course:</span>
+                      <span className="text-fg truncate ml-2">{report.course_name || '—'}</span>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-neutral-600">Updated:</span>
-                      <span className="text-neutral-500">{formatDate(report.updated_at)}</span>
+                      <span className="text-fg-muted">Updated:</span>
+                      <span className="text-fg-soft">{formatDate(report.updated_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -340,18 +340,18 @@ export default function CourseReports() {
           {/* Desktop table — hidden below lg */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full table-auto">
-              <thead className="bg-neutral-50">
+              <thead className="bg-canvas">
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Svc No.</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Rank</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Class</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Course</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Updated</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Svc No.</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Rank</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Class</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Course</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider">Updated</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200 bg-white">
+              <tbody className="divide-y divide-line bg-surface">
                 {reports.map(report => {
                   const name = `${report.student?.first_name || ''} ${report.student?.last_name || ''}`.trim()
                   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
@@ -359,37 +359,37 @@ export default function CourseReports() {
                     <tr
                       key={report.id}
                       onClick={() => navigate(getDetailPath(report))}
-                      className="hover:bg-neutral-50 cursor-pointer transition"
+                      className="hover:bg-canvas cursor-pointer transition"
                     >
-                      <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap font-mono">
+                      <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap font-mono">
                         {report.student?.svc_number || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap">
                         {report.student?.rank ? shortRank(report.student.rank) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-xs flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-semibold text-xs flex-shrink-0">
                             {initials}
                           </div>
-                          <div className="font-medium text-sm text-black whitespace-nowrap">{name || '—'}</div>
+                          <div className="font-medium text-sm text-fg whitespace-nowrap">{name || '—'}</div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm whitespace-nowrap">
                         <button
                           onClick={e => { e.stopPropagation(); navigate(getRosterPath(report.class_obj)) }}
-                          className="text-indigo-600 hover:underline font-medium"
+                          className="text-mark-indigo-600 hover:underline font-medium"
                         >
                           {report.class_name || '—'}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap">
                         {report.course_name || '—'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <StatusBadge status={report.status} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-fg-body whitespace-nowrap">
                         {formatDate(report.updated_at)}
                       </td>
                     </tr>
@@ -401,21 +401,21 @@ export default function CourseReports() {
 
           {/* Pagination */}
           {!loading && totalCount > 0 && (
-            <div className="px-4 py-3 border-t border-neutral-200">
+            <div className="px-4 py-3 border-t border-line">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-sm text-neutral-600">
-                  Showing <span className="font-semibold text-black">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
-                  <span className="font-semibold text-black">{Math.min(page * pageSize, totalCount)}</span> of{' '}
-                  <span className="font-semibold text-black">{totalCount}</span> reports
+                <div className="text-sm text-fg-muted">
+                  Showing <span className="font-semibold text-fg">{Math.min((page - 1) * pageSize + 1, totalCount)}</span> to{' '}
+                  <span className="font-semibold text-fg">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+                  <span className="font-semibold text-fg">{totalCount}</span> reports
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     aria-label="Previous page"
                   >
-                    <ChevronLeft className="w-5 h-5 text-neutral-600" />
+                    <ChevronLeft className="w-5 h-5 text-fg-muted" />
                   </button>
                   <div className="flex items-center gap-1">
                     {(() => {
@@ -428,10 +428,10 @@ export default function CourseReports() {
                       }
                       if (startPage > 1) {
                         pages.push(
-                          <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">1</button>
+                          <button key={1} onClick={() => setPage(1)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">1</button>
                         )
                         if (startPage > 2) {
-                          pages.push(<span key="ellipsis1" className="px-2 text-neutral-400">...</span>)
+                          pages.push(<span key="ellipsis1" className="px-2 text-fg-faint">...</span>)
                         }
                       }
                       for (let i = startPage; i <= endPage; i++) {
@@ -441,8 +441,8 @@ export default function CourseReports() {
                             onClick={() => setPage(i)}
                             className={`px-3 py-1.5 text-sm rounded-lg transition ${
                               page === i
-                                ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                                : 'border border-neutral-200 bg-white text-black hover:bg-neutral-50'
+                                ? 'bg-fill-indigo-600 text-white font-semibold shadow-sm'
+                                : 'border border-line bg-surface text-fg hover:bg-canvas'
                             }`}
                           >
                             {i}
@@ -451,10 +451,10 @@ export default function CourseReports() {
                       }
                       if (endPage < totalPages) {
                         if (endPage < totalPages - 1) {
-                          pages.push(<span key="ellipsis2" className="px-2 text-neutral-400">...</span>)
+                          pages.push(<span key="ellipsis2" className="px-2 text-fg-faint">...</span>)
                         }
                         pages.push(
-                          <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 transition">{totalPages}</button>
+                          <button key={totalPages} onClick={() => setPage(totalPages)} className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas transition">{totalPages}</button>
                         )
                       }
                       return pages
@@ -463,17 +463,17 @@ export default function CourseReports() {
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="p-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="p-2 rounded-lg border border-line bg-surface hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition"
                     aria-label="Next page"
                   >
-                    <ChevronRight className="w-5 h-5 text-neutral-600" />
+                    <ChevronRight className="w-5 h-5 text-fg-muted" />
                   </button>
                   <div className="ml-2 flex items-center gap-2">
-                    <span className="text-sm text-neutral-600 hidden sm:inline">Per page:</span>
+                    <span className="text-sm text-fg-muted hidden sm:inline">Per page:</span>
                     <select
                       value={pageSize}
                       onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
-                      className="px-3 py-1.5 text-sm text-black rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                      className="px-3 py-1.5 text-sm text-fg rounded-lg border border-line bg-surface hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 transition"
                     >
                       <option value={10}>10</option>
                       <option value={15}>15</option>
@@ -493,22 +493,22 @@ export default function CourseReports() {
       {showInitiateModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowInitiateModal(false)} />
-          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-2xl ring-1 ring-black/5 p-6">
-            <h3 className="text-lg font-semibold text-black mb-1">Initiate Course Reports</h3>
-            <p className="text-sm text-neutral-600 mb-4">
+          <div className="relative z-10 w-full max-w-md bg-surface rounded-xl shadow-2xl ring-1 ring-hair p-6">
+            <h3 className="text-lg font-semibold text-fg mb-1">Initiate Course Reports</h3>
+            <p className="text-sm text-fg-muted mb-4">
               Creates a report record for every active student enrolled in the selected class.
             </p>
-            <label className="block text-sm font-medium text-black mb-1">Select Class</label>
+            <label className="block text-sm font-medium text-fg mb-1">Select Class</label>
             <select
               value={initiateClassId}
               onChange={e => { setInitiateClassId(e.target.value); setInitiateError('') }}
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white mb-4"
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 bg-surface mb-4"
             >
               <option value="">— choose a class —</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             {initiateError && (
-              <div className="flex items-start gap-2 p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              <div className="flex items-start gap-2 p-3 mb-4 rounded-lg bg-fill-red-50 border border-edge-red-200 text-sm text-mark-red-700">
                 <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <span>{initiateError}</span>
               </div>
@@ -516,14 +516,14 @@ export default function CourseReports() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowInitiateModal(false); setInitiateClassId(''); setInitiateError('') }}
-                className="px-4 py-2 rounded-lg text-sm bg-gray-100 text-neutral-700 hover:bg-gray-200 transition"
+                className="px-4 py-2 rounded-lg text-sm bg-surface-2 text-fg-body hover:bg-surface-3 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleInitiateReports}
                 disabled={bulkLoading || !initiateClassId}
-                className="px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                className="px-4 py-2 rounded-lg text-sm bg-fill-indigo-600 text-white font-medium hover:bg-fill-indigo-700 disabled:opacity-50 transition"
               >
                 {bulkLoading ? 'Creating…' : 'Initiate'}
               </button>

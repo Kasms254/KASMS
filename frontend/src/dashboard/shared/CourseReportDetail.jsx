@@ -64,23 +64,23 @@ function StageProgress({ currentStatus }) {
             <div className="flex flex-col items-center flex-shrink-0">
               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all ${
                 isFinal || isDone
-                  ? 'bg-green-500 border-green-500 text-white'
+                  ? 'bg-fill-green-500 border-edge-green-500 text-white'
                   : isActive
-                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                    : 'bg-white border-neutral-300 text-neutral-400'
+                    ? 'bg-fill-indigo-600 border-edge-indigo-600 text-white'
+                    : 'bg-surface border-line-strong text-fg-faint'
               }`}>
                 {isFinal || isDone
                   ? <LucideIcons.CheckCircle className="w-4 h-4" />
                   : i + 1}
               </div>
               <span className={`text-xs mt-1.5 text-center font-medium whitespace-nowrap ${
-                isActive ? 'text-indigo-600' :
-                isDone   ? 'text-green-600' : 'text-neutral-400'
+                isActive ? 'text-mark-indigo-600' :
+                isDone   ? 'text-mark-green-600' : 'text-fg-faint'
               }`}>{step.label}</span>
             </div>
             {i < STEP_GROUPS.length - 1 && (
               <div className={`flex-1 h-0.5 mt-[17px] mx-2 ${
-                currentIdx > draftIdx ? 'bg-green-400' : 'bg-neutral-200'
+                currentIdx > draftIdx ? 'bg-fill-green-400' : 'bg-surface-3'
               }`} />
             )}
           </React.Fragment>
@@ -100,46 +100,46 @@ function RemarkCard({ remark }) {
   }
   const isInstructorStage = remark.stage === 'instructor'
   return (
-    <div className="border border-neutral-200 rounded-xl p-4 bg-neutral-50">
+    <div className="border border-line rounded-xl p-4 bg-canvas">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-            <LucideIcons.Shield className="w-3.5 h-3.5 text-indigo-600" />
+          <div className="w-7 h-7 rounded-full bg-fill-indigo-100 flex items-center justify-center flex-shrink-0">
+            <LucideIcons.Shield className="w-3.5 h-3.5 text-mark-indigo-600" />
           </div>
-          <span className="text-sm font-semibold text-black">
+          <span className="text-sm font-semibold text-fg">
             {STAGE_LABEL[remark.stage] || remark.stage}
           </span>
           {remark.is_submitted && (
-            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium">
+            <span className="inline-flex items-center gap-1 text-xs text-mark-green-700 bg-fill-green-100 px-2 py-0.5 rounded-full font-medium">
               <LucideIcons.CheckCircle className="w-3 h-3" /> Submitted
             </span>
           )}
         </div>
-        <span className="text-xs text-neutral-400 sm:flex-shrink-0">{fmt(remark.updated_at)}</span>
+        <span className="text-xs text-fg-faint sm:flex-shrink-0">{fmt(remark.updated_at)}</span>
       </div>
 
       <div className="pl-9 mt-1 space-y-3">
         {isInstructorStage ? (
           <>
-            {remark.character_and_personality  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Character &amp; Personality</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.character_and_personality}</p></div>}
-            {remark.knowledge_and_ability      && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Knowledge &amp; Ability</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.knowledge_and_ability}</p></div>}
-            {remark.command_and_leadership     && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Command &amp; Leadership</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.command_and_leadership}</p></div>}
-            {remark.strengths                  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Strengths</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.strengths}</p></div>}
-            {remark.weaknesses                 && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Weaknesses</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.weaknesses}</p></div>}
-            {remark.deployment_recommendation  && <div><p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">Deployment Recommendation</p><p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.deployment_recommendation}</p></div>}
+            {remark.character_and_personality  && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Character &amp; Personality</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.character_and_personality}</p></div>}
+            {remark.knowledge_and_ability      && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Knowledge &amp; Ability</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.knowledge_and_ability}</p></div>}
+            {remark.command_and_leadership     && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Command &amp; Leadership</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.command_and_leadership}</p></div>}
+            {remark.strengths                  && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Strengths</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.strengths}</p></div>}
+            {remark.weaknesses                 && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Weaknesses</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.weaknesses}</p></div>}
+            {remark.deployment_recommendation  && <div><p className="text-[11px] font-semibold text-fg-soft uppercase tracking-wide mb-0.5">Deployment Recommendation</p><p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.deployment_recommendation}</p></div>}
             {!remark.character_and_personality && !remark.knowledge_and_ability && !remark.command_and_leadership && !remark.strengths && !remark.weaknesses && !remark.deployment_recommendation && (
               remark.content
-                ? <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content}</p>
-                : <p className="text-sm text-neutral-400 italic">No assessment data recorded.</p>
+                ? <p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.content}</p>
+                : <p className="text-sm text-fg-faint italic">No assessment data recorded.</p>
             )}
           </>
         ) : (
-          <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{remark.content}</p>
+          <p className="text-sm text-fg-body whitespace-pre-wrap leading-relaxed">{remark.content}</p>
         )}
       </div>
 
       {(remark.author_name || remark.author_rank || remark.author_svc_number) && (
-        <p className="text-xs text-neutral-400 mt-2 pl-9">
+        <p className="text-xs text-fg-faint mt-2 pl-9">
           {isInstructorStage ? (
             <>{remark.author_svc_number ? `${remark.author_svc_number} ` : ''}{remark.author_rank ? `${shortRank(remark.author_rank)} ` : ''}{remark.author_name}</>
           ) : (
@@ -319,7 +319,7 @@ export default function CourseReportDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <LucideIcons.RefreshCw className="w-7 h-7 animate-spin text-indigo-500" />
+        <LucideIcons.RefreshCw className="w-7 h-7 animate-spin text-mark-indigo-500" />
       </div>
     )
   }
@@ -327,9 +327,9 @@ export default function CourseReportDetail() {
   if (!report) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <LucideIcons.AlertCircle className="w-10 h-10 text-neutral-300" />
-        <p className="font-medium text-black">Report not found</p>
-        <button onClick={goBack} className="text-sm text-indigo-600 hover:underline">Go back</button>
+        <LucideIcons.AlertCircle className="w-10 h-10 text-fg-faint" />
+        <p className="font-medium text-fg">Report not found</p>
+        <button onClick={goBack} className="text-sm text-mark-indigo-600 hover:underline">Go back</button>
       </div>
     )
   }
@@ -340,12 +340,12 @@ export default function CourseReportDetail() {
   const submittedRemarks = visible_remarks.filter(r => r.is_submitted)
   const draftRemark = visible_remarks.find(r => r.stage === myStageKey && !r.is_submitted)
 
-  const statusColor = status === 'approved' ? 'bg-green-100 text-green-800' :
-    status?.endsWith('_submitted') ? 'bg-blue-100 text-blue-800' :
-    status === 'commandant_draft'  ? 'bg-purple-100 text-purple-800' :
-    status === 'ci_draft'          ? 'bg-orange-100 text-orange-800' :
-    status === 'oic_draft'         ? 'bg-yellow-100 text-yellow-800' :
-    'bg-gray-100 text-gray-700'
+  const statusColor = status === 'approved' ? 'bg-fill-green-100 text-mark-green-800' :
+    status?.endsWith('_submitted') ? 'bg-fill-blue-100 text-mark-blue-800' :
+    status === 'commandant_draft'  ? 'bg-fill-purple-100 text-mark-purple-800' :
+    status === 'ci_draft'          ? 'bg-fill-orange-100 text-mark-orange-800' :
+    status === 'oic_draft'         ? 'bg-fill-yellow-100 text-mark-yellow-800' :
+    'bg-surface-2 text-fg-body'
 
   const tabs = [
     { key: 'remarks', label: 'Remarks', icon: 'MessageSquare' },
@@ -360,20 +360,20 @@ export default function CourseReportDetail() {
         <div className="flex items-center gap-2">
           <button
             onClick={goBack}
-            className="p-1 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition"
+            className="p-1 rounded-md text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition"
           >
             <LucideIcons.ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">Course Report</h2>
-            <p className="text-xs sm:text-sm text-neutral-500">{class_name} · {course_name}</p>
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">Course Report</h2>
+            <p className="text-xs sm:text-sm text-fg-soft">{class_name} · {course_name}</p>
           </div>
         </div>
         {can_download && (
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fill-green-600 text-white text-sm font-medium hover:bg-fill-green-700 disabled:opacity-50 transition"
           >
             <LucideIcons.Download className="w-4 h-4" />
             {downloading ? 'Downloading…' : 'Download PDF'}
@@ -382,55 +382,55 @@ export default function CourseReportDetail() {
       </header>
 
       {/* ── Student profile card ── */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 border-b border-neutral-100">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 border-b border-hair">
           {/* Avatar */}
-          <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl flex-shrink-0">
+          <div className="w-14 h-14 rounded-full bg-fill-indigo-100 flex items-center justify-center text-mark-indigo-700 font-bold text-xl flex-shrink-0">
             {initials(student?.first_name, student?.last_name)}
           </div>
           {/* Name block */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h3 className="text-lg font-semibold text-black">
+              <h3 className="text-lg font-semibold text-fg">
                 {student?.first_name} {student?.last_name}
               </h3>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>
                 {(status || '').replace(/_/g, ' ')}
               </span>
             </div>
-            <p className="text-sm text-neutral-500 mt-0.5">
-              {student?.rank && <span className="font-medium text-neutral-700">{shortRank(student.rank)}</span>}
-              {student?.rank && student?.svc_number && <span className="mx-1.5 text-neutral-300">·</span>}
+            <p className="text-sm text-fg-soft mt-0.5">
+              {student?.rank && <span className="font-medium text-fg-body">{shortRank(student.rank)}</span>}
+              {student?.rank && student?.svc_number && <span className="mx-1.5 text-fg-faint">·</span>}
               {student?.svc_number && <span className="font-mono">{student.svc_number}</span>}
             </p>
           </div>
         </div>
 
         {/* Details grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-neutral-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-surface-2">
           {[
             { label: 'Class',   value: class_name || '—' },
             { label: 'Course',  value: course_name || '—' },
             { label: 'Updated', value: fmt(report.updated_at) },
             { label: 'Created', value: fmt(report.created_at) },
           ].map(({ label, value }) => (
-            <div key={label} className="bg-white px-4 py-3">
-              <p className="text-[11px] text-neutral-400 font-medium uppercase tracking-wide mb-0.5">{label}</p>
-              <p className="text-sm font-medium text-black truncate">{value}</p>
+            <div key={label} className="bg-surface px-4 py-3">
+              <p className="text-[11px] text-fg-faint font-medium uppercase tracking-wide mb-0.5">{label}</p>
+              <p className="text-sm font-medium text-fg truncate">{value}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* ── Workflow progress ── */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
-        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-4">Workflow Progress</p>
+      <div className="bg-surface rounded-xl border border-line shadow-sm p-5">
+        <p className="text-xs font-semibold text-fg-faint uppercase tracking-wider mb-4">Workflow Progress</p>
         <StageProgress currentStatus={status} />
       </div>
 
       {/* ── Tabs + content ── */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="flex border-b border-neutral-200 bg-neutral-50">
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
+        <div className="flex border-b border-line bg-canvas">
           {tabs.map(tab => {
             const Icon = LucideIcons[tab.icon]
             return (
@@ -439,8 +439,8 @@ export default function CourseReportDetail() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition -mb-px whitespace-nowrap ${
                   activeTab === tab.key
-                    ? 'border-indigo-600 text-indigo-700 bg-white'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                    ? 'border-edge-indigo-600 text-mark-indigo-700 bg-surface'
+                    : 'border-transparent text-fg-soft hover:text-fg-body'
                 }`}
               >
                 {Icon && <Icon className="w-4 h-4" />}
@@ -457,23 +457,23 @@ export default function CourseReportDetail() {
             {submittedRemarks.length > 0 ? (
               submittedRemarks.map(remark => <RemarkCard key={remark.id} remark={remark} />)
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-                <LucideIcons.MessageSquare className="w-10 h-10 mb-2 text-neutral-200" />
-                <p className="text-sm font-medium text-neutral-500">No remarks submitted yet</p>
-                <p className="text-xs text-neutral-400 mt-0.5">Remarks will appear here once each stage submits.</p>
+              <div className="flex flex-col items-center justify-center py-12 text-fg-faint">
+                <LucideIcons.MessageSquare className="w-10 h-10 mb-2 text-fg-faint" />
+                <p className="text-sm font-medium text-fg-soft">No remarks submitted yet</p>
+                <p className="text-xs text-fg-faint mt-0.5">Remarks will appear here once each stage submits.</p>
               </div>
             )}
 
             {/* Write area */}
             {can_edit && (
-              <div className="border border-indigo-200 rounded-xl overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50 border-b border-indigo-100">
-                  <LucideIcons.PenLine className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                  <span className="text-sm font-semibold text-indigo-900">
+              <div className="border border-edge-indigo-200 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-fill-indigo-50 border-b border-edge-indigo-100">
+                  <LucideIcons.PenLine className="w-4 h-4 text-mark-indigo-500 flex-shrink-0" />
+                  <span className="text-sm font-semibold text-mark-indigo-900">
                     Your Remark — {STAGE_LABEL[myStageKey] || myStageKey}
                   </span>
                   {draftRemark && (
-                    <span className="ml-auto text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-medium">
+                    <span className="ml-auto text-xs text-mark-amber-700 bg-fill-amber-100 px-2 py-0.5 rounded-full font-medium">
                       Draft saved
                     </span>
                   )}
@@ -484,24 +484,24 @@ export default function CourseReportDetail() {
                   <div className="p-4 space-y-4">
                     {INSTRUCTOR_FIELDS.map(f => (
                       <div key={f.key}>
-                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                          {f.label} <span className="text-neutral-400 font-normal">(min 5 chars)</span>
+                        <label className="block text-xs font-semibold text-fg-body mb-1">
+                          {f.label} <span className="text-fg-faint font-normal">(min 5 chars)</span>
                         </label>
                         <textarea
                           value={instructorFields[f.key]}
                           onChange={e => setInstructorFields(prev => ({ ...prev, [f.key]: e.target.value }))}
                           rows={3}
                           placeholder={`Enter ${f.label.toLowerCase()}…`}
-                          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-y bg-white"
+                          className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 resize-y bg-surface"
                         />
-                        <p className="text-xs text-neutral-400 mt-0.5 text-right">{instructorFields[f.key].length} / 5 000</p>
+                        <p className="text-xs text-fg-faint mt-0.5 text-right">{instructorFields[f.key].length} / 5 000</p>
                       </div>
                     ))}
                     <div className="flex items-center justify-end gap-2 pt-1">
                       <button
                         onClick={handleSaveDraft}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-line text-sm font-medium text-fg bg-surface hover:bg-canvas disabled:opacity-50 transition"
                       >
                         <LucideIcons.Save className="w-4 h-4" />
                         {saving ? 'Saving…' : 'Save Draft'}
@@ -510,7 +510,7 @@ export default function CourseReportDetail() {
                         <button
                           onClick={handleSubmit}
                           disabled={submitting}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fill-indigo-600 text-white text-sm font-medium hover:bg-fill-indigo-700 disabled:opacity-50 transition"
                         >
                           <LucideIcons.Send className="w-4 h-4" />
                           {submitting ? 'Submitting…' : status === 'commandant_draft' ? 'Submit & Approve' : 'Submit'}
@@ -526,15 +526,15 @@ export default function CourseReportDetail() {
                       onChange={e => setRemarkContent(e.target.value)}
                       rows={7}
                       placeholder="Write your assessment here… (minimum 10 characters)"
-                      className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-y bg-white"
+                      className="w-full border border-line rounded-lg px-3 py-2.5 text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 resize-y bg-surface"
                     />
                     <div className="flex items-center justify-between mt-2">
-                      <p className="text-xs text-neutral-400">{remarkContent.length} / 10 000 characters</p>
+                      <p className="text-xs text-fg-faint">{remarkContent.length} / 10 000 characters</p>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleSaveDraft}
                           disabled={saving || remarkContent.trim().length < 10}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-line text-sm font-medium text-fg bg-surface hover:bg-canvas disabled:opacity-50 transition"
                         >
                           <LucideIcons.Save className="w-4 h-4" />
                           {saving ? 'Saving…' : 'Save Draft'}
@@ -543,7 +543,7 @@ export default function CourseReportDetail() {
                           <button
                             onClick={handleSubmit}
                             disabled={submitting || remarkContent.trim().length < 10}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fill-indigo-600 text-white text-sm font-medium hover:bg-fill-indigo-700 disabled:opacity-50 transition"
                           >
                             <LucideIcons.Send className="w-4 h-4" />
                             {submitting ? 'Submitting…' : status === 'commandant_draft' ? 'Submit & Approve' : 'Submit'}
@@ -558,20 +558,20 @@ export default function CourseReportDetail() {
 
             {/* Advance (reviewer roles, no remark to write) */}
             {can_advance && !can_edit && (
-              <div className="border border-neutral-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-neutral-50">
+              <div className="border border-line rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-canvas">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <LucideIcons.ArrowRight className="w-4 h-4 text-indigo-600" />
+                  <div className="w-8 h-8 rounded-full bg-fill-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <LucideIcons.ArrowRight className="w-4 h-4 text-mark-indigo-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-black">Ready to advance</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">The previous stage has been submitted. Advance this report to your stage.</p>
+                    <p className="text-sm font-semibold text-fg">Ready to advance</p>
+                    <p className="text-xs text-fg-soft mt-0.5">The previous stage has been submitted. Advance this report to your stage.</p>
                   </div>
                 </div>
                 <button
                   onClick={handleAdvance}
                   disabled={advancing}
-                  className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+                  className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fill-indigo-600 text-white text-sm font-medium hover:bg-fill-indigo-700 disabled:opacity-50 transition"
                 >
                   <LucideIcons.ChevronRight className="w-4 h-4" />
                   {advancing ? 'Advancing…' : 'Advance'}
@@ -581,13 +581,13 @@ export default function CourseReportDetail() {
 
             {/* Approved state */}
             {status === 'approved' && (
-              <div className={`border rounded-xl p-4 flex items-start gap-3 ${report.report_file ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className={`border rounded-xl p-4 flex items-start gap-3 ${report.report_file ? 'border-edge-green-200 bg-fill-green-50' : 'border-edge-amber-200 bg-fill-amber-50'}`}>
                 {report.report_file
-                  ? <LucideIcons.CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  : <LucideIcons.AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />}
+                  ? <LucideIcons.CheckCircle className="w-5 h-5 text-mark-green-600 flex-shrink-0 mt-0.5" />
+                  : <LucideIcons.AlertCircle className="w-5 h-5 text-mark-amber-500 flex-shrink-0 mt-0.5" />}
                 <div>
-                  <p className="text-sm font-semibold text-black">Report fully approved</p>
-                  <p className="text-xs text-neutral-600 mt-0.5">
+                  <p className="text-sm font-semibold text-fg">Report fully approved</p>
+                  <p className="text-xs text-fg-muted mt-0.5">
                     {can_download
                       ? 'Use the Download PDF button at the top to get the report.'
                       : report.report_file
@@ -605,36 +605,36 @@ export default function CourseReportDetail() {
           <div className="p-5">
             {auditLoading ? (
               <div className="flex items-center justify-center py-12">
-                <LucideIcons.RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+                <LucideIcons.RefreshCw className="w-5 h-5 animate-spin text-mark-indigo-400" />
               </div>
             ) : auditLog.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-                <LucideIcons.Clock className="w-10 h-10 mb-2 text-neutral-200" />
+              <div className="flex flex-col items-center justify-center py-12 text-fg-faint">
+                <LucideIcons.Clock className="w-10 h-10 mb-2 text-fg-faint" />
                 <p className="text-sm">No audit entries yet.</p>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y divide-hair">
                 {auditLog.map((entry, i) => (
                   <div key={entry.id || i} className="flex items-start gap-3 py-3">
-                    <div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <LucideIcons.Clock className="w-3.5 h-3.5 text-neutral-500" />
+                    <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <LucideIcons.Clock className="w-3.5 h-3.5 text-fg-soft" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <span className="text-sm font-medium text-black capitalize">
+                        <span className="text-sm font-medium text-fg capitalize">
                           {(entry.action || '').replace(/_/g, ' ')}
                         </span>
-                        <span className="text-xs text-neutral-400 whitespace-nowrap">{fmt(entry.created_at)}</span>
+                        <span className="text-xs text-fg-faint whitespace-nowrap">{fmt(entry.created_at)}</span>
                       </div>
                       {entry.performed_by_name && (
-                        <p className="text-xs text-neutral-500 mt-0.5">by {entry.performed_by_name}</p>
+                        <p className="text-xs text-fg-soft mt-0.5">by {entry.performed_by_name}</p>
                       )}
                       {entry.metadata && Object.keys(entry.metadata).length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
                           {Object.entries(entry.metadata).map(([k, v]) => (
-                            <span key={k} className="text-xs text-neutral-400">
+                            <span key={k} className="text-xs text-fg-faint">
                               <span className="capitalize">{k.replace(/_/g, ' ')}</span>:{' '}
-                              <span className="text-neutral-600">{String(v)}</span>
+                              <span className="text-fg-muted">{String(v)}</span>
                             </span>
                           ))}
                         </div>

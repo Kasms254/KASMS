@@ -279,27 +279,27 @@ export default function ExamReports() {
   // Get grade color
   const getGradeColor = (grade) => {
     const colors = {
-      'A':  'bg-green-100 text-green-800',
-      'A-': 'bg-green-100 text-green-700',
-      'B+': 'bg-blue-100 text-blue-800',
-      'B':  'bg-blue-100 text-blue-700',
-      'B-': 'bg-blue-100 text-blue-600',
-      'C+': 'bg-yellow-100 text-yellow-800',
-      'C':  'bg-yellow-100 text-yellow-700',
-      'C-': 'bg-yellow-100 text-yellow-600',
-      'F':  'bg-red-100 text-red-800',
+      'A':  'bg-fill-green-100 text-mark-green-800',
+      'A-': 'bg-fill-green-100 text-mark-green-700',
+      'B+': 'bg-fill-blue-100 text-mark-blue-800',
+      'B':  'bg-fill-blue-100 text-mark-blue-700',
+      'B-': 'bg-fill-blue-100 text-mark-blue-600',
+      'C+': 'bg-fill-yellow-100 text-mark-yellow-800',
+      'C':  'bg-fill-yellow-100 text-mark-yellow-700',
+      'C-': 'bg-fill-yellow-100 text-mark-yellow-600',
+      'F':  'bg-fill-red-100 text-mark-red-800',
     }
-    return colors[grade] || 'bg-gray-100 text-gray-800'
+    return colors[grade] || 'bg-surface-2 text-fg'
   }
 
   // Get exam type badge color
   const getExamTypeBadge = (type) => {
     const colors = {
-      cat: 'bg-blue-100 text-blue-700',
-      final: 'bg-purple-100 text-purple-700',
-      project: 'bg-green-100 text-green-700'
+      cat: 'bg-fill-blue-100 text-mark-blue-700',
+      final: 'bg-fill-purple-100 text-mark-purple-700',
+      project: 'bg-fill-green-100 text-mark-green-700'
     }
-    return colors[type] || 'bg-gray-100 text-gray-700'
+    return colors[type] || 'bg-surface-2 text-fg-body'
   }
 
   // Check if exam has any results
@@ -722,8 +722,8 @@ export default function ExamReports() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-neutral-600">Loading exam reports...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-edge-indigo-600 mx-auto mb-4"></div>
+          <p className="text-fg-muted">Loading exam reports...</p>
         </div>
       </div>
     )
@@ -734,13 +734,13 @@ export default function ExamReports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-black">Exam Reports</h1>
-          <p className="text-neutral-600 mt-1">Comprehensive exam analysis and student performance reports</p>
+          <h1 className="text-2xl font-bold text-fg">Exam Reports</h1>
+          <p className="text-fg-muted mt-1">Comprehensive exam analysis and student performance reports</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Archived class indicator - historical data stays viewable/exportable, nothing can be created or edited */}
           {selectedClass && isArchivedClass && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-fill-amber-100 text-mark-amber-800 px-3 py-1.5 rounded-full">
               <LucideIcons.Archive className="w-3.5 h-3.5" />
               Archived — Read Only
             </span>
@@ -760,7 +760,7 @@ export default function ExamReports() {
               <button
                 onClick={handleViewComprehensive}
                 disabled={isDisabled}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-fill-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-fill-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {loadingComprehensive ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
@@ -776,7 +776,7 @@ export default function ExamReports() {
           {showComprehensive && (
             <button
               onClick={() => { setShowComprehensive(false); setComprehensiveData(null) }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-body rounded-lg transition"
             >
               <LucideIcons.ArrowLeft className="w-4 h-4" />
               Back to Exams
@@ -789,14 +789,14 @@ export default function ExamReports() {
               <button
                 onClick={exportResultsPDF}
                 disabled={!sortedResults.length}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-fill-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <LucideIcons.FileDown className="w-4 h-4" />
                 Export PDF
               </button>
               <button
                 onClick={() => setSelectedExam(null)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-body rounded-lg transition"
               >
                 <LucideIcons.ArrowLeft className="w-4 h-4" />
                 Back to List
@@ -808,7 +808,7 @@ export default function ExamReports() {
 
       {/* Comprehensive Results View */}
       {showComprehensive && comprehensiveData && (
-        <section className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
+        <section className="bg-surface rounded-xl border border-line p-4 md:p-6 shadow-sm">
           <StudentPerformanceTable
             students={comprehensiveData.all_students || []}
             title={(() => {
@@ -824,16 +824,16 @@ export default function ExamReports() {
 
       {/* Filters - Only show when not viewing exam details or comprehensive */}
       {!selectedExam && !showComprehensive && (
-        <div className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${
+        <div className={`bg-surface rounded-xl shadow-sm border p-4 transition-all ${
           !selectedClass
-            ? 'border-indigo-300 ring-2 ring-indigo-100'
-            : 'border-neutral-200'
+            ? 'border-edge-indigo-300 ring-2 ring-edge-indigo-100'
+            : 'border-line'
         }`}>
           <div className="flex items-center gap-2 mb-4">
-            <LucideIcons.Filter className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-medium text-black">Filters</h3>
+            <LucideIcons.Filter className="w-5 h-5 text-fg-soft" />
+            <h3 className="font-medium text-fg">Filters</h3>
             {!selectedClass && (
-              <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full animate-pulse">
+              <span className="ml-auto text-xs bg-fill-indigo-100 text-mark-indigo-700 px-2 py-1 rounded-full animate-pulse">
                 Select a class to view exams
               </span>
             )}
@@ -842,12 +842,12 @@ export default function ExamReports() {
             {/* Class Filter */}
             <div>
               <label className={`flex items-center gap-1 text-sm mb-1 ${
-                !selectedClass ? 'text-indigo-700 font-medium' : 'text-neutral-600'
+                !selectedClass ? 'text-mark-indigo-700 font-medium' : 'text-fg-muted'
               }`}>
                 <LucideIcons.School className="w-4 h-4" />
                 Class
                 {!selectedClass && (
-                  <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                  <span className="ml-auto text-xs bg-fill-indigo-100 text-mark-indigo-700 px-1.5 py-0.5 rounded">
                     Required
                   </span>
                 )}
@@ -861,13 +861,13 @@ export default function ExamReports() {
                 options={classOptions}
                 placeholder="Select a class..."
                 searchPlaceholder="Search classes..."
-                className={!selectedClass ? 'ring-1 ring-indigo-100 rounded-lg' : ''}
+                className={!selectedClass ? 'ring-1 ring-edge-indigo-100 rounded-lg' : ''}
               />
             </div>
 
             {/* Subject Filter */}
             <div>
-              <label className="flex items-center gap-1 text-sm text-neutral-600 mb-1">
+              <label className="flex items-center gap-1 text-sm text-fg-muted mb-1">
                 <LucideIcons.BookOpen className="w-4 h-4" />
                 Subject
               </label>
@@ -875,10 +875,10 @@ export default function ExamReports() {
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 disabled={!selectedClass}
-                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                className={`w-full border rounded-lg px-3 py-2 text-sm text-fg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 ${
                   !selectedClass
-                    ? 'bg-gray-100 cursor-not-allowed border-neutral-200'
-                    : 'border-neutral-200'
+                    ? 'bg-surface-2 cursor-not-allowed border-line'
+                    : 'border-line'
                 }`}
               >
                 <option value="">{!selectedClass ? 'Select class first...' : 'All Subjects'}</option>
@@ -887,7 +887,7 @@ export default function ExamReports() {
                 ))}
               </select>
               {!selectedClass && (
-                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <p className="text-xs text-fg-soft mt-1 flex items-center gap-1">
                   <LucideIcons.Info className="w-3 h-3" />
                   Select a class first
                 </p>
@@ -896,11 +896,11 @@ export default function ExamReports() {
 
             {/* Exam Type Filter */}
             <div>
-              <label className="block text-sm text-neutral-600 mb-1">Exam Type</label>
+              <label className="block text-sm text-fg-muted mb-1">Exam Type</label>
               <select
                 value={selectedExamType}
                 onChange={(e) => setSelectedExamType(e.target.value)}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm text-fg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500"
               >
                 <option value="final">Final</option>
               </select>
@@ -923,7 +923,7 @@ export default function ExamReports() {
           
           {/* Clear filters */}
           {(selectedClass || selectedSubject || selectedExamType || dateRange.start || dateRange.end) && (
-            <div className="mt-4 pt-4 border-t border-neutral-100">
+            <div className="mt-4 pt-4 border-t border-hair">
               <button
                 onClick={() => {
                   setSelectedClass('')
@@ -931,7 +931,7 @@ export default function ExamReports() {
                   setSelectedExamType('')
                   setDateRange({ start: '', end: '' })
                 }}
-                className="text-sm text-indigo-600 hover:text-indigo-700"
+                className="text-sm text-mark-indigo-600 hover:text-mark-indigo-700"
               >
                 Clear all filters
               </button>
@@ -945,15 +945,15 @@ export default function ExamReports() {
         <>
           {filteredExams.length === 0 ? (
             !selectedClass ? (
-              <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl border-2 border-dashed border-indigo-200 p-8 md:p-12 text-center">
+              <div className="bg-gradient-to-br from-fill-indigo-50 via-surface to-fill-purple-50 rounded-xl border-2 border-dashed border-edge-indigo-200 p-8 md:p-12 text-center">
                 <div className="max-w-md mx-auto">
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <LucideIcons.FileText className="w-8 h-8 md:w-10 md:h-10 text-indigo-600" />
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-fill-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LucideIcons.FileText className="w-8 h-8 md:w-10 md:h-10 text-mark-indigo-600" />
                   </div>
-                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2">
+                  <h3 className="text-lg md:text-xl font-semibold text-fg mb-2">
                     Select a Class to View Exam Reports
                   </h3>
-                  <p className="text-sm md:text-base text-gray-600">
+                  <p className="text-sm md:text-base text-fg-muted">
                     Choose a class from the dropdown above to view exam reports, analyze student performance, and generate detailed statistics.
                   </p>
                 </div>
@@ -966,13 +966,13 @@ export default function ExamReports() {
               />
             )
           ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+            <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
               {/* Mobile & Tablet Card View */}
               <div className="lg:hidden">
                 {/* Tablet: 2-column grid */}
                 <div className="hidden sm:grid sm:grid-cols-2 gap-4 p-4">
                   {paginatedExams.map(exam => (
-                    <div key={exam.id} className="bg-white rounded-xl p-4 border border-neutral-200 hover:shadow-md transition-shadow">
+                    <div key={exam.id} className="bg-surface rounded-xl p-4 border border-line hover:shadow-md transition-shadow">
                       {/* Header */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
@@ -981,32 +981,32 @@ export default function ExamReports() {
                               {exam.exam_type?.toUpperCase() || 'N/A'}
                             </span>
                             {exam.average_score != null && (
-                              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                              <span className="text-xs font-semibold text-mark-indigo-600 bg-fill-indigo-50 px-2 py-0.5 rounded-full">
                                 Avg: {parseFloat(exam.average_score).toFixed(1)}%
                               </span>
                             )}
                           </div>
-                          <h3 className="font-bold text-gray-900 text-base leading-tight line-clamp-1">{exam.title}</h3>
-                          <p className="text-sm text-indigo-600 font-medium mt-0.5 line-clamp-1">
+                          <h3 className="font-bold text-fg text-base leading-tight line-clamp-1">{exam.title}</h3>
+                          <p className="text-sm text-mark-indigo-600 font-medium mt-0.5 line-clamp-1">
                             {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
                           </p>
                         </div>
-                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-2.5 py-1.5">
-                          <div className="text-lg font-bold text-indigo-700">{exam.total_marks || 100}</div>
-                          <div className="text-[10px] text-indigo-500 font-medium">marks</div>
+                        <div className="text-right flex-shrink-0 bg-fill-indigo-50 rounded-lg px-2.5 py-1.5">
+                          <div className="text-lg font-bold text-mark-indigo-700">{exam.total_marks || 100}</div>
+                          <div className="text-[10px] text-mark-indigo-500 font-medium">marks</div>
                         </div>
                       </div>
 
                       {/* Info Row */}
-                      <div className="flex items-center gap-4 mb-3 text-sm text-neutral-600">
+                      <div className="flex items-center gap-4 mb-3 text-sm text-fg-muted">
                         <div className="flex items-center gap-1.5">
-                          <LucideIcons.Calendar className="w-4 h-4 text-neutral-400" />
+                          <LucideIcons.Calendar className="w-4 h-4 text-fg-faint" />
                           <span>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}</span>
                         </div>
                       </div>
 
                       {exam.description && (
-                        <p className="text-sm text-neutral-500 mb-3 line-clamp-2">{exam.description}</p>
+                        <p className="text-sm text-fg-soft mb-3 line-clamp-2">{exam.description}</p>
                       )}
 
                       {/* Action Buttons */}
@@ -1014,7 +1014,7 @@ export default function ExamReports() {
                         {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-fill-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-fill-blue-700 active:bg-fill-blue-800 transition shadow-sm"
                           >
                             <LucideIcons.Plus className="w-4 h-4" />
                             Create Report
@@ -1022,7 +1022,7 @@ export default function ExamReports() {
                         )}
                         <button
                           onClick={() => handleViewReport(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-fill-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-fill-indigo-700 active:bg-fill-indigo-800 transition shadow-sm"
                         >
                           <LucideIcons.Eye className="w-4 h-4" />
                           View Report
@@ -1033,9 +1033,9 @@ export default function ExamReports() {
                 </div>
 
                 {/* Mobile: Single column list */}
-                <div className="sm:hidden divide-y divide-neutral-200">
+                <div className="sm:hidden divide-y divide-line">
                   {paginatedExams.map(exam => (
-                    <div key={exam.id} className="p-4 hover:bg-neutral-50 transition">
+                    <div key={exam.id} className="p-4 hover:bg-canvas transition">
                       {/* Header */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
@@ -1044,32 +1044,32 @@ export default function ExamReports() {
                               {exam.exam_type?.toUpperCase() || 'N/A'}
                             </span>
                             {exam.average_score != null && (
-                              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                              <span className="text-xs font-semibold text-mark-indigo-600 bg-fill-indigo-50 px-2 py-0.5 rounded-full">
                                 Avg: {parseFloat(exam.average_score).toFixed(1)}%
                               </span>
                             )}
                           </div>
-                          <h3 className="font-bold text-gray-900 text-base leading-tight">{exam.title}</h3>
-                          <p className="text-sm text-indigo-600 font-medium mt-0.5">
+                          <h3 className="font-bold text-fg text-base leading-tight">{exam.title}</h3>
+                          <p className="text-sm text-mark-indigo-600 font-medium mt-0.5">
                             {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
                           </p>
                         </div>
-                        <div className="text-right flex-shrink-0 bg-indigo-50 rounded-lg px-2.5 py-1.5">
-                          <div className="text-lg font-bold text-indigo-700">{exam.total_marks || 100}</div>
-                          <div className="text-[10px] text-indigo-500 font-medium">marks</div>
+                        <div className="text-right flex-shrink-0 bg-fill-indigo-50 rounded-lg px-2.5 py-1.5">
+                          <div className="text-lg font-bold text-mark-indigo-700">{exam.total_marks || 100}</div>
+                          <div className="text-[10px] text-mark-indigo-500 font-medium">marks</div>
                         </div>
                       </div>
 
                       {/* Info Row */}
-                      <div className="flex items-center gap-4 mb-3 text-sm text-neutral-600">
+                      <div className="flex items-center gap-4 mb-3 text-sm text-fg-muted">
                         <div className="flex items-center gap-1.5">
-                          <LucideIcons.Calendar className="w-4 h-4 text-neutral-400" />
+                          <LucideIcons.Calendar className="w-4 h-4 text-fg-faint" />
                           <span>{exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}</span>
                         </div>
                       </div>
 
                       {exam.description && (
-                        <p className="text-sm text-neutral-500 mb-3 line-clamp-2">{exam.description}</p>
+                        <p className="text-sm text-fg-soft mb-3 line-clamp-2">{exam.description}</p>
                       )}
 
                       {/* Action Buttons */}
@@ -1077,7 +1077,7 @@ export default function ExamReports() {
                         {!isAdmin && !isArchivedClass && (
                           <button
                             onClick={() => handleOpenCreateReportModal(exam)}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition shadow-sm"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-fill-blue-600 text-white text-base font-semibold rounded-xl hover:bg-fill-blue-700 active:bg-fill-blue-800 transition shadow-sm"
                           >
                             <LucideIcons.Plus className="w-5 h-5" />
                             Create Report
@@ -1085,7 +1085,7 @@ export default function ExamReports() {
                         )}
                         <button
                           onClick={() => handleViewReport(exam)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition shadow-sm"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-fill-indigo-600 text-white text-base font-semibold rounded-xl hover:bg-fill-indigo-700 active:bg-fill-indigo-800 transition shadow-sm"
                         >
                           <LucideIcons.Eye className="w-5 h-5" />
                           View Report
@@ -1098,28 +1098,28 @@ export default function ExamReports() {
 
               {/* Desktop Table View */}
               <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-neutral-200">
-                  <thead className="bg-neutral-50">
+                <table className="min-w-full divide-y divide-line">
+                  <thead className="bg-canvas">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Exam</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Subject</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Total Marks</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Avg Score</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Exam</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Subject</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider hidden lg:table-cell">Total Marks</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Avg Score</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-fg-soft uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200">
+                  <tbody className="divide-y divide-line">
                     {paginatedExams.map(exam => (
-                      <tr key={exam.id} className="hover:bg-neutral-50 transition">
+                      <tr key={exam.id} className="hover:bg-canvas transition">
                         <td className="px-4 py-4">
-                          <div className="font-medium text-black text-base">{exam.title}</div>
+                          <div className="font-medium text-fg text-base">{exam.title}</div>
                           {exam.description && (
-                            <div className="text-sm text-neutral-500 truncate max-w-xs">{exam.description}</div>
+                            <div className="text-sm text-fg-soft truncate max-w-xs">{exam.description}</div>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-4 text-sm text-fg-body">
                           {exam.subject_name || subjects.find(s => s.id === (exam.subject || exam.subject_id))?.name || 'N/A'}
                         </td>
                         <td className="px-4 py-4">
@@ -1127,17 +1127,17 @@ export default function ExamReports() {
                             {exam.exam_type?.toUpperCase() || 'N/A'}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-sm text-neutral-700">
+                        <td className="px-4 py-4 text-sm text-fg-body">
                           {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className="px-4 py-4 text-sm text-neutral-700 font-medium hidden lg:table-cell">
+                        <td className="px-4 py-4 text-sm text-fg-body font-medium hidden lg:table-cell">
                           {exam.total_marks || 100}
                         </td>
                         <td className="px-4 py-4 text-sm">
                           {exam.average_score != null ? (
-                            <span className="font-medium text-indigo-600">{parseFloat(exam.average_score).toFixed(1)}%</span>
+                            <span className="font-medium text-mark-indigo-600">{parseFloat(exam.average_score).toFixed(1)}%</span>
                           ) : (
-                            <span className="text-neutral-400">--</span>
+                            <span className="text-fg-faint">--</span>
                           )}
                         </td>
                         <td className="px-4 py-4 text-right">
@@ -1145,7 +1145,7 @@ export default function ExamReports() {
                             {!isAdmin && !isArchivedClass && (
                               <button
                                 onClick={() => handleOpenCreateReportModal(exam)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-fill-blue-600 text-white text-sm rounded-lg hover:bg-fill-blue-700 transition"
                                 title="Create exam report for this exam"
                               >
                                 <LucideIcons.Plus className="w-4 h-4" />
@@ -1154,7 +1154,7 @@ export default function ExamReports() {
                             )}
                             <button
                               onClick={() => handleViewReport(exam)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-fill-indigo-600 text-white text-sm rounded-lg hover:bg-fill-indigo-700 transition"
                             >
                               <LucideIcons.Eye className="w-4 h-4" />
                               View Report
@@ -1186,19 +1186,19 @@ export default function ExamReports() {
       {selectedExam && (
         <div className="space-y-6">
           {/* Exam Header Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+          <div className="bg-surface rounded-xl shadow-sm border border-line p-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-xl font-bold text-black">{selectedExam.title}</h2>
+                  <h2 className="text-xl font-bold text-fg">{selectedExam.title}</h2>
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getExamTypeBadge(selectedExam.exam_type)}`}>
                     {selectedExam.exam_type?.toUpperCase()}
                   </span>
                 </div>
                 {selectedExam.description && (
-                  <p className="text-neutral-600 mb-3">{selectedExam.description}</p>
+                  <p className="text-fg-muted mb-3">{selectedExam.description}</p>
                 )}
-                <div className="flex flex-wrap gap-4 text-sm text-neutral-500">
+                <div className="flex flex-wrap gap-4 text-sm text-fg-soft">
                   <span className="flex items-center gap-1">
                     <LucideIcons.BookOpen className="w-4 h-4" />
                     {selectedExam.subject_name || 'N/A'}
@@ -1219,87 +1219,87 @@ export default function ExamReports() {
           {/* Stats Cards */}
           {loadingResults ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600"></div>
             </div>
           ) : examStats ? (
             <>
               {/* Stats Cards - Scrollable on mobile */}
               <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
                 <div className="flex md:grid md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4 min-w-max md:min-w-0">
-                  <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-line p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.Users className="w-4 h-4 text-neutral-600" />
+                      <div className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center md:hidden">
+                        <LucideIcons.Users className="w-4 h-4 text-fg-muted" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Total Students</div>
-                        <div className="text-xl md:text-2xl font-bold text-black">{examStats.total}</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Total Students</div>
+                        <div className="text-xl md:text-2xl font-bold text-fg">{examStats.total}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-green-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.CheckCircle className="w-4 h-4 text-green-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-green-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.CheckCircle className="w-4 h-4 text-mark-green-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Graded</div>
-                        <div className="text-xl md:text-2xl font-bold text-green-600">{examStats.submitted}</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Graded</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-green-600">{examStats.submitted}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-amber-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.Clock className="w-4 h-4 text-amber-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-amber-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.Clock className="w-4 h-4 text-mark-amber-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Pending</div>
-                        <div className="text-xl md:text-2xl font-bold text-amber-600">{examStats.pending}</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Pending</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-amber-600">{examStats.pending}</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-indigo-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.TrendingUp className="w-4 h-4 text-indigo-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-indigo-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.TrendingUp className="w-4 h-4 text-mark-indigo-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Average</div>
-                        <div className="text-xl md:text-2xl font-bold text-indigo-600">{examStats.average}%</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Average</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-indigo-600">{examStats.average}%</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-green-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.ArrowUp className="w-4 h-4 text-green-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-green-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.ArrowUp className="w-4 h-4 text-mark-green-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Highest</div>
-                        <div className="text-xl md:text-2xl font-bold text-green-600">{examStats.highest}%</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Highest</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-green-600">{examStats.highest}%</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-red-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.ArrowDown className="w-4 h-4 text-red-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-red-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.ArrowDown className="w-4 h-4 text-mark-red-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Lowest</div>
-                        <div className="text-xl md:text-2xl font-bold text-red-600">{examStats.lowest}%</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Lowest</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-red-600">{examStats.lowest}%</div>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 min-w-[120px] md:min-w-0">
+                  <div className="bg-surface rounded-xl shadow-sm border border-edge-blue-200 p-4 min-w-[120px] md:min-w-0">
                     <div className="flex items-center gap-2 md:block">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center md:hidden">
-                        <LucideIcons.Percent className="w-4 h-4 text-blue-600" />
+                      <div className="w-8 h-8 rounded-full bg-fill-blue-100 flex items-center justify-center md:hidden">
+                        <LucideIcons.Percent className="w-4 h-4 text-mark-blue-600" />
                       </div>
                       <div>
-                        <div className="text-xs md:text-sm text-neutral-500">Pass Rate</div>
-                        <div className="text-xl md:text-2xl font-bold text-blue-600">{examStats.passRate}%</div>
+                        <div className="text-xs md:text-sm text-fg-soft">Pass Rate</div>
+                        <div className="text-xl md:text-2xl font-bold text-mark-blue-600">{examStats.passRate}%</div>
                       </div>
                     </div>
                   </div>
@@ -1307,8 +1307,8 @@ export default function ExamReports() {
               </div>
 
               {/* Grade Distribution */}
-              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 md:p-6">
-                <h3 className="text-base md:text-lg font-semibold text-black mb-4">Grade Distribution</h3>
+              <div className="bg-surface rounded-xl shadow-sm border border-line p-4 md:p-6">
+                <h3 className="text-base md:text-lg font-semibold text-fg mb-4">Grade Distribution</h3>
                 <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 md:gap-3">
                   {Object.entries(examStats.grades).map(([grade, count]) => {
                     const total = examStats.submitted
@@ -1324,7 +1324,7 @@ export default function ExamReports() {
                         <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full font-bold text-sm md:text-base ${getGradeColor(grade)}`}>
                           {grade}
                         </div>
-                        <div className="text-xs md:text-sm text-neutral-600 mt-1">{count} <span className="hidden sm:inline">({pct}%)</span></div>
+                        <div className="text-xs md:text-sm text-fg-muted mt-1">{count} <span className="hidden sm:inline">({pct}%)</span></div>
                       </div>
                     )
                   })}
@@ -1332,18 +1332,18 @@ export default function ExamReports() {
               </div>
 
               {/* Results Table */}
-              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-                <div className="p-4 border-b border-neutral-200">
+              <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
+                <div className="p-4 border-b border-line">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                     <div>
-                      <h3 className="text-base md:text-lg font-semibold text-black">Student Results</h3>
-                      <p className="text-xs md:text-sm text-neutral-500">Ranked by performance</p>
+                      <h3 className="text-base md:text-lg font-semibold text-fg">Student Results</h3>
+                      <p className="text-xs md:text-sm text-fg-soft">Ranked by performance</p>
                     </div>
                   </div>
 
                   {/* Search Bar */}
                   <div className="relative">
-                    <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" />
                     <input
                       type="text"
                       placeholder="Search by student name or service number..."
@@ -1352,7 +1352,7 @@ export default function ExamReports() {
                         setResultsSearchTerm(e.target.value)
                         setResultsPage(1)
                       }}
-                      className="w-full pl-10 pr-4 py-2 text-sm text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full pl-10 pr-4 py-2 text-sm text-fg border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500"
                     />
                     {resultsSearchTerm && (
                       <button
@@ -1360,7 +1360,7 @@ export default function ExamReports() {
                           setResultsSearchTerm('')
                           setResultsPage(1)
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                       >
                         <LucideIcons.X className="w-4 h-4" />
                       </button>
@@ -1369,9 +1369,9 @@ export default function ExamReports() {
 
                   {/* Results Info */}
                   {resultsSearchTerm && (
-                    <div className="text-sm text-gray-600 mt-2">
-                      Found <span className="font-semibold text-gray-900">{sortedResults.length}</span> of{' '}
-                      <span className="font-semibold text-gray-900">{examResults.filter(r => r.is_submitted && r.marks_obtained != null).length}</span> results
+                    <div className="text-sm text-fg-muted mt-2">
+                      Found <span className="font-semibold text-fg">{sortedResults.length}</span> of{' '}
+                      <span className="font-semibold text-fg">{examResults.filter(r => r.is_submitted && r.marks_obtained != null).length}</span> results
                     </div>
                   )}
                 </div>
@@ -1388,48 +1388,48 @@ export default function ExamReports() {
 
                       if (isGraded) {
                         return (
-                          <div key={result.id} className="bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-md transition-shadow">
+                          <div key={result.id} className="bg-surface rounded-xl border border-line p-4 hover:shadow-md transition-shadow">
                             <div className="flex items-start justify-between gap-2 mb-3">
                               <div className="flex items-center gap-2">
                                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
-                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
-                                  overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
-                                  overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
-                                  'bg-neutral-100 text-neutral-600'
+                                  overallRank === 1 ? 'bg-fill-yellow-100 text-mark-yellow-700 ring-2 ring-edge-yellow-300' :
+                                  overallRank === 2 ? 'bg-surface-3 text-fg-body ring-2 ring-line-strong' :
+                                  overallRank === 3 ? 'bg-fill-orange-100 text-mark-orange-700 ring-2 ring-edge-orange-300' :
+                                  'bg-surface-2 text-fg-muted'
                                 }`}>
                                   {serialNumber}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="font-semibold text-gray-900 text-sm truncate">{result.student_name || 'Unknown'}</div>
-                                  <div className="text-xs text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                                  <div className="font-semibold text-fg text-sm truncate">{result.student_name || 'Unknown'}</div>
+                                  <div className="text-xs text-fg-soft">SVC: {result.student_svc_number || 'N/A'}</div>
                                 </div>
                               </div>
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${getGradeColor(grade)}`}>
                                 {grade}
                               </span>
                             </div>
-                            <div className="bg-neutral-50 rounded-lg p-2.5">
+                            <div className="bg-canvas rounded-lg p-2.5">
                               <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-xs text-neutral-600">Marks</span>
-                                <span className="text-sm font-bold text-gray-900">{result.marks_obtained} / {selectedExam.total_marks}</span>
+                                <span className="text-xs text-fg-muted">Marks</span>
+                                <span className="text-sm font-bold text-fg">{result.marks_obtained} / {selectedExam.total_marks}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                <div className="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${
-                                      parseFloat(pct) >= 76 ? 'bg-green-500' :
-                                      parseFloat(pct) >= 60 ? 'bg-blue-500' :
-                                      parseFloat(pct) >= 50 ? 'bg-yellow-500' :
-                                      'bg-red-500'
+                                      parseFloat(pct) >= 76 ? 'bg-fill-green-500' :
+                                      parseFloat(pct) >= 60 ? 'bg-fill-blue-500' :
+                                      parseFloat(pct) >= 50 ? 'bg-fill-yellow-500' :
+                                      'bg-fill-red-500'
                                     }`}
                                     style={{ width: `${pct}%` }}
                                   ></div>
                                 </div>
                                 <span className={`text-sm font-bold ${
-                                  parseFloat(pct) >= 76 ? 'text-green-600' :
-                                  parseFloat(pct) >= 60 ? 'text-blue-600' :
-                                  parseFloat(pct) >= 50 ? 'text-yellow-600' :
-                                  'text-red-600'
+                                  parseFloat(pct) >= 76 ? 'text-mark-green-600' :
+                                  parseFloat(pct) >= 60 ? 'text-mark-blue-600' :
+                                  parseFloat(pct) >= 50 ? 'text-mark-yellow-600' :
+                                  'text-mark-red-600'
                                 }`}>{pct}%</span>
                               </div>
                             </div>
@@ -1437,16 +1437,16 @@ export default function ExamReports() {
                         )
                       } else {
                         return (
-                          <div key={result.id} className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                          <div key={result.id} className="bg-fill-amber-50 rounded-xl border border-edge-amber-200 p-4">
                             <div className="flex items-center gap-2">
-                              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-sm">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-fill-amber-100 text-mark-amber-600 font-bold text-sm">
                                 {serialNumber}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-gray-900 text-sm truncate">{result.student_name || 'Unknown'}</div>
-                                <div className="text-xs text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                                <div className="font-semibold text-fg text-sm truncate">{result.student_name || 'Unknown'}</div>
+                                <div className="text-xs text-fg-soft">SVC: {result.student_svc_number || 'N/A'}</div>
                               </div>
-                              <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-fill-amber-100 text-mark-amber-700 flex-shrink-0">
                                 Pending
                               </span>
                             </div>
@@ -1457,7 +1457,7 @@ export default function ExamReports() {
                   </div>
 
                   {/* Mobile: Single column list */}
-                  <div className="sm:hidden divide-y divide-neutral-200">
+                  <div className="sm:hidden divide-y divide-line">
                     {paginatedResults.map((result, idx) => {
                       const isGraded = result.is_submitted && result.marks_obtained != null
                       const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
@@ -1467,21 +1467,21 @@ export default function ExamReports() {
 
                       if (isGraded) {
                         return (
-                          <div key={result.id} className="p-4 hover:bg-neutral-50 transition">
+                          <div key={result.id} className="p-4 hover:bg-canvas transition">
                             {/* Header with rank and grade */}
                             <div className="flex items-start justify-between gap-3 mb-3">
                               <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${
-                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' :
-                                  overallRank === 2 ? 'bg-gray-200 text-gray-700 ring-2 ring-gray-300' :
-                                  overallRank === 3 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300' :
-                                  'bg-neutral-100 text-neutral-600'
+                                  overallRank === 1 ? 'bg-fill-yellow-100 text-mark-yellow-700 ring-2 ring-edge-yellow-300' :
+                                  overallRank === 2 ? 'bg-surface-3 text-fg-body ring-2 ring-line-strong' :
+                                  overallRank === 3 ? 'bg-fill-orange-100 text-mark-orange-700 ring-2 ring-edge-orange-300' :
+                                  'bg-surface-2 text-fg-muted'
                                 }`}>
                                   {serialNumber}
                                 </div>
                                 <div>
-                                  <div className="font-semibold text-gray-900 text-base">{result.student_name || 'Unknown'}</div>
-                                  <div className="text-sm text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                                  <div className="font-semibold text-fg text-base">{result.student_name || 'Unknown'}</div>
+                                  <div className="text-sm text-fg-soft">SVC: {result.student_svc_number || 'N/A'}</div>
                                 </div>
                               </div>
                               <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${getGradeColor(grade)}`}>
@@ -1490,34 +1490,34 @@ export default function ExamReports() {
                             </div>
 
                             {/* Score Info */}
-                            <div className="bg-neutral-50 rounded-lg p-3">
+                            <div className="bg-canvas rounded-lg p-3">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-neutral-600">Marks</span>
-                                <span className="text-base font-bold text-gray-900">{result.marks_obtained} / {selectedExam.total_marks}</span>
+                                <span className="text-sm text-fg-muted">Marks</span>
+                                <span className="text-base font-bold text-fg">{result.marks_obtained} / {selectedExam.total_marks}</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                <div className="flex-1 h-2.5 bg-neutral-200 rounded-full overflow-hidden">
+                                <div className="flex-1 h-2.5 bg-surface-3 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full transition-all ${
-                                      parseFloat(pct) >= 80 ? 'bg-green-500' :
-                                      parseFloat(pct) >= 60 ? 'bg-blue-500' :
-                                      parseFloat(pct) >= 50 ? 'bg-yellow-500' :
-                                      'bg-red-500'
+                                      parseFloat(pct) >= 80 ? 'bg-fill-green-500' :
+                                      parseFloat(pct) >= 60 ? 'bg-fill-blue-500' :
+                                      parseFloat(pct) >= 50 ? 'bg-fill-yellow-500' :
+                                      'bg-fill-red-500'
                                     }`}
                                     style={{ width: `${pct}%` }}
                                   ></div>
                                 </div>
                                 <span className={`text-base font-bold ${
-                                  parseFloat(pct) >= 76 ? 'text-green-600' :
-                                  parseFloat(pct) >= 60 ? 'text-blue-600' :
-                                  parseFloat(pct) >= 50 ? 'text-yellow-600' :
-                                  'text-red-600'
+                                  parseFloat(pct) >= 76 ? 'text-mark-green-600' :
+                                  parseFloat(pct) >= 60 ? 'text-mark-blue-600' :
+                                  parseFloat(pct) >= 50 ? 'text-mark-yellow-600' :
+                                  'text-mark-red-600'
                                 }`}>{pct}%</span>
                               </div>
                             </div>
 
                             {result.remarks && (
-                              <div className="mt-2 text-sm text-neutral-500 italic">
+                              <div className="mt-2 text-sm text-fg-soft italic">
                                 {result.remarks}
                               </div>
                             )}
@@ -1525,16 +1525,16 @@ export default function ExamReports() {
                         )
                     } else {
                       return (
-                        <div key={result.id} className="p-4 bg-amber-50/50">
+                        <div key={result.id} className="p-4 bg-fill-amber-50/50">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-base">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-fill-amber-100 text-mark-amber-600 font-bold text-base">
                               {serialNumber}
                             </div>
                             <div className="flex-1">
-                              <div className="font-semibold text-gray-900 text-base">{result.student_name || 'Unknown'}</div>
-                              <div className="text-sm text-neutral-500">SVC: {result.student_svc_number || 'N/A'}</div>
+                              <div className="font-semibold text-fg text-base">{result.student_name || 'Unknown'}</div>
+                              <div className="text-sm text-fg-soft">SVC: {result.student_svc_number || 'N/A'}</div>
                             </div>
-                            <span className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-100 text-amber-700">
+                            <span className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-fill-amber-100 text-mark-amber-700">
                               Pending
                             </span>
                           </div>
@@ -1548,20 +1548,20 @@ export default function ExamReports() {
 
                 {/* Desktop Table View for Results */}
                 <div className="hidden lg:block overflow-x-auto">
-                  <table className="min-w-full divide-y divide-neutral-200">
-                    <thead className="bg-neutral-50">
+                  <table className="min-w-full divide-y divide-line">
+                    <thead className="bg-canvas">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">S/No</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">SVC Number</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Rank</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Student</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Marks</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Percentage</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider hidden lg:table-cell">Remarks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">S/No</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">SVC Number</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Rank</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Student</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Marks</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Percentage</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider">Grade</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-fg-soft uppercase tracking-wider hidden lg:table-cell">Remarks</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-200">
+                    <tbody className="divide-y divide-line">
                       {paginatedResults.map((result, idx) => {
                         const isGraded = result.is_submitted && result.marks_obtained != null
                         const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
@@ -1571,43 +1571,43 @@ export default function ExamReports() {
 
                         if (isGraded) {
                           return (
-                            <tr key={result.id} className="hover:bg-neutral-50 transition">
+                            <tr key={result.id} className="hover:bg-canvas transition">
                               <td className="px-4 py-3">
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                  overallRank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                  overallRank === 2 ? 'bg-gray-100 text-gray-700' :
-                                  overallRank === 3 ? 'bg-orange-100 text-orange-700' :
-                                  'bg-neutral-100 text-neutral-600'
+                                  overallRank === 1 ? 'bg-fill-yellow-100 text-mark-yellow-700' :
+                                  overallRank === 2 ? 'bg-surface-2 text-fg-body' :
+                                  overallRank === 3 ? 'bg-fill-orange-100 text-mark-orange-700' :
+                                  'bg-surface-2 text-fg-muted'
                                 }`}>
                                   {serialNumber}
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-fg-muted">
                                 {result.student_svc_number || 'N/A'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-fg-muted">
                                 {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
-                                <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
+                                <div className="font-medium text-fg text-base">{result.student_name || 'Unknown'}</div>
                               </td>
-                              <td className="px-4 py-3 text-sm font-medium text-black">
+                              <td className="px-4 py-3 text-sm font-medium text-fg">
                                 {result.marks_obtained} / {selectedExam.total_marks}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-20 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                  <div className="w-20 h-2 bg-surface-3 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full rounded-full ${
-                                        parseFloat(pct) >= 76 ? 'bg-green-500' :
-                                        parseFloat(pct) >= 60 ? 'bg-blue-500' :
-                                        parseFloat(pct) >= 50 ? 'bg-yellow-500' :
-                                        'bg-red-500'
+                                        parseFloat(pct) >= 76 ? 'bg-fill-green-500' :
+                                        parseFloat(pct) >= 60 ? 'bg-fill-blue-500' :
+                                        parseFloat(pct) >= 50 ? 'bg-fill-yellow-500' :
+                                        'bg-fill-red-500'
                                       }`}
                                       style={{ width: `${pct}%` }}
                                     ></div>
                                   </div>
-                                  <span className="text-sm font-medium text-black">{pct}%</span>
+                                  <span className="text-sm font-medium text-fg">{pct}%</span>
                                 </div>
                               </td>
                               <td className="px-4 py-3">
@@ -1615,29 +1615,29 @@ export default function ExamReports() {
                                   {grade}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm text-neutral-500 max-w-xs truncate hidden lg:table-cell">
+                              <td className="px-4 py-3 text-sm text-fg-soft max-w-xs truncate hidden lg:table-cell">
                                 {result.remarks || '-'}
                               </td>
                             </tr>
                           )
                         } else {
                           return (
-                            <tr key={result.id} className="bg-amber-50/50">
+                            <tr key={result.id} className="bg-fill-amber-50/50">
                               <td className="px-4 py-3">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-600 font-bold text-sm">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-fill-amber-100 text-mark-amber-600 font-bold text-sm">
                                   {serialNumber}
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-fg-muted">
                                 {result.student_svc_number || 'N/A'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-neutral-600">
+                              <td className="px-4 py-3 text-sm text-fg-muted">
                                 {result.student_rank ? shortRank(result.student_rank) : 'N/A'}
                               </td>
                               <td className="px-4 py-3">
-                                <div className="font-medium text-black text-base">{result.student_name || 'Unknown'}</div>
+                                <div className="font-medium text-fg text-base">{result.student_name || 'Unknown'}</div>
                               </td>
-                              <td className="px-4 py-3 text-sm text-amber-600 font-medium" colSpan={4}>
+                              <td className="px-4 py-3 text-sm text-mark-amber-600 font-medium" colSpan={4}>
                                 Pending Grading
                               </td>
                             </tr>
@@ -1660,41 +1660,41 @@ export default function ExamReports() {
                 />
 
                 {examResults.length === 0 && (
-                  <div className="p-8 text-center text-neutral-500">
-                    <LucideIcons.FileX className="w-12 h-12 mx-auto mb-3 text-neutral-300" />
+                  <div className="p-8 text-center text-fg-soft">
+                    <LucideIcons.FileX className="w-12 h-12 mx-auto mb-3 text-fg-faint" />
                     <p>No results found for this exam</p>
                   </div>
                 )}
               </div>
 
               {/* Exam Report Remarks Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-neutral-200 flex items-center gap-3">
-                  <LucideIcons.MessageSquare className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-black">Exam Report Remarks</h3>
+              <div className="bg-surface rounded-xl shadow-sm border border-line overflow-hidden">
+                <div className="px-6 py-4 border-b border-line flex items-center gap-3">
+                  <LucideIcons.MessageSquare className="w-5 h-5 text-mark-indigo-600" />
+                  <h3 className="text-base font-semibold text-fg">Exam Report Remarks</h3>
                   {loadingReport && (
-                    <div className="ml-auto animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent" />
+                    <div className="ml-auto animate-spin rounded-full h-4 w-4 border-2 border-edge-indigo-600 border-t-transparent" />
                   )}
                 </div>
 
                 <div className="p-6 space-y-4">
                   {/* Report Context */}
                   {examReport ? (
-                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-                      <h4 className="text-sm font-semibold text-neutral-700 mb-3">Report Context</h4>
+                    <div className="bg-fill-indigo-50 rounded-xl p-4 border border-edge-indigo-100">
+                      <h4 className="text-sm font-semibold text-fg-body mb-3">Report Context</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <div className="text-xs font-medium text-neutral-600 mb-1">Subject</div>
-                          <div className="text-sm font-semibold text-black">{examReport.subject_name || selectedExam.subject_name || 'N/A'}</div>
+                          <div className="text-xs font-medium text-fg-muted mb-1">Subject</div>
+                          <div className="text-sm font-semibold text-fg">{examReport.subject_name || selectedExam.subject_name || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs font-medium text-neutral-600 mb-1">Class</div>
-                          <div className="text-sm font-semibold text-black">{examReport.class_name || 'N/A'}</div>
+                          <div className="text-xs font-medium text-fg-muted mb-1">Class</div>
+                          <div className="text-sm font-semibold text-fg">{examReport.class_name || 'N/A'}</div>
                         </div>
                       </div>
                     </div>
                   ) : !loadingReport ? (
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-sm text-amber-700">
+                    <div className="bg-fill-amber-50 rounded-xl p-4 border border-edge-amber-200 text-sm text-mark-amber-700">
                       {isAdmin
                         ? 'No report exists for this exam yet. The instructor must create a report to enable remarks.'
                         : <>No report exists for this exam yet. Create one using the <strong>Create Report</strong> button to enable remarks.</>
@@ -1706,50 +1706,50 @@ export default function ExamReports() {
                   {examReport && (
                     <>
                       <div>
-                        <h4 className="font-semibold text-black mb-3">Remarks History</h4>
+                        <h4 className="font-semibold text-fg mb-3">Remarks History</h4>
                         {examReport.remarks_list && examReport.remarks_list.length > 0 ? (
                           <div className="space-y-3 max-h-60 overflow-y-auto">
                             {examReport.remarks_list.map((remark, idx) => (
-                              <div key={idx} className="bg-neutral-50 rounded-lg p-3 border border-neutral-200">
+                              <div key={idx} className="bg-canvas rounded-lg p-3 border border-line">
                                 <div className="flex items-start justify-between mb-1">
-                                  <div className="font-medium text-sm text-black">{remark.author_name}</div>
+                                  <div className="font-medium text-sm text-fg">{remark.author_name}</div>
                                   <span className={`text-xs px-2 py-1 rounded-full ${
-                                    remark.author_role === 'commandant' ? 'bg-purple-100 text-purple-700' :
-                                    remark.author_role === 'chief_instructor' ? 'bg-blue-100 text-blue-700' :
-                                    remark.author_role === 'instructor' ? 'bg-green-100 text-green-700' :
-                                    'bg-gray-100 text-gray-700'
+                                    remark.author_role === 'commandant' ? 'bg-fill-purple-100 text-mark-purple-700' :
+                                    remark.author_role === 'chief_instructor' ? 'bg-fill-blue-100 text-mark-blue-700' :
+                                    remark.author_role === 'instructor' ? 'bg-fill-green-100 text-mark-green-700' :
+                                    'bg-surface-2 text-fg-body'
                                   }`}>
                                     {remark.author_role_display || remark.author_role}
                                   </span>
                                 </div>
-                                <p className="text-sm text-neutral-600 mb-2">{remark.remark}</p>
-                                <div className="text-xs text-neutral-500">
+                                <p className="text-sm text-fg-muted mb-2">{remark.remark}</p>
+                                <div className="text-xs text-fg-soft">
                                   {new Date(remark.created_at).toLocaleString()}
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-neutral-500 py-4 text-center">No remarks yet</p>
+                          <p className="text-sm text-fg-soft py-4 text-center">No remarks yet</p>
                         )}
                       </div>
 
                       {/* Add Remark Form — hidden for admin and for archived classes */}
                       {!isAdmin && !isArchivedClass && (
-                        <div className="border-t border-neutral-200 pt-4">
-                          <label className="block text-sm font-medium text-neutral-700 mb-2">Add New Remark</label>
+                        <div className="border-t border-line pt-4">
+                          <label className="block text-sm font-medium text-fg-body mb-2">Add New Remark</label>
                           <textarea
                             value={newRemark}
                             onChange={(e) => setNewRemark(e.target.value)}
                             placeholder="Enter your remark (minimum 10 characters)..."
                             rows={4}
-                            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                            className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 resize-none text-fg"
                           />
                           <div className="flex gap-3 justify-end mt-3">
                             <button
                               onClick={handleAddRemark}
                               disabled={remarkSubmitting || !newRemark.trim()}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                              className="px-4 py-2 bg-fill-indigo-600 text-white rounded-lg font-medium hover:bg-fill-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                               {remarkSubmitting ? (
                                 <>
@@ -1767,8 +1767,8 @@ export default function ExamReports() {
                         </div>
                       )}
                       {!isAdmin && isArchivedClass && (
-                        <div className="border-t border-neutral-200 pt-4">
-                          <p className="text-sm text-neutral-500 flex items-center gap-2">
+                        <div className="border-t border-line pt-4">
+                          <p className="text-sm text-fg-soft flex items-center gap-2">
                             <LucideIcons.Lock className="w-4 h-4" />
                             This class is archived — remarks are read-only.
                           </p>
@@ -1793,18 +1793,18 @@ export default function ExamReports() {
       {showCreateReportModal && selectedExamForReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowCreateReportModal(false)} />
-          <div className="relative z-10 w-full max-w-xl bg-white rounded-xl p-6 shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="relative z-10 w-full max-w-xl bg-surface rounded-xl p-6 shadow-2xl ring-1 ring-hair animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-black">Create Exam Report</h2>
-                <p className="text-sm text-neutral-600 mt-1">Generate a new exam report for analysis and remarks</p>
+                <h2 className="text-lg font-semibold text-fg">Create Exam Report</h2>
+                <p className="text-sm text-fg-muted mt-1">Generate a new exam report for analysis and remarks</p>
               </div>
               <button
                 onClick={() => setShowCreateReportModal(false)}
                 disabled={creatingReport}
                 aria-label="Close"
-                className="rounded-md p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition disabled:opacity-50"
+                className="rounded-md p-2 text-fg-faint hover:text-fg-muted hover:bg-surface-2 transition disabled:opacity-50"
               >
                 <LucideIcons.X className="w-5 h-5" />
               </button>
@@ -1813,22 +1813,22 @@ export default function ExamReports() {
             {/* Form */}
             <div className="space-y-4">
               {/* Exam Info - Read Only */}
-              <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
-                <h3 className="text-sm font-semibold text-black mb-3">Exam Details</h3>
+              <div className="bg-canvas rounded-lg p-4 border border-line">
+                <h3 className="text-sm font-semibold text-fg mb-3">Exam Details</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Exam:</span>
-                    <span className="font-medium text-black">{selectedExamForReport.title || selectedExamForReport.exam_type}</span>
+                    <span className="text-fg-muted">Exam:</span>
+                    <span className="font-medium text-fg">{selectedExamForReport.title || selectedExamForReport.exam_type}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Subject:</span>
-                    <span className="font-medium text-black">
+                    <span className="text-fg-muted">Subject:</span>
+                    <span className="font-medium text-fg">
                       {selectedExamForReport.subject_name || subjects.find(s => s.id === (selectedExamForReport.subject || selectedExamForReport.subject_id))?.name || 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Class:</span>
-                    <span className="font-medium text-black">
+                    <span className="text-fg-muted">Class:</span>
+                    <span className="font-medium text-fg">
                       {(() => {
                         let classId = selectedExamForReport.subject_class_id || selectedExamForReport.class_id
                         let classObj = classes.find(c => c.id === classId)
@@ -1856,25 +1856,25 @@ export default function ExamReports() {
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Report Title *</label>
+                <label className="block text-sm font-medium text-fg-body mb-2">Report Title *</label>
                 <input
                   type="text"
                   value={reportForm.title}
                   onChange={(e) => setReportForm(p => ({ ...p, title: e.target.value }))}
                   placeholder="e.g., Final Exam Analysis"
-                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black"
+                  className="w-full px-3 py-2 text-sm border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 text-fg"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-fg-body mb-2">Description</label>
                 <textarea
                   value={reportForm.description}
                   onChange={(e) => setReportForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="Optional notes about this report"
                   rows={3}
-                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-black"
+                  className="w-full px-3 py-2 text-sm border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 resize-none text-fg"
                 />
               </div>
             </div>
@@ -1884,14 +1884,14 @@ export default function ExamReports() {
               <button
                 onClick={() => setShowCreateReportModal(false)}
                 disabled={creatingReport}
-                className="px-4 py-2 text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm rounded-md bg-surface-3 text-fg-body hover:bg-surface-4 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateReport}
                 disabled={creatingReport}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-fill-indigo-600 text-white font-medium hover:bg-fill-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {creatingReport ? (
                   <>

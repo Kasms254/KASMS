@@ -14,29 +14,29 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function StatCard({ label, description, value, icon: Icon }) {
+function StatCard({ label, description, value}) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
+    <div className="bg-surface border border-line rounded-xl p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
       <div className="rounded-lg p-2.5 shrink-0" style={{ backgroundColor: MAROON_LIGHT }}>
         <Icon size={22} style={{ color: MAROON }} />
       </div>
       <div className="min-w-0">
-        <div className="text-3xl font-bold text-gray-900">{value ?? 0}</div>
-        <div className="text-sm font-semibold text-gray-700 mt-0.5">{label}</div>
-        {description && <div className="text-xs text-gray-400 mt-0.5">{description}</div>}
+        <div className="text-3xl font-bold text-fg">{value ?? 0}</div>
+        <div className="text-sm font-semibold text-fg-body mt-0.5">{label}</div>
+        {description && <div className="text-xs text-fg-faint mt-0.5">{description}</div>}
       </div>
     </div>
   )
 }
 
 const STATUS_CONFIG = {
-  submitted: { label: 'SUBMITTED', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  reviewed:  { label: 'REVIEWED',  bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  archived:  { label: 'ARCHIVED',  bg: 'bg-gray-100',   text: 'text-gray-500',   border: 'border-gray-200' },
+  submitted: { label: 'SUBMITTED', bg: 'bg-fill-amber-50', text: 'text-mark-amber-700', border: 'border-edge-amber-200' },
+  reviewed:  { label: 'REVIEWED',  bg: 'bg-fill-emerald-50', text: 'text-mark-emerald-700', border: 'border-edge-emerald-200' },
+  archived:  { label: 'ARCHIVED',  bg: 'bg-surface-2',   text: 'text-fg-soft',   border: 'border-line' },
 }
 
 function StatusBadge({ status }) {
-  const cfg = STATUS_CONFIG[status] || { label: status, bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' }
+  const cfg = STATUS_CONFIG[status] || { label: status, bg: 'bg-surface-2', text: 'text-fg-muted', border: 'border-line' }
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold tracking-wide border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
       {cfg.label}
@@ -69,7 +69,7 @@ export default function COTDashboard() {
   )
 
   if (error) return (
-    <div className="p-6 text-red-700 bg-red-50 border border-red-200 rounded-xl">
+    <div className="p-6 text-mark-red-700 bg-fill-red-50 border border-edge-red-200 rounded-xl">
       Failed to load dashboard: {error.message}
     </div>
   )
@@ -85,8 +85,8 @@ export default function COTDashboard() {
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Chief of Training Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-fg">Chief of Training Dashboard</h1>
+          <p className="text-sm text-fg-soft mt-1">
             Overview of school reports across all institutions
           </p>
         </div>
@@ -125,11 +125,11 @@ export default function COTDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Recent Submissions */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-hair">
             <div className="flex items-center gap-2">
               <TrendingUp size={16} style={{ color: MAROON }} />
-              <h2 className="font-semibold text-gray-900">Recent Submissions</h2>
+              <h2 className="font-semibold text-fg">Recent Submissions</h2>
             </div>
             <Link
               to="/cot/reports"
@@ -141,32 +141,32 @@ export default function COTDashboard() {
           </div>
 
           {recent.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 text-fg-faint">
               <FileText size={32} className="mb-2 opacity-30" />
               <p className="text-sm">No submitted reports yet</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-hair">
               {recent.map((r) => (
                 <li key={r.id}>
                   <Link
                     to={`/cot/reports/${r.id}`}
-                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-canvas transition-colors"
                   >
                     <SchoolAvatar name={r.school_name} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{r.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-sm font-semibold text-fg truncate">{r.title}</p>
+                      <p className="text-xs text-fg-soft mt-0.5">
                         {r.school_name}
-                        {r.school_code && <span className="text-gray-400"> ({r.school_code})</span>}
+                        {r.school_code && <span className="text-fg-faint"> ({r.school_code})</span>}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-fg-faint">
                         {formatDate(r.reporting_period_start)} – {formatDate(r.reporting_period_end)}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <StatusBadge status={r.status} />
-                      <p className="text-xs text-gray-400 mt-1">{formatDate(r.submitted_at)}</p>
+                      <p className="text-xs text-fg-faint mt-1">{formatDate(r.submitted_at)}</p>
                     </div>
                   </Link>
                 </li>
@@ -176,29 +176,29 @@ export default function COTDashboard() {
         </div>
 
         {/* Reports by School */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-hair">
             <Building2 size={16} style={{ color: MAROON }} />
-            <h2 className="font-semibold text-gray-900">Reports by School</h2>
+            <h2 className="font-semibold text-fg">Reports by School</h2>
           </div>
 
           {bySchool.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 text-fg-faint">
               <Building2 size={32} className="mb-2 opacity-30" />
               <p className="text-sm">No school data available</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-hair">
               {bySchool.map((s) => (
                 <li
                   key={s.school_code}
-                  className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between px-5 py-3.5 hover:bg-canvas transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <SchoolAvatar name={s.school_name} />
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">{s.school_name}</p>
-                      <p className="text-xs text-gray-400">{s.school_code}</p>
+                      <p className="text-sm font-semibold text-fg">{s.school_name}</p>
+                      <p className="text-xs text-fg-faint">{s.school_code}</p>
                     </div>
                   </div>
                   <span
@@ -215,15 +215,15 @@ export default function COTDashboard() {
       </div>
 
       {/* Reporting Summary */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+      <div className="bg-surface border border-line rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-hair">
           <BarChart3 size={16} style={{ color: MAROON }} />
-          <h2 className="font-semibold text-gray-900">Reporting Summary</h2>
+          <h2 className="font-semibold text-fg">Reporting Summary</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <tr className="bg-canvas text-xs text-fg-soft uppercase tracking-wider">
                 <th className="text-left px-5 py-3 font-semibold">Metric</th>
                 <th className="text-right px-5 py-3 font-semibold">Total</th>
                 <th className="text-right px-5 py-3 font-semibold">Submitted</th>
@@ -231,18 +231,18 @@ export default function COTDashboard() {
                 <th className="text-right px-5 py-3 font-semibold">Archived</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              <tr className="hover:bg-gray-50">
-                <td className="px-5 py-3.5 font-medium text-gray-800">School Reports</td>
-                <td className="px-5 py-3.5 text-right font-bold text-gray-900">{total}</td>
-                <td className="px-5 py-3.5 text-right font-semibold text-amber-700">{byStatus.submitted ?? 0}</td>
-                <td className="px-5 py-3.5 text-right font-semibold text-emerald-700">{byStatus.reviewed ?? 0}</td>
-                <td className="px-5 py-3.5 text-right font-semibold text-gray-500">{byStatus.archived ?? 0}</td>
+            <tbody className="divide-y divide-hair">
+              <tr className="hover:bg-canvas">
+                <td className="px-5 py-3.5 font-medium text-fg">School Reports</td>
+                <td className="px-5 py-3.5 text-right font-bold text-fg">{total}</td>
+                <td className="px-5 py-3.5 text-right font-semibold text-mark-amber-700">{byStatus.submitted ?? 0}</td>
+                <td className="px-5 py-3.5 text-right font-semibold text-mark-emerald-700">{byStatus.reviewed ?? 0}</td>
+                <td className="px-5 py-3.5 text-right font-semibold text-fg-soft">{byStatus.archived ?? 0}</td>
               </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="px-5 py-3.5 font-medium text-gray-800">Schools Reporting</td>
-                <td className="px-5 py-3.5 text-right font-bold text-gray-900">{bySchool.length}</td>
-                <td className="px-5 py-3.5 text-right text-gray-400" colSpan={3}>
+              <tr className="hover:bg-canvas">
+                <td className="px-5 py-3.5 font-medium text-fg">Schools Reporting</td>
+                <td className="px-5 py-3.5 text-right font-bold text-fg">{bySchool.length}</td>
+                <td className="px-5 py-3.5 text-right text-fg-faint" colSpan={3}>
                   <span className="text-xs">
                     {bySchool.map(s => s.school_name).join(', ') || '—'}
                   </span>

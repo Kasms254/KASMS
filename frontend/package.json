@@ -11,6 +11,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "tokens": "node scripts/gen-tokens.cjs",
+    "tokens:sweep": "node scripts/gen-tokens.cjs && node scripts/sweep-tokens.cjs && node scripts/gen-tokens.cjs",
     "preview": "vite preview",
     "preinstall": "node -e \"const v = process.versions.node.split('.')[0]; if (v < 22) { console.error('🚫 Node 22+ is required'); process.exit(1); }\"",
     "prepare": "node -e \"if (!process.env.CI) require('child_process').execSync('node frontend/node_modules/husky/bin.js frontend/.husky', { stdio: 'inherit', cwd: '..' })\""

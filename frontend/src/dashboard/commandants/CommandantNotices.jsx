@@ -11,11 +11,11 @@ import {
 import useToast from '../../hooks/useToast'
 
 const PRIORITY_CLASSES = {
-  low: 'bg-green-100 text-green-700',
-  medium: 'bg-indigo-100 text-indigo-700',
-  high: 'bg-amber-100 text-amber-700',
-  urgent: 'bg-rose-100 text-rose-700',
-  normal: 'bg-neutral-100 text-neutral-600',
+  low: 'bg-fill-green-100 text-mark-green-700',
+  medium: 'bg-fill-indigo-100 text-mark-indigo-700',
+  high: 'bg-fill-amber-100 text-mark-amber-700',
+  urgent: 'bg-fill-rose-100 text-mark-rose-700',
+  normal: 'bg-surface-2 text-fg-muted',
 }
 
 const TARGET_ROLE_LABELS = {
@@ -229,15 +229,15 @@ export default function CommandantNotices() {
   }, [currentPage, itemsPerPage, searchTerm, filterPriority, filterStatus, filterTargetRole, filterMyNotices, reportError, refreshKey])
 
   return (
-    <div className="text-black w-full">
+    <div className="text-fg w-full">
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Notices</h1>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">School-wide announcements and notices</p>
+          <p className="text-xs sm:text-sm text-fg-soft mt-1">School-wide announcements and notices</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium whitespace-nowrap"
+          className="flex items-center gap-2 px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition text-sm font-medium whitespace-nowrap"
         >
           <LucideIcons.Plus size={18} />
           Create Notice
@@ -245,23 +245,23 @@ export default function CommandantNotices() {
       </header>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow p-4 sm:p-5 mb-4 sm:mb-6">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-5 mb-4 sm:mb-6">
         <div className="space-y-4">
           <input
             type="text"
             placeholder="Search by title or content..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-            className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full px-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Priority</label>
+              <label className="block text-sm font-medium text-fg-body mb-2">Priority</label>
               <select
                 value={filterPriority}
                 onChange={(e) => { setFilterPriority(e.target.value); setCurrentPage(1) }}
-                className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full px-3 py-2.5 text-sm text-fg bg-surface border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 transition-colors"
               >
                 <option value="">All Priorities</option>
                 <option value="low">Low</option>
@@ -271,11 +271,11 @@ export default function CommandantNotices() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Status</label>
+              <label className="block text-sm font-medium text-fg-body mb-2">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1) }}
-                className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full px-3 py-2.5 text-sm text-fg bg-surface border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 transition-colors"
               >
                 <option value="">All Status</option>
                 <option value="true">Active</option>
@@ -283,11 +283,11 @@ export default function CommandantNotices() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Target Audience</label>
+              <label className="block text-sm font-medium text-fg-body mb-2">Target Audience</label>
               <select
                 value={filterTargetRole}
                 onChange={(e) => { setFilterTargetRole(e.target.value); setCurrentPage(1) }}
-                className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full px-3 py-2.5 text-sm text-fg bg-surface border border-line-strong rounded-lg focus:ring-2 focus:ring-edge-indigo-500 focus:border-edge-indigo-500 transition-colors"
               >
                 <option value="">All Audiences</option>
                 <option value="all">All</option>
@@ -302,7 +302,7 @@ export default function CommandantNotices() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-4">
-              <span className="text-xs sm:text-sm text-neutral-600">
+              <span className="text-xs sm:text-sm text-fg-muted">
                 Showing {notices.length} of {totalCount} notices
               </span>
               <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
@@ -310,15 +310,15 @@ export default function CommandantNotices() {
                   type="checkbox"
                   checked={filterMyNotices}
                   onChange={(e) => { setFilterMyNotices(e.target.checked); setCurrentPage(1) }}
-                  className="w-4 h-4 rounded border-neutral-300 focus:ring-indigo-500"
+                  className="w-4 h-4 rounded border-line-strong focus:ring-edge-indigo-500"
                 />
-                <span className="text-neutral-700 font-medium">My Notices</span>
+                <span className="text-fg-body font-medium">My Notices</span>
               </label>
             </div>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="px-4 py-2 text-sm rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                className="px-4 py-2 text-sm rounded-md bg-surface-3 text-fg-body hover:bg-surface-4 transition"
               >
                 Clear Filters
               </button>
@@ -328,11 +328,11 @@ export default function CommandantNotices() {
       </div>
 
       {/* Notice List */}
-      <div className="bg-white rounded-xl shadow p-5">
+      <div className="bg-surface rounded-xl shadow p-5">
         <div className="space-y-3">
-          {loading && <div className="p-6 text-center text-neutral-500">Loading…</div>}
+          {loading && <div className="p-6 text-center text-fg-soft">Loading…</div>}
           {!loading && notices.length === 0 && (
-            <div className="p-6 text-center text-neutral-500">
+            <div className="p-6 text-center text-fg-soft">
               {hasActiveFilters ? 'No notices match your filters' : 'No notices yet'}
             </div>
           )}
@@ -344,14 +344,14 @@ export default function CommandantNotices() {
               return (
                 <article
                   key={n.id}
-                  className={`p-4 border rounded-lg flex flex-col justify-between ${expired ? 'bg-gray-50 opacity-75' : ''}`}
+                  className={`p-4 border rounded-lg flex flex-col justify-between ${expired ? 'bg-canvas opacity-75' : ''}`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-black">{n.title}</h4>
-                        <div className="text-xs text-neutral-500 mt-1 flex flex-wrap items-center gap-1">
-                          <span className={`inline-flex items-center px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-neutral-100 text-neutral-700'}`}>
+                        <h4 className="font-semibold text-fg">{n.title}</h4>
+                        <div className="text-xs text-fg-soft mt-1 flex flex-wrap items-center gap-1">
+                          <span className={`inline-flex items-center px-2 py-1 rounded ${PRIORITY_CLASSES[n.priority] || 'bg-surface-2 text-fg-body'}`}>
                             {n.priority_display || n.priority}
                           </span>
                           <span>•</span>
@@ -359,31 +359,31 @@ export default function CommandantNotices() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className={`text-xs px-2 py-1 rounded ${effectivelyActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        <span className={`text-xs px-2 py-1 rounded ${effectivelyActive ? 'bg-fill-green-100 text-mark-green-700' : 'bg-fill-red-100 text-mark-red-700'}`}>
                           {effectivelyActive ? 'Active' : 'Inactive'}
                         </span>
                         {expired && (
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-fill-amber-100 text-mark-amber-700">
                             Expired
                           </span>
                         )}
                       </div>
                     </div>
-                    <p className="mt-3 text-sm text-neutral-700">{n.content}</p>
+                    <p className="mt-3 text-sm text-fg-body">{n.content}</p>
                     {(n.created_by_rank || n.created_by_name || n.created_by_svc_number) && (
-                      <p className="mt-2 text-xs text-neutral-400">
+                      <p className="mt-2 text-xs text-fg-faint">
                         By: {[n.created_by_rank, n.created_by_name, n.created_by_svc_number].filter(Boolean).join(' ')}
                       </p>
                     )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-2">
-                    <div className="text-xs text-neutral-500 flex flex-wrap items-center gap-2">
-                      <span className={expired ? 'text-red-600 font-medium' : ''}>
+                    <div className="text-xs text-fg-soft flex flex-wrap items-center gap-2">
+                      <span className={expired ? 'text-mark-red-600 font-medium' : ''}>
                         Expiry: {n.expiry_date ? n.expiry_date : '—'}
                       </span>
                       {n.target_role && n.target_role !== 'all' && (
-                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[11px]">
+                        <span className="bg-fill-blue-50 text-mark-blue-700 px-2 py-0.5 rounded text-[11px]">
                           {TARGET_ROLE_LABELS[n.target_role] || n.target_role}
                         </span>
                       )}
@@ -391,14 +391,14 @@ export default function CommandantNotices() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(n)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-fill-indigo-50 text-mark-indigo-700 hover:bg-fill-indigo-100 transition"
                       >
                         <LucideIcons.Pencil size={13} />
                         Edit
                       </button>
                       <button
                         onClick={() => setDeleteTarget(n)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 transition"
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-fill-red-50 text-mark-red-700 hover:bg-fill-red-100 transition"
                       >
                         <LucideIcons.Trash2 size={13} />
                         Delete
@@ -412,16 +412,16 @@ export default function CommandantNotices() {
 
           {/* Pagination */}
           {!loading && totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-neutral-200">
-              <div className="text-sm text-neutral-600">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-line">
+              <div className="text-sm text-fg-muted">
                 Page {currentPage} of {totalPages} ({totalCount} total)
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
-                <div className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium">{currentPage}</div>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-white border border-neutral-300 text-neutral-700 text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">First</button>
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Previous</button>
+                <div className="px-4 py-2 bg-fill-indigo-600 text-white rounded-md text-sm font-medium">{currentPage}</div>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Next</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 rounded-md bg-surface border border-line-strong text-fg-body text-sm hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed transition">Last</button>
               </div>
             </div>
           )}
@@ -430,13 +430,13 @@ export default function CommandantNotices() {
 
       {/* Create / Edit Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-black">
+        <div className="fixed inset-0 bg-inverse bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-surface border-b border-line px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-fg">
                 {editingNotice ? 'Edit Notice' : 'Create New Notice'}
               </h2>
-              <button onClick={closeModal} className="text-neutral-500 hover:text-neutral-700 transition">
+              <button onClick={closeModal} className="text-fg-soft hover:text-fg-body transition">
                 <LucideIcons.X size={24} />
               </button>
             </div>
@@ -444,42 +444,42 @@ export default function CommandantNotices() {
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Title <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-fg-body mb-2">
+                  Title <span className="text-mark-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={form.title}
                   onChange={(e) => updateForm('title', e.target.value)}
                   placeholder="Notice title"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition ${errors.title ? 'border-red-500 bg-red-50' : 'border-neutral-300 focus:ring-indigo-500'}`}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition ${errors.title ? 'border-edge-red-500 bg-fill-red-50' : 'border-line-strong focus:ring-edge-indigo-500'}`}
                 />
-                {errors.title && <p className="text-red-600 text-sm mt-1">{errors.title}</p>}
+                {errors.title && <p className="text-mark-red-600 text-sm mt-1">{errors.title}</p>}
               </div>
 
               {/* Content */}
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Content <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-fg-body mb-2">
+                  Content <span className="text-mark-red-500">*</span>
                 </label>
                 <textarea
                   value={form.content}
                   onChange={(e) => updateForm('content', e.target.value)}
                   placeholder="Notice content"
                   rows={5}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition resize-none ${errors.content ? 'border-red-500 bg-red-50' : 'border-neutral-300 focus:ring-indigo-500'}`}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition resize-none ${errors.content ? 'border-edge-red-500 bg-fill-red-50' : 'border-line-strong focus:ring-edge-indigo-500'}`}
                 />
-                {errors.content && <p className="text-red-600 text-sm mt-1">{errors.content}</p>}
+                {errors.content && <p className="text-mark-red-600 text-sm mt-1">{errors.content}</p>}
               </div>
 
               {/* Priority + Target Audience */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Priority</label>
+                  <label className="block text-sm font-medium text-fg-body mb-2">Priority</label>
                   <select
                     value={form.priority}
                     onChange={(e) => updateForm('priority', e.target.value)}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                    className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 transition"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -488,11 +488,11 @@ export default function CommandantNotices() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Target Audience</label>
+                  <label className="block text-sm font-medium text-fg-body mb-2">Target Audience</label>
                   <select
                     value={form.target_role}
                     onChange={(e) => updateForm('target_role', e.target.value)}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                    className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-edge-indigo-500 transition"
                   >
                     <option value="all">All</option>
                     <option value="commandant">Commandant</option>
@@ -506,8 +506,8 @@ export default function CommandantNotices() {
 
               {/* Expiry Date */}
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Expiry Date <span className="text-neutral-500 text-xs">(Optional)</span>
+                <label className="block text-sm font-medium text-fg-body mb-2">
+                  Expiry Date <span className="text-fg-soft text-xs">(Optional)</span>
                 </label>
                 <ModernDatePicker
                   value={form.expiry_date}
@@ -515,7 +515,7 @@ export default function CommandantNotices() {
                   placeholder="Select expiry date"
                   minDate={new Date().toISOString().split('T')[0]}
                 />
-                {errors.expiry_date && <p className="text-red-600 text-sm mt-1">{errors.expiry_date}</p>}
+                {errors.expiry_date && <p className="text-mark-red-600 text-sm mt-1">{errors.expiry_date}</p>}
               </div>
 
               {/* Is Active */}
@@ -525,27 +525,27 @@ export default function CommandantNotices() {
                     type="checkbox"
                     checked={form.is_active}
                     onChange={(e) => updateForm('is_active', e.target.checked)}
-                    className="w-4 h-4 border-neutral-300 rounded focus:ring-2 focus:ring-indigo-500"
+                    className="w-4 h-4 border-line-strong rounded focus:ring-2 focus:ring-edge-indigo-500"
                   />
-                  <span className="text-sm font-medium text-neutral-700">Active</span>
-                  <span className="text-xs text-neutral-500">(Inactive notices won't be visible)</span>
+                  <span className="text-sm font-medium text-fg-body">Active</span>
+                  <span className="text-xs text-fg-soft">(Inactive notices won't be visible)</span>
                 </label>
               </div>
 
               {/* Buttons */}
-              <div className="flex gap-3 justify-end pt-4 border-t border-neutral-200">
+              <div className="flex gap-3 justify-end pt-4 border-t border-line">
                 <button
                   type="button"
                   onClick={closeModal}
                   disabled={saving}
-                  className="px-6 py-2 border border-neutral-300 rounded-lg text-neutral-700 font-medium hover:bg-neutral-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 border border-line-strong rounded-lg text-fg-body font-medium hover:bg-canvas transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2 bg-fill-indigo-600 text-white rounded-lg font-medium hover:bg-fill-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -567,30 +567,30 @@ export default function CommandantNotices() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-inverse bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-lg shadow-lg max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <LucideIcons.Trash2 size={20} className="text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-fill-red-100 flex items-center justify-center shrink-0">
+                <LucideIcons.Trash2 size={20} className="text-mark-red-600" />
               </div>
-              <h2 className="text-lg font-bold text-black">Delete Notice</h2>
+              <h2 className="text-lg font-bold text-fg">Delete Notice</h2>
             </div>
-            <p className="text-sm text-neutral-600 mb-2">Are you sure you want to delete this notice?</p>
-            <p className="text-sm font-medium text-black mb-6 bg-neutral-50 px-3 py-2 rounded border">
+            <p className="text-sm text-fg-muted mb-2">Are you sure you want to delete this notice?</p>
+            <p className="text-sm font-medium text-fg mb-6 bg-canvas px-3 py-2 rounded border">
               "{deleteTarget.title}"
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="px-5 py-2 border border-neutral-300 rounded-lg text-neutral-700 font-medium hover:bg-neutral-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2 border border-line-strong rounded-lg text-fg-body font-medium hover:bg-canvas transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-5 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2 bg-fill-red-600 text-white rounded-lg font-medium hover:bg-fill-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {deleting ? (
                   <>

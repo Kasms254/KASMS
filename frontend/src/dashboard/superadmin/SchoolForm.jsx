@@ -95,16 +95,16 @@ export default function SchoolForm() {
     let color = ''
     if (score <= 1) {
       label = 'Weak'
-      color = 'bg-red-500'
+      color = 'bg-fill-red-500'
     } else if (score === 2) {
       label = 'Fair'
-      color = 'bg-yellow-500'
+      color = 'bg-fill-yellow-500'
     } else if (score === 3) {
       label = 'Good'
-      color = 'bg-blue-500'
+      color = 'bg-fill-blue-500'
     } else {
       label = 'Strong'
-      color = 'bg-green-500'
+      color = 'bg-fill-green-500'
     }
 
     return { score, feedback, label, color }
@@ -404,7 +404,7 @@ export default function SchoolForm() {
       if (logoFile && schoolId) {
         try {
           await api.uploadSchoolLogo(schoolId, logoFile)
-        } catch (logoErr) {
+        } catch {
           toast.error('School saved but logo upload failed. You can upload it later.')
           setSaving(false)
           return
@@ -484,7 +484,7 @@ export default function SchoolForm() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-edge-indigo-600"></div>
       </div>
     )
   }
@@ -496,15 +496,15 @@ export default function SchoolForm() {
           <button
             type="button"
             onClick={() => navigate('/superadmin/schools')}
-            className="p-2 hover:bg-neutral-100 rounded-lg transition"
+            className="p-2 hover:bg-surface-2 rounded-lg transition"
           >
-            <ArrowLeft className="w-5 h-5 text-neutral-600" />
+            <ArrowLeft className="w-5 h-5 text-fg-muted" />
           </button>
           <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-black">
+            <h2 className="text-xl sm:text-2xl font-semibold text-fg">
               {isEditing ? 'Edit School' : 'Create New School'}
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-500">
+            <p className="text-xs sm:text-sm text-fg-soft">
               {isEditing ? 'Update school details and theme' : 'Add a new school with its primary administrator'}
             </p>
           </div>
@@ -513,21 +513,21 @@ export default function SchoolForm() {
 
       {/* Error Summary Banner */}
       {Object.keys(errors).length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+        <div className="bg-fill-red-50 border border-edge-red-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-mark-red-500 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-red-800">
+              <p className="text-sm font-medium text-mark-red-800">
                 Please fix the following errors:
               </p>
-              <ul className="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
+              <ul className="mt-2 text-sm text-mark-red-700 list-disc list-inside space-y-1">
                 {Object.entries(errors).slice(0, 5).map(([key, value]) => (
                   <li key={key}>
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: {value}
                   </li>
                 ))}
                 {Object.keys(errors).length > 5 && (
-                  <li className="text-red-600">...and {Object.keys(errors).length - 5} more errors</li>
+                  <li className="text-mark-red-600">...and {Object.keys(errors).length - 5} more errors</li>
                 )}
               </ul>
             </div>
@@ -537,15 +537,15 @@ export default function SchoolForm() {
 
       <form id="school-form" onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Building2 className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">School Information</h3>
+            <Building2 className="w-5 h-5 text-fg-soft" />
+            <h3 className="font-semibold text-fg">School Information</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 School Name *
               </label>
               <input
@@ -554,16 +554,16 @@ export default function SchoolForm() {
                 value={form.name}
                 onChange={handleChange}
                 required
-                className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                  errors.name || errors.school_name ? 'border-red-500' : 'border-neutral-200'
+                className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                  errors.name || errors.school_name ? 'border-edge-red-500' : 'border-line'
                 }`}
                 placeholder="e.g. Kenya Army Combat Engineering School"
               />
-              {(errors.name || errors.school_name) && <p className="text-red-500 text-sm mt-1">{errors.name || errors.school_name}</p>}
+              {(errors.name || errors.school_name) && <p className="text-mark-red-500 text-sm mt-1">{errors.name || errors.school_name}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 Short Name
               </label>
               <input
@@ -571,13 +571,13 @@ export default function SchoolForm() {
                 name="short_name"
                 value={form.short_name}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 placeholder="e.g. KACEME"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 School Code *
               </label>
               <input
@@ -586,17 +586,17 @@ export default function SchoolForm() {
                 value={form.code}
                 onChange={handleChange}
                 required
-                className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono uppercase ${
-                  errors.code || errors.school_code ? 'border-red-500' : 'border-neutral-200'
+                className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 font-mono uppercase ${
+                  errors.code || errors.school_code ? 'border-edge-red-500' : 'border-line'
                 }`}
                 placeholder="e.g. KACEME"
               />
-              {(errors.code || errors.school_code) && <p className="text-red-500 text-sm mt-1">{errors.code || errors.school_code}</p>}
-              <p className="text-neutral-500 text-xs mt-1">Uppercase letters, numbers, and underscores only</p>
+              {(errors.code || errors.school_code) && <p className="text-mark-red-500 text-sm mt-1">{errors.code || errors.school_code}</p>}
+              <p className="text-fg-soft text-xs mt-1">Uppercase letters, numbers, and underscores only</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 School Email *
               </label>
               <input
@@ -605,16 +605,16 @@ export default function SchoolForm() {
                 value={form.email}
                 onChange={handleChange}
                 required
-                className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                  errors.email || errors.school_email ? 'border-red-500' : 'border-neutral-200'
+                className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                  errors.email || errors.school_email ? 'border-edge-red-500' : 'border-line'
                 }`}
                 placeholder="admin@school.edu"
               />
-              {(errors.email || errors.school_email) && <p className="text-red-500 text-sm mt-1">{errors.email || errors.school_email}</p>}
+              {(errors.email || errors.school_email) && <p className="text-mark-red-500 text-sm mt-1">{errors.email || errors.school_email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 School Phone *
               </label>
               <input
@@ -623,13 +623,13 @@ export default function SchoolForm() {
                 value={form.phone}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 placeholder="+254 700 000 000"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 City *
               </label>
               <input
@@ -638,13 +638,13 @@ export default function SchoolForm() {
                 value={form.city}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 placeholder="e.g. Nairobi"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 Address *
               </label>
               <textarea
@@ -653,7 +653,7 @@ export default function SchoolForm() {
                 onChange={handleChange}
                 required
                 rows={2}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
                 placeholder="Full postal address"
               />
             </div>
@@ -662,18 +662,18 @@ export default function SchoolForm() {
 
         {/* Admin Information - Show when creating or when editing with an existing admin */}
         {(!isEditing || adminId) && (
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
+          <div className="bg-surface rounded-xl shadow-sm border border-line p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-4">
-              <UserCog className="w-5 h-5 text-neutral-500" />
-              <h3 className="font-semibold text-black">Primary Administrator</h3>
+              <UserCog className="w-5 h-5 text-fg-soft" />
+              <h3 className="font-semibold text-fg">Primary Administrator</h3>
             </div>
-            <p className="text-sm text-neutral-500 mb-4">
+            <p className="text-sm text-fg-soft mb-4">
               {isEditing ? 'Update the primary administrator details for this school.' : 'This user will be created as the primary admin for this school.'}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   First Name *
                 </label>
                 <input
@@ -682,15 +682,15 @@ export default function SchoolForm() {
                   value={form.admin_first_name}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.admin_first_name ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    errors.admin_first_name ? 'border-edge-red-500' : 'border-line'
                   }`}
                 />
-                {errors.admin_first_name && <p className="text-red-500 text-sm mt-1">{errors.admin_first_name}</p>}
+                {errors.admin_first_name && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_first_name}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   Last Name *
                 </label>
                 <input
@@ -699,15 +699,15 @@ export default function SchoolForm() {
                   value={form.admin_last_name}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.admin_last_name ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    errors.admin_last_name ? 'border-edge-red-500' : 'border-line'
                   }`}
                 />
-                {errors.admin_last_name && <p className="text-red-500 text-sm mt-1">{errors.admin_last_name}</p>}
+                {errors.admin_last_name && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_last_name}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   Service Number *
                 </label>
                 <input
@@ -718,17 +718,17 @@ export default function SchoolForm() {
                   value={form.admin_svc_number}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono ${
-                    errors.admin_svc_number ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 font-mono ${
+                    errors.admin_svc_number ? 'border-edge-red-500' : 'border-line'
                   }`}
                   placeholder="e.g. 12345678"
                 />
-                {errors.admin_svc_number && <p className="text-red-500 text-sm mt-1">{errors.admin_svc_number}</p>}
-                <p className="text-neutral-500 text-xs mt-1">Numbers only - used for login</p>
+                {errors.admin_svc_number && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_svc_number}</p>}
+                <p className="text-fg-soft text-xs mt-1">Numbers only - used for login</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   Admin Email *
                 </label>
                 <input
@@ -737,15 +737,15 @@ export default function SchoolForm() {
                   value={form.admin_email}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.admin_email ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    errors.admin_email ? 'border-edge-red-500' : 'border-line'
                   }`}
                 />
-                {errors.admin_email && <p className="text-red-500 text-sm mt-1">{errors.admin_email}</p>}
+                {errors.admin_email && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_email}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   Admin Phone *
                 </label>
                 <input
@@ -754,16 +754,16 @@ export default function SchoolForm() {
                   value={form.admin_phone}
                   onChange={handleChange}
                   required
-                  className={`w-full px-3 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                    errors.admin_phone ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-3 py-2 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                    errors.admin_phone ? 'border-edge-red-500' : 'border-line'
                   }`}
                   placeholder="+254 700 000 000"
                 />
-                {errors.admin_phone && <p className="text-red-500 text-sm mt-1">{errors.admin_phone}</p>}
+                {errors.admin_phone && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_phone}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   {isEditing ? 'New Password' : 'Password *'}
                 </label>
                 <div className="relative">
@@ -774,44 +774,44 @@ export default function SchoolForm() {
                     onChange={handleChange}
                     required={!isEditing}
                     minLength={8}
-                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.admin_password ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.admin_password ? 'border-edge-red-500' : 'border-line'
                     }`}
                     placeholder={isEditing ? 'Leave blank to keep current' : ''}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {errors.admin_password && <p className="text-red-500 text-sm mt-1">{errors.admin_password}</p>}
-                {isEditing && <p className="text-neutral-500 text-xs mt-1">Leave blank to keep the current password</p>}
+                {errors.admin_password && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_password}</p>}
+                {isEditing && <p className="text-fg-soft text-xs mt-1">Leave blank to keep the current password</p>}
                 {form.admin_password && (
                   <div className="mt-2">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-neutral-700">Password strength:</span>
+                      <span className="text-xs font-medium text-fg-body">Password strength:</span>
                       <span className={`text-xs font-medium ${
-                        passwordStrength.label === 'Weak' ? 'text-red-600' :
-                        passwordStrength.label === 'Fair' ? 'text-yellow-600' :
-                        passwordStrength.label === 'Good' ? 'text-blue-600' :
-                        'text-green-600'
+                        passwordStrength.label === 'Weak' ? 'text-mark-red-600' :
+                        passwordStrength.label === 'Fair' ? 'text-mark-yellow-600' :
+                        passwordStrength.label === 'Good' ? 'text-mark-blue-600' :
+                        'text-mark-green-600'
                       }`}>{passwordStrength.label}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all duration-300 ${passwordStrength.color}`}
                           style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
                         />
                       </div>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-600 space-y-1">
+                    <div className="mt-2 text-xs text-fg-muted space-y-1">
                       {passwordStrength.feedback.map((item, idx) => (
-                        <div key={idx} className={`flex items-center gap-2 ${item.met ? 'text-neutral-700' : 'text-neutral-500'}`}>
-                          <span className={`w-3 h-3 rounded-full ${item.met ? 'bg-green-500' : 'bg-neutral-300'} inline-block`} />
+                        <div key={idx} className={`flex items-center gap-2 ${item.met ? 'text-fg-body' : 'text-fg-soft'}`}>
+                          <span className={`w-3 h-3 rounded-full ${item.met ? 'bg-fill-green-500' : 'bg-surface-4'} inline-block`} />
                           <span>{item.text}</span>
                         </div>
                       ))}
@@ -821,7 +821,7 @@ export default function SchoolForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                <label className="block text-sm font-medium text-fg-muted mb-1">
                   {isEditing ? 'Confirm New Password' : 'Confirm Password *'}
                 </label>
                 <div className="relative">
@@ -832,22 +832,22 @@ export default function SchoolForm() {
                     onChange={handleChange}
                     required={!isEditing}
                     minLength={8}
-                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-                      errors.admin_password2 || (form.admin_password2 && form.admin_password !== form.admin_password2) ? 'border-red-500' : 'border-neutral-200'
+                    className={`w-full px-3 py-2 pr-10 border rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200 ${
+                      errors.admin_password2 || (form.admin_password2 && form.admin_password !== form.admin_password2) ? 'border-edge-red-500' : 'border-line'
                     }`}
                     placeholder={isEditing ? 'Leave blank to keep current' : ''}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-faint hover:text-fg-muted"
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {errors.admin_password2 && <p className="text-red-500 text-sm mt-1">{errors.admin_password2}</p>}
+                {errors.admin_password2 && <p className="text-mark-red-500 text-sm mt-1">{errors.admin_password2}</p>}
                 {form.admin_password2 && form.admin_password !== form.admin_password2 && (
-                  <p className="text-red-500 text-sm mt-1">Passwords do not match</p>
+                  <p className="text-mark-red-500 text-sm mt-1">Passwords do not match</p>
                 )}
               </div>
             </div>
@@ -855,16 +855,16 @@ export default function SchoolForm() {
         )}
 
         {/* Theme Customization */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Palette className="w-5 h-5 text-neutral-500" />
-            <h3 className="font-semibold text-black">Theme Customization</h3>
+            <Palette className="w-5 h-5 text-fg-soft" />
+            <h3 className="font-semibold text-fg">Theme Customization</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Logo Upload */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-neutral-600 mb-2">
+              <label className="block text-sm font-medium text-fg-muted mb-2">
                 School Logo
               </label>
               <div className="flex items-start gap-4">
@@ -873,19 +873,19 @@ export default function SchoolForm() {
                     <img
                       src={logoPreview}
                       alt="Logo preview"
-                      className="w-24 h-24 object-contain rounded-lg border border-neutral-200 bg-neutral-50"
+                      className="w-24 h-24 object-contain rounded-lg border border-line bg-canvas"
                     />
                     <button
                       type="button"
                       onClick={removeLogo}
-                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      className="absolute -top-2 -right-2 p-1 bg-fill-red-500 text-white rounded-full hover:bg-fill-red-600"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <div className="w-24 h-24 border-2 border-dashed border-neutral-300 rounded-lg flex items-center justify-center bg-neutral-50">
-                    <Building2 className="w-8 h-8 text-neutral-400" />
+                  <div className="w-24 h-24 border-2 border-dashed border-line-strong rounded-lg flex items-center justify-center bg-canvas">
+                    <Building2 className="w-8 h-8 text-fg-faint" />
                   </div>
                 )}
                 <div>
@@ -896,19 +896,19 @@ export default function SchoolForm() {
                       onChange={handleLogoChange}
                       className="hidden"
                     />
-                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg hover:bg-neutral-200 transition">
+                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-surface-2 text-fg-body rounded-lg hover:bg-surface-3 transition">
                       <Upload className="w-4 h-4" />
                       Upload Logo
                     </span>
                   </label>
-                  <p className="text-neutral-500 text-xs mt-2">PNG, JPG up to 2MB. Recommended: 200x200px</p>
+                  <p className="text-fg-soft text-xs mt-2">PNG, JPG up to 2MB. Recommended: 200x200px</p>
                 </div>
               </div>
             </div>
 
             {/* Color Pickers */}
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-2">
+              <label className="block text-sm font-medium text-fg-muted mb-2">
                 Primary Color (Sidebar Top)
               </label>
               <div className="flex items-center gap-3">
@@ -917,21 +917,21 @@ export default function SchoolForm() {
                   name="primary_color"
                   value={form.primary_color}
                   onChange={handleChange}
-                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-neutral-200"
+                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-line"
                 />
                 <input
                   type="text"
                   name="primary_color"
                   value={form.primary_color}
                   onChange={handleChange}
-                  className="flex-1 px-3 py-2 border border-neutral-200 rounded-lg font-mono uppercase text-black"
+                  className="flex-1 px-3 py-2 border border-line rounded-lg font-mono uppercase text-fg"
                   placeholder="#1976D2"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-2">
+              <label className="block text-sm font-medium text-fg-muted mb-2">
                 Secondary Color (Sidebar Bottom)
               </label>
               <div className="flex items-center gap-3">
@@ -940,21 +940,21 @@ export default function SchoolForm() {
                   name="secondary_color"
                   value={form.secondary_color}
                   onChange={handleChange}
-                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-neutral-200"
+                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-line"
                 />
                 <input
                   type="text"
                   name="secondary_color"
                   value={form.secondary_color}
                   onChange={handleChange}
-                  className="flex-1 px-3 py-2 border border-neutral-200 rounded-lg font-mono uppercase text-black"
+                  className="flex-1 px-3 py-2 border border-line rounded-lg font-mono uppercase text-fg"
                   placeholder="#424242"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-2">
+              <label className="block text-sm font-medium text-fg-muted mb-2">
                 Accent Color
               </label>
               <div className="flex items-center gap-3">
@@ -963,14 +963,14 @@ export default function SchoolForm() {
                   name="accent_color"
                   value={form.accent_color}
                   onChange={handleChange}
-                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-neutral-200"
+                  className="w-12 h-12 rounded-lg cursor-pointer border-2 border-line"
                 />
                 <input
                   type="text"
                   name="accent_color"
                   value={form.accent_color}
                   onChange={handleChange}
-                  className="flex-1 px-3 py-2 border border-neutral-200 rounded-lg font-mono uppercase text-black"
+                  className="flex-1 px-3 py-2 border border-line rounded-lg font-mono uppercase text-fg"
                   placeholder="#FFC107"
                 />
               </div>
@@ -978,7 +978,7 @@ export default function SchoolForm() {
 
             {/* Preview */}
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-2">
+              <label className="block text-sm font-medium text-fg-muted mb-2">
                 Sidebar Preview
               </label>
               <div
@@ -1001,11 +1001,11 @@ export default function SchoolForm() {
         </div>
 
         {/* Limits */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
-          <h3 className="font-semibold text-black mb-4">Subscription Limits</h3>
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 sm:p-6">
+          <h3 className="font-semibold text-fg mb-4">Subscription Limits</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 Max Students
               </label>
               <input
@@ -1014,11 +1014,11 @@ export default function SchoolForm() {
                 value={form.max_students}
                 onChange={handleChange}
                 min={1}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-600 mb-1">
+              <label className="block text-sm font-medium text-fg-muted mb-1">
                 Max Instructors
               </label>
               <input
@@ -1027,14 +1027,14 @@ export default function SchoolForm() {
                 value={form.max_instructors}
                 onChange={handleChange}
                 min={1}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-full px-3 py-2 border border-line rounded-lg text-fg focus:outline-none focus:ring-2 focus:ring-edge-indigo-200"
               />
             </div>
           </div>
         </div>
 
         {/* Status & Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 sm:p-6">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -1042,23 +1042,23 @@ export default function SchoolForm() {
                 name="is_active"
                 checked={form.is_active}
                 onChange={handleChange}
-                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                className="w-4 h-4 text-mark-indigo-600 rounded focus:ring-edge-indigo-500"
               />
-              <span className="text-sm text-neutral-700">School is active</span>
+              <span className="text-sm text-fg-body">School is active</span>
             </label>
 
             <div className="flex gap-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => navigate('/superadmin/schools')}
-                className="flex-1 sm:flex-none px-4 py-2 text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition"
+                className="flex-1 sm:flex-none px-4 py-2 text-fg-body bg-surface-2 rounded-lg hover:bg-surface-3 transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving || (form.admin_password && form.admin_password !== form.admin_password2)}
-                className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 sm:flex-none px-4 py-2 bg-fill-indigo-600 text-white rounded-lg hover:bg-fill-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {saving ? (
                   <>
