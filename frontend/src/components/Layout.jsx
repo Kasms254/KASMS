@@ -20,7 +20,7 @@ export default function Layout() {
 
   return (
     <>
-      <div className="min-h-screen flex text-gray-900 dark:text-gray-100">
+      <div className="min-h-screen flex text-gray-900">
         {/* Mobile/Tablet Sidebar Overlay (drawer) */}
         {mobileMenuOpen && (
           <div
