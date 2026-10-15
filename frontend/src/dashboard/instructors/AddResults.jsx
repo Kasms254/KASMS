@@ -3,6 +3,7 @@ import { useLocation } from 'react-router'
 import api, { createResultEditRequest } from '../../lib/api'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
+import ConfirmModal from '../../components/ConfirmModal'
 
 function gradeFromPct(pct) {
   const p = parseFloat(pct)
@@ -163,10 +164,7 @@ export default function AddResults() {
           is_critical: exam.component_is_critical,
           retake_allowed: exam.component_retake_allowed,
         }
-        const subjectId = exam?.subject?.id ?? exam?.subject
-        const subject = subjectsMap[String(subjectId)]
-        const classId = subject?.class_obj?.id || subject?.class_obj || subject?.class_id
-        if (mounted) await loadComponentStudents(String(compId), compInfo, classId)
+        if (mounted) await loadComponentStudents(String(compId), compInfo, { isCurrent: () => mounted })
       } else {
         setLoading(true)
         try {
@@ -481,28 +479,24 @@ export default function AddResults() {
     setComponentPage(1)
   }, [componentSearchTerm, componentSortConfig])
 
-  const loadComponentStudents = useCallback(async (componentId, compInfo, classId) => {
+  // Loads the complete grading sheet (every enrolled student + latest attempt) from the server.
+  // The server derives the class from the component, so reloads never depend on client state.
+  // `preserveEdits` maps student_id -> { marks_obtained, remarks } for unsaved edits to re-apply.
+  // `isCurrent` lets the caller discard a slow response after the user has switched exams.
+  const loadComponentStudents = useCallback(async (componentId, compInfo, { preserveEdits = {}, isCurrent = () => true } = {}) => {
     if (!componentId) { setComponentStudents([]); setComponentInfo(null); return }
     setComponentLoading(true)
     try {
-      setComponentInfo(compInfo || null)
-
-      const [existingResults, classStudentsData] = await Promise.all([
-        api.getComponentResults(`component=${encodeURIComponent(componentId)}`).catch(() => []),
-        classId ? api.getClassEnrolledStudents(classId).catch(() => []) : Promise.resolve([]),
-      ])
-
-      const resultsArr = Array.isArray(existingResults) ? existingResults : []
-      const studentsArr = Array.isArray(classStudentsData) ? classStudentsData : (classStudentsData?.results ?? [])
-
-      // Build a map of latest result per student
-      const resultByStudent = {}
-      resultsArr.forEach(r => {
-        const sid = r.student
-        if (!resultByStudent[sid] || (r.attempt_number > resultByStudent[sid].attempt_number)) {
-          resultByStudent[sid] = r
-        }
-      })
+      const sheet = await api.getComponentGradingSheet(componentId)
+      if (!isCurrent()) return
+      const info = {
+        ...compInfo,
+        name: compInfo?.name ?? sheet.component_name,
+        total_marks: compInfo?.total_marks ?? sheet.total_marks,
+        pass_mark: compInfo?.pass_mark ?? sheet.pass_mark,
+        retake_allowed: compInfo?.retake_allowed ?? sheet.retake_allowed,
+      }
+      setComponentInfo(info)
 
       // Derive effective pass/fail from status, falling back to percentage when status is PENDING
       // (legacy results saved before status computation was added)
@@ -511,66 +505,37 @@ export default function AddResults() {
         if (r.status === 'PASS') return false
         // PENDING — infer from percentage vs pass_mark
         const pct = r.percentage != null ? parseFloat(r.percentage) : null
-        const passMark = compInfo?.pass_mark != null ? parseFloat(compInfo.pass_mark) : null
+        const passMark = info.pass_mark != null ? parseFloat(info.pass_mark) : null
         if (pct != null && passMark != null) return pct < passMark
         return false
       }
 
-      // Merge: all enrolled students, with existing result data if available
-      const merged = studentsArr.map(st => {
-        const r = resultByStudent[st.id] || {}
+      const rows = (Array.isArray(sheet?.results) ? sheet.results : []).map(row => {
+        const r = row.result || {}
         // Only treat as graded if a result record exists WITH marks entered
         const hasResult = !!r.id && r.marks_obtained != null
-        const nextAttempt = (r.attempt_number || 0) + 1
-        const isRetake = hasResult
-        // Allow entry: first time (no result/marks), OR retake allowed AND student failed
-        const canEnter = !hasResult || (
-          compInfo?.retake_allowed &&
-          effectivelyFailed(r)
-        )
+        const canEnter = !hasResult || (info.retake_allowed && effectivelyFailed(r))
+        const edit = canEnter ? preserveEdits[row.student_id] : undefined
         return {
           id: r.id || null,
-          student_id: st.id,
-          student_name: st.full_name || `${st.first_name || ''} ${st.last_name || ''}`.trim() || r.student_name || '',
-          student_svc_number: st.svc_number || r.student_svc_number || '',
-          class_index: st.index_number || r.index_number || '',
+          student_id: row.student_id,
+          student_name: row.student_name || '',
+          student_svc_number: row.student_svc_number || '',
+          class_index: row.index_number || '',
           // Current (existing) result — shown read-only (only when marks are actually entered)
           current_marks: hasResult ? r.marks_obtained : null,
           current_percentage: hasResult ? (r.percentage ?? null) : null,
           current_status: hasResult ? (r.status || 'PENDING') : null,
+          // Latest attempt the server knows about; sent back on save so stale rows are rejected
           current_attempt: r.attempt_number || 0,
+          current_version: r.version || '',
           // Entry fields — pre-fill with saved values so the input shows existing marks
-          next_attempt: nextAttempt,
-          is_retake: isRetake,
-          can_enter: canEnter,
-          marks_obtained: hasResult ? normalizeNumberForInput(r.marks_obtained) : '',
-          remarks: r.remarks || '',
-          dirty: false,
-          errors: {},
-        }
-      })
-
-      // If no enrolled students found, fall back to existing results only
-      const rows = merged.length > 0 ? merged : resultsArr.map(r => {
-        const hasResult = !!r.id && r.marks_obtained != null
-        const nextAttempt = (r.attempt_number || 0) + 1
-        const canEnter = !hasResult || (compInfo?.retake_allowed && effectivelyFailed(r))
-        return {
-          id: r.id || null,
-          student_id: r.student,
-          student_name: r.student_name || '',
-          student_svc_number: r.student_svc_number || '',
-          class_index: r.index_number || '',
-          current_marks: hasResult ? r.marks_obtained : null,
-          current_percentage: r.percentage ?? null,
-          current_status: r.status || null,
-          current_attempt: r.attempt_number || 0,
-          next_attempt: nextAttempt,
+          next_attempt: (r.attempt_number || 0) + 1,
           is_retake: hasResult,
           can_enter: canEnter,
-          marks_obtained: hasResult ? normalizeNumberForInput(r.marks_obtained) : '',
-          remarks: r.remarks || '',
-          dirty: false,
+          marks_obtained: edit ? edit.marks_obtained : (hasResult ? normalizeNumberForInput(r.marks_obtained) : ''),
+          remarks: edit ? edit.remarks : (r.remarks || ''),
+          dirty: !!edit,
           errors: {},
         }
       })
@@ -579,7 +544,7 @@ export default function AddResults() {
     } catch (err) {
       toast.error(err?.message || 'Failed to load component results')
     } finally {
-      setComponentLoading(false)
+      if (isCurrent()) setComponentLoading(false)
     }
   }, [toast])
 
@@ -618,13 +583,30 @@ export default function AddResults() {
 
     const payload = {
       component_id: activeComponentId,
-      results: dirtyRows.map(r => ({ student_id: r.student_id, marks_obtained: Number(r.marks_obtained), remarks: r.remarks || '' })),
+      results: dirtyRows.map(r => ({
+        student_id: r.student_id,
+        marks_obtained: Number(r.marks_obtained),
+        remarks: r.remarks || '',
+        expected_latest_attempt: r.current_attempt,
+        expected_version: r.current_version,
+      })),
     }
     setComponentSaving(true)
     try {
-      await api.bulkGradeComponentResults(payload)
-      toast.success(`${dirtyRows.length} result(s) saved`)
-      await loadComponentStudents(activeComponentId, componentInfo, null)
+      const res = await api.bulkGradeComponentResults(payload)
+      const saved = (res?.created || 0) + (res?.updated || 0)
+      const rowErrors = Array.isArray(res?.errors) ? res.errors : []
+      // Keep unsaved input for rows the server rejected so nothing is silently lost
+      const preserveEdits = {}
+      rowErrors.forEach(e => {
+        const row = dirtyRows.find(r => String(r.student_id) === String(e.student_id))
+        if (row) preserveEdits[row.student_id] = { marks_obtained: row.marks_obtained, remarks: row.remarks }
+      })
+      if (saved > 0) toast.success(`${saved} result(s) saved`)
+      if (rowErrors.length > 0) {
+        toast.error(`${rowErrors.length} result(s) not saved: ${rowErrors[0].error}`)
+      }
+      await loadComponentStudents(activeComponentId, componentInfo, { preserveEdits })
     } catch (err) {
       const d = err?.data
       if (d && typeof d === 'object') {
@@ -637,7 +619,21 @@ export default function AddResults() {
     }
   }
 
-  const hasChanges = results.some(r => r.dirty)
+  const hasChanges = results.some(r => r.dirty) || componentStudents.some(r => r.dirty)
+
+  // Exam the user picked while holding unsaved edits; switching waits for confirmation
+  const [pendingExamSwitch, setPendingExamSwitch] = useState(null)
+
+  function switchExam(examId) {
+    setSelectedExam(examId)
+    setSearchTerm('')
+    setSortConfig({ key: null, direction: 'asc' })
+  }
+
+  function requestExamSwitch(examId) {
+    if (hasChanges) setPendingExamSwitch(examId)
+    else switchExam(examId)
+  }
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -663,11 +659,7 @@ export default function AddResults() {
         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Exam</label>
         <select
           value={selectedExam}
-          onChange={e => {
-            setSelectedExam(e.target.value)
-            setSearchTerm('')
-            setSortConfig({ key: null, direction: 'asc' })
-          }}
+          onChange={e => requestExamSwitch(e.target.value)}
           className="w-full p-2 sm:p-2.5 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
           <option value="">-- Select an exam --</option>
@@ -679,6 +671,17 @@ export default function AddResults() {
           ))}
         </select>
       </div>
+
+      <ConfirmModal
+        open={pendingExamSwitch !== null}
+        title="Discard unsaved grades?"
+        message="You have marks or remarks that have not been saved. Switching exams will discard them."
+        confirmLabel="Discard and switch"
+        cancelLabel="Stay on this exam"
+        confirmVariant="danger"
+        onConfirm={() => { switchExam(pendingExamSwitch); setPendingExamSwitch(null) }}
+        onCancel={() => setPendingExamSwitch(null)}
+      />
 
       {/* ── Component Grading Section (POLICY exams) ── */}
       {examGradingMode === 'POLICY' && (
@@ -798,7 +801,7 @@ export default function AddResults() {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
-                      onClick={() => loadComponentStudents(activeComponentId, componentInfo, null)}
+                      onClick={() => loadComponentStudents(activeComponentId, componentInfo)}
                       className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition whitespace-nowrap"
                     >
                       Refresh

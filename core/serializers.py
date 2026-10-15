@@ -1347,6 +1347,10 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
         )
+        # The (student, component, attempt_number) uniqueness check would run against
+        # client-supplied attempt_number before the server derives it. The view derives the
+        # attempt under row locks; the DB constraint is the final safeguard (-> 409).
+        validators = []
 
     def get_index_number(self, obj):
         try:

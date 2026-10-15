@@ -21,7 +21,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from .permissions import( IsAdmin, IsAdminOrInstructor, IsInstructor, IsInstructorofClass,IsCommandantOrChiefInstructor,
-                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor,
+                            IsStudent,IsInstructorOfClassOrAdmin, IsInstructorOfSubject, IsAdminOnly, IsHOD, IsHODOfDepartment, IsHODOrAdmin, BelongsToSameSchool, ReadOnlyForCommandantOrChiefInstructor, ReadOnlyForCommandantAndChiefInstructor,
                             CertificateCapability, RequiresCertificateCapability)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import serializers
@@ -37,7 +37,7 @@ from django.db import transaction
 from rest_framework.permissions import BasePermission
 from rest_framework.throttling import UserRateThrottle
 from .managers import get_current_school
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, APIException
 from django.contrib.auth.password_validation import validate_password as django_validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin, ListModelMixin
@@ -2553,7 +2553,10 @@ class ExamViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
         })
 
 
-    @action(detail=True, methods=['post'])
+    # Writes ExamResult/StudentComponentResult rows: commandant/chief instructor stay read-only.
+    @action(detail=True, methods=['post'], permission_classes=[
+        IsAuthenticated, IsAdminOrInstructor, ReadOnlyForCommandantAndChiefInstructor,
+    ])
     def generate_results(self, request, pk=None):
         exam = self.get_object()
         class_obj = exam.subject.class_obj
@@ -6844,6 +6847,24 @@ class ResultEditRequestViewSet(viewsets.ModelViewSet):
                 )
 
         with transaction.atomic():
+            edit_request = ResultEditRequest.all_objects.select_for_update().get(pk=edit_request.pk)
+            if edit_request.status != ResultEditRequest.Status.PENDING:
+                return Response(
+                    {'detail': f'Request is already {edit_request.status}.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if action_choice == 'approve' and edit_request.component_result_id:
+                # Same staleness rule as the grading endpoints: never overwrite a result
+                # that changed after the request was made.
+                comp_result = StudentComponentResult.all_objects.select_for_update().get(
+                    pk=edit_request.component_result_id,
+                )
+                if comp_result.updated_at > edit_request.created_at:
+                    return Response(
+                        {'detail': 'This result changed after the edit request was made. '
+                                   'Reject this request and submit a new one.'},
+                        status=status.HTTP_409_CONFLICT
+                    )
             if action_choice == 'approve':
                 edit_request.approve(hod_user=request.user, note=note)
                 msg = 'Request approved. The result is now unlocked for editing.'
@@ -7084,15 +7105,23 @@ class BiometricUserMappingViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOnly]
     filterset_fields = ['device', 'student', 'is_active']
 
-class AssessmentComponentViewSet(AuditedUpdateMixin, viewsets.ModelViewSet):
+class AssessmentComponentViewSet(AuditedUpdateMixin, AuditedDestroyMixin, viewsets.ModelViewSet):
 
     audit_update_action = AuditAction.UPDATE
     audit_tracked_fields = ('weight', 'pass_mark', 'is_critical')
+    audit_delete_action = AuditAction.DELETE
     queryset = AssessmentComponent.objects.select_related(
         'subject', 'subject__class_obj'
     ).all()
     serializer_class = AssessmentComponentSerializer
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def get_permissions(self):
+        # Deleting a component cascades to every StudentComponentResult on it, so it is
+        # an administrative operation (graded results change via ResultEditRequest).
+        if self.action == 'destroy':
+            return [IsAuthenticated(), IsAdmin()]
+        return super().get_permissions()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['subject', 'component_type', 'is_critical', 'is_active']
     search_fields = ['name', 'subject__name']
@@ -7185,13 +7214,20 @@ class AssessmentComponentViewSet(AuditedUpdateMixin, viewsets.ModelViewSet):
             'remaining': float(100 - (total['total_weight'] or 0)),
         })
  
-class StudentComponentResultViewSet(viewsets.ModelViewSet):
+class ComponentResultConflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = 'This result was changed since you loaded it. Reload and try again.'
+    default_code = 'conflict'
 
+
+class StudentComponentResultViewSet(AuditedDestroyMixin, viewsets.ModelViewSet):
+
+    audit_delete_action = AuditAction.DELETE
     queryset = StudentComponentResult.objects.select_related(
         'component', 'component__subject', 'student', 'graded_by'
     ).all()
     serializer_class = StudentComponentResultSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor, ReadOnlyForCommandantAndChiefInstructor]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['component', 'student', 'status', 'is_retake', 'is_submitted']
     search_fields = ['student__first_name', 'student__last_name', 'student__svc_number']
@@ -7225,68 +7261,184 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
         return queryset
  
     def perform_create(self, serializer):
+        """
+        Create one attempt. School, attempt_number, is_retake and grader fields are derived
+        server-side; the student must be actively enrolled in the component's class, and a
+        retake is only created under the component's retake policy (see _retake_block_reason).
+        Optional ``expected_version`` (latest attempt's version, '' if none) rejects stale retakes.
+        """
+        from django.db import IntegrityError
+
         school = get_current_school()
         if not school and self.request.user.school:
             school = self.request.user.school
- 
+
         if not school:
             raise ValidationError({'school': 'Unable to determine school.'})
- 
+
         component = serializer.validated_data.get('component')
         student = serializer.validated_data.get('student')
- 
+
         # Verify component belongs to same school
         if component.school != school:
             raise ValidationError({
                 'component': 'Component does not belong to your school.'
             })
- 
-        if not student.school_memberships.filter(school=school, status='active').exists():
-            raise ValidationError({
-                'student': 'Student has no active membership at this school.'
-            })
- 
+
         # Instructor permission check
         if self.request.user.role == 'instructor':
             if component.subject.instructor != self.request.user:
                 raise ValidationError({
                     'component': 'You can only grade components for subjects you teach.'
                 })
- 
-        existing_attempts = StudentComponentResult.all_objects.filter(
-            student=student, component=component,
-        ).count()
-        attempt_number = existing_attempts + 1
-        is_retake = attempt_number > 1
- 
-        # Validate retake eligibility
-        if is_retake:
-            if not component.retake_allowed:
-                raise ValidationError({
-                    'component': 'Retakes are not allowed for this component.'
-                })
+
+        if not self._eligible_students(component).filter(pk=student.pk).exists():
+            raise ValidationError({
+                'student': "Student is not actively enrolled in this component's class.",
+            })
+
+        try:
+            with transaction.atomic():
+                # Same lock order as bulk_grade: component, then the student's attempts.
+                AssessmentComponent.all_objects.select_for_update().get(pk=component.pk)
+                attempts = list(
+                    StudentComponentResult.all_objects.select_for_update().filter(
+                        student=student, component=component,
+                    ).order_by('-attempt_number')
+                )
+                latest = attempts[0] if attempts else None
+
+                if (
+                    'expected_version' in self.request.data
+                    and (self.request.data.get('expected_version') or '') != self._result_version(latest)
+                ):
+                    raise ComponentResultConflict()
+
+                if latest is not None:
+                    retake_error = self._retake_block_reason(component, attempts)
+                    if retake_error:
+                        raise ValidationError({'component': retake_error})
+
+                attempt_number = (latest.attempt_number + 1) if latest else 1
+                has_marks = serializer.validated_data.get('marks_obtained') is not None
+                result = serializer.save(
+                    school=school,
+                    attempt_number=attempt_number,
+                    is_retake=attempt_number > 1,
+                    graded_by=self.request.user,
+                    graded_at=timezone.now() if has_marks else None,
+                    is_submitted=has_marks,
+                    submitted_at=timezone.now() if has_marks else None,
+                )
+        except IntegrityError:
+            raise ComponentResultConflict()
+
+        if has_marks:
+            audit_event(
+                AuditAction.MARKS_CHANGED, request=self.request, target=result,
+                changes={'marks_obtained': {'old': None, 'new': result.marks_obtained}},
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Only admins/superadmins may delete a result (no UI deletes results). Instructors
+        change graded results through ResultEditRequest; deleting and re-entering would
+        bypass that. Optional ``?expected_version=`` turns a stale delete into 409.
+        """
+        if request.user.role not in ('admin', 'superadmin'):
+            return Response(
+                {'error': 'Only administrators can delete component results. '
+                          'Submit a ResultEditRequest to change a graded result.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        instance = self.get_object()
+        with transaction.atomic():
+            locked = StudentComponentResult.all_objects.select_for_update().get(pk=instance.pk)
+            expected_version = request.query_params.get('expected_version')
+            if expected_version is not None and expected_version != self._result_version(locked):
+                raise ComponentResultConflict()
+            self.perform_destroy(locked)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # A direct edit may only change these fields; an existing attempt's identity is fixed.
+    EDITABLE_FIELDS_ON_UPDATE = {'marks_obtained', 'remarks'}
+
+    def update(self, request, *args, **kwargs):
+        """
+        Direct edit (PUT/PATCH) of one existing attempt. Never creates, moves or renumbers
+        attempts; retakes go through bulk_grade/create. Instructors may only enter marks on
+        an ungraded attempt of an actively enrolled student: graded results are changed via
+        ResultEditRequest (HOD/admin approval). Optional ``expected_version`` (from
+        grading_sheet) turns a stale edit into 409 instead of overwriting a newer change.
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        if not isinstance(request.data, dict):
+            return Response(
+                {'error': 'Request body must be a JSON object.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            locked = StudentComponentResult.all_objects.select_for_update().get(pk=instance.pk)
+            locked.component = instance.component
+            locked.student = instance.student
+
             if (
-                component.max_retake_attempts > 0
-                and existing_attempts >= component.max_retake_attempts
+                'expected_version' in request.data
+                and (request.data.get('expected_version') or '') != self._result_version(locked)
             ):
-                raise ValidationError({
-                    'component': (
-                        f'Maximum retake attempts ({component.max_retake_attempts}) '
-                        f'reached for this component.'
-                    ),
-                })
- 
-        has_marks = serializer.validated_data.get('marks_obtained') is not None
-        serializer.save(
-            school=school,
-            attempt_number=attempt_number,
-            is_retake=is_retake,
-            graded_by=self.request.user,
-            graded_at=timezone.now() if has_marks else None,
-            is_submitted=has_marks,
-            submitted_at=timezone.now() if has_marks else None,
-        )
- 
+                return Response(
+                    {'error': 'This result was changed since you loaded it. Reload and try again.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            if request.user.role == 'instructor':
+                if locked.marks_obtained is not None:
+                    return Response(
+                        {'error': 'This result is already graded. Submit a ResultEditRequest '
+                                  'and wait for HOD approval before editing.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if not self._eligible_students(locked.component).filter(pk=locked.student_id).exists():
+                    return Response(
+                        {'error': 'Student is not actively enrolled in this class.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+            serializer = self.get_serializer(locked, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+
+            immutable_changes = {
+                field: 'This field cannot be changed on an existing result.'
+                for field, value in serializer.validated_data.items()
+                if field not in self.EDITABLE_FIELDS_ON_UPDATE and getattr(locked, field) != value
+            }
+            if immutable_changes:
+                raise ValidationError(immutable_changes)
+
+            save_kwargs = {}
+            if 'marks_obtained' in serializer.validated_data:
+                if serializer.validated_data['marks_obtained'] is None and locked.marks_obtained is not None:
+                    raise ValidationError({'marks_obtained': 'Marks cannot be cleared on a graded result.'})
+                save_kwargs = {'graded_by': request.user, 'graded_at': timezone.now()}
+                if not locked.is_submitted and serializer.validated_data['marks_obtained'] is not None:
+                    save_kwargs.update(is_submitted=True, submitted_at=timezone.now())
+
+            previous_marks = locked.marks_obtained
+            result = serializer.save(**save_kwargs)
+
+        if result.marks_obtained != previous_marks:
+            audit_event(
+                AuditAction.MARKS_CHANGED, request=request, target=result,
+                changes={'marks_obtained': {'old': previous_marks, 'new': result.marks_obtained}},
+            )
+
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def by_student_subject(self, request):
 
@@ -7335,153 +7487,372 @@ class StudentComponentResultViewSet(viewsets.ModelViewSet):
             'retake_requirements': retake_info,
         })
  
+    def _get_gradable_component(self, request, component_id):
+        """
+        Resolve a component the requesting user may grade.
+        Returns (component, None) or (None, error_response).
+        """
+        try:
+            comp = AssessmentComponent.all_objects.select_related(
+                'subject', 'subject__class_obj',
+            ).get(id=component_id, school=request.user.school)
+        except (AssessmentComponent.DoesNotExist, DjangoValidationError, ValueError):
+            return None, Response(
+                {'error': 'Component not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if request.user.role == 'instructor' and comp.subject.instructor_id != request.user.id:
+            return None, Response(
+                {'error': 'You can only grade components for subjects you teach.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return comp, None
+
+    @staticmethod
+    def _eligible_students(comp):
+        """Students actively enrolled in the component's class with an active membership in its school."""
+        enrolled_student_ids = Enrollment.all_objects.filter(
+            class_obj_id=comp.subject.class_obj_id,
+            is_active=True,
+        ).values('student_id')
+
+        return User.all_objects.filter(
+            id__in=enrolled_student_ids,
+            role='student',
+            is_active=True,
+            school_memberships__school=comp.school,
+            school_memberships__status='active',
+        ).distinct()
+
+    @staticmethod
+    def _parse_non_negative_int(value):
+        """Strict integer parsing: ints and digit strings only (rejects bools and floats like 1.9)."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if value >= 0 else None
+        if isinstance(value, str) and value.isascii() and value.isdigit():
+            return int(value)
+        return None
+
+    @staticmethod
+    def _result_version(result):
+        """Opaque token for the exact saved state of a result row ('' when there is none)."""
+        if result is None:
+            return ''
+        return f'{result.pk}:{result.updated_at.isoformat()}'
+
+    @staticmethod
+    def _retake_block_reason(comp, attempts):
+        """
+        Why a new attempt may not be created, or None when a retake is allowed.
+        Mirrors core.services.determine_retake_requirements: the effective graded attempt
+        (latest, or best when retake_evaluation='best') must have failed, the component must
+        allow retakes and the attempt limit must not be reached. ``attempts`` is every
+        existing attempt for the student, latest first. Only FAIL/RETAKE_REQUIRED count as
+        failed (a PENDING row with marks never comes from Model.save()).
+        """
+        if not comp.retake_allowed:
+            return 'Retakes not allowed; student already has a graded attempt.'
+
+        graded = [a for a in attempts if a.is_submitted and a.marks_obtained is not None]
+        if not graded or graded[0] is not attempts[0]:
+            return 'The latest attempt has not been graded yet; enter marks on it instead.'
+
+        if comp.retake_evaluation == 'best':
+            effective = max(graded, key=lambda a: a.percentage if a.percentage is not None else -1)
+        else:
+            effective = graded[0]
+
+        if effective.status not in ('FAIL', 'RETAKE_REQUIRED'):
+            return 'Retake not allowed: the student has passed this component.'
+
+        if comp.max_retake_attempts > 0 and len(attempts) >= comp.max_retake_attempts:
+            return f'Maximum retake attempts ({comp.max_retake_attempts}) reached.'
+
+        return None
+
+    @staticmethod
+    def _parse_marks(raw_marks, total_marks):
+        """Return (Decimal marks, None) or (None, error message)."""
+        from decimal import Decimal, InvalidOperation
+
+        if raw_marks is None or raw_marks == '':
+            return None, 'marks_obtained is required'
+        if isinstance(raw_marks, bool) or not isinstance(raw_marks, (int, float, str)):
+            return None, 'Marks must be a number.'
+        try:
+            marks = Decimal(str(raw_marks).strip())
+        except InvalidOperation:
+            return None, 'Marks must be a number.'
+        if not marks.is_finite():
+            return None, 'Marks must be a number.'
+        if marks < 0:
+            return None, 'Marks cannot be negative.'
+        if marks > total_marks:
+            return None, f'Marks ({marks}) exceed total marks ({total_marks}).'
+        if marks.as_tuple().exponent < -2:
+            return None, 'Marks can have at most 2 decimal places.'
+        return marks, None
+
+    @action(detail=False, methods=['get'])
+    def grading_sheet(self, request):
+        """
+        Complete grading sheet for one component: one row per eligible student
+        (active enrolment in the component's class) with their latest attempt.
+
+        Unpaginated by design, like MarksEntryViewSet.exam_results: the sheet is
+        bounded by a single class roster and the client needs every row to know
+        who is still ungraded. The generic list endpoint stays paginated.
+        """
+        component_id = request.query_params.get('component')
+        if not component_id:
+            return Response(
+                {'error': 'component parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        comp, error_response = self._get_gradable_component(request, component_id)
+        if error_response:
+            return error_response
+
+        students = list(
+            self._eligible_students(comp)
+            .only('id', 'first_name', 'last_name', 'svc_number')
+            .order_by('first_name', 'last_name', 'id')
+        )
+        student_ids = [student.id for student in students]
+
+        latest_by_student = {}
+        for result in StudentComponentResult.all_objects.filter(
+            component=comp,
+            school=comp.school,
+            student_id__in=student_ids,
+        ).order_by('student_id', '-attempt_number'):
+            latest_by_student.setdefault(result.student_id, result)
+
+        class_obj = comp.subject.class_obj
+        index_map = {}
+        if class_obj is not None:
+            for student_index in StudentIndex.all_objects.filter(
+                class_obj=class_obj,
+                enrollment__is_active=True,
+            ).select_related('enrollment'):
+                try:
+                    index_map[student_index.enrollment.student_id] = class_obj.format_index(
+                        int(student_index.index_number)
+                    )
+                except (ValueError, TypeError):
+                    pass
+
+        rows = []
+        graded_count = 0
+        for student in students:
+            result = latest_by_student.get(student.id)
+            if result is not None and result.marks_obtained is not None:
+                graded_count += 1
+            rows.append({
+                'student_id': student.id,
+                'student_name': student.get_full_name(),
+                'student_svc_number': student.svc_number,
+                'index_number': index_map.get(student.id),
+                'result': None if result is None else {
+                    'id': result.id,
+                    'attempt_number': result.attempt_number,
+                    'marks_obtained': result.marks_obtained,
+                    'percentage': result.percentage,
+                    'status': result.status,
+                    'remarks': result.remarks,
+                    'is_submitted': result.is_submitted,
+                    'version': self._result_version(result),
+                },
+            })
+
+        return Response({
+            'component_id': comp.id,
+            'component_name': comp.name,
+            'total_marks': comp.total_marks,
+            'pass_mark': comp.pass_mark,
+            'retake_allowed': comp.retake_allowed,
+            'max_retake_attempts': comp.max_retake_attempts,
+            'count': len(rows),
+            'graded_count': graded_count,
+            'pending_count': len(rows) - graded_count,
+            'results': rows,
+        })
+
     @action(detail=False, methods=['post'])
     def bulk_grade(self, request):
+        """
+        Grade any subset of a component's students in one request.
+
+        The save scope is whatever rows the client sends (it is independent of
+        UI pagination); every row is validated against the component's class
+        roster. Optional per-row ``expected_latest_attempt`` (0 = ungraded) and
+        ``expected_version`` (from grading_sheet, '' = ungraded) reject rows whose
+        server state changed since the client loaded them, instead of silently
+        creating a retake attempt or overwriting a newer result.
+        """
+        from django.db import IntegrityError
+
+        if not isinstance(request.data, dict):
+            return Response(
+                {'error': 'Request body must be a JSON object.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         component_id = request.data.get('component_id')
         results_data = request.data.get('results', [])
- 
+
         if not component_id:
             return Response(
                 {'error': 'component_id is required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
-        if not results_data:
+
+        if not isinstance(results_data, list) or not results_data:
             return Response(
                 {'error': 'results array is required and cannot be empty'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
-        try:
-            comp = AssessmentComponent.all_objects.get(
-                id=component_id,
-                school=request.user.school,
-            )
-        except AssessmentComponent.DoesNotExist:
-            return Response(
-                {'error': 'Component not found.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
- 
-        if request.user.role == 'instructor' and comp.subject.instructor != request.user:
-            return Response(
-                {'error': 'You can only grade components for subjects you teach.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
- 
+
+        comp, error_response = self._get_gradable_component(request, component_id)
+        if error_response:
+            return error_response
+
+        eligible_students = {student.id: student for student in self._eligible_students(comp)}
+
         created_count = 0
         updated_count = 0
         errors = []
- 
-        with transaction.atomic():
-            for item in results_data:
-                student_id = item.get('student_id')
-                marks = item.get('marks_obtained')
- 
-                if marks is None:
-                    errors.append({
-                        'student_id': student_id,
-                        'error': 'marks_obtained is required',
-                    })
-                    continue
- 
-                try:
-                    student_obj = User.all_objects.get(
-                        pk=student_id,
-                        school_memberships__school=request.user.school,
-                        school_memberships__status='active',
-                    )
-                except User.DoesNotExist:
-                    errors.append({
-                        'student_id': student_id,
-                        'error': 'Student not found in your school.',
-                    })
-                    continue
- 
-                if float(marks) > comp.total_marks:
-                    errors.append({
-                        'student_id': student_id,
-                        'error': f'Marks ({marks}) exceed total marks ({comp.total_marks}).',
-                    })
-                    continue
- 
-                if float(marks) < 0:
-                    errors.append({
-                        'student_id': student_id,
-                        'error': 'Marks cannot be negative.',
-                    })
-                    continue
- 
-                existing = StudentComponentResult.all_objects.filter(
-                    student=student_obj, component=comp,
-                ).order_by('-attempt_number')
+        seen_student_ids = set()
 
-                pct = (float(marks) / comp.total_marks * 100) if comp.total_marks else 0
-                computed_status = 'PASS' if pct >= float(comp.pass_mark) else 'FAIL'
+        try:
+            with transaction.atomic():
+                # Serialise concurrent bulk saves on this component so attempt numbers cannot race.
+                AssessmentComponent.all_objects.select_for_update().get(pk=comp.pk)
 
-                latest = existing.first()
-                if latest and not latest.is_submitted:
-                    latest.marks_obtained = marks
-                    latest.percentage = pct
-                    latest.status = computed_status
-                    latest.remarks = item.get('remarks', '')
-                    latest.graded_by = request.user
-                    latest.graded_at = timezone.now()
-                    latest.is_submitted = True
-                    latest.submitted_at = timezone.now()
-                    latest.save()
-                    updated_count += 1
-                else:
-                    attempt_number = (latest.attempt_number + 1) if latest else 1
-                    is_retake = attempt_number > 1
+                attempts_by_student = {}
+                # Row locks stop single-result edits from changing these attempts mid-save.
+                for existing_result in StudentComponentResult.all_objects.select_for_update().filter(
+                    component=comp,
+                    student_id__in=list(eligible_students),
+                ).order_by('student_id', '-attempt_number'):
+                    attempts_by_student.setdefault(existing_result.student_id, []).append(existing_result)
 
-                    if is_retake and not comp.retake_allowed:
+                for item in results_data:
+                    if not isinstance(item, dict):
+                        errors.append({'student_id': None, 'error': 'Each result must be an object.'})
+                        continue
+
+                    student_id = item.get('student_id')
+                    student_obj = eligible_students.get(self._parse_non_negative_int(student_id))
+
+                    if student_obj is None:
                         errors.append({
                             'student_id': student_id,
-                            'error': 'Retakes not allowed; student already has a graded attempt.',
+                            'error': 'Student is not actively enrolled in this class.',
                         })
                         continue
 
-                    if (
-                        is_retake
-                        and comp.max_retake_attempts > 0
-                        and existing.count() >= comp.max_retake_attempts
-                    ):
+                    if student_obj.id in seen_student_ids:
                         errors.append({
                             'student_id': student_id,
-                            'error': (
-                                f'Maximum retake attempts ({comp.max_retake_attempts}) '
-                                f'reached.'
-                            ),
+                            'error': 'Duplicate entry for this student in the same request.',
+                        })
+                        continue
+                    seen_student_ids.add(student_obj.id)
+
+                    marks, marks_error = self._parse_marks(item.get('marks_obtained'), comp.total_marks)
+                    if marks_error:
+                        errors.append({'student_id': student_id, 'error': marks_error})
+                        continue
+
+                    remarks = item.get('remarks') or ''
+                    if not isinstance(remarks, str):
+                        errors.append({'student_id': student_id, 'error': 'Remarks must be text.'})
+                        continue
+
+                    attempts = attempts_by_student.get(student_obj.id, [])
+                    latest = attempts[0] if attempts else None
+                    latest_attempt_number = latest.attempt_number if latest else 0
+
+                    raw_expected_attempt = item.get('expected_latest_attempt')
+                    expected_latest_attempt = self._parse_non_negative_int(raw_expected_attempt)
+                    if raw_expected_attempt is not None and expected_latest_attempt is None:
+                        errors.append({
+                            'student_id': student_id,
+                            'error': 'expected_latest_attempt must be an integer.',
                         })
                         continue
 
-                    StudentComponentResult.all_objects.create(
-                        school=request.user.school,
-                        component=comp,
-                        student=student_obj,
-                        attempt_number=attempt_number,
-                        is_retake=is_retake,
-                        marks_obtained=marks,
-                        percentage=pct,
-                        status=computed_status,
-                        remarks=item.get('remarks', ''),
-                        graded_by=request.user,
-                        graded_at=timezone.now(),
-                        is_submitted=True,
-                        submitted_at=timezone.now(),
+                    is_stale = (
+                        (expected_latest_attempt is not None and expected_latest_attempt != latest_attempt_number)
+                        or ('expected_version' in item and (item.get('expected_version') or '') != self._result_version(latest))
                     )
-                    created_count += 1
+                    if is_stale:
+                        errors.append({
+                            'student_id': student_id,
+                            'error': 'This result was changed since you loaded it. Reload and try again.',
+                        })
+                        continue
 
-        audit_event(
-            AuditAction.BULK_MARKS_CHANGED, request=request, school=request.user.school,
-            metadata={
-                'model': 'StudentComponentResult', 'component_id': str(comp.id),
-                'created_count': created_count, 'updated_count': updated_count,
-                'error_count': len(errors),
-            },
-        )
+                    pct = (float(marks) / comp.total_marks * 100) if comp.total_marks else 0
+                    computed_status = 'PASS' if pct >= float(comp.pass_mark) else 'FAIL'
+
+                    if latest and not latest.is_submitted:
+                        latest.marks_obtained = marks
+                        latest.percentage = pct
+                        latest.status = computed_status
+                        latest.remarks = remarks
+                        latest.graded_by = request.user
+                        latest.graded_at = timezone.now()
+                        latest.is_submitted = True
+                        latest.submitted_at = timezone.now()
+                        latest.save()
+                        updated_count += 1
+                    else:
+                        attempt_number = latest_attempt_number + 1
+                        is_retake = attempt_number > 1
+
+                        retake_error = self._retake_block_reason(comp, attempts) if is_retake else None
+                        if retake_error:
+                            errors.append({'student_id': student_id, 'error': retake_error})
+                            continue
+
+                        StudentComponentResult.all_objects.create(
+                            school=comp.school,
+                            component=comp,
+                            student=student_obj,
+                            attempt_number=attempt_number,
+                            is_retake=is_retake,
+                            marks_obtained=marks,
+                            percentage=pct,
+                            status=computed_status,
+                            remarks=remarks,
+                            graded_by=request.user,
+                            graded_at=timezone.now(),
+                            is_submitted=True,
+                            submitted_at=timezone.now(),
+                        )
+                        created_count += 1
+        except IntegrityError:
+            return Response(
+                {'error': 'Results were changed by another user while saving. Reload and try again.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if created_count or updated_count:
+            audit_event(
+                AuditAction.BULK_MARKS_CHANGED, request=request, school=comp.school,
+                metadata={
+                    'model': 'StudentComponentResult', 'component_id': str(comp.id),
+                    'created_count': created_count, 'updated_count': updated_count,
+                    'error_count': len(errors),
+                },
+            )
 
         return Response({
             'status': 'success',

@@ -122,6 +122,20 @@ class ReadOnlyForCommandant(BasePermission):
 
         return False
 
+class ReadOnlyForCommandantAndChiefInstructor(BasePermission):
+    """
+    Commandant and Chief Instructor may read but never mutate. Other roles are
+    left to the view's remaining permission classes (unlike
+    ReadOnlyForCommandantOrChiefInstructor, which also denies instructors).
+    """
+
+    message = "Commandants and Chief Instructors have read-only access to this resource."
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return getattr(request.user, 'role', None) not in ('commandant', 'chief_instructor')
+
 class BelongsToSameSchool(BasePermission):
 
     message = "You can only access resources from your school."

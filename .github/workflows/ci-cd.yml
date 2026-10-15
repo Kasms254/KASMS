@@ -31,6 +31,12 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      # kasms/settings.py reads these (not DATABASE_URL); they must match the postgres service.
+      DB_NAME: test_db
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+      HOST: localhost
+      PORT: "5432"
       SECRET_KEY: test_secret_key
       DEBUG: True
 
@@ -75,6 +81,13 @@ jobs:
             echo "Waiting for Postgres..."
             sleep 2
           done
+
+      - name: Run grading security regression tests (pytest on the postgres service)
+        env:
+          TEST_DATABASE: postgres
+        run: |
+          pip install -r requirements-dev.txt
+          pytest tests/integration/test_component_grading_sheet.py --no-cov -q -rs
 
       - name: Run Django tests
         run: |

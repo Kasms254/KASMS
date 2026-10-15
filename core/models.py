@@ -2949,3 +2949,302 @@ class UserImportAuditLog(models.Model):
     def delete(self, *args, **kwargs):
         raise ValueError("Audit logs cannot be deleted.")
  
+
+
+# Role requirements assessment (HQ offices listed in HQ KA letter
+# Ref 1826/KACS/5/SYS of 12 Oct 2026). Submissions are recorded by a
+# superadmin on behalf of an office and reviewed by a *different* superadmin.
+# These are HQ-level records, not school (tenant) data, so they carry no school.
+class RoleRequirementSubmission(models.Model):
+
+    class AssessedRole(models.TextChoices):
+        COMD_KA = 'comd_ka', 'Comd KA'
+        DAC = 'dac', 'DAC'
+        COP = 'cop', 'COP'
+        COT = 'cot', 'COT'
+        COL_TRG = 'col_trg', 'Col Trg'
+        COL_PERS = 'col_pers', 'Col Pers'
+        SOI_HRM = 'soi_hrm', 'SOI HRM'
+        SOI_TRG = 'soi_trg', 'SOI Trg'
+        SOII_CP_CSES = 'soii_cp_cses', 'SOII Cp & Cses'
+        SOII_TRG = 'soii_trg', 'SOII Trg'
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        SUBMITTED = 'submitted', 'Submitted'
+        UNDER_REVIEW = 'under_review', 'Under Review'
+        CLARIFICATION_REQUIRED = 'clarification_required', 'Clarification Required'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+        IN_DEVELOPMENT = 'in_development', 'In Development'
+        IMPLEMENTED = 'implemented', 'Implemented'
+        VERIFIED = 'verified', 'Verified'
+
+    class SubmissionType(models.TextChoices):
+        INITIAL = 'initial', 'Initial request'
+        REVISION = 'revision', 'Revision'
+
+    class Frequency(models.TextChoices):
+        DAILY = 'daily', 'Daily'
+        WEEKLY = 'weekly', 'Weekly'
+        MONTHLY = 'monthly', 'Monthly'
+        QUARTERLY = 'quarterly', 'Quarterly'
+        OCCASIONALLY = 'occasionally', 'Occasionally'
+
+    class PreferredInterface(models.TextChoices):
+        EXISTING_PAGE = 'existing_page', 'Existing KASMS page'
+        REGISTER = 'register', 'Searchable table or register'
+        DATA_ENTRY_FORM = 'data_entry_form', 'Data-entry form'
+        APPROVAL_QUEUE = 'approval_queue', 'Approval or review queue'
+        REPORT_EXPORT = 'report_export', 'Report or export'
+        NOTIFICATION = 'notification', 'Notification or alert'
+        DASHBOARD = 'dashboard', 'Dedicated dashboard'
+        OTHER = 'other', 'Other'
+        NOT_SURE = 'not_sure', 'Not sure — requires technical assessment'
+
+    class AccessLevel(models.TextChoices):
+        READ_ONLY = 'read_only', 'Read-only'
+        READ_WRITE = 'read_write', 'Read and write'
+        NOT_SURE = 'not_sure', 'Not sure'
+
+    class YesNoUnsure(models.TextChoices):
+        YES = 'yes', 'Yes'
+        NO = 'no', 'No'
+        NOT_SURE = 'not_sure', 'Not sure'
+
+    class ReviewOutcome(models.TextChoices):
+        EXISTING_SOLVES = 'existing_solves', 'Existing functionality already solves the problem'
+        MINOR_IMPROVEMENT = 'minor_improvement', 'Existing functionality requires a minor improvement'
+        NEW_WORKFLOW = 'new_workflow', 'A new form or workflow is needed'
+        REPORT_EXPORT = 'report_export', 'A report or export is needed'
+        DASHBOARD_JUSTIFIED = 'dashboard_justified', 'A dashboard is justified'
+        FURTHER_INVESTIGATION = 'further_investigation', 'Further investigation is needed'
+        OUT_OF_SCOPE = 'out_of_scope', "Outside the system's intended scope"
+
+    class Priority(models.TextChoices):
+        CRITICAL = 'critical', 'Critical'
+        HIGH = 'high', 'High'
+        MEDIUM = 'medium', 'Medium'
+        LOW = 'low', 'Low'
+
+    # Outcomes that can lead to approval; the others end in rejection or
+    # remain under review / clarification.
+    APPROVABLE_OUTCOMES = {
+        ReviewOutcome.EXISTING_SOLVES,
+        ReviewOutcome.MINOR_IMPROVEMENT,
+        ReviewOutcome.NEW_WORKFLOW,
+        ReviewOutcome.REPORT_EXPORT,
+        ReviewOutcome.DASHBOARD_JUSTIFIED,
+    }
+
+    # Single source of truth for the lifecycle.
+    VALID_TRANSITIONS = {
+        Status.DRAFT: {Status.SUBMITTED},
+        Status.SUBMITTED: {Status.UNDER_REVIEW},
+        Status.UNDER_REVIEW: {Status.CLARIFICATION_REQUIRED, Status.APPROVED, Status.REJECTED},
+        Status.CLARIFICATION_REQUIRED: {Status.SUBMITTED},
+        Status.APPROVED: {Status.IN_DEVELOPMENT},
+        Status.IN_DEVELOPMENT: {Status.IMPLEMENTED},
+        Status.IMPLEMENTED: {Status.VERIFIED},
+        Status.REJECTED: set(),
+        Status.VERIFIED: set(),
+    }
+
+    # Content can only be changed by the recorder while in these states.
+    EDITABLE_STATUSES = {Status.DRAFT, Status.CLARIFICATION_REQUIRED}
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    assessed_role = models.CharField(max_length=20, choices=AssessedRole.choices, db_index=True)
+    status = models.CharField(
+        max_length=30, choices=Status.choices, default=Status.DRAFT, db_index=True,
+    )
+
+    # Section A — stakeholder and role information
+    stakeholder_name = models.CharField(max_length=200, blank=True)
+    stakeholder_designation = models.CharField(max_length=200, blank=True)
+    organizational_unit = models.CharField(max_length=200, blank=True)
+    stakeholder_contact = models.CharField(
+        max_length=200, blank=True,
+        help_text='Optional. Visible only to superadmins; never included in summaries.',
+    )
+    validator_name = models.CharField(max_length=200, blank=True)
+    validator_designation = models.CharField(max_length=200, blank=True)
+    submission_type = models.CharField(
+        max_length=10, choices=SubmissionType.choices, default=SubmissionType.INITIAL,
+    )
+    revises = models.ForeignKey(
+        'self', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='revisions',
+    )
+
+    # Section B — responsibilities and objectives
+    main_responsibilities = models.TextField(blank=True)
+    key_tasks = models.JSONField(default=list, blank=True)
+    decisions_requiring_information = models.TextField(blank=True)
+    time_consuming_activities = models.TextField(blank=True)
+    hard_to_obtain_information = models.TextField(blank=True)
+
+    # Section C — current problem and workflow
+    problem_statement = models.TextField(blank=True)
+    affected_people_processes = models.TextField(blank=True)
+    current_workflow = models.TextField(blank=True)
+    current_tools = models.TextField(blank=True)
+    problem_frequency = models.CharField(max_length=20, choices=Frequency.choices, blank=True)
+    problem_consequences = models.TextField(blank=True)
+    estimated_effort_lost = models.TextField(blank=True)
+    partial_existing_feature = models.TextField(blank=True)
+    recent_example = models.TextField(blank=True)
+
+    # Section D — expected outcomes
+    desired_capability = models.TextField(blank=True)
+    expected_improvement = models.TextField(blank=True)
+    measurable_result = models.TextField(blank=True)
+    success_determination = models.TextField(blank=True)
+    baseline = models.TextField(blank=True)
+
+    # Sections E + I — functional requirements with priority / acceptance criteria
+    capabilities = models.JSONField(default=list, blank=True)
+
+    # Section F — information and reporting needs
+    information_needs = models.JSONField(default=list, blank=True)
+    sample_reports_description = models.TextField(blank=True)
+
+    # Section G — dashboard justification (stakeholder preference, not a decision)
+    preferred_interface = models.CharField(
+        max_length=20, choices=PreferredInterface.choices, blank=True,
+    )
+    preferred_interface_other = models.CharField(max_length=200, blank=True)
+    consolidated_overview_needed = models.BooleanField(default=False)
+    recurring_decisions = models.TextField(blank=True)
+    monitored_indicators = models.TextField(blank=True)
+    indicator_change_frequency = models.CharField(max_length=20, choices=Frequency.choices, blank=True)
+    threshold_actions = models.TextField(blank=True)
+    alternatives_insufficient_reason = models.TextField(blank=True)
+    overview_usage_frequency = models.CharField(max_length=20, choices=Frequency.choices, blank=True)
+
+    # Section H — requested access (stakeholder request, never granted automatically)
+    access_records = models.TextField(blank=True)
+    access_level = models.CharField(max_length=20, choices=AccessLevel.choices, blank=True)
+    access_boundaries = models.JSONField(default=list, blank=True)
+    access_boundary_notes = models.TextField(blank=True)
+    needs_approval_authority = models.CharField(max_length=10, choices=YesNoUnsure.choices, blank=True)
+    needs_cross_unit_aggregates = models.CharField(max_length=10, choices=YesNoUnsure.choices, blank=True)
+    restricted_to_assignments = models.CharField(max_length=10, choices=YesNoUnsure.choices, blank=True)
+    needs_audit_trail = models.CharField(max_length=10, choices=YesNoUnsure.choices, blank=True)
+
+    # Reviewer-owned fields (never writable through the stakeholder form)
+    review_outcome = models.CharField(max_length=30, choices=ReviewOutcome.choices, blank=True)
+    reviewer_priority = models.CharField(max_length=10, choices=Priority.choices, blank=True)
+    approved_acceptance_criteria = models.TextField(blank=True)
+    dashboard_decision_rationale = models.TextField(blank=True)
+    review_notes = models.TextField(blank=True)
+    clarification_request = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+    implementation_reference = models.CharField(max_length=300, blank=True)
+    verification_notes = models.TextField(blank=True)
+    duplicate_of = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='duplicates',
+    )
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='recorded_role_requirements',
+    )
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviewed_role_requirements',
+    )
+    verified_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='verified_role_requirements',
+    )
+    content_version = models.PositiveIntegerField(default=1)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    review_started_at = models.DateTimeField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    development_started_at = models.DateTimeField(null=True, blank=True)
+    implemented_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'role_requirement_submissions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['assessed_role', 'status']),
+            models.Index(fields=['status', 'submitted_at']),
+            models.Index(fields=['created_by', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_assessed_role_display()} requirement [{self.status}]"
+
+    @property
+    def dashboard_requested(self):
+        return (
+            self.preferred_interface == self.PreferredInterface.DASHBOARD
+            or self.consolidated_overview_needed
+        )
+
+    def can_transition_to(self, new_status):
+        return new_status in self.VALID_TRANSITIONS.get(self.status, set())
+
+
+class RoleRequirementAuditLog(models.Model):
+
+    class Action(models.TextChoices):
+        CREATED = 'created', 'Created'
+        UPDATED = 'updated', 'Updated'
+        SUBMITTED = 'submitted', 'Submitted'
+        REVIEW_STARTED = 'review_started', 'Review started'
+        CLARIFICATION_REQUESTED = 'clarification_requested', 'Clarification requested'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+        DEVELOPMENT_STARTED = 'development_started', 'Development started'
+        IMPLEMENTED = 'implemented', 'Implemented'
+        VERIFIED = 'verified', 'Verified'
+        DUPLICATE_LINKED = 'duplicate_linked', 'Linked as duplicate'
+        DUPLICATE_UNLINKED = 'duplicate_unlinked', 'Duplicate link removed'
+        NOTE_ADDED = 'note_added', 'Review note added'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        RoleRequirementSubmission, on_delete=models.CASCADE, related_name='audit_logs',
+    )
+    action = models.CharField(max_length=30, choices=Action.choices)
+    from_status = models.CharField(max_length=30, blank=True)
+    to_status = models.CharField(max_length=30, blank=True)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='role_requirement_audit_logs',
+    )
+    notes = models.TextField(blank=True)
+    changes = models.JSONField(
+        default=dict, blank=True,
+        help_text='For updates after first submission: {field: {"old": ..., "new": ...}}.',
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'role_requirement_audit_logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['submission', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} on {self.submission_id} by {self.performed_by_id}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Audit logs cannot be modified.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Audit logs cannot be deleted.")

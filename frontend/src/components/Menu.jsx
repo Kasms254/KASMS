@@ -40,6 +40,12 @@ const menuItems = [
         href: '/superadmin/stats',
         visible: ['superadmin'],
       },
+      {
+        icon: 'ClipboardList',
+        label: 'Role Requirements',
+        href: '/superadmin/requirements',
+        visible: ['superadmin'],
+      },
       // Admin items
       {
         icon: 'User',

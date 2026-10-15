@@ -51,6 +51,7 @@ from .chief_of_training_views import (
 from .auth_urls import auth_urlpatterns
 from .secure_certificate_verification import SecureCertificatePublicVerificationView
 from .course_report_views import CourseReportViewSet
+from .role_requirement_views import RoleRequirementViewSet
 
 router = DefaultRouter()
 
@@ -153,6 +154,9 @@ router.register(r'biometric-user-mappings', BiometricUserMappingViewSet, basenam
 
 # course-report
 router.register(r'course-reports', CourseReportViewSet, basename='course-report')
+
+# role requirements assessment (HQ offices; superadmin only)
+router.register(r'role-requirements', RoleRequirementViewSet, basename='role-requirement')
 
 def home(request):
     return HttpResponse("Welcome to the KASMS API")
