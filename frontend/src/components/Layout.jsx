@@ -4,6 +4,7 @@ import Menu from './Menu'
 import NavBar from './NavBar'
 import useAuth from '../hooks/useAuth'
 import useTheme from '../hooks/useTheme'
+import { isCotDashboardRole } from '../lib/roles'
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -14,7 +15,7 @@ export default function Layout() {
   const role = user?.is_alumni ? 'alumni' : (user?.role || 'student')
 
   // COT uses maroon; all other roles use their school theme
-  const sidebarStyle = role === 'chief_of_training'
+  const sidebarStyle = isCotDashboardRole(role)
     ? { background: 'linear-gradient(to bottom, #7B1A1A, #4a0f0f)' }
     : { background: `linear-gradient(to bottom, ${theme.primary_color}cc, ${theme.secondary_color}cc)` }
 

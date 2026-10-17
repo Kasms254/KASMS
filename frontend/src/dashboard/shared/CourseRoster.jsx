@@ -227,7 +227,7 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
             const lastName   = r.student?.last_name  || ''
             const name       = `${firstName} ${lastName}`.trim()
             const rank       = formatWordCase(r.student?.rank)
-            const position   = reports.indexOf(r) + 1
+            const position   = r.class_position && r.class_position !== '—' ? r.class_position : null
             const rs         = rosterStatus(r.status)
             const isSelected = r.id === selectedId
             return (
@@ -257,7 +257,7 @@ function RosterSidebar({ reports, selectedId, onSelect, loading }) {
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <RosterBadge status={rs} />
-                      <span className="text-[10px] text-neutral-400">#{position}</span>
+                      {position && <span className="text-[10px] text-neutral-400" title="Class position">#{position}</span>}
                     </div>
                   </div>
                 </div>
@@ -852,6 +852,25 @@ function ReportPanel({ reportId, user, onReportChange }) {
             <div className="bg-neutral-50 border-b border-neutral-200 px-5 py-2.5">
               <h4 className="text-xs font-bold uppercase tracking-wide text-neutral-700">1 · Academics</h4>
             </div>
+            {status === 'approved' && academic_data?.source === 'snapshot' && (
+              <div className="px-5 py-2 text-xs text-blue-800 bg-blue-50 border-b border-blue-100">
+                Figures recorded at approval
+                {academic_data.captured_at ? ` on ${new Date(academic_data.captured_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}.
+                Later mark changes do not alter this report or its signed PDF.
+              </div>
+            )}
+            {status === 'approved' && academic_data?.source === 'live' && (
+              <div className="px-5 py-2 text-xs text-blue-800 bg-blue-50 border-b border-blue-100">
+                This report was approved before approval figures were recorded. Figures below are calculated
+                from current marks; the signed PDF is the official record and may differ.
+              </div>
+            )}
+            {academic_data?.is_provisional && academic_data.subject_count > 0 && (
+              <div className="px-5 py-2 text-xs text-amber-800 bg-amber-50 border-b border-amber-100">
+                Provisional: results complete for {academic_data.complete_subject_count} of {academic_data.subject_count} subjects.
+                No overall grade or class position is given, and final approval is blocked, until every subject is complete.
+              </div>
+            )}
             {academic_data?.rows?.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -877,7 +896,12 @@ function ReportPanel({ reportId, user, onReportChange }) {
                           {row.score === '—' ? <span className="text-neutral-300">—</span> : row.score}
                         </td>
                         <td className="px-4 py-2.5 text-center"><GradeChip grade={row.grade} /></td>
-                        <td className="px-4 py-2.5 text-xs text-neutral-600">{row.remarks || '—'}</td>
+                        <td className={`px-4 py-2.5 text-xs ${row.status && row.status !== 'complete' ? 'text-amber-700' : 'text-neutral-600'}`}>
+                          {row.remarks || '—'}
+                          {row.partial_score != null && (
+                            <span className="block text-neutral-500">Marks so far (not final): {row.partial_score}/{row.partial_hps}</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     <tr className="bg-neutral-50 font-semibold text-sm border-t-2 border-neutral-200">
@@ -887,8 +911,8 @@ function ReportPanel({ reportId, user, onReportChange }) {
                       <td colSpan={2} />
                     </tr>
                     <tr className="bg-neutral-50 font-semibold text-sm">
-                      <td colSpan={2} className="px-4 py-2.5 text-black">Mean Score</td>
-                      <td colSpan={2} className="px-4 py-2.5 text-center text-black">{academic_data.mean_score}</td>
+                      <td colSpan={2} className="px-4 py-2.5 text-black">Average (%)</td>
+                      <td colSpan={2} className="px-4 py-2.5 text-center text-black">{academic_data.mean_score ?? '—'}</td>
                       <td className="px-4 py-2.5 text-center"><GradeChip grade={academic_data.overall_grade} /></td>
                       <td className="px-4 py-2.5 text-xs text-neutral-600">{academic_data.grade_descriptor}</td>
                     </tr>

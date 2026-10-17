@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import useAuth from '../hooks/useAuth'
 import * as LucideIcons from 'lucide-react'
 import Tooltip from './Tooltip'
+import { COT_DASHBOARD_ROLES } from '../lib/roles'
 
 const menuItems = [
   {
@@ -13,7 +14,7 @@ const menuItems = [
         icon: 'Home',
         label: 'Home',
         href: '/dashboard',
-        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', 'chief_of_training', 'oic', 'alumni'],
+        visible: ['superadmin', 'admin', 'instructor', 'student', 'commandant', 'chief_instructor', ...COT_DASHBOARD_ROLES, 'oic', 'alumni'],
       },
       // Superadmin-only items
       {
@@ -38,6 +39,12 @@ const menuItems = [
         icon: 'BarChart3',
         label: 'System Stats',
         href: '/superadmin/stats',
+        visible: ['superadmin'],
+      },
+      {
+        icon: 'ClipboardList',
+        label: 'Role Requirements',
+        href: '/superadmin/requirements',
         visible: ['superadmin'],
       },
       // Admin items
@@ -255,19 +262,19 @@ const menuItems = [
         icon: 'LayoutDashboard',
         label: 'Overview',
         href: '/dashboard/cot',
-        visible: ['chief_of_training'],
+        visible: COT_DASHBOARD_ROLES,
       },
       {
         icon: 'BarChart3',
         label: 'Analytics',
         href: '/cot/analytics',
-        visible: ['chief_of_training'],
+        visible: COT_DASHBOARD_ROLES,
       },
       {
         icon: 'FileText',
         label: 'School Reports',
         href: '/cot/reports',
-        visible: ['chief_of_training'],
+        visible: COT_DASHBOARD_ROLES,
       },
       {
         icon: 'UserCheck',

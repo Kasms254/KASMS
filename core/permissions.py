@@ -3,7 +3,7 @@ from enum import Enum
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
 from .managers import get_current_school
-from .models import DepartmentMembership, OICAssignment, CourseReport
+from .models import DepartmentMembership, OICAssignment, CourseReport, User
 
 
 class IsSuperAdmin(BasePermission):
@@ -121,6 +121,20 @@ class ReadOnlyForCommandant(BasePermission):
             return request.method in SAFE_METHODS
 
         return False
+
+class ReadOnlyForCommandantAndChiefInstructor(BasePermission):
+    """
+    Commandant and Chief Instructor may read but never mutate. Other roles are
+    left to the view's remaining permission classes (unlike
+    ReadOnlyForCommandantOrChiefInstructor, which also denies instructors).
+    """
+
+    message = "Commandants and Chief Instructors have read-only access to this resource."
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return getattr(request.user, 'role', None) not in ('commandant', 'chief_instructor')
 
 class BelongsToSameSchool(BasePermission):
 
@@ -501,7 +515,7 @@ class IsChiefOfTraining(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role == 'chief_of_training'
+            and request.user.role in User.COT_DASHBOARD_ROLES
         )
 
 
@@ -512,5 +526,6 @@ class IsChiefOfTrainingOrSuperAdmin(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role in ('chief_of_training', 'superadmin')
+            and (request.user.role in User.COT_DASHBOARD_ROLES
+                 or request.user.role == 'superadmin')
         )

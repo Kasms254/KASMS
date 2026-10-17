@@ -229,7 +229,7 @@ class SchoolAccessMiddleware(MiddlewareMixin):
                 return None
 
         user = getattr(request, '_jwt_user', None)
-        if not user or user.role in ('superadmin', 'chief_of_training'):
+        if not user or user.role in User.GLOBAL_ROLES:
             return None
 
         if user.role == 'student' and user.is_alumni:

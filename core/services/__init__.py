@@ -154,21 +154,41 @@ def get_certificates_grouped_by_class(queryset):
         for row in grouped
     ]
 
+def select_effective_attempt(attempts, retake_evaluation):
+    """
+    The attempt that counts for a component under its retake policy:
+    'best' = highest percentage, otherwise the latest attempt. `attempts` are
+    the student's submitted, marked attempts for one component.
+    """
+    attempts = list(attempts)
+    if not attempts:
+        return None
+    if retake_evaluation == 'best':
+        return max(attempts, key=lambda a: (float(a.percentage or 0), a.attempt_number))
+    return max(attempts, key=lambda a: a.attempt_number)
+
+
+def weighted_component_percentage(component_scores):
+    """
+    A POLICY subject's overall percentage from (percentage or None, weight)
+    pairs, one per active component; pending components (None) add weight
+    but no score.
+    """
+    total_weight = sum(weight for _, weight in component_scores)
+    if total_weight <= 0:
+        return 0.0
+    weighted_sum = sum(pct * weight for pct, weight in component_scores if pct is not None)
+    return weighted_sum / total_weight
+
+
 def _get_effective_result(component, student):
-    attempts  = StudentComponentResult.all_objects.filter(
+    attempts = StudentComponentResult.all_objects.filter(
         component=component,
         student=student,
         is_submitted=True,
         marks_obtained__isnull=False,
     )
-
-    if not attempts.exists():
-        return None
-
-    if component.retake_evaluation == 'best':
-        return attempts.order_by('-percentage').first()
-    else:
-        return attempts.order_by('-attempt_number').first()
+    return select_effective_attempt(attempts, component.retake_evaluation)
 
 def compute_component_results(subject, student):
     components = AssessmentComponent.all_objects.filter(
@@ -275,14 +295,13 @@ def evaluate_subject_pass_fail(subject, student):
         )
     ]
 
-    total_weight = sum(c['weight'] for c in component_results)
-    weighted_sum = 0.0
-
-    for c in component_results:
-        if c['effective_result'] and c['effective_result']['percentage'] is not None:
-            weighted_sum += c['effective_result']['percentage'] * c['weight']
-
-    overall_percentage = (weighted_sum / total_weight) if total_weight > 0 else 0.0
+    overall_percentage = weighted_component_percentage([
+        (
+            c['effective_result']['percentage'] if c['effective_result'] else None,
+            c['weight'],
+        )
+        for c in component_results
+    ])
 
     is_passed = (
         is_complete
@@ -366,47 +385,20 @@ def get_subject_completion_status_v2(subject, student):
     }
 
 def calculate_student_grade(class_obj, student) -> Dict[str, Any]:
+    """
+    Final grade for a completion certificate. Same result as the course
+    report (approved policy, 2026-10-17): the approved report's snapshot when
+    one exists, otherwise the live mean of subject percentages, with POLICY
+    subjects included.
+    """
+    from core.course_report_academics import final_result
 
-    results = ExamResult.all_objects.filter(
-        student=student,
-        exam__subject__class_obj=class_obj,
-        is_submitted=True,
-        marks_obtained__isnull=False,
-    ).select_related('exam')
-
-    if not results.exists():
+    result = final_result(class_obj, student)
+    if result['percentage'] is None:
         return {'grade': '', 'percentage': None}
-
-    total_marks = sum(float(r.marks_obtained) for r in results)
-    total_possible = sum(r.exam.total_marks for r in results)
-
-    if total_possible == 0:
-        return {'grade': '', 'percentage': None}
-
-    pct = (total_marks / total_possible) * 100
-
-    if pct >= 91:
-        grade = 'A'
-    elif pct >= 86:
-        grade = 'A-'
-    elif pct >= 81:
-        grade = 'B+'
-    elif pct >= 76:
-        grade = 'B'
-    elif pct >= 71:
-        grade = 'B-'
-    elif pct >= 65:
-        grade = 'C+'
-    elif pct >= 60:
-        grade = 'C'
-    elif pct >= 50:
-        grade = 'C-'
-    else:
-        grade = 'F'
-
     return {
-        'grade': grade,
-        'percentage': Decimal(str(round(pct, 2))),
+        'grade': result['grade'],
+        'percentage': Decimal(str(round(result['percentage'], 2))),
     }
 
 def calculate_attendance_percentage(class_obj, student) -> Optional[Decimal]:

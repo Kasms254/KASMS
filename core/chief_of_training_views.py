@@ -90,7 +90,7 @@ def _audit(report, action, user, notes='', metadata=None):
 
 def _notify_cot_users(report):
     cot_users = User.all_objects.filter(
-        role='chief_of_training', is_active=True
+        role__in=User.COT_DASHBOARD_ROLES, is_active=True
     )
     if not cot_users.exists():
         return

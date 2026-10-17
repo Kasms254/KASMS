@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from .models import (
     StudentIndex, Profile, AttendanceSession, User, Course, Class, Enrollment,
     ExamReportRemark, Subject, Notice, Exam, ExamReport, PersonalNotification,
@@ -360,14 +361,20 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        # Django privilege fields and authentication state are never set
+        # through this API: MFA changes go through the user's own TOTP
+        # endpoints, password state through change-password / reset_password.
+        read_only_fields = (
+            'created_at', 'updated_at',
+            'is_superuser', 'is_staff', 'groups', 'user_permissions',
+            'must_change_password', 'totp_enabled', 'totp_confirmed_at',
+            'last_totp_verified_at', 'last_totp_step', 'totp_pending_expires_at',
+        )
         extra_kwargs = {
             'email': {'required': True},
             'svc_number': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
-            'totp_secret_encrypted': {'write_only': True},
-            'totp_pending_secret_encrypted': {'write_only': True},
         }
         
     def get_full_name(self, obj):
@@ -375,6 +382,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
+        # Encrypted TOTP secrets are neither readable nor writable here.
+        fields.pop('totp_secret_encrypted', None)
+        fields.pop('totp_pending_secret_encrypted', None)
         request = self.context.get('request')
         school = getattr(request, 'school', None) if request else None
         if school:
@@ -390,6 +400,10 @@ class UserSerializer(serializers.ModelSerializer):
         role = attrs.get('role')
         class_obj = attrs.get('class_obj')
 
+        self._validate_global_role_change(attrs)
+        self._validate_office_rank(attrs)
+        self._validate_office_promotion(attrs)
+
         if role == 'student' and class_obj:
             if class_obj.current_enrollment >= class_obj.capacity:
                 raise serializers.ValidationError({
@@ -397,6 +411,42 @@ class UserSerializer(serializers.ModelSerializer):
                 })
             
         return attrs
+
+    def _validate_global_role_change(self, attrs):
+        current_role = self.instance.role if self.instance else None
+        new_role = attrs.get('role', current_role)
+        if new_role == current_role:
+            return
+        if new_role not in User.GLOBAL_ROLES and current_role not in User.GLOBAL_ROLES:
+            return
+        request = self.context.get('request')
+        requester = getattr(request, 'user', None)
+        if getattr(requester, 'role', None) != 'superadmin':
+            raise PermissionDenied("Only a superadmin can assign or remove this role.")
+
+    def _validate_office_promotion(self, attrs):
+        # Promotion ends the user's school memberships, so it must not cut
+        # short a course the user is still enrolled on.
+        new_role = attrs.get('role')
+        if (self.instance and new_role in User.COT_DASHBOARD_ROLES
+                and new_role != self.instance.role
+                and Enrollment.all_objects.filter(student=self.instance, is_active=True).exists()):
+            raise serializers.ValidationError({
+                "role": "This user has active enrollments. Complete or withdraw them before assigning an HQ office."
+            })
+
+    def _validate_office_rank(self, attrs):
+        role = attrs.get('role', self.instance.role if self.instance else None)
+        if role not in User.MIN_RANK_BY_ROLE:
+            return
+        rank = attrs.get('rank', self.instance.rank if self.instance else None)
+        if self.instance and role == self.instance.role and rank == self.instance.rank:
+            return
+        if not User.rank_allowed_for_role(role, rank):
+            min_rank = dict(User.RANK_CHOICES)[User.MIN_RANK_BY_ROLE[role]]
+            raise serializers.ValidationError({
+                "rank": f"{dict(User.ROLE_CHOICES)[role]} requires the rank of {min_rank} or above."
+            })
     
     def validate_email(self, value):
         request = self.context.get('request')
@@ -493,7 +543,7 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
 
         membership = None
-        if school:
+        if school and user.role not in User.COT_DASHBOARD_ROLES:
             existing_membership = SchoolMembership.all_objects.filter(
                 user=user,
                 school=school,
@@ -534,11 +584,17 @@ class UserSerializer(serializers.ModelSerializer):
         role_changed = 'role' in validated_data and validated_data['role'] != instance.role
         new_role = validated_data.get('role')
 
-        user = super().update(instance, validated_data)
+        with transaction.atomic():
+            user = super().update(instance, validated_data)
 
-        if role_changed:
-            user.role = new_role 
-            user.sync_memberships_role()
+            if role_changed:
+                user.role = new_role
+                if new_role in User.COT_DASHBOARD_ROLES:
+                    # HQ offices are school-less. Demotion never re-opens these;
+                    # a superadmin re-enrols the user explicitly.
+                    user.ended_memberships = user.end_school_memberships()
+                else:
+                    user.sync_memberships_role()
 
         return user
 
@@ -1347,6 +1403,10 @@ class StudentComponentResultSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id', 'school', 'percentage', 'status', 'created_at', 'updated_at',
         )
+        # The (student, component, attempt_number) uniqueness check would run against
+        # client-supplied attempt_number before the server derives it. The view derives the
+        # attempt under row locks; the DB constraint is the final safeguard (-> 409).
+        validators = []
 
     def get_index_number(self, obj):
         try:
@@ -3123,6 +3183,14 @@ class CourseReportListSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
     photo_url = serializers.SerializerMethodField()
+    # From context['academic_summaries'] (course_report_academics.report_summaries);
+    # None when the caller did not supply summaries (e.g. bulk-create response).
+    mean_score = serializers.SerializerMethodField()
+    subject_count = serializers.SerializerMethodField()
+    complete_subject_count = serializers.SerializerMethodField()
+    is_provisional = serializers.SerializerMethodField()
+    class_position = serializers.SerializerMethodField()
+    academic_source = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseReport
@@ -3131,6 +3199,8 @@ class CourseReportListSerializer(serializers.ModelSerializer):
             'student', 'class_name', 'course_name',
             'class_obj', 'enrollment',
             'photo_url',
+            'mean_score', 'subject_count', 'complete_subject_count',
+            'is_provisional', 'class_position', 'academic_source',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
@@ -3140,6 +3210,28 @@ class CourseReportListSerializer(serializers.ModelSerializer):
             return None
         request = self.context.get('request')
         return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+
+    def _academic(self, obj, key):
+        summary = (self.context.get('academic_summaries') or {}).get(obj.id)
+        return summary.get(key) if summary else None
+
+    def get_mean_score(self, obj):
+        return self._academic(obj, 'mean_score')
+
+    def get_subject_count(self, obj):
+        return self._academic(obj, 'subject_count')
+
+    def get_complete_subject_count(self, obj):
+        return self._academic(obj, 'complete_subject_count')
+
+    def get_is_provisional(self, obj):
+        return self._academic(obj, 'is_provisional')
+
+    def get_class_position(self, obj):
+        return self._academic(obj, 'class_position')
+
+    def get_academic_source(self, obj):
+        return self._academic(obj, 'source')
 
 class CourseReportDetailSerializer(serializers.ModelSerializer):
 

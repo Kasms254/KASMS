@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import RoleProtectedLayout from './components/RoleProtectedLayout'
+import { COT_DASHBOARD_ROLES } from './lib/roles'
 import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import CommandantOrCILayout from './components/CommandantOrCILayout'
@@ -110,6 +111,10 @@ const SchoolForm = lazy(() => import('./dashboard/superadmin/SchoolForm'))
 const AdminsPage = lazy(() => import('./dashboard/superadmin/AdminsPage'))
 const SystemStats = lazy(() => import('./dashboard/superadmin/SystemStats'))
 const COTOfficersPage = lazy(() => import('./dashboard/superadmin/COTOfficersPage'))
+const RequirementsList = lazy(() => import('./dashboard/superadmin/requirements/RequirementsList'))
+const RequirementForm = lazy(() => import('./dashboard/superadmin/requirements/RequirementForm'))
+const RequirementDetail = lazy(() => import('./dashboard/superadmin/requirements/RequirementDetail'))
+const RequirementSummary = lazy(() => import('./dashboard/superadmin/requirements/RequirementSummary'))
 
 // Loading component for code-split routes
 const LoadingFallback = () => (
@@ -406,7 +411,7 @@ const App = () => {
 			</Route>
 
 			{/* Chief of Training dashboard */}
-			<Route path="/dashboard/cot" element={<RoleProtectedLayout role="chief_of_training" />}>
+			<Route path="/dashboard/cot" element={<RoleProtectedLayout roles={COT_DASHBOARD_ROLES} />}>
 				<Route index element={<COTDashboard />} />
 			</Route>
 
@@ -455,6 +460,11 @@ const App = () => {
 				<Route path="schools/:id/edit" element={<SchoolForm />} />
 				<Route path="admins" element={<AdminsPage />} />
 				<Route path="cot-officers" element={<COTOfficersPage />} />
+				<Route path="requirements" element={<RequirementsList />} />
+				<Route path="requirements/new" element={<RequirementForm />} />
+				<Route path="requirements/summary" element={<RequirementSummary />} />
+				<Route path="requirements/:id" element={<RequirementDetail />} />
+				<Route path="requirements/:id/edit" element={<RequirementForm />} />
 				<Route path="themes" element={<SchoolsPage />} />
 				<Route path="users" element={<AdminStudents />} />
 			  <Route path="stats" element={<SystemStats />} />

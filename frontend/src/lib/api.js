@@ -2260,6 +2260,13 @@ export async function getComponentResultsByStudentSubject(studentId, subjectId) 
   return request(`/api/component-results/by_student_subject/?student_id=${encodeURIComponent(studentId)}&subject_id=${encodeURIComponent(subjectId)}`)
 }
 
+// Complete grading sheet for one component: every enrolled student with their latest attempt.
+// Unpaginated (bounded by one class roster), unlike the generic /component-results/ list.
+export async function getComponentGradingSheet(componentId) {
+  if (!componentId) throw new Error('componentId is required')
+  return request(`/api/component-results/grading_sheet/?component=${encodeURIComponent(componentId)}`)
+}
+
 export async function bulkGradeComponentResults(payload) {
   return request('/api/component-results/bulk_grade/', { method: 'POST', body: payload })
 }
@@ -2409,6 +2416,53 @@ export async function downloadCommandantReportPdf(id) {
     throw new Error(msg)
   }
   return res.blob()
+}
+
+// ── Role requirements assessment (superadmin only) ─────────────────────────
+// raw: true — stakeholder text and office labels (e.g. "SOII Cp & Cses") must
+// round-trip exactly as entered.
+
+const RR_BASE = '/api/role-requirements/'
+
+export async function getRoleRequirementChoices() {
+  return request(`${RR_BASE}choices/`, { raw: true })
+}
+
+export async function getRoleRequirements(params = '') {
+  const qs = params ? `?${params}` : ''
+  return request(`${RR_BASE}${qs}`, { raw: true })
+}
+
+export async function getRoleRequirement(id) {
+  return request(`${RR_BASE}${encodeURIComponent(id)}/`, { raw: true })
+}
+
+export async function createRoleRequirement(payload) {
+  return request(RR_BASE, { method: 'POST', body: payload, raw: true })
+}
+
+export async function updateRoleRequirement(id, payload) {
+  return request(`${RR_BASE}${encodeURIComponent(id)}/`, { method: 'PATCH', body: payload, raw: true })
+}
+
+export async function deleteRoleRequirement(id) {
+  return request(`${RR_BASE}${encodeURIComponent(id)}/`, { method: 'DELETE', raw: true })
+}
+
+// action: submit | start_review | request_clarification | approve | reject |
+// add_note | link_duplicate | unlink_duplicate | mark_in_development |
+// mark_implemented | verify
+export async function roleRequirementAction(id, action, payload = {}) {
+  return request(`${RR_BASE}${encodeURIComponent(id)}/${action}/`, { method: 'POST', body: payload, raw: true })
+}
+
+export async function getRoleRequirementDuplicates(id) {
+  return request(`${RR_BASE}${encodeURIComponent(id)}/possible_duplicates/`, { raw: true })
+}
+
+export async function getRoleRequirementSummary(role = '') {
+  const qs = role ? `?assessed_role=${encodeURIComponent(role)}` : ''
+  return request(`${RR_BASE}role_summary/${qs}`, { raw: true })
 }
 
 // ── Chief of Training ─────────────────────────────────────────────────────────
@@ -2753,6 +2807,7 @@ export default {
   deleteAssessmentComponent,
   getComponentResults,
   getComponentResultsByStudentSubject,
+  getComponentGradingSheet,
   bulkGradeComponentResults,
   createComponentResult,
   updateComponentResult,
@@ -2772,4 +2827,14 @@ export default {
   getCOTReports,
   getCOTReportDetail,
   downloadCOTReportPdf,
+  // Role requirements assessment
+  getRoleRequirementChoices,
+  getRoleRequirements,
+  getRoleRequirement,
+  createRoleRequirement,
+  updateRoleRequirement,
+  deleteRoleRequirement,
+  roleRequirementAction,
+  getRoleRequirementDuplicates,
+  getRoleRequirementSummary,
 }

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db.models import Sum, Count, Q
 from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
@@ -45,123 +44,6 @@ PAD_PDF_ORDER = [
 ]
 
 
-def _pdf_grade(score, hps):
-    if hps == 0:
-        return 'N/A'
-    pct = (score / hps) * 100
-    if pct >= 91: return 'A'
-    if pct >= 86: return 'A-'
-    if pct >= 81: return 'B+'
-    if pct >= 76: return 'B'
-    if pct >= 71: return 'B'   
-    if pct >= 65: return 'C+'
-    if pct >= 60: return 'C'
-    if pct >= 50: return 'C'   
-    return 'F'
-
-
-def _grade_descriptor(grade):
-    if grade in ('A', 'A-'):
-        return 'Outstanding'
-    if grade in ('B+', 'B'):
-        return 'Above Average'
-    if grade in ('C+', 'C'):
-        return 'Average'
-    return 'Fail'
-
-
-def _build_academic_rows(student, class_obj):
-
-    from .models import Subject, ExamResult
-
-    subjects = (
-        Subject.objects.filter(class_obj=class_obj, is_active=True)
-        .annotate(active_exam_count=Count('exams', filter=Q(exams__is_active=True)))
-        .order_by('name')
-    )
-
-   
-    subject_totals = {
-        row['exam__subject_id']: row
-        for row in ExamResult.objects.filter(
-            exam__subject__class_obj=class_obj,
-            student=student,
-            is_submitted=True,
-            marks_obtained__isnull=False,
-        ).values('exam__subject_id').annotate(
-            total_marks=Sum('marks_obtained'),
-            total_possible=Sum('exam__total_marks'),
-        )
-    }
-
-    rows = []
-    for subject in subjects:
-        if not subject.active_exam_count:
-            continue
-
-        totals = subject_totals.get(subject.id)
-        if not totals or not totals['total_possible']:
-            rows.append({
-                'subject_name': subject.name.upper(),
-                'hps': 100,
-                'score': '—',
-                'grade': '—',
-                'remarks': '—',
-            })
-            continue
-
-        hps = int(totals['total_possible'])
-        score = float(totals['total_marks'] or 0)
-        grade = _pdf_grade(score, hps)
-        rows.append({
-            'subject_name': subject.name.upper(),
-            'hps': hps,
-            'score': int(score) if score == int(score) else round(score, 2),
-            'grade': grade,
-            'remarks': _grade_descriptor(grade),
-        })
-
-    return rows
-
-
-def _compute_totals(academic_rows):
-    total_hps = sum(r['hps'] for r in academic_rows if isinstance(r['hps'], int))
-    total_score = sum(
-        r['score'] for r in academic_rows if isinstance(r['score'], (int, float))
-    )
-    mean_score = round(total_score / len(academic_rows), 1) if academic_rows else 0
-    overall_grade = _pdf_grade(total_score, total_hps) if total_hps else '—'
-    grade_descriptor = _grade_descriptor(overall_grade)
-    return total_hps, round(total_score, 2), mean_score, overall_grade, grade_descriptor
-
-
-def _compute_class_position(student, class_obj):
-
-    from django.db.models import Sum
-    from .models import ExamResult, Enrollment
-
-    student_ids = (
-        Enrollment.objects.filter(class_obj=class_obj, is_active=True)
-        .values_list('student_id', flat=True)
-    )
-
-    totals = (
-        ExamResult.objects.filter(
-            student_id__in=student_ids,
-            exam__subject__class_obj=class_obj,
-            is_submitted=True,
-        )
-        .values('student_id')
-        .annotate(total=Sum('marks_obtained'))
-        .order_by('-total')
-    )
-
-    for rank, entry in enumerate(totals, start=1):
-        if entry['student_id'] == student.id:
-            return str(rank)
-    return '—'
-
-
 def generate_course_report_pdf(report):
 
     import weasyprint
@@ -178,10 +60,18 @@ def generate_course_report_pdf(report):
     ci_remark = _get_remark('chief_instructor')
     commandant_remark = _get_remark('commandant')
 
-    academic_rows = _build_academic_rows(student, class_obj)
-    total_hps, total_score, mean_score, overall_grade, grade_descriptor = _compute_totals(academic_rows)
-    class_position = _compute_class_position(student, class_obj)
-    class_size = class_obj.enrollments.filter(is_active=True).count()
+    # Approved reports render from their approval snapshot, so the PDF shows
+    # the same figures whenever it is generated.
+    from .course_report_academics import report_summary
+    academics = report_summary(report)
+    academic_rows = academics['rows']
+    total_hps = academics['total_hps']
+    total_score = academics['total_score']
+    mean_score = academics['mean_score'] if academics['mean_score'] is not None else '—'
+    overall_grade = academics['overall_grade']
+    grade_descriptor = academics['grade_descriptor']
+    class_position = academics['class_position']
+    class_size = academics['class_size']
 
     from .models import PAD_SUBJECT_LABELS
 
