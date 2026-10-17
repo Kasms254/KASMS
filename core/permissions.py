@@ -3,7 +3,7 @@ from enum import Enum
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework import permissions
 from .managers import get_current_school
-from .models import DepartmentMembership, OICAssignment, CourseReport
+from .models import DepartmentMembership, OICAssignment, CourseReport, User
 
 
 class IsSuperAdmin(BasePermission):
@@ -515,7 +515,7 @@ class IsChiefOfTraining(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role == 'chief_of_training'
+            and request.user.role in User.COT_DASHBOARD_ROLES
         )
 
 
@@ -526,5 +526,6 @@ class IsChiefOfTrainingOrSuperAdmin(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role in ('chief_of_training', 'superadmin')
+            and (request.user.role in User.COT_DASHBOARD_ROLES
+                 or request.user.role == 'superadmin')
         )

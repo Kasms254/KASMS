@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import RoleProtectedLayout from './components/RoleProtectedLayout'
+import { COT_DASHBOARD_ROLES } from './lib/roles'
 import AdminOrInstructorLayout from './components/AdminOrInstructorLayout'
 import InstructorOrStudentLayout from './components/InstructorOrStudentLayout'
 import CommandantOrCILayout from './components/CommandantOrCILayout'
@@ -410,7 +411,7 @@ const App = () => {
 			</Route>
 
 			{/* Chief of Training dashboard */}
-			<Route path="/dashboard/cot" element={<RoleProtectedLayout role="chief_of_training" />}>
+			<Route path="/dashboard/cot" element={<RoleProtectedLayout roles={COT_DASHBOARD_ROLES} />}>
 				<Route index element={<COTDashboard />} />
 			</Route>
 

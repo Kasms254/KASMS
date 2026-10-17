@@ -5,8 +5,9 @@ import {
 } from 'lucide-react'
 import * as api from '../../lib/api'
 import useToast from '../../hooks/useToast'
+import { COT_DASHBOARD_ROLES, HQ_OFFICES } from '../../lib/roles'
 
-// Chief of Training is a senior appointment — only Major and above are offered,
+// HQ appointments are held by officers — Captain and above are offered,
 // ordered by seniority. Values must match User.RANK_CHOICES on the backend.
 const RANK_CHOICES = [
   { value: 'general', label: 'General' },
@@ -16,8 +17,22 @@ const RANK_CHOICES = [
   { value: 'colonel', label: 'Colonel' },
   { value: 'lieutenant_colonel', label: 'Lieutenant Colonel' },
   { value: 'major', label: 'Major' },
+  { value: 'captain', label: 'Captain' },
 ]
 const RANK_LABELS = Object.fromEntries(RANK_CHOICES.map((r) => [r.value, r.label]))
+const OFFICE_LABELS = Object.fromEntries(HQ_OFFICES.map((o) => [o.value, o.label]))
+
+// Ranks an office may hold (the backend enforces the same minimums).
+function ranksForOffice(role) {
+  const office = HQ_OFFICES.find((o) => o.value === role)
+  if (!office) return []
+  const minIndex = RANK_CHOICES.findIndex((r) => r.value === office.minRank)
+  return RANK_CHOICES.slice(0, minIndex + 1)
+}
+
+function officeLabel(role) {
+  return OFFICE_LABELS[role] || role
+}
 
 function rankLabel(value) {
   if (!value) return ''
@@ -50,6 +65,7 @@ function checkPasswordStrength(password) {
 }
 
 const EMPTY_FORM = {
+  role: 'chief_of_training',
   first_name: '',
   last_name: '',
   svc_number: '',
@@ -60,7 +76,7 @@ const EMPTY_FORM = {
   password2: '',
 }
 
-const VALIDATED_FIELDS = ['first_name', 'last_name', 'svc_number', 'rank', 'email', 'phone_number', 'password', 'password2']
+const VALIDATED_FIELDS = ['role', 'first_name', 'last_name', 'svc_number', 'rank', 'email', 'phone_number', 'password', 'password2']
 const EDIT_FIELDS = ['first_name', 'last_name', 'svc_number', 'email', 'phone_number', 'rank']
 
 export default function COTOfficersPage() {
@@ -97,7 +113,7 @@ export default function COTOfficersPage() {
 
   // Edit modal
   const [editModal, setEditModal] = useState({ open: false, officer: null })
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', rank: '' })
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', svc_number: '', email: '', phone_number: '', rank: '', role: '' })
   const [editErrors, setEditErrors] = useState({})
   const [editTouched, setEditTouched] = useState({})
   const [editError, setEditError] = useState(null)
@@ -118,7 +134,7 @@ export default function COTOfficersPage() {
       const params = new URLSearchParams()
       params.set('page', currentPage)
       params.set('page_size', 10)
-      params.set('role', 'chief_of_training')
+      params.set('role__in', COT_DASHBOARD_ROLES.join(','))
       if (searchTerm) params.set('search', searchTerm)
       const data = await api.getUsers(params.toString())
       setOfficers(data?.results || [])
@@ -165,8 +181,14 @@ export default function COTOfficersPage() {
         if (!/^\d+$/.test(value)) return 'Service number must contain only numbers'
         if (value.length > 7) return 'Service number cannot exceed 7 digits'
         return ''
+      case 'role':
+        if (!OFFICE_LABELS[value]) return 'Please select an office'
+        return ''
       case 'rank':
         if (!value) return 'Please select a rank from the list'
+        if (!ranksForOffice(formData.role).some((r) => r.value === value)) {
+          return `${officeLabel(formData.role)} requires a higher rank`
+        }
         return ''
       case 'email':
         if (!value) return 'Email address is required'
@@ -219,6 +241,10 @@ export default function COTOfficersPage() {
     else if (name === 'phone_number') newValue = value.replace(/\D/g, '')
     else if (name === 'first_name' || name === 'last_name') newValue = sanitizeInput(value).slice(0, 50)
 
+    if (name === 'role' && !ranksForOffice(newValue).some((r) => r.value === form.rank)) {
+      setForm((f) => ({ ...f, role: newValue, rank: '' }))
+      return
+    }
     setForm((f) => ({ ...f, [name]: newValue }))
     if (name === 'password') setPasswordStrength(checkPasswordStrength(newValue))
     if (touched[name]) {
@@ -256,7 +282,7 @@ export default function COTOfficersPage() {
         rank: form.rank,
         password: form.password,
         password2: form.password2,
-        role: 'chief_of_training',
+        role: form.role,
         is_active: true,
       })
       reportSuccess('COT officer created successfully')
@@ -291,6 +317,7 @@ export default function COTOfficersPage() {
       email: officer.email || '',
       phone_number: officer.phone_number || '',
       rank: officer.rank || '',
+      role: officer.role,
     })
     setEditErrors({})
     setEditTouched({})
@@ -313,7 +340,7 @@ export default function COTOfficersPage() {
   function onEditBlur(e) {
     const { name, value } = e.target
     setEditTouched((t) => ({ ...t, [name]: true }))
-    setEditErrors((p) => ({ ...p, [name]: validateField(name, value) }))
+    setEditErrors((p) => ({ ...p, [name]: validateField(name, value, editForm) }))
   }
 
   const editInputClass = (field) =>
@@ -403,7 +430,7 @@ export default function COTOfficersPage() {
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-black">Chief of Training Officers</h2>
           <p className="text-xs sm:text-sm text-neutral-500">
-            Global role — no school affiliation. Can view all schools' submitted reports.
+            Chief of Training and HQ office accounts. Global roles — no school affiliation. Can view all schools' submitted reports.
           </p>
         </div>
         <button
@@ -483,7 +510,7 @@ export default function COTOfficersPage() {
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">
                           <Star className="w-3 h-3" />
-                          Chief of Training
+                          {officeLabel(officer.role)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-sm text-neutral-500">
@@ -589,7 +616,7 @@ export default function COTOfficersPage() {
                   <label className="block text-sm font-medium text-neutral-600 mb-1">Rank *</label>
                   <select name="rank" value={form.rank} onChange={onChange} onBlur={onBlur} className={inputClass('rank')}>
                     <option value="" disabled>— Select rank —</option>
-                    {RANK_CHOICES.map((r) => (
+                    {ranksForOffice(form.role).map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
@@ -610,16 +637,15 @@ export default function COTOfficersPage() {
                 </div>
               </div>
 
-              {/* Role — fixed for this page */}
+              {/* Office — all use the Chief of Training dashboard */}
               <div>
-                <label className="block text-sm font-medium text-neutral-600 mb-1">Role</label>
-                <div className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-sm">
-                    <Star className="w-4 h-4 text-amber-500" />
-                    Chief of Training
-                  </span>
-                  <Lock className="w-3.5 h-3.5 text-neutral-400" />
-                </div>
+                <label className="block text-sm font-medium text-neutral-600 mb-1">Office *</label>
+                <select name="role" value={form.role} onChange={onChange} onBlur={onBlur} className={inputClass('role')}>
+                  {HQ_OFFICES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {fieldErrors.role && <p className="text-red-500 text-xs mt-1">{fieldErrors.role}</p>}
               </div>
 
               {/* Password */}
@@ -764,7 +790,10 @@ export default function COTOfficersPage() {
                   <label className="block text-sm font-medium text-neutral-600 mb-1">Rank *</label>
                   <select name="rank" value={editForm.rank} onChange={onEditChange} onBlur={onEditBlur} className={editInputClass('rank')}>
                     <option value="" disabled>— Select rank —</option>
-                    {RANK_CHOICES.map((r) => (
+                    {editForm.rank && !ranksForOffice(editForm.role).some((r) => r.value === editForm.rank) && (
+                      <option value={editForm.rank} disabled>{rankLabel(editForm.rank)}</option>
+                    )}
+                    {ranksForOffice(editForm.role).map((r) => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
@@ -791,7 +820,7 @@ export default function COTOfficersPage() {
                 <div className="w-full px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 flex items-center justify-between">
                   <span className="flex items-center gap-2 text-sm">
                     <Star className="w-4 h-4 text-amber-500" />
-                    Chief of Training
+                    {officeLabel(editForm.role)}
                   </span>
                   <Lock className="w-3.5 h-3.5 text-neutral-400" />
                 </div>
@@ -920,8 +949,8 @@ export default function COTOfficersPage() {
             <h3 className="text-lg font-semibold text-black">Remove COT Officer</h3>
             <p className="mt-2 text-neutral-600">
               Are you sure you want to remove{' '}
-              <strong>{deleteModal.officer?.first_name} {deleteModal.officer?.last_name}</strong> as a
-              Chief of Training officer? Their account will be deleted.
+              <strong>{deleteModal.officer?.first_name} {deleteModal.officer?.last_name}</strong> as{' '}
+              {officeLabel(deleteModal.officer?.role)}? Their account will be deleted.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button

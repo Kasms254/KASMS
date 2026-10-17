@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.core.cache import cache
-from .models import Enrollment, SchoolMembership, TwoFactorCode
+from .models import Enrollment, SchoolMembership, TwoFactorCode, User
 from .cookie_utils import denylist_access_token
 from .serializers import UserListSerializer, SchoolMembershipSerializer
 from .rate_limiting import LockoutGuard, get_client_ip
@@ -240,7 +240,7 @@ def check_student_can_login(user):
 
 def _reject_if_ineligible_for_login(user):
 
-    if user.role not in ('superadmin', 'chief_of_training'):
+    if user.role not in User.GLOBAL_ROLES:
         has_active_membership = SchoolMembership.all_objects.filter(
             user=user, status='active',
         ).exists()

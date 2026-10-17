@@ -466,7 +466,50 @@ class User(AbstractUser):
         ('chief_instructor', 'Chief Instructor'),
         ('oic', 'Officer in Charge'),
         ('chief_of_training', 'Chief of Training'),
+    ] + [
+        # HQ offices (HQ letter Ref 1826/KACS/5/SYS). Ids match
+        # RoleRequirementSubmission.AssessedRole; the 'cot' office is the existing
+        # chief_of_training role above, so it is not repeated here.
+        ('comd_ka', 'Comd KA'),
+        ('dac', 'DAC'),
+        ('cop', 'COP'),
+        ('col_trg', 'Col Trg'),
+        ('col_pers', 'Col Pers'),
+        ('soi_hrm', 'SOI HRM'),
+        ('soi_trg', 'SOI Trg'),
+        ('soii_cp_cses', 'SOII Cp & Cses'),
+        ('soii_trg', 'SOII Trg'),
     ]
+    # Roles that use the Chief of Training dashboard with exactly its permissions.
+    COT_DASHBOARD_ROLES = (
+        'chief_of_training', 'comd_ka', 'dac', 'cop', 'col_trg', 'col_pers',
+        'soi_hrm', 'soi_trg', 'soii_cp_cses', 'soii_trg',
+    )
+    # Roles with no school membership. Only a superadmin may grant or remove them.
+    GLOBAL_ROLES = ('superadmin',) + COT_DASHBOARD_ROLES
+    # RoleRequirementSubmission.AssessedRole value -> login role.
+    OFFICE_TO_ROLE = {
+        'cot': 'chief_of_training',
+        **{role: role for role in COT_DASHBOARD_ROLES if role != 'chief_of_training'},
+    }
+    # Commissioned ranks, most junior first.
+    OFFICER_RANKS = (
+        '2nd_lieutenant', 'lieutenant', 'captain', 'major', 'lieutenant_colonel',
+        'colonel', 'brigadier', 'major_general', 'lieutenant_general', 'general',
+    )
+    # Lowest rank each office may hold (decided by the system owner, 2026-10-15).
+    MIN_RANK_BY_ROLE = {
+        'chief_of_training': 'major',
+        'comd_ka': 'major',
+        'dac': 'major',
+        'cop': 'major',
+        'col_trg': 'major',
+        'col_pers': 'major',
+        'soi_hrm': 'captain',
+        'soi_trg': 'captain',
+        'soii_cp_cses': 'captain',
+        'soii_trg': 'captain',
+    }
     RANK_CHOICES = [
         ('private', 'Private'),
         ('CIII', 'Constable'),
@@ -596,6 +639,23 @@ class User(AbstractUser):
         'chief_instructor': 'chief instructor',
         'oic': 'oic',
     }
+
+    @classmethod
+    def rank_allowed_for_role(cls, role, rank):
+        min_rank = cls.MIN_RANK_BY_ROLE.get(role)
+        if min_rank is None:
+            return True
+        return rank in cls.OFFICER_RANKS[cls.OFFICER_RANKS.index(min_rank):]
+
+    def end_school_memberships(self):
+        """End active memberships (kept as history) when the user takes a
+        school-less HQ office. Returns the ids of the memberships ended."""
+        ended = []
+        for membership in self.school_memberships.filter(status=SchoolMembership.Status.ACTIVE):
+            membership.complete()
+            ended.append(str(membership.pk))
+        self.clear_membership_cache()
+        return ended
 
     def sync_memberships_role(self):
         membership_role = self.ROLE_TO_MEMBERSHIP_ROLE.get(self.role, self.role)

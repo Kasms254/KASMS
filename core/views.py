@@ -406,14 +406,35 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
     )
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
+    def _check_member_account(self, member, opening=False):
+        # Global accounts are managed by superadmins only, and HQ office
+        # holders are school-less: no active membership may be opened for them.
+        if member.role in User.GLOBAL_ROLES and self.request.user.role != 'superadmin':
+            raise PermissionDenied("Only a superadmin can manage this account's memberships.")
+        if opening and member.role in User.COT_DASHBOARD_ROLES:
+            raise PermissionDenied(
+                "HQ office accounts cannot hold a school membership. Change the role first."
+            )
+
+    def get_object(self):
+        membership = super().get_object()
+        if self.request.method not in SAFE_METHODS:
+            self._check_member_account(membership.user, opening=self.action == 'reactivate')
+        return membership
+
     def perform_create(self, serializer):
         school = self.get_school_for_request()
         submitted_school = serializer.validated_data.get('school')
         if submitted_school and submitted_school != school:
             raise ValidationError({"school": "You can only create memberships for your own school."})
+        self._check_member_account(serializer.validated_data['user'], opening=True)
         serializer.save(school=school)
 
     def perform_update(self, serializer):
+        # Check the account and status the membership will end up with, too.
+        member = serializer.validated_data.get('user', serializer.instance.user)
+        new_status = serializer.validated_data.get('status', serializer.instance.status)
+        self._check_member_account(member, opening=new_status == SchoolMembership.Status.ACTIVE)
         previous_role = serializer.instance.role
         membership = serializer.save()
         if membership.role != previous_role:
@@ -515,6 +536,7 @@ class SchoolMembershipViewSet(TenantFilterMixin, viewsets.ModelViewSet):
             context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
+        self._check_member_account(serializer.context['resolved_user'], opening=True)
         membership = serializer.save()
         return Response(
             SchoolMembershipSerializer(membership).data,
@@ -611,7 +633,7 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'role']
+    filterset_fields = {'is_active': ['exact'], 'role': ['exact', 'in']}
     search_fields = ['username', 'email', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'username', 'email', 'role']
     ordering = ['-created_at']
@@ -658,9 +680,13 @@ class UserViewSet(viewsets.ModelViewSet):
             return queryset.prefetch_related(*_user_prefetches)
 
         if user.school:
+            # Global accounts (superadmins, HQ offices) are managed by
+            # superadmins only, even if they hold a membership at this school.
             return queryset.filter(
                 school_memberships__school=user.school,
                 school_memberships__status='active'
+            ).exclude(
+                role__in=User.GLOBAL_ROLES,
             ).distinct().prefetch_related(*_user_prefetches)
 
         return queryset.none()
@@ -701,9 +727,11 @@ class UserViewSet(viewsets.ModelViewSet):
         previous_is_active = serializer.instance.is_active
         user = serializer.save()
         if user.role != previous_role:
+            ended = getattr(user, 'ended_memberships', None)
             audit_event(
                 AuditAction.ROLE_CHANGED, request=self.request, target=user,
                 changes={'role': {'old': previous_role, 'new': user.role}},
+                metadata={'ended_memberships': ended} if ended else None,
             )
         if user.is_active != previous_is_active:
             action = AuditAction.USER_ACTIVATED if user.is_active else AuditAction.USER_DEACTIVATED
@@ -755,11 +783,11 @@ class UserViewSet(viewsets.ModelViewSet):
         if role == 'superadmin' and user.role != 'superadmin':
             raise PermissionDenied("Only superadmins can create superadmin users")
 
-        if role == 'chief_of_training' and user.role != 'superadmin':
+        if role in User.COT_DASHBOARD_ROLES and user.role != 'superadmin':
             raise PermissionDenied("Only superadmins can create Chief of Training users")
 
         # Global roles — no school affiliation
-        if role in ('superadmin', 'chief_of_training'):
+        if role in User.GLOBAL_ROLES:
             instance = serializer.save()
         else:
             if not school:
