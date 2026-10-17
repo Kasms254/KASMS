@@ -1,9 +1,9 @@
 
 import logging
 import os
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
-from rest_framework import viewsets, status
+from rest_framework import filters, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -20,7 +20,9 @@ from .serializers import (
     CourseReportAuditLogSerializer,
 )
 from .permissions import IsCourseReportParticipant, CanWriteCourseReportRemark
-from .course_report_pdf import _build_academic_rows, _compute_totals, _compute_class_position
+from .course_report_academics import (
+    build_snapshot, live_summaries, ranking_key, report_summaries, report_summary,
+)
 from .views import PageSizeAwarePagination
 
 logger = logging.getLogger(__name__)
@@ -29,12 +31,32 @@ _ALLOWED_PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
 _ALLOWED_PHOTO_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
 _MAX_PHOTO_SIZE = 2 * 1024 * 1024  # 2 MB
 
+# ?ordering= values accepted by the list endpoint, mapped to "descending?".
+# Complete reports sort first, then provisional, then those with no average;
+# equal averages fall back to student name, then svc number.
+_MEAN_SCORE_ORDERINGS = {'-mean_score': True, 'mean_score': False}
+
+
+def _student_sort_key(report):
+    student = report.enrollment.student
+    return (
+        (student.last_name or '').lower(),
+        (student.first_name or '').lower(),
+        student.svc_number or '',
+        str(report.id),
+    )
+
 
 class CourseReportViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated, IsCourseReportParticipant]
     http_method_names = ['get', 'post', 'head', 'options']
     pagination_class = PageSizeAwarePagination
+    search_fields = [
+        'enrollment__student__first_name',
+        'enrollment__student__last_name',
+        'enrollment__student__svc_number',
+    ]
 
     def _get_role(self):
         user = self.request.user
@@ -103,12 +125,31 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
-        page = self.paginate_queryset(qs)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+        # ?search= from the list page. Only SearchFilter is applied: the global
+        # OrderingFilter would accept arbitrary ?ordering= fields.
+        qs = filters.SearchFilter().filter_queryset(request, qs, self)
 
-        serializer = self.get_serializer(qs, many=True)
+        descending = _MEAN_SCORE_ORDERINGS.get(request.query_params.get('ordering'))
+        if descending is None:
+            reports = qs
+            summaries = None
+        else:
+            # The ranking metric is computed in Python (POLICY subjects use the
+            # component-grading service), so the whole filtered set is ranked
+            # before pagination.
+            reports = sorted(qs, key=_student_sort_key)
+            summaries = report_summaries(reports)
+            reports.sort(key=lambda r: ranking_key(summaries[r.id], descending))
+
+        page = self.paginate_queryset(reports)
+        items = page if page is not None else list(reports)
+        if summaries is None:
+            summaries = report_summaries(items)
+        serializer = self.get_serializer(
+            items, many=True, context={**self.get_serializer_context(), 'academic_summaries': summaries},
+        )
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
@@ -154,20 +195,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         data['can_edit_photo'] = bool(can_edit_photo)
 
         class_obj = report.class_obj
-        student = report.enrollment.student
-
-        academic_rows = _build_academic_rows(student, class_obj)
-        total_hps, total_score, mean_score, overall_grade, grade_descriptor = _compute_totals(academic_rows)
-        data['academic_data'] = {
-            'rows': academic_rows,
-            'total_hps': total_hps,
-            'total_score': total_score,
-            'mean_score': mean_score,
-            'overall_grade': overall_grade,
-            'grade_descriptor': grade_descriptor,
-            'class_position': _compute_class_position(student, class_obj),
-            'class_size': class_obj.enrollments.filter(is_active=True).count(),
-        }
+        data['academic_data'] = report_summary(report)
         data['school_short_name'] = report.school.short_name or report.school.code
         data['class_code'] = class_obj.class_code or class_obj.course.code
         data['start_date'] = class_obj.start_date.strftime('%d %b %Y') if class_obj.start_date else None
@@ -198,13 +226,40 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         ).exclude(
             course_reports__is_active=True,
         ).select_related('student')
+        enrollments = list(enrollments)
 
-        if not enrollments.exists():
+        if not enrollments:
             return Response(
                 {'detail': 'No eligible students — all already have active reports or no active enrollments.'},
                 status=status.HTTP_409_CONFLICT,
             )
 
+        try:
+            created_reports = self._create_reports(request, cls, enrollments)
+        except IntegrityError:
+            # A concurrent request initiated reports for some of these students
+            # after the eligibility check above. unique_active_report_per_enrollment
+            # blocked the duplicate and this whole batch rolled back. Any other
+            # integrity failure is re-raised rather than reported as a conflict.
+            if not CourseReport.all_objects.filter(
+                enrollment__in=enrollments, is_active=True,
+            ).exists():
+                raise
+            return Response(
+                {'detail': 'Reports for this class were initiated by another request. Refresh and try again.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        result = CourseReportListSerializer(created_reports, many=True).data
+        return Response(
+            {
+                'detail': f'Created {len(created_reports)} course reports.',
+                'reports': result,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _create_reports(self, request, cls, enrollments):
         created_reports = []
         with transaction.atomic():
             for enrollment in enrollments:
@@ -230,15 +285,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                         'student_ids': [str(r.enrollment.student_id) for r in created_reports],
                     },
                 )
-
-        result = CourseReportListSerializer(created_reports, many=True).data
-        return Response(
-            {
-                'detail': f'Created {len(created_reports)} course reports.',
-                'reports': result,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        return created_reports
 
     def _check_can_manage_photo(self, request, report):
 
@@ -450,6 +497,17 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        update_fields = ['status', 'updated_at']
+        if next_status == 'approved':
+            academics = report_summary(report)
+            if academics['is_provisional']:
+                return Response(
+                    {'detail': self._provisional_message(academics)},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            report.academic_snapshot = build_snapshot(academics)
+            update_fields.append('academic_snapshot')
+
         old_status = report.status
         with transaction.atomic():
           
@@ -457,7 +515,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             CourseReportStageRemark.objects.filter(pk=remark.pk).update(is_submitted=True)
 
             report.status = next_status
-            report.save(update_fields=['status', 'updated_at'])
+            report.save(update_fields=update_fields)
 
             self._log_audit(
                 report=report,
@@ -523,7 +581,14 @@ class CourseReportViewSet(viewsets.ModelViewSet):
 
         submitted_count = 0
         skipped_count = 0
+        provisional_count = 0
         errors = []
+
+        approving = CourseReport.VALID_TRANSITIONS.get(CourseReport.SUBMIT_ROLE_STATUS.get(role)) == 'approved'
+        academics = {}
+        if approving:
+            live = live_summaries({(r.class_obj_id, r.enrollment.student_id) for r in reports})
+            academics = {r.id: live[(r.class_obj_id, r.enrollment.student_id)] for r in reports}
 
         with transaction.atomic():
             for report in reports:
@@ -542,12 +607,20 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                     skipped_count += 1
                     continue
 
+                update_fields = ['status', 'updated_at']
+                if next_status == 'approved':
+                    if academics[report.id]['is_provisional']:
+                        provisional_count += 1
+                        continue
+                    report.academic_snapshot = build_snapshot(academics[report.id])
+                    update_fields.append('academic_snapshot')
+
                 old_status = report.status
 
                 CourseReportStageRemark.objects.filter(pk=remark.pk).update(is_submitted=True)
 
                 report.status = next_status
-                report.save(update_fields=['status', 'updated_at'])
+                report.save(update_fields=update_fields)
 
                 self._log_audit(
                     report=report,
@@ -561,10 +634,14 @@ class CourseReportViewSet(viewsets.ModelViewSet):
                 )
                 submitted_count += 1
 
+        detail = f'Submitted {submitted_count} reports. Skipped {skipped_count} (no remark or already submitted).'
+        if provisional_count:
+            detail += f' Not approved: {provisional_count} with incomplete results.'
         return Response({
-            'detail': f'Submitted {submitted_count} reports. Skipped {skipped_count} (no remark or already submitted).',
+            'detail': detail,
             'submitted': submitted_count,
             'skipped': skipped_count,
+            'provisional': provisional_count,
         })
 
 
@@ -748,6 +825,13 @@ class CourseReportViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @staticmethod
+    def _provisional_message(academics):
+        return (
+            'Cannot approve: results are complete for only '
+            f"{academics['complete_subject_count']} of {academics['subject_count']} subjects."
+        )
 
     @staticmethod
     def _role_to_stage(role):

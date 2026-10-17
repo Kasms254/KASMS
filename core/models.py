@@ -2628,6 +2628,10 @@ class CourseReport(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
         help_text='Student passport photo for this report, supplied by the instructor.',
     )
+    academic_snapshot = models.JSONField(
+        null=True, blank=True,
+        help_text='Academic figures recorded at final approval; the approved report and its PDF use these.',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

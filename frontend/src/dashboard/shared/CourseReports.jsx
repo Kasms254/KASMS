@@ -24,6 +24,32 @@ const STATUS_META = {
   approved:             { label: 'Approved',             color: 'bg-green-100 text-green-800' },
 }
 
+const SORT_OPTIONS = [
+  { value: '',            label: 'Default order' },
+  { value: '-mean_score', label: 'Average: Highest first' },
+  { value: 'mean_score',  label: 'Average: Lowest first' },
+]
+
+// Average (mean of subject %) as shown on the report itself; flags provisional reports.
+function AverageCell({ report }) {
+  const { mean_score: mean, subject_count: total, complete_subject_count: complete, is_provisional: provisional } = report
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {mean === null || mean === undefined
+        ? <span className="text-neutral-400">—</span>
+        : <span className="font-semibold text-black">{mean}%</span>}
+      {provisional && total > 0 && (
+        <span
+          className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full"
+          title={`Results complete for ${complete} of ${total} subjects; no grade or position yet`}
+        >
+          Provisional {complete}/{total}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function StatusBadge({ status }) {
   const meta = STATUS_META[status] || { label: status, color: 'bg-gray-100 text-gray-700' }
   return (
@@ -48,6 +74,7 @@ export default function CourseReports() {
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
+  const [ordering, setOrdering] = useState('')
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [initiateClassId, setInitiateClassId] = useState('')
@@ -87,6 +114,7 @@ export default function CourseReports() {
         const parts = [`page=${page}`, `page_size=${pageSize}`]
         if (selectedClass) parts.push(`class_id=${selectedClass}`)
         if (selectedStatus) parts.push(`status=${selectedStatus}`)
+        if (ordering) parts.push(`ordering=${encodeURIComponent(ordering)}`)
         if (search.trim()) parts.push(`search=${encodeURIComponent(search.trim())}`)
         const data = await api.getCourseReports(parts.join('&'))
         if (!cancelled) {
@@ -101,7 +129,7 @@ export default function CourseReports() {
     }
     fetchReports()
     return () => { cancelled = true }
-  }, [page, pageSize, selectedClass, selectedStatus, search, refreshTick])
+  }, [page, pageSize, selectedClass, selectedStatus, ordering, search, refreshTick])
 
   function handleSearchChange(e) {
     clearTimeout(searchTimeout.current)
@@ -274,7 +302,22 @@ export default function CourseReports() {
             <option key={val} value={val}>{label}</option>
           ))}
         </select>
+        <select
+          value={ordering}
+          onChange={e => { setOrdering(e.target.value); setPage(1) }}
+          aria-label="Sort reports"
+          className="text-sm text-black border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white"
+        >
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </div>
+      {ordering && (
+        <p className="text-xs text-neutral-600 -mt-2">
+          Average = mean of the percentages of completed subjects, each subject counted equally.
+          Provisional reports are listed after complete ones. This is not the same measure as the
+          Performance Analytics rankings, which combine total marks with attendance.
+        </p>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -324,6 +367,10 @@ export default function CourseReports() {
                       </div>
                     )}
                     <div className="flex justify-between gap-2">
+                      <span className="text-neutral-600">Average:</span>
+                      <AverageCell report={report} />
+                    </div>
+                    <div className="flex justify-between gap-2">
                       <span className="text-neutral-600">Course:</span>
                       <span className="text-black truncate ml-2">{report.course_name || '—'}</span>
                     </div>
@@ -347,6 +394,7 @@ export default function CourseReports() {
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Class</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Course</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider" title="Mean of completed subject percentages">Average</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold text-neutral-600 uppercase tracking-wider">Updated</th>
                 </tr>
@@ -385,6 +433,9 @@ export default function CourseReports() {
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-700 whitespace-nowrap">
                         {report.course_name || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        <AverageCell report={report} />
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <StatusBadge status={report.status} />

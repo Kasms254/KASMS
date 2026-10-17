@@ -3183,6 +3183,14 @@ class CourseReportListSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     course_name = serializers.CharField(source='class_obj.course.name', read_only=True)
     photo_url = serializers.SerializerMethodField()
+    # From context['academic_summaries'] (course_report_academics.report_summaries);
+    # None when the caller did not supply summaries (e.g. bulk-create response).
+    mean_score = serializers.SerializerMethodField()
+    subject_count = serializers.SerializerMethodField()
+    complete_subject_count = serializers.SerializerMethodField()
+    is_provisional = serializers.SerializerMethodField()
+    class_position = serializers.SerializerMethodField()
+    academic_source = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseReport
@@ -3191,6 +3199,8 @@ class CourseReportListSerializer(serializers.ModelSerializer):
             'student', 'class_name', 'course_name',
             'class_obj', 'enrollment',
             'photo_url',
+            'mean_score', 'subject_count', 'complete_subject_count',
+            'is_provisional', 'class_position', 'academic_source',
             'created_at', 'updated_at',
         ]
         read_only_fields = fields
@@ -3200,6 +3210,28 @@ class CourseReportListSerializer(serializers.ModelSerializer):
             return None
         request = self.context.get('request')
         return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+
+    def _academic(self, obj, key):
+        summary = (self.context.get('academic_summaries') or {}).get(obj.id)
+        return summary.get(key) if summary else None
+
+    def get_mean_score(self, obj):
+        return self._academic(obj, 'mean_score')
+
+    def get_subject_count(self, obj):
+        return self._academic(obj, 'subject_count')
+
+    def get_complete_subject_count(self, obj):
+        return self._academic(obj, 'complete_subject_count')
+
+    def get_is_provisional(self, obj):
+        return self._academic(obj, 'is_provisional')
+
+    def get_class_position(self, obj):
+        return self._academic(obj, 'class_position')
+
+    def get_academic_source(self, obj):
+        return self._academic(obj, 'source')
 
 class CourseReportDetailSerializer(serializers.ModelSerializer):
 
