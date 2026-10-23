@@ -3,6 +3,7 @@ import useAuth from '../../hooks/useAuth'
 import useToast from '../../hooks/useToast'
 import useTheme from '../../hooks/useTheme'
 import * as api from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import { Download, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Filter } from 'lucide-react'
 
 export default function StudentResults() {
@@ -191,15 +192,7 @@ export default function StudentResults() {
   // Mirrors the backend ExamResult.grade property exactly
   function toLetterGrade(pct) {
     if (pct == null) return '—'
-    if (pct >= 91) return 'A'
-    if (pct >= 86) return 'A-'
-    if (pct >= 81) return 'B+'
-    if (pct >= 76) return 'B'
-    if (pct >= 71) return 'B-'
-    if (pct >= 65) return 'C+'
-    if (pct >= 60) return 'C'
-    if (pct >= 50) return 'C-'
-    return 'F'
+    return gradeFromPercentage(Number(pct))
   }
 
   function getGradeColor(grade) {

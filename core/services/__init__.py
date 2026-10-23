@@ -181,6 +181,29 @@ def weighted_component_percentage(component_scores):
     return weighted_sum / total_weight
 
 
+# Lower bound (inclusive) of each letter grade, highest first. Same scale as
+# ExamResult.grade and the exam reports.
+GRADE_SCALE = (
+    (91, 'A'), (86, 'A-'), (81, 'B+'), (76, 'B'), (71, 'B-'),
+    (65, 'C+'), (60, 'C'), (50, 'C-'),
+)
+
+
+# Float division leaves an exact boundary just below it (18.2 / 20 * 100 is
+# 90.99999999999999), so comparisons allow for that error. It is far smaller
+# than any real difference between marks.
+_FLOAT_ERROR = 1e-9
+
+
+def grade_for_percentage(percentage):
+    """Letter grade for a percentage, graded as given (no rounding first)."""
+    percentage = float(percentage)
+    for lower_bound, grade in GRADE_SCALE:
+        if percentage + _FLOAT_ERROR >= lower_bound:
+            return grade
+    return 'F'
+
+
 def _get_effective_result(component, student):
     attempts = StudentComponentResult.all_objects.filter(
         component=component,

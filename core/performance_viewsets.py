@@ -21,17 +21,10 @@ from .serializers import (
 )
 from .permissions import IsAdminOrInstructor, IsAdminOrCommandant
 from .models import OICAssignment, DepartmentMembership
+from .services import grade_for_percentage
 
 def _calculate_grade(percentage):
-    if percentage >= 91: return 'A'
-    if percentage >= 86: return 'A-'
-    if percentage >= 81: return 'B+'
-    if percentage >= 76: return 'B'
-    if percentage >= 71: return 'B-'
-    if percentage >= 65: return 'C+'
-    if percentage >= 60: return 'C'
-    if percentage >= 50: return 'C-'
-    return 'F'
+    return grade_for_percentage(percentage)
 
 
 def _interpret_correlation(correlation):
@@ -912,6 +905,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
             sse = subj_exam_data.get(sid, {})
             ssa = subj_att_data.get(sid, {})
             sb = []
+            subject_pcts = []  # unrounded, for the mean and the grade
             for subj in subjects:
                 sa = ssa.get(subj.id, {})
                 ssess = ssc.get(subj.id, 0)
@@ -930,7 +924,7 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     spct = (stm / stp * 100) if stp else 0
 
                 if stm > 0 or satt > 0:
-                 
+                    subject_pcts.append(float(spct))
                     sb.append({
                         'subject_name': subj.name,
                         'subject_code': getattr(subj, 'subject_code', getattr(subj, 'code', subj.name)),
@@ -942,9 +936,9 @@ class ClassPerformanceViewSet(_ClassAccessMixin, viewsets.ViewSet):
                     })
 
           
-            total_marks_obtained = round(sum(item['marks_obtained'] for item in sb), 2)
+            total_marks_obtained = round(sum(subject_pcts), 2)
             total_marks_possible = float(len(sb) * 100)
-            ep = (total_marks_obtained / total_marks_possible * 100) if total_marks_possible else 0
+            ep = (sum(subject_pcts) / len(subject_pcts)) if subject_pcts else 0
             combined = float(ep) * 0.7 + float(ar) * 0.3
 
             rankings.append({

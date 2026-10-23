@@ -48,7 +48,7 @@ from .services import (
     bulk_issue_certificates, bulk_assign_indexes, evaluate_subject_pass_fail,
     determine_retake_requirements, compute_component_results, get_subject_completion_status_v2,
     renumber_class_indexes, get_certificates_grouped_by_class, build_certificate_preview,
-    delete_student_with_reports)
+    delete_student_with_reports, grade_for_percentage)
 from .services.user_import import build_preview, commit_import, UserImportError, REQUIRED_COLUMNS
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -2878,24 +2878,7 @@ class ExamResultViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _calculate_overall_grade(percentage):
-        if percentage >= 91:
-            return 'A'
-        elif percentage >= 86:
-            return 'A-'
-        elif percentage >= 81:
-            return 'B+'
-        elif percentage >= 76:
-            return 'B'
-        elif percentage >= 71:
-            return 'B-'
-        elif percentage >= 65:
-            return 'C+'
-        elif percentage >= 60:
-            return 'C'
-        elif percentage >= 50:
-            return 'C-'
-        else:
-            return 'F'
+        return grade_for_percentage(percentage)
 
     def _create_grade_notification(self, exam_result):
         try:
@@ -4019,24 +4002,7 @@ class StudentDashboardViewset(viewsets.ViewSet):
                     total_possible += float(r.component.total_marks)
                 average_percentage = (total_marks / total_possible * 100) if total_possible > 0 else 0
 
-                if average_percentage >=91:
-                    grade_letter = 'A'
-                elif average_percentage >=86:
-                    grade_letter = 'A-'
-                elif average_percentage >= 81:
-                    grade_letter = 'B+'
-                elif average_percentage >= 76:
-                    grade_letter = 'B'
-                elif average_percentage >= 71:
-                    grade_letter = 'B-'
-                elif average_percentage >= 65:
-                    grade_letter = 'C+'
-                elif average_percentage >= 60:
-                    grade_letter = 'C'
-                elif average_percentage >= 50:
-                    grade_letter = 'C-'
-                else:
-                    grade_letter = 'F'
+                grade_letter = grade_for_percentage(average_percentage)
 
                 stats['active_class_id'] = active_class_id
                 stats['active_class_name'] = active_class_name
