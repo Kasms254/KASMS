@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import EmptyState from '../../components/EmptyState'
@@ -27,15 +28,7 @@ const GRADE_COLORS = {
 
 function _gradeFromPct(pct) {
   const p = parseFloat(pct) || 0
-  if (p >= 91) return 'A'
-  if (p >= 86) return 'A-'
-  if (p >= 81) return 'B+'
-  if (p >= 76) return 'B'
-  if (p >= 71) return 'B-'
-  if (p >= 65) return 'C+'
-  if (p >= 60) return 'C'
-  if (p >= 50) return 'C-'
-  return 'F'
+  return gradeFromPercentage(p)
 }
 
 const EXAM_TYPES = ['cat', 'final', 'project', 'assignment']
@@ -387,8 +380,9 @@ export default function CommandantExamReports() {
             subject_breakdown:    mappedBreakdown,
             total_marks_obtained: finalObtained,
             total_marks_possible: finalPossible,
-            total_grade:          _gradeFromPct(overallPct),
-            total_percentage:     overallPct,
+            // Backend grades the unrounded mean; exam_percentage is that mean rounded for display
+            total_grade:          student.overall_grade ?? _gradeFromPct(overallPct),
+            total_percentage:     student.exam_percentage ?? overallPct,
           }
         })
       }

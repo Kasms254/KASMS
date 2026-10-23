@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useLocation } from 'react-router'
 import api, { createResultEditRequest } from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import useToast from '../../hooks/useToast'
 import useAuth from '../../hooks/useAuth'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -8,15 +9,7 @@ import ConfirmModal from '../../components/ConfirmModal'
 function gradeFromPct(pct) {
   const p = parseFloat(pct)
   if (isNaN(p) || pct == null) return '—'
-  if (p >= 91) return 'A'
-  if (p >= 86) return 'A-'
-  if (p >= 81) return 'B+'
-  if (p >= 76) return 'B'
-  if (p >= 71) return 'B-'
-  if (p >= 65) return 'C+'
-  if (p >= 60) return 'C'
-  if (p >= 50) return 'C-'
-  return 'F'
+  return gradeFromPercentage(p)
 }
 
 export default function AddResults() {

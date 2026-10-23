@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation } from 'react-router'
 import * as LucideIcons from 'lucide-react'
 import api from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import { getRankSortIndex } from '../../lib/rankOrder'
 import useToast from '../../hooks/useToast'
 
@@ -12,15 +13,7 @@ function toPercent(n) {
 
 function gradeFromPercent(p) {
   if (p == null || Number.isNaN(Number(p))) return null
-  if (p >= 91) return 'A'
-  if (p >= 86) return 'A-'
-  if (p >= 81) return 'B+'
-  if (p >= 76) return 'B'
-  if (p >= 71) return 'B-'
-  if (p >= 65) return 'C+'
-  if (p >= 60) return 'C'
-  if (p >= 50) return 'C-'
-  return 'F'
+  return gradeFromPercentage(Number(p))
 }
 
 export default function ClassDetail() {

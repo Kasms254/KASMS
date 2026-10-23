@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as LucideIcons from 'lucide-react'
 import * as api from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import useAuth from '../../hooks/useAuth'
 import { shortRank } from '../../lib/rankUtils'
 import useToast from '../../hooks/useToast'
@@ -15,15 +16,7 @@ import autoTable from 'jspdf-autotable'
 
 function _gradeFromPct(pct) {
   const p = parseFloat(pct) || 0
-  if (p >= 91) return 'A'
-  if (p >= 86) return 'A-'
-  if (p >= 81) return 'B+'
-  if (p >= 76) return 'B'
-  if (p >= 71) return 'B-'
-  if (p >= 65) return 'C+'
-  if (p >= 60) return 'C'
-  if (p >= 50) return 'C-'
-  return 'F'
+  return gradeFromPercentage(p)
 }
 
 /**
@@ -211,17 +204,7 @@ export default function ExamReports() {
     
     // Grade distribution
     const grades = { A: 0, 'A-': 0, 'B+': 0, B: 0, 'B-': 0, 'C+': 0, C: 0, 'C-': 0, F: 0 }
-    percentages.forEach(p => {
-      if (p >= 91) grades.A++
-      else if (p >= 86) grades['A-']++
-      else if (p >= 81) grades['B+']++
-      else if (p >= 76) grades.B++
-      else if (p >= 71) grades['B-']++
-      else if (p >= 65) grades['C+']++
-      else if (p >= 60) grades.C++
-      else if (p >= 50) grades['C-']++
-      else grades.F++
-    })
+    percentages.forEach(p => { grades[gradeFromPercentage(p)]++ })
     
     return {
       total: examResults.length,
@@ -353,15 +336,7 @@ export default function ExamReports() {
   // Get grade from percentage
   const getGrade = useCallback((pct) => {
     const p = parseFloat(pct)
-    if (p >= 91) return 'A'
-    if (p >= 86) return 'A-'
-    if (p >= 81) return 'B+'
-    if (p >= 76) return 'B'
-    if (p >= 71) return 'B-'
-    if (p >= 65) return 'C+'
-    if (p >= 60) return 'C'
-    if (p >= 50) return 'C-'
-    return 'F'
+    return gradeFromPercentage(p)
   }, [])
 
   // Reset comprehensive view when class changes
@@ -395,8 +370,9 @@ export default function ExamReports() {
             subject_breakdown: mappedBreakdown,
             total_marks_obtained: finalObtained,
             total_marks_possible: finalPossible,
-            total_grade: _gradeFromPct(overallPct),
-            total_percentage: overallPct,
+            // Backend grades the unrounded mean; exam_percentage is that mean rounded for display
+            total_grade: student.overall_grade ?? _gradeFromPct(overallPct),
+            total_percentage: student.exam_percentage ?? overallPct,
           }
         })
       }
@@ -1382,7 +1358,7 @@ export default function ExamReports() {
                     {paginatedResults.map((result, idx) => {
                       const isGraded = result.is_submitted && result.marks_obtained != null
                       const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
-                      const grade = isGraded ? getGrade(pct) : null
+                      const grade = isGraded ? (result.grade || getGrade((result.marks_obtained / selectedExam.total_marks) * 100)) : null
                       const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
                       const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
 
@@ -1461,7 +1437,7 @@ export default function ExamReports() {
                     {paginatedResults.map((result, idx) => {
                       const isGraded = result.is_submitted && result.marks_obtained != null
                       const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
-                      const grade = isGraded ? getGrade(pct) : null
+                      const grade = isGraded ? (result.grade || getGrade((result.marks_obtained / selectedExam.total_marks) * 100)) : null
                       const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
                       const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
 
@@ -1565,7 +1541,7 @@ export default function ExamReports() {
                       {paginatedResults.map((result, idx) => {
                         const isGraded = result.is_submitted && result.marks_obtained != null
                         const pct = isGraded ? calcPercentage(result.marks_obtained, selectedExam.total_marks) : 0
-                        const grade = isGraded ? getGrade(pct) : null
+                        const grade = isGraded ? (result.grade || getGrade((result.marks_obtained / selectedExam.total_marks) * 100)) : null
                         const serialNumber = (resultsPage - 1) * resultsPerPage + idx + 1
                         const overallRank = sortedResults.findIndex(r => r.id === result.id) + 1
 

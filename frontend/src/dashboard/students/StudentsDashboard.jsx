@@ -3,21 +3,14 @@ import Card from '../../components/Card'
 import Calendar from '../../components/Calendar'
 import useAuth from '../../hooks/useAuth'
 import * as api from '../../lib/api'
+import { gradeFromPercentage } from '../../lib/grading'
 import { fetchMyClassNotices, fetchActiveNotices, invalidateNotices } from '../../lib/noticesCache'
 
 // Mirrors backend ExamResult.grade / _calculate_grade exactly
 function gradeFromPct(pct) {
   const p = parseFloat(pct)
   if (isNaN(p) || pct == null) return null
-  if (p >= 91) return 'A'
-  if (p >= 86) return 'A-'
-  if (p >= 81) return 'B+'
-  if (p >= 76) return 'B'
-  if (p >= 71) return 'B-'
-  if (p >= 65) return 'C+'
-  if (p >= 60) return 'C'
-  if (p >= 50) return 'C-'
-  return 'F'
+  return gradeFromPercentage(p)
 }
 
 export default function StudentsDashboard() {

@@ -2,7 +2,7 @@
 import logging
 import os
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Count, Prefetch, Q
 from rest_framework import filters, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import (
     CourseReport, CourseReportStageRemark, CourseReportAuditLog,
-    Class, Enrollment, OICAssignment,
+    Class, DepartmentMembership, Enrollment, OICAssignment,
 )
 from .serializers import (
     CourseReportListSerializer, CourseReportDetailSerializer,
@@ -35,6 +35,11 @@ _MAX_PHOTO_SIZE = 2 * 1024 * 1024  # 2 MB
 # Complete reports sort first, then provisional, then those with no average;
 # equal averages fall back to student name, then svc number.
 _MEAN_SCORE_ORDERINGS = {'-mean_score': True, 'mean_score': False}
+
+# Read-only actions on which an instructor who heads a department also sees
+# the reports of that department's classes. Every other action keeps the
+# instructor's own scope, so department access never grants a write.
+_DEPARTMENT_READ_ACTIONS = {'list', 'retrieve', 'report_classes'}
 
 
 def _student_sort_key(report):
@@ -85,7 +90,26 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             is_active=True,
         ).values_list('class_obj_id', flat=True)
 
+    def _get_hod_class_ids(self):
+        """Classes of the departments the user actively heads in their own school."""
+        school = self._get_school()
+        headed_departments = DepartmentMembership.all_objects.filter(
+            user=self.request.user,
+            role=DepartmentMembership.Role.HOD,
+            is_active=True,
+            department__school=school,
+        ).values('department_id')
+        return Class.objects.filter(
+            school=school,
+            department_id__in=headed_departments,
+        ).values_list('id', flat=True)
+
     def get_queryset(self):
+        return self._scoped_queryset(
+            include_department=self.action in _DEPARTMENT_READ_ACTIONS,
+        )
+
+    def _scoped_queryset(self, include_department):
         school = self._get_school()
         role = self._get_role()
 
@@ -101,7 +125,10 @@ class CourseReportViewSet(viewsets.ModelViewSet):
 
 
         if role == 'instructor':
-            qs = qs.filter(class_obj_id__in=self._get_instructor_class_ids())
+            scope = Q(class_obj_id__in=self._get_instructor_class_ids())
+            if include_department:
+                scope |= Q(class_obj_id__in=self._get_hod_class_ids())
+            qs = qs.filter(scope)
         elif role == 'oic':
             qs = qs.filter(class_obj_id__in=self._get_oic_class_ids())
 
@@ -183,6 +210,12 @@ class CourseReportViewSet(viewsets.ModelViewSet):
             report.class_obj.instructor_id == request.user.id
         )
 
+        # Reached only through the department scope (an HOD reading a
+        # colleague's class): the write actions would refuse it, so say so.
+        read_only = not self._scoped_queryset(include_department=False).filter(pk=report.pk).exists()
+        if read_only:
+            can_edit = can_submit = can_advance = can_download = can_edit_photo = False
+
         serializer = self.get_serializer(report)
         data = serializer.data
         data['visible_remarks'] = CourseReportStageRemarkSerializer(
@@ -193,6 +226,7 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         data['can_advance'] = can_advance
         data['can_download'] = bool(can_download)
         data['can_edit_photo'] = bool(can_edit_photo)
+        data['read_only'] = read_only
 
         class_obj = report.class_obj
         data['academic_data'] = report_summary(report)
@@ -202,6 +236,33 @@ class CourseReportViewSet(viewsets.ModelViewSet):
         data['end_date'] = class_obj.end_date.strftime('%d %b %Y') if class_obj.end_date else None
 
         return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='classes')
+    def report_classes(self, request):
+        """
+        Classes with course reports the user may read, for the class filter.
+        is_own is False for classes visible only through the department scope.
+        """
+        report_counts = dict(
+            self.get_queryset().values('class_obj_id').annotate(n=Count('id')).values_list('class_obj_id', 'n')
+        )
+        own_class_ids = set(
+            self._scoped_queryset(include_department=False).values_list('class_obj_id', flat=True)
+        )
+        classes = Class.objects.filter(
+            school=self._get_school(), id__in=report_counts,
+        ).select_related('course', 'department').order_by('name', 'id')
+        return Response([
+            {
+                'id': str(cls.id),
+                'name': cls.name,
+                'course_name': cls.course.name if cls.course else None,
+                'department_name': cls.department.name if cls.department else None,
+                'report_count': report_counts[cls.id],
+                'is_own': cls.id in own_class_ids,
+            }
+            for cls in classes
+        ])
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):

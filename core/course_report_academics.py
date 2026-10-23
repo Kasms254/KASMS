@@ -19,6 +19,10 @@ Policy (approved 2026-10-17):
   provisional: it shows that average but gets no overall grade or position.
 - Class positions rank non-provisional students by average using competition
   ranking (1, 1, 3).
+- Subject and overall grades use the system grade scale
+  (core.services.grade_for_percentage), the same one the exam reports use.
+  The overall grade comes from the unrounded mean of unrounded subject
+  percentages (decided 2026-10-23); mean_score is rounded to 2 dp for display.
 - Once approved, a report's figures come from the snapshot taken at approval.
 """
 from collections import defaultdict
@@ -29,7 +33,7 @@ from django.utils import timezone
 from .models import (
     AssessmentComponent, Enrollment, Exam, ExamResult, StudentComponentResult, Subject,
 )
-from .services import select_effective_attempt, weighted_component_percentage
+from .services import grade_for_percentage, select_effective_attempt, weighted_component_percentage
 
 # Exam results that count towards an exam-graded subject.
 ELIGIBLE_RESULT_FILTER = {
@@ -48,24 +52,15 @@ ROW_NOT_CONFIGURED = 'not_configured'
 def pdf_grade(score, hps):
     if hps == 0:
         return 'N/A'
-    pct = (score / hps) * 100
-    if pct >= 91: return 'A'
-    if pct >= 86: return 'A-'
-    if pct >= 81: return 'B+'
-    if pct >= 76: return 'B'
-    if pct >= 71: return 'B'
-    if pct >= 65: return 'C+'
-    if pct >= 60: return 'C'
-    if pct >= 50: return 'C'
-    return 'F'
+    return grade_for_percentage((score / hps) * 100)
 
 
 def grade_descriptor(grade):
     if grade in ('A', 'A-'):
         return 'Outstanding'
-    if grade in ('B+', 'B'):
+    if grade in ('B+', 'B', 'B-'):
         return 'Above Average'
-    if grade in ('C+', 'C'):
+    if grade in ('C+', 'C', 'C-'):
         return 'Average'
     return 'Fail'
 
@@ -209,10 +204,11 @@ def _student_summary(subjects, student_id, data, class_size):
 
     complete_rows = [r for r in rows if r['status'] == ROW_COMPLETE]
     is_provisional = len(complete_rows) < len(rows)
-    mean_score = round(sum(percentages) / len(percentages), 2) if percentages else None
+    raw_mean = sum(percentages) / len(percentages) if percentages else None
+    mean_score = round(raw_mean, 2) if raw_mean is not None else None
 
-    if mean_score is not None and not is_provisional:
-        overall_grade = pdf_grade(mean_score, 100)
+    if raw_mean is not None and not is_provisional:
+        overall_grade = grade_for_percentage(raw_mean)
         descriptor = grade_descriptor(overall_grade)
     else:
         overall_grade = '—'
