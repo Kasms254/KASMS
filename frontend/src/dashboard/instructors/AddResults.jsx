@@ -17,6 +17,8 @@ export default function AddResults() {
   const toast = useToast()
 
   const [exams, setExams] = useState([])
+  // True once the exam list request has settled; an exam's grading mode is unknown before that
+  const [examsLoaded, setExamsLoaded] = useState(false)
   const [selectedExam, setSelectedExam] = useState('')
   const [examInfo, setExamInfo] = useState(null)
   const [results, setResults] = useState([])
@@ -75,6 +77,8 @@ export default function AddResults() {
         setSubjectsMap(map)
       } catch (err) {
         toast.error(err?.message || 'Failed to load exams')
+      } finally {
+        if (mounted) setExamsLoaded(true)
       }
     }
     if (user) load()
@@ -133,6 +137,10 @@ export default function AddResults() {
 
     async function dispatchExam(id) {
       if (!id) return
+      // Opening /list/results?exam=<id> sets the exam before the list arrives. Guessing LEGACY
+      // here would call generate_results for a POLICY exam, creating attempt-1 rows after the
+      // grading sheet loaded, so the first save was rejected as "changed since you loaded it".
+      if (!examsLoaded) return
       const exam = exams.find(e => String(e.id) === String(id))
       const mode = exam?.grading_mode || 'LEGACY'
       setExamGradingMode(mode)
@@ -144,6 +152,13 @@ export default function AddResults() {
       setResults([])
       setExamInfo(null)
       setRetakeActive(new Set())
+
+      // Not in the list (list failed to load, or a stale/hand-typed URL): the grading mode is
+      // unknown, so never fall back to LEGACY's generate_results write.
+      if (!exam) {
+        toast.error('This exam is not in your exam list. Select an exam from the list.')
+        return
+      }
 
       if (mode === 'POLICY') {
         const compId = exam?.component || exam?.component_id
@@ -186,7 +201,7 @@ export default function AddResults() {
 
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExam, exams, subjectsMap])
+  }, [selectedExam, exams, subjectsMap, examsLoaded])
 
   function updateRow(idx, key, value) {
     // mark the row dirty and run inline validation for marks

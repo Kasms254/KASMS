@@ -1304,6 +1304,100 @@ class TestOversightCannotWriteViaOtherEndpoints:
         assert _client(_make_user('admin', school)).delete(f'/api/assessment-components/{component.id}/').status_code == 204
 
 
+@pytest.mark.django_db
+class TestPlaceholdersCreatedAfterSheetLoad:
+    """
+    Production report: "1 result(s) not saved: This result was changed since you loaded it."
+    Opening /list/results?exam=<id> called generate_results before the exam list had loaded,
+    i.e. before the page knew the exam was POLICY. That POST creates empty attempt-1 rows, so
+    a grading sheet read before it committed carried tokens for "no result" while the server
+    now held a placeholder. The stale check is correct; the page must not create rows behind
+    a loaded sheet. These tests pin the server side of that sequence.
+    """
+
+    def test_sheet_loaded_before_generate_results_is_rejected_as_stale(self, instructor, python_cat):
+        component, students = python_cat
+        exam = _make_exam(component)
+        client = _client(instructor)
+        row = _sheet(client, component).data['results'][0]
+        assert row['result'] is None
+
+        assert client.post(f'/api/exams/{exam.id}/generate_results/').status_code == 200
+        response = _grade(
+            client, component, [students[0]], marks=20,
+            expected_latest_attempt=0, expected_version='',
+        )
+
+        assert response.status_code == 200
+        assert response.data['created'] == 0 and response.data['updated'] == 0
+        assert 'changed since you loaded' in response.data['errors'][0]['error']
+        assert not StudentComponentResult.all_objects.filter(
+            component=component, marks_obtained__isnull=False,
+        ).exists()
+
+    def test_sheet_reloaded_after_generate_results_saves_into_placeholder(self, instructor, python_cat):
+        component, students = python_cat
+        exam = _make_exam(component)
+        client = _client(instructor)
+        assert client.post(f'/api/exams/{exam.id}/generate_results/').status_code == 200
+        row = _sheet(client, component).data['results'][0]
+        student = next(s for s in students if s.id == row['student_id'])
+
+        response = _grade(
+            client, component, [student], marks=20,
+            expected_latest_attempt=row['result']['attempt_number'],
+            expected_version=row['result']['version'],
+        )
+
+        assert response.data == {'status': 'success', 'created': 0, 'updated': 1, 'errors': []}
+        result = StudentComponentResult.all_objects.get(component=component, student=student)
+        assert result.attempt_number == 1
+        assert result.marks_obtained == 20
+
+    def test_policy_flow_without_generate_results_saves_whole_class(self, instructor, python_cat):
+        """The fixed page loads the sheet and saves; no placeholder rows are needed."""
+        component, students = python_cat
+        client = _client(instructor)
+        rows = _sheet(client, component).data['results']
+
+        response = client.post(BULK_URL, {
+            'component_id': str(component.id),
+            'results': [
+                {
+                    'student_id': row['student_id'], 'marks_obtained': 15, 'remarks': '',
+                    'expected_latest_attempt': 0, 'expected_version': '',
+                }
+                for row in rows
+            ],
+        }, format='json')
+
+        assert response.data == {'status': 'success', 'created': 21, 'updated': 0, 'errors': []}
+        assert _sheet(client, component).data['graded_count'] == 21
+
+    def test_genuine_concurrent_grade_is_still_rejected(self, school, instructor, python_cat):
+        """Another user grades a student after the sheet was loaded: still a conflict, marks kept."""
+        component, students = python_cat
+        client = _client(instructor)
+        _sheet(client, component)
+        admin = _client(_make_user('admin', school))
+        assert _grade(admin, component, [students[0]], marks=25, expected_version='').data['created'] == 1
+
+        response = _grade(client, component, [students[0]], marks=10, expected_latest_attempt=0, expected_version='')
+
+        assert 'changed since you loaded' in response.data['errors'][0]['error']
+        assert StudentComponentResult.all_objects.get(component=component, student=students[0]).marks_obtained == 25
+
+    def test_other_school_instructor_cannot_generate_placeholders(self, other_school, python_cat):
+        component, _ = python_cat
+        exam = _make_exam(component)
+        outsider = _make_user('instructor', other_school)
+
+        response = _client(outsider).post(f'/api/exams/{exam.id}/generate_results/')
+
+        assert response.status_code in (403, 404)
+        assert not StudentComponentResult.all_objects.filter(component=component).exists()
+
+
 def _department(school, name='Signals'):
     from core.models import Department
     return Department.objects.create(school=school, name=name, code=name[:6].upper())
