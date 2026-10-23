@@ -23,7 +23,218 @@ jobs:
           POSTGRES_DB: test_db
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          # Senior Engineer Investigation: Elimuka Instructor Cannot Save Marks
+
+Act as a **Senior Django/DRF Backend Engineer, React Engineer, and Application Security Engineer**. Investigate and resolve a production issue in Elimuka, the deployed KASMS school management system.
+
+## 1. Reported issue
+
+An instructor attempts to add or save student marks in Elimuka, but the operation fails with this message:
+
+> Result(s) not saved: This Result Was Changed Since You Loaded It. Reload and Try Again.
+
+The instructor cannot successfully save the marks.
+
+This message suggests that the application may be detecting a stale result, version mismatch, concurrent modification, or another optimistic-locking conflict. **Do not assume this is the root cause. Prove it from the code and runtime evidence.**
+
+## 2. Primary objective
+
+Find the exact cause of the failure and implement the smallest correct, production-safe fix that restores legitimate instructor mark entry while preserving data integrity, authorization, auditability, and concurrent-edit protection.
+
+The fix must not merely suppress the error or bypass the stale-result check.
+
+## 3. Phase 1 — Establish the current state
+
+Before editing anything:
+
+1. Identify the actual repository root and inspect the project structure.
+2. Read the repository instructions, including `CLAUDE.md`, relevant agent instructions, and existing architecture documentation.
+3. Inspect `git status`, the current branch, recent relevant commits, and all existing diffs.
+4. Preserve every pre-existing user change. Do not discard, overwrite, reset, stash, or revert existing work.
+5. Identify the frontend and backend components responsible for instructor mark entry.
+
+Do not assume that the checked-out branch or local code exactly matches production. Establish the deployment context and report any discrepancy.
+
+## 4. Phase 2 — Trace the complete mark-saving workflow
+
+Follow the operation end to end.
+
+### Frontend
+
+Inspect the instructor marks-entry interface and determine:
+
+- How result records are fetched and represented in client state.
+- Whether result IDs, version numbers, timestamps, or other concurrency tokens are sent with save requests.
+- Whether multiple requests are triggered by autosave, repeated clicks, bulk saving, React effects, retries, or component re-renders.
+- Whether multiple marks requests can run concurrently or overwrite each other's client state.
+- Whether the frontend retains stale data after switching students, exams, classes, subjects, or pages.
+- Whether the same result appears more than once in a batch payload.
+- Whether partial failures or successful saves cause the client to retry with an outdated version.
+- Whether the API response updates the frontend's concurrency token correctly after a successful write.
+
+Inspect the exact request payload, response handling, and error-mapping logic.
+
+### Backend
+
+Trace the relevant Django models, serializers, views/viewsets, services, and database operations.
+
+Determine:
+
+- Where the error message originates.
+- What condition triggers the stale-result check.
+- Whether the client is sending an outdated or missing version/token.
+- Whether the comparison is performed against the correct database record and version.
+- Whether a legitimate earlier write in the same batch makes subsequent records appear stale.
+- Whether duplicate records, queryset evaluation, bulk operations, or in-memory model instances create false conflicts.
+- Whether transaction boundaries, `select_for_update()`, atomic updates, or database isolation affect the result.
+- Whether the backend compares a whole batch against a snapshot that becomes outdated while processing that same batch.
+- Whether retries, background jobs, signals, or other application code modify the same result records.
+- Whether the error is caused by a genuine concurrent edit or an incorrect conflict-detection implementation.
+
+Search for the exact error string and related stale-result/version-conflict logic throughout the repository.
+
+### Deployment and database
+
+Establish whether the issue can be reproduced locally and whether it may be specific to the deployed environment.
+
+Check, where available:
+
+- API request logs and relevant exception traces.
+- The deployed frontend and backend versions.
+- Database engine and transaction behavior.
+- Any recently deployed changes affecting mark entry, result updates, bulk saves, or concurrency control.
+- Whether the deployed frontend and backend expect compatible payload and response formats.
+
+Do not expose student information, authentication tokens, or other sensitive data in logs or reports.
+
+## 5. Phase 3 — Reproduce before fixing
+
+Create a focused reproduction using automated tests or a controlled local environment.
+
+Test at least these scenarios:
+
+1. An instructor saves marks for a single student.
+2. An instructor saves marks for multiple students in one batch.
+3. An instructor saves marks for several students when one record has genuinely changed.
+4. A batch containing one invalid or conflicting record.
+5. Two clients load the same result and attempt to update it concurrently.
+6. A client saves one result and then updates another result using the same batch workflow.
+7. Repeated submission of the same request.
+8. Missing, malformed, or outdated concurrency tokens, if applicable.
+9. Instructor authorization and school/tenant isolation.
+10. Existing rules for submitted, approved, frozen, or otherwise locked results.
+
+Determine which scenarios reproduce the reported error and explain why.
+
+## 6. Phase 4 — Implement the correct fix
+
+Once the root cause is established:
+
+- Fix the underlying defect rather than hiding the symptom.
+- Preserve optimistic concurrency control or the existing equivalent protection.
+- Ensure ordinary instructor edits succeed when no genuine conflicting modification has occurred.
+- Ensure genuine concurrent changes are still detected and reported accurately.
+- If the issue is in batch processing, ensure the application's own successful updates do not incorrectly invalidate later records in the same request.
+- If the issue is in frontend state management, ensure successful responses update the correct record and concurrency token.
+- If the issue is caused by transaction or query behavior, correct the transaction boundaries and update strategy without introducing lost updates.
+- Preserve all existing role-based permissions, tenant isolation, approval workflows, and restrictions on modifying finalized results.
+- Preserve existing API contracts unless a change is demonstrably necessary.
+- Avoid unnecessary schema migrations, broad refactors, new dependencies, and unrelated changes.
+
+**Never fix this by disabling stale-version checks, blindly retrying writes, accepting every stale request, or overwriting the latest database values with stale client data.**
+
+If a legitimate conflict occurs, return the expected conflict response and provide a safe recovery path appropriate to the existing application design.
+
+## 7. Phase 5 — Automated regression tests
+
+Write regression tests that fail before the fix and pass afterward.
+
+Cover:
+
+- The exact failure mechanism discovered.
+- Single-record and batch mark saving.
+- Multiple records processed in one request.
+- Legitimate sequential updates.
+- Genuine concurrent modifications.
+- Atomicity and partial-failure behavior consistent with the existing API contract.
+- Authentication, instructor permissions, and tenant boundaries.
+- Submitted/frozen/approved result protections.
+- The response payload and frontend handling, if the defect crosses the API boundary.
+
+Use the project's existing test conventions and database configuration. Prefer targeted regression tests before running the broader suite.
+
+Do not modify or weaken existing tests merely to obtain a passing result.
+
+## 8. Phase 6 — Verification
+
+Run the relevant checks available in the repository:
+
+- Focused backend regression tests.
+- Related existing result/marks tests.
+- Frontend lint and type checking, if applicable.
+- Relevant integration tests.
+- Broader backend test suite where practical.
+- Production build if frontend code changes.
+
+Verify that the fix does not introduce regressions in result submission, approval, reporting, or other mark-entry workflows.
+
+Report the exact commands and actual results. Clearly distinguish tests that passed from tests that were not run or could not be run.
+
+## 9. Safety and execution boundaries
+
+This is a production-sensitive school management system.
+
+- Do not modify production data or manually change student marks.
+- Do not run destructive database commands or reset databases.
+- Do not deploy, push, commit, or alter production configuration.
+- Do not expose secrets or student personal data.
+- Do not change unrelated features.
+- Do not overwrite existing uncommitted work.
+- Do not claim a fix is verified if it has only been inferred from code review.
+
+You may make the minimal code and test changes required to fix the confirmed defect locally.
+
+If the root cause depends on production evidence that is unavailable, state exactly what evidence is missing, implement only a fix justified by the available evidence, and avoid speculative changes.
+
+## 10. Required final report
+
+After the investigation and implementation, provide:
+
+### A. Root cause
+- Exact faulty component and relevant file/function.
+- The sequence of events that causes the error.
+- Why legitimate instructor mark entry fails.
+- Whether the issue is confirmed in the deployed version or only reproduced locally.
+
+### B. Fix implemented
+- Files changed and the purpose of each change.
+- Why the fix addresses the actual root cause.
+- How genuine concurrent modifications remain protected.
+
+### C. Test results
+- Regression tests added.
+- Tests that failed before the fix and passed afterward.
+- Commands run and their results.
+- Any tests that remain unverified.
+
+### D. Risk assessment
+- Potential impact on existing marks, batch saves, approval workflows, and concurrent editing.
+- Database migration requirements, if any.
+- Any remaining production risks.
+
+### E. Deployment recommendation
+Choose one:
+- **Ready for staging verification**
+- **Ready for production deployment**
+- **Not ready — additional investigation required**
+
+Explain the evidence supporting that decision and give the next safe verification step.
+
+### Working principle
+
+Investigate like a senior engineer responsible for data integrity in a live education system. Establish the failure mechanism, reproduce it, write a regression test, fix the root cause, and verify the result. Prefer the smallest defensible change over a speculative refactor.
+
+Begin with read-only investigation and repository-state checks. Then proceed with targeted implementation and testing once the evidence supports a specific fix. Do not stop at a diagnosis if the root cause can be reproduced and safely fixed within the repository.--health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
