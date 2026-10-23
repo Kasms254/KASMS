@@ -35,6 +35,7 @@ const SENTENCE_CASE_CONFIG = {
     'stage', // Preserve stage values for comparisons (instructor, oic, chief_instructor, commandant)
     'type', // Preserve type values
     'id', // Preserve ID fields
+    'version', // Opaque result token (grading_sheet); sent back verbatim as expected_version
     'logo', // Preserve file paths (e.g., school_logos/...)
     'logo_url', // Preserve logo URL paths
     'photo', // Preserve file paths (e.g., course_reports/photos/...)
