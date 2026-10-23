@@ -521,6 +521,13 @@ function ReportPanel({ reportId, user, onReportChange }) {
     <div className="flex-1 overflow-y-auto bg-[#f5f5f0]">
       <div className="max-w-4xl mx-auto px-4 py-5 space-y-5">
 
+        {report.read_only && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-800">
+            <LucideIcons.Eye className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>Read-only: you can view this report as Head of Department. Remarks, submission and approval stay with the review chain.</span>
+          </div>
+        )}
+
         {/* ── School header ── */}
         <div className="flex items-center gap-3">
           <img

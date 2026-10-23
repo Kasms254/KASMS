@@ -355,6 +355,13 @@ export default function CourseReportDetail() {
   return (
     <div className="w-full px-3 sm:px-4 md:px-6 space-y-4">
 
+      {report.read_only && (
+        <div className="flex items-start gap-2 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-800">
+          <LucideIcons.Eye className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>Read-only: you can view this report as Head of Department. Remarks, submission and approval stay with the review chain.</span>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">

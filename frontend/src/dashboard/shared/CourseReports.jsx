@@ -100,6 +100,17 @@ export default function CourseReports() {
     ? allClasses.filter(c => c.instructor === user?.id)
     : allClasses
 
+  // An instructor who heads a department can also read (not act on) the
+  // reports of that department's classes; the backend decides which.
+  const { data: reportClasses } = useQuery({
+    queryKey: ['course-report-classes', user?.id],
+    queryFn: () => api.getCourseReportClasses(),
+    staleTime: 5 * 60 * 1000,
+    enabled: isInstructor && !!user?.is_hod,
+  })
+  const departmentClasses = (reportClasses ?? []).filter(c => !c.is_own)
+  const isDepartmentClass = departmentClasses.some(c => c.id === selectedClass)
+
   const toastRef = useRef(toast)
   toastRef.current = toast
 
@@ -225,7 +236,7 @@ export default function CourseReports() {
           {canBulkAction && isInstructor && (
             <button
               onClick={handleBulkSubmit}
-              disabled={bulkLoading || !selectedClass}
+              disabled={bulkLoading || !selectedClass || isDepartmentClass}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-sm font-medium text-black hover:bg-neutral-50 disabled:opacity-50 transition"
             >
               <Send className="w-4 h-4" />
@@ -291,6 +302,15 @@ export default function CourseReports() {
         >
           <option value="">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {departmentClasses.length > 0 && (
+            <optgroup label="Department classes (read-only)">
+              {departmentClasses.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.department_name ? ` — ${c.department_name}` : ''}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <select
           value={selectedStatus}

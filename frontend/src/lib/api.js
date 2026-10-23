@@ -2295,6 +2295,11 @@ export async function getCourseReportDetail(id) {
   return request(`/api/course-reports/${encodeURIComponent(id)}/`)
 }
 
+// Classes whose course reports the user may read (is_own: false = department read-only)
+export async function getCourseReportClasses() {
+  return request('/api/course-reports/classes/')
+}
+
 export async function bulkCreateCourseReports(classId) {
   return request('/api/course-reports/bulk-create/', { method: 'POST', body: { class_obj: classId } })
 }
@@ -2788,6 +2793,7 @@ export default {
   // Course Reports
   getCourseReports,
   getCourseReportDetail,
+  getCourseReportClasses,
   bulkCreateCourseReports,
   saveCourseReportRemark,
   submitCourseReport,
